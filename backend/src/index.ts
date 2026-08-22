@@ -8261,16 +8261,24 @@ const AUTH_PUBLIC_PATHS = new Set([
   '/api/version',
 ]);
 
-app.use('/api', (req, res, next) => {
+function requireSessionAuth(req: express.Request, _res: express.Response, next: express.NextFunction) {
   const config = configManager.getConfig();
   if (!config.loginEnabled) return next();
-
-  const routePath = req.path.startsWith('/') ? `/api${req.path}` : `/api/${req.path}`;
-  if (AUTH_PUBLIC_PATHS.has(routePath)) return next();
-
   if (authStore.verify(readRequestAuthToken(req))) return next();
   return next(new StructuredRequestError(401, AUTH_LOGIN_REQUIRED_ERROR_CODE, 'Login is required to perform this action.'));
+}
+
+app.use('/api', (req, res, next) => {
+  const routePath = req.path.startsWith('/') ? `/api${req.path}` : `/api/${req.path}`;
+  if (AUTH_PUBLIC_PATHS.has(routePath)) return next();
+  return requireSessionAuth(req, res, next);
 });
+
+// /openclaw 与 /uploads 不在 /api 前缀下，得单独挂——它们出的是工作区文件与
+// 用户上传，正是开了登录之后最不该匿名可取的东西。浏览器加载 <img src="/uploads/...">
+// 是同源请求，cookie 会自动带上，所以加了鉴权也不会打断图片显示。
+app.use('/openclaw', requireSessionAuth);
+app.use('/uploads', requireSessionAuth);
 
 // Auth endpoints
 app.get('/api/auth/check', (req, res) => {
