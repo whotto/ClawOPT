@@ -111,16 +111,3 @@ node scripts/apply-branding.mjs         # 执行
 
 它会同步处理 npm 包名、systemd 服务名、数据目录、SQLite 文件名、localStorage 键、环境变量前缀和更新源 URL——**这些漏一个就会和其他版本在同一台机器上打架。**
 
----
-
-## 致谢与来源
-
-本项目基于 [ClawOPT](https://github.com/liandu2024/OpenClaw-Chat-Gateway)（作者 liandu2024）的内核改造而来，**已获得作者授权**。
-
-上游解决了 OpenClaw Web 客户端的管理层问题，做得很扎实——多智能体隔离、模型分流、移动端体验这几块是我们没有重造轮子的原因。
-
-详见 [`NOTICE`](NOTICE)。
-
-## 许可
-
-见 [`LICENSE`](LICENSE)。
