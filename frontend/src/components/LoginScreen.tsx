@@ -78,8 +78,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       <div className="w-full max-w-sm mx-4">
         <div className="mb-8 flex justify-center">
           <div>
-            <div className="text-2xl font-black text-gray-900 tracking-tighter leading-tight mb-1">OpenClaw</div>
-            <div className="text-2xl font-bold text-gray-400 tracking-widest uppercase leading-tight">CLAWOPT</div>
+            <div className="text-3xl font-black text-gray-900 tracking-tighter leading-tight mb-1 text-center">ClawOPT</div>
+            <div className="text-[0.9rem] font-medium text-gray-400 leading-tight text-center">Powered by OpenClaw</div>
           </div>
         </div>
 

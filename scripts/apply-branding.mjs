@@ -20,7 +20,7 @@ const B = JSON.parse(fs.readFileSync(path.join(ROOT, 'branding.json'), 'utf8'));
 // 顺序敏感：长串在前，避免被短串先吃掉
 // 历史 slug（本项目改过名的话，把旧值列在这里，脚本就能从旧名继续迁移）
 const LEGACY_SLUGS = ['clawui', 'optlobster'];
-const LEGACY_DISPLAY = ['ClawUI', 'OpenClaw Chat Gateway', 'OPT Lobster'];
+const LEGACY_DISPLAY = ['ClawUI', 'OpenClaw Chat Gateway', 'OPT Lobster', 'OPT 龙虾', 'OPT 龍蝦', 'OPT Team'];
 const LEGACY_WORDMARK = ['CHAT GATEWAY', 'Chat Gateway', 'OPT TEAM'];
 const LEGACY_ENV = ['CLAWUI', 'OPTLOBSTER'];
 const LEGACY_REPO = ['OpenClaw-Chat-Gateway', 'OPT-Lobster'];

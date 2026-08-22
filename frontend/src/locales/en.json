@@ -310,7 +310,7 @@
       "title": "General Settings",
       "description": "Configure basic AI assistant information and security options.",
       "aiNameLabel": "AI Name",
-      "aiNamePlaceholder": "OPT Team",
+      "aiNamePlaceholder": "ClawOPT",
       "aiNameHint": "Name shown in chat. Limit: 10 Chinese characters or 20 English characters.",
       "aiNameRequired": "AI name cannot be empty",
       "aiNameTooLong": "AI name is too long (max 10 Chinese characters or 20 English characters)",

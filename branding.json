@@ -1,7 +1,7 @@
 {
   "_comment": "品牌单一真相源。改这里 + 跑 node scripts/apply-branding.mjs 即可整体换名，不要散着改代码。脚本对 clawui(上游原名) 与本项目历史 slug 都可重复执行。",
   "slug": "clawopt",
-  "displayName": "OPT 龙虾",
+  "displayName": "ClawOPT",
   "displayNameEn": "ClawOPT",
   "tagline": "一键复制一支 AI 团队",
   "taglineEn": "Clone an AI team in one command",

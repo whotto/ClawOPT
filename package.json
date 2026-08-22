@@ -2,7 +2,7 @@
   "name": "clawopt",
   "version": "1.0.0",
   "appName": "ClawOPT",
-  "description": "OPT 龙虾 · OpenClaw 全功能 Web 客户端 + 可一键装配的角色预设库",
+  "description": "ClawOPT · OpenClaw 全功能 Web 客户端 + 可一键装配的角色预设库",
   "private": true,
   "repository": {
     "type": "git",

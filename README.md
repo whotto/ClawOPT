@@ -1,16 +1,16 @@
 <p align="center">
-  <b>OPT 龙虾 · ClawOPT</b><br/>
+  <b>ClawOPT · ClawOPT</b><br/>
   <sub>一键复制一支 AI 团队</sub>
 </p>
 
-# OPT 龙虾
+# ClawOPT
 
 **OpenClaw 的全功能 Web 客户端 + 可一键装配的角色预设库。**
 
 市面上的 OpenClaw 客户端都在解决"怎么管 Agent"。
 它们把建 Agent 做到了极致，但**建出来的 Agent 是空的**——默认的 `USER.md` 只有四行。
 
-OPT 龙虾多做一件事：**把"装什么进去"也一起解决了。**
+ClawOPT多做一件事：**把"装什么进去"也一起解决了。**
 
 ---
 
