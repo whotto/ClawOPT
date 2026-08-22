@@ -7,7 +7,15 @@ SERVICE_DIR="$HOME/.config/systemd/user"
 SKIP_SERVICE_RESTART=${CLAWOPT_SKIP_SERVICE_RESTART:-0}
 BROWSER_WARMUP_MARKER="$HOME/${CLAWOPT_DATA_DIR:-.clawopt}/browser-warmup.pending"
 
-export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+# Node 解析顺序：OpenClaw 自带 Node 优先
+# 原因：backend 的 better-sqlite3 / sharp 是按该版本 ABI 编译的，
+#      退回系统 Node（可能是 v20）会直接加载失败。
+OC_NODE_DIR="$(ls -d "$HOME"/.openclaw/tools/node-v*/bin 2>/dev/null | sort -V | tail -1)"
+if [ -n "$OC_NODE_DIR" ]; then
+    export PATH="$OC_NODE_DIR:$PATH"
+    echo "使用 OpenClaw 自带 Node: $("$OC_NODE_DIR/node" -v)"
+fi
+export PATH="$PATH:$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 emit_phase() {
     echo "::clawopt-update-phase::$1"
@@ -52,13 +60,36 @@ echo "Service Name:  $SERVICE_NAME"
 
 echo "Installing dependencies..."
 cd "$PROJECT_ROOT"
-npm install --include=dev
-cd backend && npm install --include=dev && cd ..
-cd frontend && npm install --include=dev && cd ..
+# ── 优先使用预构建产物（小内存主机友好）──
+# 前端 vite build 峰值约 1GB 内存 + 312MB 依赖。
+# 若 GitHub Release 提供了 dist 产物，直接下载解压，跳过整个构建链。
+PREBUILT_OK=0
+REL_TAG="$(curl -fsSL -m 20 https://api.github.com/repos/whotto/ClawOPT/releases/latest 2>/dev/null \
+           | grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
+if [ -n "$REL_TAG" ] && [ "${CLAWOPT_FORCE_BUILD:-0}" != "1" ]; then
+    ART="https://github.com/whotto/ClawOPT/releases/download/${REL_TAG}/clawopt-dist-${REL_TAG}.tgz"
+    echo "尝试预构建产物: $REL_TAG"
+    if curl -fsSL -m 120 "$ART" -o /tmp/clawopt-dist.tgz 2>/dev/null; then
+        tar -xzf /tmp/clawopt-dist.tgz -C . && PREBUILT_OK=1
+        rm -f /tmp/clawopt-dist.tgz
+        echo "✓ 已使用预构建产物，跳过前端构建"
+    else
+        echo "· 无预构建产物，回退到本地构建"
+    fi
+fi
+
+if [ "$PREBUILT_OK" = "1" ]; then
+    # 只装后端运行时依赖（7 个），不装 dev、不装前端
+    cd backend && npm install --omit=dev --no-audit --no-fund && cd ..
+else
+    npm install --include=dev
+    cd backend && npm install --include=dev && cd ..
+    cd frontend && npm install --include=dev && cd ..
+fi
 
 emit_phase "build"
 echo "Building projects..."
-npm run build
+if [ "$PREBUILT_OK" = "1" ]; then echo "跳过构建（已用预构建产物）"; else npm run build; fi
 restore_deploy_lockfiles
 
 emit_phase "patch-config"
@@ -83,6 +114,10 @@ cp "$PROJECT_ROOT/clawopt.service" "$SERVICE_DIR/$SERVICE_NAME.service"
 # Update WorkingDirectory, Port, and Description in the service file
 sed -i "s|WorkingDirectory=.*|WorkingDirectory=$PROJECT_ROOT/backend|" "$SERVICE_DIR/$SERVICE_NAME.service"
 sed -i "s/Environment=PORT=.*/Environment=PORT=$CLAWOPT_PORT/" "$SERVICE_DIR/$SERVICE_NAME.service"
+# ExecStart 指向 OpenClaw 自带 Node（原生模块 ABI 依赖）
+if [ -n "$OC_NODE_DIR" ]; then
+    sed -i "s|^ExecStart=.*|ExecStart=$OC_NODE_DIR/node dist/index.js|" "$SERVICE_DIR/$SERVICE_NAME.service"
+fi
 sed -i "s/Description=.*/Description=ClawOPT Service (Port $CLAWOPT_PORT)/" "$SERVICE_DIR/$SERVICE_NAME.service"
 if grep -q '^Environment=PATH=' "$SERVICE_DIR/$SERVICE_NAME.service"; then
     sed -i "s|^Environment=PATH=.*|Environment=PATH=$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin|" "$SERVICE_DIR/$SERVICE_NAME.service"
