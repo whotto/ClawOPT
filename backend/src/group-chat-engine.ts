@@ -853,6 +853,36 @@ export class GroupChatEngine extends EventEmitter {
     this.canUseHostTakeover = canUseHostTakeover || (() => isGroupHostTakeoverEnabled());
   }
 
+  /**
+   * 每个群当前持锁的起始时间。
+   *
+   * 锁本身在 finally 里释放，不会因抛错泄漏——真正会卡死的是
+   * dispatchExistingUserMessage 一直 await 不返回（文档工具首次 bootstrap
+   * 最长 20 分钟、转写、生图都在这条链上，全程没有超时）。此时 finally 没执行，
+   * 群就一直锁着，之后每条消息都吃 409 且无从自救。
+   *
+   * 这里不强杀正在跑的任务（它可能真的只是慢，杀掉会让用户丢掉已经产生的回复），
+   * 而是记录持锁时长：超过阈值后允许新一轮抢占，并在日志里留痕。
+   */
+  private processingSince = new Map<string, number>();
+
+  /** 超过这个时长仍未释放，视为卡死，允许新消息抢占。 */
+  private static readonly STALE_LOCK_MS = 15 * 60 * 1000;
+
+  /** 持锁是否已经陈旧到可以被抢占。 */
+  private isGroupLockStale(groupId: string): boolean {
+    const since = this.processingSince.get(groupId);
+    if (since === undefined) return false;
+    return Date.now() - since > GroupChatEngine.STALE_LOCK_MS;
+  }
+
+  /** 已经持锁多久（分钟），用于给用户一个能判断的数字。 */
+  groupLockAgeMinutes(groupId: string): number | null {
+    const since = this.processingSince.get(groupId);
+    if (since === undefined) return null;
+    return Math.floor((Date.now() - since) / 60000);
+  }
+
   private emitRunState(groupId: string) {
     const activeRun = this.activeRuns.get(groupId);
     const pendingRun = this.pendingRuns.get(groupId);
@@ -1191,13 +1221,20 @@ export class GroupChatEngine extends EventEmitter {
    */
   async sendUserMessage(groupId: string, content: string, specifiedParentId?: number): Promise<void> {
     if (this.processingGroups.has(groupId)) {
-      const error = new Error('Group run already in progress.');
-      (error as Error & { code?: string }).code = 'GROUP_RUN_IN_PROGRESS';
-      throw error;
+      if (!this.isGroupLockStale(groupId)) {
+        const error = new Error('Group run already in progress.');
+        (error as Error & { code?: string }).code = 'GROUP_RUN_IN_PROGRESS';
+        throw error;
+      }
+      // 卡了太久：放行新一轮，否则这个群只能靠 /stop 才能恢复。
+      console.warn(`[GroupChat] 群 ${groupId} 的运行锁已持有 ${this.groupLockAgeMinutes(groupId)} 分钟，判定为卡死并允许新一轮开始`);
+      this.processingGroups.delete(groupId);
+      this.processingSince.delete(groupId);
     }
 
     const resetEpoch = this.getResetEpoch(groupId);
     this.processingGroups.add(groupId);
+    this.processingSince.set(groupId, Date.now());
     this.emitRunState(groupId);
 
     try {
@@ -1229,19 +1266,27 @@ export class GroupChatEngine extends EventEmitter {
       }
     } finally {
       this.processingGroups.delete(groupId);
+      this.processingSince.delete(groupId);
       this.emitRunState(groupId);
     }
   }
 
   async rerunUserMessage(groupId: string, userMessageId: number): Promise<void> {
     if (this.processingGroups.has(groupId)) {
-      const error = new Error('Group run already in progress.');
-      (error as Error & { code?: string }).code = 'GROUP_RUN_IN_PROGRESS';
-      throw error;
+      if (!this.isGroupLockStale(groupId)) {
+        const error = new Error('Group run already in progress.');
+        (error as Error & { code?: string }).code = 'GROUP_RUN_IN_PROGRESS';
+        throw error;
+      }
+      // 卡了太久：放行新一轮，否则这个群只能靠 /stop 才能恢复。
+      console.warn(`[GroupChat] 群 ${groupId} 的运行锁已持有 ${this.groupLockAgeMinutes(groupId)} 分钟，判定为卡死并允许新一轮开始`);
+      this.processingGroups.delete(groupId);
+      this.processingSince.delete(groupId);
     }
 
     const resetEpoch = this.getResetEpoch(groupId);
     this.processingGroups.add(groupId);
+    this.processingSince.set(groupId, Date.now());
     this.emitRunState(groupId);
 
     try {
@@ -1277,6 +1322,7 @@ export class GroupChatEngine extends EventEmitter {
       }
     } finally {
       this.processingGroups.delete(groupId);
+      this.processingSince.delete(groupId);
       this.emitRunState(groupId);
     }
   }

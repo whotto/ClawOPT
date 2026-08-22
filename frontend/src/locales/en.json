@@ -195,7 +195,8 @@
     "idContainsWhitespace": "Team ID cannot contain spaces",
     "idInvalid": "Team ID may only contain letters, numbers, underscores, and hyphens",
     "idAlreadyExists": "Team ID \"{{groupId}}\" already exists",
-    "notFound": "Team not found"
+    "notFound": "Team not found",
+    "runInProgress": "The previous run is still going ({{minutes}} min). Wait for it, or press stop and resend. After 15 minutes stuck, a new message takes over automatically."
   },
   "chat": {
     "defineRoles": "Define role prompts",
@@ -320,7 +321,11 @@
     "historyPagePromptOlder": "Scroll up again to view the earlier {{count}} rounds",
     "historyPagePromptNewer": "Scroll down again to view the newer {{count}} rounds",
     "historyPageNoticeOlder": "Showing earlier {{count}} rounds",
-    "historyPageNoticeNewer": "Returned to newer {{count}} rounds"
+    "historyPageNoticeNewer": "Returned to newer {{count}} rounds",
+    "sendFailed": "This message could not be sent. Check your connection and try again.",
+    "uploadFailed": "Attachment upload failed, so the message was not sent — fix the attachment first, otherwise the file never arrives.",
+    "historyLoadFailed": "Chat history did not load this time (it is not lost). Refresh or try again.",
+    "replyMayBeIncomplete": "This reply may be cut off — the connection dropped and the full version could not be recovered from history. Send again or ask it to continue."
   },
   "messageBubble": {
     "processTitle": "Execution",

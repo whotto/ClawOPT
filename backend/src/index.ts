@@ -13480,7 +13480,11 @@ app.post('/api/groups/:id/messages', async (req, res) => {
 
     if (groupChatEngine.isGroupProcessing(req.params.id)) {
       return res.status(409).json({
-        ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE),
+        // 把「已经跑了多久」一并回去：用户看到「上一轮已经跑了 3 分钟」
+        // 和看到一个裸 409，能做的判断完全不同。
+        ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE, null, {
+          minutes: groupChatEngine.groupLockAgeMinutes(req.params.id) ?? 0,
+        }),
         runState: groupChatEngine.getGroupRunState(req.params.id),
       });
     }
@@ -13571,7 +13575,11 @@ app.put('/api/groups/:id/messages/:msgId', (req, res) => {
     const shouldRerun = existingMessage.sender_type === 'user';
     if (shouldRerun && groupChatEngine.isGroupProcessing(req.params.id)) {
       return res.status(409).json({
-        ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE),
+        // 把「已经跑了多久」一并回去：用户看到「上一轮已经跑了 3 分钟」
+        // 和看到一个裸 409，能做的判断完全不同。
+        ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE, null, {
+          minutes: groupChatEngine.groupLockAgeMinutes(req.params.id) ?? 0,
+        }),
         runState: groupChatEngine.getGroupRunState(req.params.id),
       });
     }

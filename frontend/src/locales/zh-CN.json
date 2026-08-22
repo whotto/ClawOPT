@@ -195,7 +195,8 @@
     "idContainsWhitespace": "团队 ID 不允许包含空格",
     "idInvalid": "团队 ID 只允许字母、数字、下划线和连字符",
     "idAlreadyExists": "团队 ID \"{{groupId}}\" 已存在",
-    "notFound": "团队不存在"
+    "notFound": "团队不存在",
+    "runInProgress": "上一轮还在跑（已经 {{minutes}} 分钟）。等它结束，或者点停止再发。卡住超过 15 分钟后，新消息会自动接管。"
   },
   "chat": {
     "defineRoles": "设定角色提示词",
@@ -320,7 +321,11 @@
     "historyPagePromptOlder": "继续上滚查看更早的 {{count}} 轮",
     "historyPagePromptNewer": "继续下滚查看更新的 {{count}} 轮",
     "historyPageNoticeOlder": "已切换到更早 {{count}} 轮",
-    "historyPageNoticeNewer": "已返回更新 {{count}} 轮"
+    "historyPageNoticeNewer": "已返回更新 {{count}} 轮",
+    "sendFailed": "这条消息没能发出去。检查网络或稍后重试。",
+    "uploadFailed": "附件上传失败，消息没有发送——先处理附件再发，免得对方收不到文件。",
+    "historyLoadFailed": "聊天记录这次没加载出来（不是记录丢了）。刷新页面或稍后重试。",
+    "replyMayBeIncomplete": "这条回复可能没写完——连接中断了，而且没能从历史里补回完整版本。重新发一次或让它继续。"
   },
   "messageBubble": {
     "processTitle": "执行过程",

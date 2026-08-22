@@ -232,12 +232,6 @@ function mergeHistoryMessages(olderMessages: ChatMessage[], newerMessages: ChatM
   return merged;
 }
 
-function shouldAttemptMissingTerminalRecovery(content: string): boolean {
-  const normalized = content.trim();
-  if (!normalized) return true;
-  return normalized.length <= 200;
-}
-
 function hasOwnMessageField<T extends object>(value: T, key: keyof any): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
@@ -758,6 +752,9 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // 发送/上传/加载失败时说人话。此前这些路径只把输入退回输入框、
+  // 或者 catch {} 了事——用户看到消息弹回来却不知道为什么，只能反复重试。
+  const [submitError, setSubmitError] = useState('');
   const [activeLeafId, setActiveLeafId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -1868,7 +1865,14 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       setMessages(result.messages);
       setPageInfo(result.pageInfo);
       setActiveLeafId(result.activeLeafId);
-    } catch {}
+      setSubmitError('');
+    } catch (error: any) {
+      // 之前是 catch {}：showSkeleton 已经把消息清空了，加载失败就变成一个
+      // 「空会话」——用户以为聊天记录没了，实际只是这次没拉到。必须说清楚。
+      if (historyContextRef.current === contextKey) {
+        setSubmitError(error?.message || t('unifiedChat.historyLoadFailed'));
+      }
+    }
     finally {
       if (showSkeleton && historyContextRef.current === contextKey) {
         setIsInitialLoading(false);
@@ -2302,7 +2306,6 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         let buffer = '';
         let receivedFinal = false;
         let receivedError = false;
-        let lastStreamText = '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -2327,7 +2330,6 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
                   }, true);
                 }
               } else if (evt.type === 'delta' || evt.type === 'final') {
-                lastStreamText = typeof evt.text === 'string' ? evt.text : '';
                 if (evt.type === 'final') {
                   receivedFinal = true;
                 }
@@ -2360,8 +2362,9 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         }
 
         flushQueuedMessagePatches();
-        if (!controller.signal.aborted && !receivedFinal && !receivedError && shouldAttemptMissingTerminalRecovery(lastStreamText)) {
-          await recoverLatestChatMessages(true);
+        if (!controller.signal.aborted && !receivedFinal && !receivedError) {
+          const recovered = await recoverLatestChatMessages(true);
+          if (!recovered) setSubmitError(t('unifiedChat.replyMayBeIncomplete'));
         }
       } catch (error: any) {
         if (error?.name !== 'AbortError' && attachedMessageId) {
@@ -3001,7 +3004,6 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
         let receivedFinal = false;
         let receivedError = false;
-        let lastStreamText = '';
         while (true) {
           const { done, value } = await reader.read(); if (done) break;
           buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
@@ -3018,7 +3020,6 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
                 assistantTargetIds.add(previousResolvedId);
                 assistantTargetIds.add(resolvedId);
               } else if (evt.type === 'delta' || evt.type === 'final') {
-                lastStreamText = typeof evt.text === 'string' ? evt.text : '';
                 if (evt.type === 'final') {
                   receivedFinal = true;
                 }
@@ -3055,8 +3056,9 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         if (!receivedError && receivedFinal) {
           queueAssistantPatch({ processStreaming: false }, true);
         }
-        if (!receivedFinal && !receivedError && shouldAttemptMissingTerminalRecovery(lastStreamText)) {
-          await recoverLatestChatMessages(true);
+        if (!receivedFinal && !receivedError) {
+          const recovered = await recoverLatestChatMessages(true);
+          if (!recovered) setSubmitError(t('unifiedChat.replyMayBeIncomplete'));
         }
       } catch (error: any) {
         if (error?.name !== 'AbortError') {
@@ -3170,7 +3172,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
     }
     filesToUpload.forEach(f => fd.append('files', f.file));
     const upRes = await fetch('/api/files/upload', { method: 'POST', body: fd });
-    const upData = await upRes.json();
+    const upData = await upRes.json().catch(() => null);
     if (upData?.success && upData.files) {
       return upData.files.map((f: any) => {
         const isImage = f.mimeType?.startsWith('image/');
@@ -3178,13 +3180,16 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         return isImage ? `![${name}](${f.url})` : `[${name}](${f.url})`;
       }).join('\n');
     }
-    return '';
+    // 上传失败必须抛，不能返回空串。返回空串的后果是：附件被静默丢掉，
+    // 消息照发——用户以为文件发出去了，模型那头什么也没收到。
+    throw new Error(resolveSubmitError(upData || {}, t, 'unifiedChat.uploadFailed'));
   };
 
   // ---- Send message ----
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || isLoading || isGroupBusy) return;
+    setSubmitError('');
     const currentInput = input.trim(); const currentFiles = [...pendingFiles]; const currentQuote = quotedMessage;
     const submitLeafId = prepareLatestHistoryWindowForSubmit();
     setInput(''); setPendingFiles([]); setQuotedMessage(null); setIsLoading(true);
@@ -3246,7 +3251,6 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
         let receivedFinal = false;
         let receivedError = false;
-        let lastStreamText = '';
         while (true) {
           const { done, value } = await reader.read(); if (done) break;
           buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
@@ -3272,7 +3276,6 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
                 assistantTargetIds.add(previousAssistantId);
                 assistantTargetIds.add(realAssistantId);
               } else if (evt.type === 'delta' || evt.type === 'final') {
-                lastStreamText = typeof evt.text === 'string' ? evt.text : '';
                 if (evt.type === 'final') {
                   receivedFinal = true;
                 }
@@ -3309,8 +3312,13 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         if (!receivedError) {
           queueAssistantPatch({ processStreaming: false }, true);
         }
-        if (!receivedFinal && !receivedError && shouldAttemptMissingTerminalRecovery(lastStreamText)) {
-          await recoverLatestChatMessages(true);
+        if (!receivedFinal && !receivedError && !abortControllerRef.current?.signal.aborted) {
+          // 没有终态事件 = 这轮回复没有正常收尾。先回历史对账，
+          // 对账也拿不到完整版就必须说出来——静默展示半截内容是最伤信任的做法。
+          const recovered = await recoverLatestChatMessages(true);
+          if (!recovered) {
+            setSubmitError(t('unifiedChat.replyMayBeIncomplete'));
+          }
         }
       } catch (error: any) {
         if (error.name !== 'AbortError') {
@@ -3351,6 +3359,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
           setInput(currentInput);
           setPendingFiles(currentFiles);
           setQuotedMessage(currentQuote);
+          setSubmitError(resolveSubmitError(payload || {}, t, 'unifiedChat.sendFailed'));
           if (payload?.runState) {
             setGroupRunState({
               active: !!payload.runState.active,
@@ -3361,10 +3370,11 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
           }
           return;
         }
-      } catch {
+      } catch (error: any) {
         setInput(currentInput);
         setPendingFiles(currentFiles);
         setQuotedMessage(currentQuote);
+        setSubmitError(error?.message || t('unifiedChat.sendFailed'));
       } finally { setIsLoading(false); }
     }
   };
@@ -3952,6 +3962,21 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       {/* Input Area */}
       <div className="px-4 sm:px-6 pb-6 sm:pb-4 pt-2 flex-shrink-0 bg-white">
         <div className="max-w-5xl mx-auto flex flex-col gap-3">
+          {/* 失败提示：发送、上传、历史加载共用这一处，可手动关闭 */}
+          {submitError && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              <span className="flex-1 min-w-0 break-words">{submitError}</span>
+              <button
+                type="button"
+                onClick={() => setSubmitError('')}
+                className="shrink-0 text-red-400 hover:text-red-600"
+                aria-label={t('common.close')}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Pending file previews */}
           {pendingFiles.length > 0 && (
             <div className="flex flex-wrap gap-3 pb-2 animate-in slide-in-from-bottom-2 duration-300">
