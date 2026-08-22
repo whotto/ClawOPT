@@ -40,6 +40,8 @@
 - 新增模块的风格和样式必须参考现有模块；颜色、字号、按钮尺寸、边框、间距、交互反馈等保持一致，不要单独做一套新视觉。
 - 全局不要使用阴影；需要层级或分隔时，优先使用浅灰色边框。
 - 不要保留死代码。
+- 凭据只出不进：任何配置接口都不得把 `token` / `password` / `loginPassword` 的**值**回给前端，只报 `hasXxx` 布尔位；写入时空串一律视为「不修改」而不是「清空」。这条来自一次真实泄露——未鉴权的 `GET /api/config` 曾把登录密码明文吐出来。
+- 一切按路径出文件的接口都必须过 `backend/src/served-paths.ts` 的白名单闸门（先 realpath 再判归属，再判文件名），不得只检查「是不是绝对路径」。允许的根只有工作区与上传目录；`~/.openclaw` 根、`agents/**`、凭据与密钥类文件永远拒绝。
 - `.clawpack` 是智能体/团队的可移植包（gzip JSON，实现在 `backend/src/agent-pack.ts`）。改这块时三道闸门一个都不能松：导入侧的路径白名单（`assertSafeRelPath`，防目录穿越）、远端拉取的内网地址拦截（防 SSRF）、以及「导入只写文件不执行」。包里永远不得出现凭据、`memory/` 每日记录与对话历史。
 - 预设装配有两个入口且共用同一条链路：Web UI（`GET /api/presets` + `POST /api/presets/:id/install`，实现在 `backend/src/preset-installer.ts`）和 CLI（`scripts/install-preset.mjs`）。改装配行为时两边都要跟着改，否则界面装出来的团队和命令行装出来的会不一致。
 - `presets/opt-team/` 是角色配置包（`../openclaw-agents`）的**参数化副本**，唯一真值源在配置包一侧；改预设内容要改源再跑 `npm run presets:sync`，不要直接手改副本。副本里的 `{{USER_TITLE}}` / `{{USER_ROLE}}` / `{{USER_STRENGTH}}` / `{{USER_BLINDSPOT}}` / `{{AGENT_AVATAR}}` 由同步脚本按规则生成，手工拷贝会把占位符写死成具体值，装配器的参数填充随之失效。

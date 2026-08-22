@@ -22,6 +22,7 @@ import {
   writeWorkspaceExtras,
   presetsDirExists,
 } from './preset-installer';
+import { resolveServablePath } from './served-paths';
 import {
   MAX_PACK_BYTES,
   PackError,
@@ -8073,22 +8074,32 @@ app.get('/api/config', (_req, res) => {
   const config = configManager.getConfig();
   res.json({
     gatewayUrl: config.gatewayUrl,
-    token: config.token || '',
     defaultAgent: config.defaultAgent,
     language: config.language || 'zh-CN',
+    // 凭据只报「配没配」，不报值。这个路由无需登录即可访问——一个未鉴权的接口
+    // 把登录密码明文吐出来，等于登录页形同虚设。要改凭据走 POST，不需要先读回来。
     hasToken: !!config.token,
     hasPassword: !!config.password,
+    hasLoginPassword: !!config.loginPassword,
     aiName: config.aiName || 'OpenClaw',
     loginEnabled: config.loginEnabled || false,
-    loginPassword: config.loginPassword || '123456',
     allowedHosts: config.allowedHosts || [],
     historyPageRounds: config.historyPageRounds || 30,
     previewConversionTimeoutSeconds: config.previewConversionTimeoutSeconds || 60,
   });
 });
 
-app.post('/api/config', (req, res) => {
-  configManager.setConfig(req.body);
+app.post('/api/config', requireAdminAuth, (req, res) => {
+  // 写配置必须鉴权：这个路由能改登录密码、能把 loginEnabled 关掉、能改网关指向。
+  // 未开启登录时 requireAdminAuth 直接放行，所以默认部署的行为不变。
+  //
+  // 凭据字段留空视为「不修改」而不是「清空」。GET 不再回读密钥值，前端表单起手就是
+  // 空的；若把空串当清空，用户改个 AI 名字就会顺手把网关口令抹掉。
+  const incoming = { ...req.body } as Record<string, unknown>;
+  for (const field of ['token', 'password', 'loginPassword']) {
+    if (typeof incoming[field] === 'string' && incoming[field] === '') delete incoming[field];
+  }
+  configManager.setConfig(incoming);
   res.json({ success: true });
 });
 
@@ -12435,8 +12446,20 @@ app.get('/uploads/:filename', (req, res) => {
 });
 
 
-// Serve OpenClaw files (workspaces, media, etc.)
-app.use('/openclaw', express.static(path.join(process.env.HOME || '', '.openclaw')));
+// Serve OpenClaw workspace files.
+//
+// 这里原本是 `express.static(~/.openclaw)`，把整棵目录树挂了出去——`openclaw.json`
+// 里的模型 API key、`agents/*/agent/auth-profiles.json` 里的凭据、每个智能体的记忆，
+// 未鉴权一次 GET 全拿得到。现在走与 `/api/files/download` 同一道白名单闸门：
+// 只有工作区与上传目录下的非凭据文件可以被服务。
+app.get(/^\/openclaw\/(.+)/, (req, res) => {
+  const relative = decodeURIComponent(req.params[0] || '');
+  const verdict = resolveServablePath(path.join(process.env.HOME || '', '.openclaw', relative));
+  if (!verdict.ok) {
+    return res.status(verdict.reason === 'notFound' ? 404 : 403).send('Not available');
+  }
+  res.sendFile(verdict.realPath);
+});
 
 // Securely serve arbitrary local files via base64 encoded paths
 app.get('/api/files/download', (req, res) => {
@@ -12448,20 +12471,22 @@ app.get('/api/files/download', (req, res) => {
 
   try {
     const absolutePath = Buffer.from(b64Path, 'base64').toString('utf8');
-    
-    // Basic security check: ensure it's an absolute path
-    if (!path.isAbsolute(absolutePath)) {
-      return res.status(403).send('Only absolute paths are allowed');
+
+    // 「是不是绝对路径」不是安全检查：它放行 /etc/passwd、~/.ssh/id_rsa 与
+    // auth-profiles.json。真正的判据是这个文件是否落在允许的工作区/上传目录内，
+    // 且不是凭据类文件；路径先 realpath 再判归属，符号链接逃不出去。
+    const verdict = resolveServablePath(absolutePath);
+    if (!verdict.ok) {
+      if (verdict.reason === 'notFound') return res.status(404).send('File not found');
+      if (verdict.reason === 'notAbsolute') return res.status(403).send('Only absolute paths are allowed');
+      console.warn(`[Download Blocked] ${verdict.reason}: ${absolutePath}`);
+      return res.status(403).send('This file is not available for download');
     }
 
-    if (!fs.existsSync(absolutePath)) {
-      return res.status(404).send('File not found');
-    }
-
-    const filename = path.basename(absolutePath);
+    const filename = path.basename(verdict.realPath);
     // Allow inline responses for preview while keeping attachment as the default download behavior.
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(filename)}`);
-    res.sendFile(absolutePath);
+    res.sendFile(verdict.realPath);
   } catch (error: any) {
     console.error(`[Download Error] ${error.message}`);
     res.status(500).send('Failed to serve file');

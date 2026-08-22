@@ -609,6 +609,11 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
+  // 后端不再回读密钥值（明文回读等于把凭据发给任何能打开页面的人），
+  // 这里只知道「配没配」，输入框留空表示不修改。
+  const [hasToken, setHasToken] = useState(false);
+  const [hasPassword, setHasPassword] = useState(false);
+  const [hasLoginPassword, setHasLoginPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
@@ -833,11 +838,11 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
       .then(r => r.json())
       .then(data => {
         setUrl(data.gatewayUrl || '');
-        setToken(data.token || '');
-        setPassword(data.password || '');
+        setHasToken(Boolean(data.hasToken));
+        setHasPassword(Boolean(data.hasPassword));
+        setHasLoginPassword(Boolean(data.hasLoginPassword));
         if (data.aiName) setAiName(data.aiName);
         if (data.loginEnabled !== undefined) setLoginEnabled(data.loginEnabled);
-        if (data.loginPassword) setLoginPassword(data.loginPassword);
         if (data.allowedHosts) setAllowedHosts(data.allowedHosts);
         if (data.historyPageRounds !== undefined) {
           const nextHistoryPageRounds = normalizeChatHistoryPageRounds(data.historyPageRounds);
@@ -2138,7 +2143,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildUpdateRequestHeaders(true),
         body: JSON.stringify({ gatewayUrl: url, token, password }),
       });
       if (res.ok) {
@@ -2159,7 +2164,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
       setDetectError('');
     }
     try {
-      const res = await fetch('/api/config/detect-all');
+      const res = await fetch('/api/config/detect-all', { headers: buildUpdateRequestHeaders() });
       const data = await res.json();
       if (data.success && data.data) {
         if (data.data.gatewayUrl) setUrl(data.data.gatewayUrl);
@@ -2823,7 +2828,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildUpdateRequestHeaders(true),
         body: JSON.stringify({ allowedHosts: updated }),
       });
       if (res.ok) {
@@ -2841,7 +2846,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildUpdateRequestHeaders(true),
         body: JSON.stringify({ allowedHosts: updated }),
       });
       if (res.ok) {
@@ -2921,7 +2926,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildUpdateRequestHeaders(true),
         body: JSON.stringify({
           aiName,
           loginEnabled,
@@ -2953,7 +2958,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     try {
       const response = await fetch('/api/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildUpdateRequestHeaders(true),
         body: JSON.stringify({ language: nextLanguage }),
       });
       const data = await response.json().catch(() => ({}));
@@ -4257,8 +4262,10 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                       type="text"
                       value={token}
                       onChange={(e) => setToken(e.target.value)}
+                      placeholder={hasToken ? t('settings.gateway.secretConfigured') : ''}
                       className="block w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
                     />
+                    {hasToken && <p className="text-xs text-gray-400 mt-1.5">{t('settings.gateway.secretKeepHint')}</p>}
                   </div>
 
                   <div>
@@ -4267,6 +4274,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                       <input
                         type={showPassword ? "text" : "password"}
                         value={password}
+                        placeholder={hasPassword ? t('settings.gateway.secretConfigured') : ''}
                         onChange={(e) => setPassword(e.target.value)}
                         className="block w-full px-4 py-2.5 pr-12 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
                       />
@@ -4834,7 +4842,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                             type={showLoginPassword ? "text" : "password"}
                             value={loginPassword}
                             onChange={(e) => setLoginPassword(e.target.value)}
-                            placeholder={t('settings.general.loginPasswordPlaceholder')}
+                            placeholder={hasLoginPassword ? t('settings.gateway.secretConfigured') : t('settings.general.loginPasswordPlaceholder')}
                             className="block w-full px-4 py-2.5 pr-12 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
                           />
                           <button
@@ -4845,7 +4853,9 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                             {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1.5">{t('settings.general.loginPasswordHint')}</p>
+                        <p className="text-xs text-gray-400 mt-1.5">
+                          {hasLoginPassword ? t('settings.gateway.secretKeepHint') : t('settings.general.loginPasswordHint')}
+                        </p>
                       </div>
                     )}
                   </div>

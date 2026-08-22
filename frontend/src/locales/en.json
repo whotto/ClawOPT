@@ -520,7 +520,9 @@
       "removeHostConfirm": "Delete domain \"{{host}}\"? It will immediately lose access permissions.",
       "testFailed": "Connection test failed",
       "configErrorTitle": "Configuration Error",
-      "errorDetailLabel": "Details"
+      "errorDetailLabel": "Details",
+      "secretConfigured": "Configured (leave blank to keep)",
+      "secretKeepHint": "Stored credentials are never read back. Save with this blank to keep the current value; type to replace it."
     },
     "commands": {
       "headerTitle": "Settings - Quick Commands",

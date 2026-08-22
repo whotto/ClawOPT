@@ -520,7 +520,9 @@
       "removeHostConfirm": "确定要删除域名 \"{{host}}\" 吗？删除后该域名将立即失去访问权限。",
       "testFailed": "测试连接失败",
       "configErrorTitle": "配置错误",
-      "errorDetailLabel": "诊断信息"
+      "errorDetailLabel": "诊断信息",
+      "secretConfigured": "已配置（留空表示不修改）",
+      "secretKeepHint": "出于安全，已保存的凭据不会回显。留空保存即维持原值，填写则覆盖。"
     },
     "commands": {
       "headerTitle": "设置 - 快捷指令",

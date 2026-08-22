@@ -520,7 +520,9 @@
       "removeHostConfirm": "確定要刪除網域 \"{{host}}\" 嗎？刪除後該網域將立即失去存取權限。",
       "testFailed": "測試連線失敗",
       "configErrorTitle": "設定錯誤",
-      "errorDetailLabel": "診斷資訊"
+      "errorDetailLabel": "診斷資訊",
+      "secretConfigured": "已設定（留空表示不修改）",
+      "secretKeepHint": "出於安全，已儲存的憑據不會回顯。留空儲存即維持原值，填寫則覆蓋。"
     },
     "commands": {
       "headerTitle": "設定 - 快捷指令",
