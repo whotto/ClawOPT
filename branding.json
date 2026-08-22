@@ -1,0 +1,25 @@
+{
+  "_comment": "品牌单一真相源。改这里 + 跑 node scripts/apply-branding.mjs 即可整体换名，不要散着改代码。脚本对 clawui(上游原名) 与本项目历史 slug 都可重复执行。",
+  "slug": "clawopt",
+  "displayName": "OPT 龙虾",
+  "displayNameEn": "ClawOPT",
+  "tagline": "一键复制一支 AI 团队",
+  "taglineEn": "Clone an AI team in one command",
+  "description": "OPT 团队的 OpenClaw 全功能 Web 客户端 · 内置可一键装配的角色预设",
+  "repoOwner": "whotto",
+  "repoName": "ClawOPT",
+  "installDir": "ClawOPT",
+  "serviceName": "clawopt",
+  "serviceDesc": "ClawOPT Service",
+  "dataDirRelease": ".clawopt_release",
+  "dataDirDev": ".clawopt_dev",
+  "envPrefix": "CLAWOPT",
+  "defaultPort": "3115",
+  "_replacements": "下面是 apply-branding 的替换表，从上面的值推导，不要手改",
+  "_removeBlocks": [
+    "SettingsView 关于页的作者信息与推广链接区块",
+    "README 的社群与推广小节",
+    "locales 里 openDoorApiLabel / superDoorApiLabel"
+  ],
+  "wordmark": "CLAWOPT"
+}

@@ -1,0 +1,185 @@
+{
+  "id": "opt-team",
+  "version": "1.0.0",
+  "name": "OPT 六角色",
+  "nameEn": "OPT Six Roles",
+  "tagline": "一支配置完整的 AI 团队：上情报、下决策、左洞察、右诊断、中枢纽、外交付",
+  "description": "不是六个人设，是六套完整工作区——带人格、方法论、每步退出条件、安全边界、技能库、定时任务。共 14 个技能，全部遵循 agentskills.io 开放规范。",
+  "author": "OPT Team",
+  "license": "见仓库 LICENSE",
+  "params": [
+    {
+      "key": "USER_TITLE",
+      "label": "Agent 怎么称呼你",
+      "hint": "会出现在所有对话里。课程设计角色用得最多。",
+      "default": "你",
+      "examples": [
+        "你",
+        "老师",
+        "老板",
+        "Boss"
+      ]
+    },
+    {
+      "key": "USER_ROLE",
+      "label": "你的身份与所在领域",
+      "hint": "写进各角色的 USER.md 画像段，越具体 Agent 越准。",
+      "default": "创业者",
+      "examples": [
+        "创业者",
+        "某 SaaS 公司创始人，B 端软件赛道",
+        "产品负责人，电商方向"
+      ]
+    },
+    {
+      "key": "USER_STRENGTH",
+      "label": "你的强项（商业洞察角色用）",
+      "hint": "它会据此判断该在哪一层多追问。",
+      "default": "较强",
+      "examples": [
+        "强（有十年产品经验）",
+        "一般，正在补"
+      ]
+    },
+    {
+      "key": "USER_BLINDSPOT",
+      "label": "你已知的思维盲区（商业洞察角色用）",
+      "hint": "这条最有价值——直接决定它在哪里拉住你。",
+      "default": "容易跳过用户场景直接给方案",
+      "examples": [
+        "容易从供给端出发",
+        "容易过早收敛",
+        "容易只看推力忽略阻力"
+      ]
+    },
+    {
+      "key": "AGENT_AVATAR",
+      "label": "课程设计角色的头像 URL（可留空）",
+      "hint": "工作区相对路径、http(s) URL 或 data URI。",
+      "default": "avatars/course-design.png"
+    }
+  ],
+  "roles": [
+    {
+      "id": "ceo-assistant",
+      "name": "CEO助理",
+      "emoji": "🎯",
+      "position": "中·中枢枢纽",
+      "slogan": "你不用记任何东西，因为我在。",
+      "skills": [
+        "idea-management",
+        "content-digestion",
+        "deep-research",
+        "task-execution",
+        "oscar-research",
+        "point-intel"
+      ],
+      "recommended": true
+    },
+    {
+      "id": "intel-research",
+      "name": "情报调研",
+      "emoji": "🕵️",
+      "position": "上·情报核心",
+      "slogan": "咱们先把事实搞清楚。",
+      "skills": [
+        "point-intel",
+        "oscar-research"
+      ],
+      "recommended": true
+    },
+    {
+      "id": "biz-insight",
+      "name": "商业洞察",
+      "emoji": "🔦",
+      "position": "左·需求与全局",
+      "slogan": "先别急着动手，咱们先把需求看透。",
+      "skills": [
+        "jtbd-demand",
+        "five-steps-quick",
+        "quick-research"
+      ],
+      "recommended": true
+    },
+    {
+      "id": "org-diagnosis",
+      "name": "组织诊断",
+      "emoji": "🔬",
+      "position": "右·团队健康管家",
+      "slogan": "先说问题，再说解法。",
+      "skills": [
+        "team-health-diagnosis",
+        "skill-assessment",
+        "progress-report",
+        "culture-audit",
+        "point-intel",
+        "oscar-research"
+      ],
+      "recommended": true
+    },
+    {
+      "id": "sci-decision",
+      "name": "科学决策",
+      "emoji": "🔍",
+      "position": "下·决策中枢",
+      "slogan": "咱们坐下来，认真拆一拆这个决策。",
+      "skills": [
+        "roi-deep-dive"
+      ],
+      "recommended": true
+    },
+    {
+      "id": "course-design",
+      "name": "课程设计",
+      "emoji": "🎓",
+      "position": "外·AI 落地课程设计",
+      "slogan": "让学员从 AI 旁观者变成 AI 指挥者。",
+      "skills": [],
+      "externalSkills": [
+        "humanizer-zh",
+        "ljg-plain",
+        "ljg-card",
+        "structured-context-compressor",
+        "dapianke",
+        "training-course-designer",
+        "webinar-outline-pro",
+        "adaptive-socratic-questioning",
+        "the-4p-marketing-consultant",
+        "ljg-roundtable"
+      ],
+      "recommended": false,
+      "note": "技能全部来自 360 SkillHub / ClawHub，需自行安装（见 roles/course-design/skills/EXTERNAL.md）"
+    }
+  ],
+  "apiFiles": {
+    "_comment": "这 6 个可通过 POST /api/sessions 直接写入",
+    "identityContent": "IDENTITY.md",
+    "soulContent": "SOUL.md",
+    "agentsContent": "AGENTS.md",
+    "userContent": "USER.md",
+    "toolsContent": "TOOLS.md",
+    "heartbeatContent": "HEARTBEAT.md"
+  },
+  "workspaceFiles": {
+    "_comment": "API 不支持，装配器直接写入工作区目录",
+    "files": [
+      "MEMORY.md",
+      "BOOTSTRAP.md"
+    ],
+    "dirs": [
+      "skills/",
+      "reference/",
+      "memory/",
+      "avatars/"
+    ],
+    "scripts": [
+      "automations.sh"
+    ]
+  },
+  "postInstall": [
+    "打开每个角色的 BOOTSTRAP.md，走一遍七步出生仪式，完成后删除它",
+    "在每个工作区跑 bash automations.sh 建定时任务",
+    "课程设计角色需按 roles/course-design/skills/EXTERNAL.md 安装 10 个外部技能",
+    "跑 shared/validate-skills.sh 校验技能规格"
+  ]
+}

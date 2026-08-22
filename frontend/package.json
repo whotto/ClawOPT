@@ -1,0 +1,47 @@
+{
+  "name": "clawopt-frontend",
+  "description": "ClawOPT Frontend - OpenClaw Web Client",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "tsc",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@vitejs/plugin-react": "^4.2.1",
+    "axios": "^1.6.7",
+    "epubjs": "^0.3.93",
+    "i18next": "^26.0.2",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "katex": "^0.17.0",
+    "lucide-react": "^0.546.0",
+    "mammoth": "^1.11.0",
+    "motion": "^12.23.24",
+    "pdfjs-dist": "^5.5.207",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-i18next": "^17.0.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^6.21.3",
+    "react-syntax-highlighter": "^16.1.1",
+    "react-zoom-pan-pinch": "^3.7.0",
+    "rehype-katex": "^7.0.1",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "xlsx": "^0.18.5",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.3.3",
+    "vite": "^6.2.0"
+  }
+}

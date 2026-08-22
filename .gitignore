@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# 数据与凭据
+*.sqlite
+*.sqlite-*
+.clawopt_release/
+.clawopt_dev/
+.htpasswd*
+*credentials*
+*.key
+*.pem
+
+# 构建元信息（每次构建生成）
+.clawopt-build.json

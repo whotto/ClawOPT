@@ -1,0 +1,17 @@
+[Unit]
+Description=ClawOPT Service
+After=network.target
+
+[Service]
+Type=simple
+Environment=PORT=3115
+Environment=NODE_ENV=production
+Environment=PATH=%h/.npm-global/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=CLAWOPT_DATA_DIR=.clawopt_release
+WorkingDirectory=%h/ClawOPT/backend
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

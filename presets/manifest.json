@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "presets": [
+    {
+      "id": "opt-team",
+      "path": "opt-team",
+      "name": "OPT 六角色",
+      "tagline": "一支配置完整的 AI 团队",
+      "roleCount": 6,
+      "skillCount": 14,
+      "recommended": true
+    }
+  ]
+}

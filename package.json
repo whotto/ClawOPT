@@ -1,0 +1,33 @@
+{
+  "name": "clawopt",
+  "version": "1.0.0",
+  "appName": "ClawOPT",
+  "description": "OPT 龙虾 · OpenClaw 全功能 Web 客户端 + 可一键装配的角色预设库",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/whotto/ClawOPT.git"
+  },
+  "homepage": "https://github.com/whotto/ClawOPT",
+  "scripts": {
+    "dev": "export BACKEND_PORT=3100 FRONTEND_PORT=3105 CLAWOPT_DATA_DIR=.clawopt_dev && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "release": "export BACKEND_PORT=3110 FRONTEND_PORT=3115 CLAWOPT_DATA_DIR=.clawopt_release && npm run build && concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "version:meta": "node scripts/write-build-meta.mjs",
+    "build": "npm run version:meta && npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm run test",
+    "test:frontend": "cd frontend && npm run test",
+    "release:tag": "node scripts/github-release-sync.mjs --create-tag",
+    "release:publish": "node scripts/github-release-sync.mjs --create-tag --push",
+    "release:sync": "node scripts/github-release-sync.mjs --create-tag --push --github-release",
+    "start:backend": "cd backend && PORT=3110 CLAWOPT_DATA_DIR=.clawopt_release npm start",
+    "start:frontend": "cd frontend && npx vite preview --port 3115 --host"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

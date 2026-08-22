@@ -1,0 +1,34 @@
+NOTICE
+======
+
+本项目（OPT 龙虾 / ClawOPT）基于以下项目的内核改造而来：
+
+  项目：ClawOPT
+  作者：liandu2024
+  地址：https://github.com/liandu2024/OpenClaw-Chat-Gateway
+  基线：v2.4.5（2026-06-04）
+
+改造已获得原作者授权。
+
+本项目相对基线的主要改动
+------------------------
+
+1. 品牌与标识
+   - 全部标识符改名（npm 包名、systemd 服务名、数据目录、SQLite 文件名、
+     localStorage 键、环境变量前缀），以便与上游版本在同一主机共存
+   - 移除原作者的社群、资源站与付费 API 推广位
+   - 更新源 URL 指向本项目仓库（否则"检查更新"会拉到上游脚本）
+
+2. 新增内容层
+   - presets/ 角色预设库
+   - 预设装配流程与校验闸门
+
+3. 工程改进
+   - branding.json 单一真相源 + scripts/apply-branding.mjs 可重复执行的改名工具
+   - 安装脚本改为「先下载后执行」为默认路径
+
+上游历史
+--------
+
+上游的 51 份 release notes 保留在 docs/_upstream-archive/，**按原样不改名**，
+以便追溯 fork 基线与对照排障。本项目自己的版本记录从 CHANGELOG.md 重新开始。

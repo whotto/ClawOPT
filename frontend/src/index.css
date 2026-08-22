@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "system-ui", "-apple-system", "sans-serif";
+
+  /* "Middle Ground" gray palette for better definition and clean look */
+  --color-gray-50:  #f6f8fb;
+  --color-gray-100: #ecf0f4;
+  --color-gray-200: #dde2e8;
+  --color-gray-300: #bdc5d0;
+  --color-gray-400: #8da0b3;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
+
+  /* Global shadow override */
+  --shadow-sm: 0 0 #0000;
+  --shadow: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
+  --shadow-inner: 0 0 #0000;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Global interaction styles */
+button, 
+a,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+a:disabled {
+  cursor: not-allowed;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fix react-zoom-pan-pinch wrapper overflowing flex containers on mobile */
+.react-transform-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Global typography: paragraph spacing should be 1.5x line-height */
+.prose p,
+.prose-sm p {
+  line-height: 1.6;
+  margin-bottom: 0.4em;
+}
+
+.prose p:last-child,
+.prose-sm p:last-child {
+  margin-bottom: 0;
+}
+
+/* Force tight spacing inside QuoteBlock content — defeats prose margins */
+.quote-content-inner {
+  word-break: break-word !important;
+  white-space: normal !important;
+}
+.quote-content-inner p,
+.quote-content-inner h1,
+.quote-content-inner h2,
+.quote-content-inner h3,
+.quote-content-inner h4,
+.quote-content-inner h5,
+.quote-content-inner h6 {
+  margin-top: 0 !important;
+  margin-bottom: 0.4em !important; /* 1.6 line-height * 0.25 = 0.4em for tighter quote spacing */
+  white-space: normal !important;
+  line-height: 1.6 !important;
+}
+.quote-content-inner p:last-child,
+.quote-content-inner h1:last-child,
+.quote-content-inner h2:last-child,
+.quote-content-inner h3:last-child {
+  margin-bottom: 0 !important;
+}
+.quote-content-inner ul,
+.quote-content-inner ol {
+  margin-top: 0.125rem !important;
+  margin-bottom: 0.25rem !important;
+  padding-left: 0 !important;
+  list-style: none !important;
+}
+.quote-content-inner li,
+.quote-content-inner li > p {
+  margin-top: 0 !important;
+  margin-bottom: 0.25rem !important;
+  white-space: normal !important;
+}
+.quote-content-inner li:last-child,
+.quote-content-inner li > p:last-child {
+  margin-bottom: 0 !important;
+}
+.quote-content-inner pre {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+  white-space: pre-wrap !important;
+}
+.quote-content-inner blockquote {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+.quote-content-inner .process-step-container {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.375rem !important;
+}
+
+.custom-markdown .katex-display,
+.prose .katex-display,
+.prose-sm .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0;
+}
+
+.custom-markdown .katex,
+.prose .katex,
+.prose-sm .katex {
+  font-size: 1em;
+}
+
+/* Mobile: reduce button font size by one step */
+@media (max-width: 639px) {
+  button {
+    font-size: 0.8125rem; /* ~13px, one step below default 14px */
+  }
+}
