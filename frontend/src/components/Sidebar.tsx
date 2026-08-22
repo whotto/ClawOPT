@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Settings, ArrowLeft, X, Network, Terminal, Edit2, Trash2, Info, Cpu, Check, Search, ChevronDown, RefreshCw, GripVertical, Star } from 'lucide-react';
+import { Plus, Settings, Boxes, ArrowLeft, X, Network, Terminal, Edit2, Trash2, Info, Cpu, Check, Search, ChevronDown, RefreshCw, GripVertical, Star } from 'lucide-react';
 import { Reorder } from 'motion/react';
 import { ViewType, SettingsTab } from '../App';
 import { requestActiveContextRefresh } from '../utils/contextRefresh';
@@ -1292,6 +1292,16 @@ export default function Sidebar({
             </span>
           </button>
           
+          <button 
+            onClick={() => navigateTo('settings', 'presets', false)}
+            className={`w-full min-w-0 flex items-center gap-3 px-4 py-3 rounded-xl text-base transition-all border ${settingsTab === 'presets' ? 'font-semibold text-gray-600 bg-amber-50 border-orange-300' : 'font-normal text-gray-600 hover:bg-gray-200 hover:font-semibold border-transparent'}`}
+          >
+            <Boxes className="w-5 h-5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left">
+              {t('sidebar.presetLibrary')}
+            </span>
+          </button>
+
           <button 
             onClick={() => navigateTo('settings', 'commands', false)}
             className={`w-full min-w-0 flex items-center gap-3 px-4 py-3 rounded-xl text-base transition-all border ${settingsTab === 'commands' ? 'font-semibold text-gray-600 bg-amber-50 border-orange-300' : 'font-normal text-gray-600 hover:bg-gray-200 hover:font-semibold border-transparent'}`}

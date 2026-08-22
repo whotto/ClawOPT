@@ -3,6 +3,7 @@
     "gatewaySettings": "Gateway Settings",
     "generalSettings": "General Settings",
     "modelsManage": "Model Settings",
+    "presetLibrary": "Role Presets",
     "quickCommands": "Quick Commands",
     "about": "About",
     "backBtn": "Back to Conversation",
@@ -164,6 +165,11 @@
     "idRequired": "Agent ID is required",
     "idContainsWhitespace": "Agent ID cannot contain spaces",
     "idAlreadyExists": "Agent ID \"{{agentId}}\" already exists"
+  },
+  "presets": {
+    "notFound": "Preset \"{{presetId}}\" not found",
+    "noRoleSelected": "Select at least one role",
+    "installFailed": "Some roles failed to install, see results below"
   },
   "groups": {
     "idRequired": "Team ID is required",
@@ -656,6 +662,39 @@
         "web": "Web",
         "rerank": "Rerank",
         "embed": "Embedding"
+      }
+    },
+    "presets": {
+      "headerTitle": "Role Presets",
+      "title": "Install a whole AI team in one go",
+      "description": "A preset is not a one-line persona. It is a complete workspace: personality, methodology, per-step exit criteria, safety boundaries, a skill library and scheduled tasks. Pick roles, fill in a few parameters, install.",
+      "empty": "No presets found. Check that the presets/ directory was deployed with the app.",
+      "rolesTitle": "Roles",
+      "selectAll": "Select all",
+      "selectNone": "Clear",
+      "alreadyInstalled": "Already exists",
+      "skillCount": "{{count}} skills",
+      "externalCount": "{{count}} optional external skills pending",
+      "paramsTitle": "Parameters",
+      "overwriteLabel": "Overwrite agents that already exist",
+      "overwriteHint": "Rewrites their SOUL / USER / AGENTS files and skills directory from the preset. Unchecked, existing roles are skipped.",
+      "preview": "Dry run",
+      "install": "Install {{count}} roles",
+      "refresh": "Refresh",
+      "previewTitle": "Dry run (nothing was written)",
+      "resultTitle": "Install results",
+      "resultDetail": "{{chars}} chars of prompt · {{files}} workspace files · {{skills}} skills",
+      "externalPending": "External skills to install yourself: {{list}}",
+      "nextSteps": "Next",
+      "installFailed": "Install failed",
+      "status": {
+        "willCreate": "Will create",
+        "willUpdate": "Will overwrite",
+        "willSkip": "Will skip",
+        "created": "Created",
+        "updated": "Overwritten",
+        "skipped": "Skipped",
+        "failed": "Failed"
       }
     },
     "openclawUpdate": {

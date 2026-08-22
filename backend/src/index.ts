@@ -14,6 +14,15 @@ import ConfigManager from './config-manager';
 import DB from './db';
 import AgentProvisioner, { type ImageGenerationEndpointModelSnapshot } from './agent-provisioner';
 import {
+  listPresets,
+  loadPreset,
+  resolveParamValues,
+  buildRolePayload,
+  planRole,
+  writeWorkspaceExtras,
+  presetsDirExists,
+} from './preset-installer';
+import {
   GroupChatEngine,
   appendToolProgressLine,
   createAgentResponseFailedMessage,
@@ -232,6 +241,9 @@ const GATEWAY_DEVICE_PAIRING_APPROVE_FAILED_ERROR_CODE = 'gateway.devicePairingA
 const GATEWAY_DEVICE_PAIRING_NO_PENDING_ERROR_CODE = 'gateway.devicePairingNoPending';
 const FILE_PREVIEW_CONVERSION_TIMED_OUT_ERROR_CODE = 'filePreview.conversionTimedOut';
 const AGENT_ID_REQUIRED_ERROR_CODE = 'agents.idRequired';
+const PRESET_NOT_FOUND_ERROR_CODE = 'presets.notFound';
+const PRESET_NO_ROLE_SELECTED_ERROR_CODE = 'presets.noRoleSelected';
+const PRESET_INSTALL_FAILED_ERROR_CODE = 'presets.installFailed';
 const AGENT_ID_CONTAINS_WHITESPACE_ERROR_CODE = 'agents.idContainsWhitespace';
 const AGENT_ID_ALREADY_EXISTS_ERROR_CODE = 'agents.idAlreadyExists';
 const GROUP_ID_REQUIRED_ERROR_CODE = 'groups.idRequired';
@@ -9125,6 +9137,116 @@ app.get('/api/sessions', (_req, res) => {
     };
   });
   res.json(sessionsWithModel);
+});
+
+// ── 预设装配（内容层）────────────────────────────────────────────────────
+// 「一键复制一支 AI 团队」的实际入口。装配分两条路，因为 API 只覆盖一半：
+//   ① 建 Agent + 写 6 份 markdown（走 sessionManager + agentProvisioner，与手工建 Agent 同一条链路）
+//   ② MEMORY.md / BOOTSTRAP.md / skills/ / reference/ / automations.sh 直接写工作区
+// 详见 docs/preset-gap.md。
+
+app.get('/api/presets', (_req, res) => {
+  if (!presetsDirExists()) {
+    return res.json({ success: true, presets: [] });
+  }
+  const summaries = listPresets().map(summary => {
+    const detail = loadPreset(summary.id);
+    if (!detail) return null;
+    const roles = detail.roles.map(role => ({
+      id: role.id,
+      name: role.name,
+      emoji: role.emoji || '',
+      position: role.position || '',
+      slogan: role.slogan || '',
+      skills: role.skills || [],
+      externalSkills: role.externalSkills || [],
+      recommended: role.recommended !== false,
+      note: role.note || '',
+      installed: Boolean(sessionManager.getSession(role.id)),
+    }));
+    return {
+      id: detail.id,
+      name: detail.name,
+      version: detail.version || '',
+      tagline: detail.tagline || '',
+      description: detail.description || '',
+      author: detail.author || '',
+      roles,
+      params: detail.params.map(param => ({
+        key: param.key,
+        label: param.label || param.key,
+        hint: param.hint || '',
+        default: param.default || '',
+        examples: Array.isArray(param.examples) ? param.examples : [],
+      })),
+      postInstall: Array.isArray(detail.postInstall) ? detail.postInstall : [],
+    };
+  }).filter(Boolean);
+
+  res.json({ success: true, presets: summaries });
+});
+
+app.post('/api/presets/:presetId/install', requireAdminAuth, async (req, res) => {
+  const preset = loadPreset(req.params.presetId);
+  if (!preset) {
+    return res.status(404).json(buildStructuredApiError(PRESET_NOT_FOUND_ERROR_CODE, null, { presetId: req.params.presetId }));
+  }
+
+  const dryRun = req.body?.dryRun === true;
+  const overwrite = req.body?.overwrite === true;
+  const requestedIds: string[] = Array.isArray(req.body?.roleIds)
+    ? req.body.roleIds.filter((id: unknown): id is string => typeof id === 'string')
+    : [];
+  const roles = requestedIds.length
+    ? preset.roles.filter(role => requestedIds.includes(role.id))
+    : preset.roles.filter(role => role.recommended !== false);
+
+  if (!roles.length) {
+    return res.status(400).json(buildStructuredApiError(PRESET_NO_ROLE_SELECTED_ERROR_CODE));
+  }
+
+  const vals = resolveParamValues(preset, req.body?.params);
+  const results: any[] = [];
+
+  for (const role of roles) {
+    const workspaceDir = agentProvisioner.getWorkspacePath(role.id);
+    const existing = sessionManager.getSession(role.id);
+    const plan = planRole(preset.id, preset, role, vals, workspaceDir, Boolean(existing));
+
+    if (dryRun) {
+      results.push({ ...plan, status: existing ? (overwrite ? 'willUpdate' : 'willSkip') : 'willCreate' });
+      continue;
+    }
+
+    if (existing && !overwrite) {
+      results.push({ ...plan, status: 'skipped' });
+      continue;
+    }
+
+    try {
+      const payload = buildRolePayload(preset.id, role, vals);
+      if (!existing) {
+        sessionManager.createSession({ id: role.id, name: role.name });
+      } else {
+        sessionManager.updateSession(role.id, { name: role.name });
+      }
+      await agentProvisioner.provision({ agentId: role.id, ...payload });
+      sessionManager.updateSession(role.id, { agentId: role.id });
+      const written = writeWorkspaceExtras(preset.id, preset, role, vals, workspaceDir);
+      results.push({ ...plan, workspaceFileCount: written, status: existing ? 'updated' : 'created' });
+    } catch (error: any) {
+      results.push({ ...plan, status: 'failed', error: error?.message || String(error) });
+    }
+  }
+
+  const failed = results.filter(r => r.status === 'failed');
+  res.json({
+    success: failed.length === 0,
+    dryRun,
+    errorCode: failed.length ? PRESET_INSTALL_FAILED_ERROR_CODE : undefined,
+    results,
+    postInstall: Array.isArray(preset.postInstall) ? preset.postInstall : [],
+  });
 });
 
 app.post('/api/sessions', async (req, res) => {

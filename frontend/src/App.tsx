@@ -6,7 +6,7 @@ import LoginScreen from './components/LoginScreen';
 import { requestActiveContextRefresh, type ActiveContextRefreshDetail } from './utils/contextRefresh';
 
 export type ViewType = 'chat' | 'settings' | 'groups';
-export type SettingsTab = 'gateway' | 'general' | 'models' | 'commands' | 'about';
+export type SettingsTab = 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about';
 const LAST_CONVERSATION_VIEW_STORAGE_KEY = 'clawopt_last_conversation_view';
 const CONNECTION_STATUS_STORAGE_KEY = 'clawopt_connection_status';
 const CONNECTION_STATUS_STORAGE_TTL_MS = 30 * 1000;
@@ -68,7 +68,7 @@ export default function App() {
       const savedGroupId = localStorage.getItem('clawopt_active_group');
       return {
         view: savedView === 'settings' || savedView === 'groups' ? savedView : 'chat' as ViewType,
-        tab: savedTab === 'general' || savedTab === 'models' || savedTab === 'commands' || savedTab === 'about' ? savedTab : 'gateway' as SettingsTab,
+        tab: savedTab === 'general' || savedTab === 'models' || savedTab === 'presets' || savedTab === 'commands' || savedTab === 'about' ? savedTab : 'gateway' as SettingsTab,
         groupId: savedGroupId || null,
       };
     }
@@ -424,6 +424,7 @@ export default function App() {
             settingsTab={settingsTab} 
             onMenuClick={() => navigateTo(currentView, settingsTab, true)}
             onModelsChanged={reloadModels}
+            onAgentsChanged={reloadSessions}
           />
         )}
       </main>

@@ -59,6 +59,24 @@ curl -fsSLO https://raw.githubusercontent.com/whotto/ClawOPT/main/update.sh && b
 curl -fsSLO https://raw.githubusercontent.com/whotto/ClawOPT/main/uninstall.sh && bash uninstall.sh
 ```
 
+### 装配一支团队
+
+安装完打开 Web 界面 → 左侧 **角色预设库** → 勾角色 → 填三个参数 → **预演** 看清楚会写什么 → **装配**。
+装完刷新侧边栏就能看到这几个 Agent，点进去直接说话。
+
+预演不写任何东西，可以放心点。已存在的同名 Agent 默认跳过，要覆盖得显式勾选。
+
+也可以在主机上走命令行（适合批量或写脚本）：
+
+```bash
+node scripts/install-preset.mjs              # 交互式
+node scripts/install-preset.mjs --dry        # 只预演
+node scripts/install-preset.mjs --yes        # 全默认，不问
+```
+
+> 装配分两条路：Agent 与 6 份 markdown 走 API，`MEMORY.md` / `skills/` / `reference/` / `automations.sh`
+> 直接写工作区——因为 Gateway 的 API 目前不管后面这些，原因见 [`docs/preset-gap.md`](docs/preset-gap.md)。
+
 ### 文档预览增强（可选）
 
 ```bash

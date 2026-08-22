@@ -3,6 +3,7 @@
     "gatewaySettings": "網關設定",
     "generalSettings": "通用設定",
     "modelsManage": "模型設定",
+    "presetLibrary": "角色預設庫",
     "quickCommands": "快捷指令",
     "about": "關於系統",
     "backBtn": "返回對話",
@@ -164,6 +165,11 @@
     "idRequired": "智能體 ID 不能為空",
     "idContainsWhitespace": "智能體 ID 不允許包含空格",
     "idAlreadyExists": "智能體 ID \"{{agentId}}\" 已存在"
+  },
+  "presets": {
+    "notFound": "找不到預設 \"{{presetId}}\"",
+    "noRoleSelected": "至少選一個角色",
+    "installFailed": "裝配未全部成功，見下方結果"
   },
   "groups": {
     "idRequired": "團隊 ID 不能為空",
@@ -656,6 +662,39 @@
         "web": "聯網",
         "rerank": "重排",
         "embed": "嵌入"
+      }
+    },
+    "presets": {
+      "headerTitle": "角色預設庫",
+      "title": "一鍵裝配一支 AI 團隊",
+      "description": "預設不是一句人設，是完整工作區：人格、方法論、每步退出條件、安全邊界、技能庫、定時任務。選角色 → 填參數 → 裝配。",
+      "empty": "沒有找到可用預設。確認 presets/ 目錄隨安裝包一起部署了。",
+      "rolesTitle": "選角色",
+      "selectAll": "全選",
+      "selectNone": "清空",
+      "alreadyInstalled": "已存在",
+      "skillCount": "{{count}} 個技能",
+      "externalCount": "{{count}} 條可選外部技能待裝",
+      "paramsTitle": "填參數",
+      "overwriteLabel": "覆蓋已存在的同名 Agent",
+      "overwriteHint": "會用預設內容重寫它的 SOUL / USER / AGENTS 等檔案與技能目錄。不勾選則跳過已存在的角色。",
+      "preview": "預演",
+      "install": "裝配 {{count}} 個角色",
+      "refresh": "重新整理",
+      "previewTitle": "預演結果（沒有寫入任何東西）",
+      "resultTitle": "裝配結果",
+      "resultDetail": "{{chars}} 字元提示詞 · {{files}} 個工作區檔案 · {{skills}} 個技能",
+      "externalPending": "待自行安裝的外部技能：{{list}}",
+      "nextSteps": "接下來",
+      "installFailed": "裝配失敗",
+      "status": {
+        "willCreate": "將新建",
+        "willUpdate": "將覆蓋",
+        "willSkip": "將跳過",
+        "created": "已新建",
+        "updated": "已覆蓋",
+        "skipped": "已跳過",
+        "failed": "失敗"
       }
     },
     "openclawUpdate": {

@@ -10,12 +10,14 @@ import {
 } from '../utils/historyPagination';
 import ModelFallbackEditor, { type ModelFallbackMode } from './ModelFallbackEditor';
 import ModelSinglePicker from './ModelSinglePicker';
+import PresetLibrary from './PresetLibrary';
 
 interface SettingsViewProps {
   isConnected: boolean;
   settingsTab: SettingsTab;
   onMenuClick: () => void;
   onModelsChanged?: () => void;
+  onAgentsChanged?: () => void;
 }
 
 const PREVIEW_TIMEOUT_MIN_SECONDS = 5;
@@ -594,7 +596,7 @@ function normalizeGatewayRestartTaskInfo(raw: unknown): GatewayRestartTaskInfo |
   };
 }
 
-export default function SettingsView({ isConnected, settingsTab, onMenuClick, onModelsChanged }: SettingsViewProps) {
+export default function SettingsView({ isConnected, settingsTab, onMenuClick, onModelsChanged, onAgentsChanged }: SettingsViewProps) {
   const { t, i18n } = useTranslation();
 
   const openSettingsErrorModal = (message: string, detail = '') => {
@@ -4180,6 +4182,8 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     ? t('settings.gateway.headerTitle')
     : settingsTab === 'general'
       ? t('settings.general.headerTitle')
+      : settingsTab === 'presets'
+        ? t('settings.presets.headerTitle')
       : settingsTab === 'commands'
         ? t('settings.commands.headerTitle')
         : settingsTab === 'models'
@@ -4865,6 +4869,11 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                 </div>
               </div>
             </>
+          )}
+
+          {/* Preset Library Tab */}
+          {settingsTab === 'presets' && (
+            <PresetLibrary onAgentsChanged={onAgentsChanged} />
           )}
 
           {/* Quick Commands Management Tab */}
