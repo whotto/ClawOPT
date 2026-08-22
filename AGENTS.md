@@ -19,6 +19,7 @@
 - `cd frontend && npm run dev`: 启动前端开发服务。
 - `npm run build`: 同时构建前后端。
 - `npm run release`: 构建后启动 release 预览流程。
+- `cd backend && npm test`: 类型检查 + vitest（50 个用例，覆盖凭据与会话、包解析与路径闸门、可服务路径白名单、上游消息解包、聊天历史对账）。**新增守卫时必须先证明它会红**：把对应的防护改回有缺陷的写法，看该用例失败，再还原。没验过的门等于没有门。
 - `npm run locales:check`: 校验 `zh-CN` / `zh-TW` / `en` 三份 locale 的键集完全一致；缺一个语言不会报错、只会显示原始 key，所以这道门是硬性的（已并入 `npm run test`）。
 - `npm run presets:check`: 比对 `presets/opt-team/` 与角色配置包源（默认 `../openclaw-agents`）；不一致退出码 1，发布前卡口。
 - `npm run presets:sync`: 把角色配置包同步进预设，并按 `PARAM_RULES` 把具体值换回 `{{...}}` 占位符。
@@ -41,7 +42,7 @@
 - 群聊多 agent live 场景下，assistant 消息一旦已展开显示，不应因为后续其他 agent 开始发言而自动收起，造成“正文假性缩短”；涉及 `MessageBubble`、`ProcessStepBlock`、`isLatest` 或群聊消息渲染逻辑的修改时，必须显式检查这一点。
 - 新增模块的风格和样式必须参考现有模块；颜色、字号、按钮尺寸、边框、间距、交互反馈等保持一致，不要单独做一套新视觉。
 - 全局不要使用阴影；需要层级或分隔时，优先使用浅灰色边框。
-- 不要保留死代码。
+- 不要保留死代码。发现无调用点的脚本要么接回调用链、要么删掉，不能留着让文档描述一段不跑的契约（`reconcile-openclaw-runtime.mjs` 曾以 692 行的规模无人调用，而 AGENTS.md 一直在描述它的判据）。
 - API 鉴权是**默认全保护 + 白名单放行**（`app.use('/api', ...)`），不是逐路由手挂。手挂的名单必漏——审计时 108 个路由只挂了 15 个，数据面（建会话、发消息、删会话、建群、传文件）全部裸奔。新增路由默认受保护，要公开必须显式加进 `AUTH_PUBLIC_PATHS`。
 - 登录令牌是**服务端存储的随机会话令牌**（`backend/src/auth-store.ts`），带 30 天过期、可吊销、改口令即全部作废；口令用 scrypt 加随机盐存储。不要再回到「令牌 = 口令的哈希」——那样的令牌泄露一次永久有效，且默认口令能被离线算出。
 - Web 端鉴权走 **httpOnly cookie**，不进 localStorage（XSS 能偷）、不进查询串（会进访问日志与浏览器历史）。请求头 `X-ClawOPT-Auth-Token` 保留给 CLI。SSE 的 `EventSource` 设不了自定义头，这也是必须用 cookie 的原因。

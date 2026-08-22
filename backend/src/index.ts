@@ -9617,7 +9617,8 @@ app.post('/api/packs/inspect', requireAdminAuth, packUpload.single('file'), asyn
     });
   } catch (error: any) {
     const code = error instanceof PackError ? error.code : PRESET_INSTALL_FAILED_ERROR_CODE;
-    res.status(400).json(buildStructuredApiError(code, error?.message || String(error)));
+    const detail = error instanceof PackError ? error.detail : (error?.message || String(error));
+    res.status(400).json(buildStructuredApiError(code, detail || null));
   }
 });
 
@@ -9757,7 +9758,8 @@ app.post('/api/packs/install', requireAdminAuth, packUpload.single('file'), asyn
     });
   } catch (error: any) {
     const code = error instanceof PackError ? error.code : PRESET_INSTALL_FAILED_ERROR_CODE;
-    res.status(400).json(buildStructuredApiError(code, error?.message || String(error)));
+    const detail = error instanceof PackError ? error.detail : (error?.message || String(error));
+    res.status(400).json(buildStructuredApiError(code, detail || null));
   }
 });
 

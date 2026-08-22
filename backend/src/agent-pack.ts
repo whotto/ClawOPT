@@ -254,9 +254,14 @@ export function serializePack(pack: ClawPack): Buffer {
 
 export class PackError extends Error {
   code: string;
-  constructor(code: string, message?: string) {
-    super(message || code);
+  /** 出问题的具体对象（路径、大小等），与错误码分开保存。 */
+  detail: string;
+  constructor(code: string, detail?: string) {
+    // message 里必须带错误码：之前只放 detail，日志里只看到「../escape」
+    // 却不知道是哪类拒绝，排障要回去翻代码。
+    super(detail ? `${code} (${detail})` : code);
     this.code = code;
+    this.detail = detail || '';
   }
 }
 

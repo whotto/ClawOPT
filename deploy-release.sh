@@ -162,7 +162,16 @@ else
     emit_phase "restart-openclaw-runtime"
     echo "Restarting OpenClaw gateway..."
     if command -v openclaw >/dev/null 2>&1; then
-        openclaw gateway restart --json || openclaw gateway restart || echo "Warning: Failed to restart OpenClaw gateway automatically."
+        # 收敛脚本做的是裸 restart 做不到的三件事：对齐 systemd unit 的可执行路径
+        # （OpenClaw CLI 升级后路径会变）、自动批准本机 device repair、验证浏览器运行时。
+        # AGENTS.md 一直把这三件写成「升级成功」的必要条件，但这个脚本此前没有任何
+        # 调用点——契约写着、代码不跑。接回来，跑不通也不阻断升级。
+        if [ -f "$PROJECT_ROOT/scripts/reconcile-openclaw-runtime.mjs" ]; then
+            node "$PROJECT_ROOT/scripts/reconcile-openclaw-runtime.mjs" \
+                || echo "Warning: OpenClaw runtime reconciliation reported problems; continuing."
+        else
+            openclaw gateway restart --json || openclaw gateway restart || echo "Warning: Failed to restart OpenClaw gateway automatically."
+        fi
     else
         echo "Warning: openclaw command not found in PATH; skipped gateway restart."
     fi
