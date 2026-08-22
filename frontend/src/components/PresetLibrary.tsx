@@ -99,11 +99,8 @@ interface PresetLibraryProps {
 }
 
 function buildHeaders(includeJson = false): HeadersInit {
+  // 鉴权走 httpOnly cookie，同源请求自动带上。
   const headers: Record<string, string> = {};
-  const authToken = localStorage.getItem('clawopt_auth_token');
-  if (authToken && authToken !== 'disabled') {
-    headers['X-ClawOPT-Auth-Token'] = authToken;
-  }
   if (includeJson) headers['Content-Type'] = 'application/json';
   return headers;
 }

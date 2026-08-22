@@ -22,6 +22,8 @@ export const PACK_FORMAT_VERSION = 1;
 /** 单文件与整包上限。包是要发微信、走 URL 的，控制住体积也控制住风险面。 */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 export const MAX_PACK_BYTES = 20 * 1024 * 1024;
+/** 单个包里的文件数上限。结构合法但塞十万个空文件同样能拖垮导入。 */
+const MAX_PACK_FILES = 5000;
 
 /** 工作区根目录里允许进包的文件。白名单，不是黑名单。 */
 const ROOT_FILE_WHITELIST = [
@@ -280,8 +282,13 @@ export function parsePack(raw: Buffer): ClawPack {
   let text: string;
   try {
     const isGzip = raw.length > 2 && raw[0] === 0x1f && raw[1] === 0x8b;
-    text = (isGzip ? zlib.gunzipSync(raw) : raw).toString('utf-8');
-  } catch {
+    // maxOutputLength 是必须的：只在解压**前**查 20MB 上限挡不住解压炸弹——
+    // 一个 20MB 的 gzip 能膨胀到 GB 级，足以把后端打挂。
+    text = (isGzip ? zlib.gunzipSync(raw, { maxOutputLength: MAX_PACK_BYTES }) : raw).toString('utf-8');
+  } catch (error: any) {
+    if (error?.code === 'ERR_BUFFER_TOO_LARGE' || /maxOutputLength/i.test(String(error?.message))) {
+      throw new PackError('packs.tooLarge');
+    }
     throw new PackError('packs.unreadable');
   }
 
@@ -292,6 +299,7 @@ export function parsePack(raw: Buffer): ClawPack {
     throw new PackError('packs.unreadable');
   }
 
+  let totalContentBytes = 0;
   if (parsed?.format !== PACK_FORMAT) throw new PackError('packs.notAPack');
   if (Number(parsed?.formatVersion) > PACK_FORMAT_VERSION) throw new PackError('packs.versionTooNew');
   if (!Array.isArray(parsed?.agents) || !parsed.agents.length) throw new PackError('packs.noAgents');
@@ -301,10 +309,16 @@ export function parsePack(raw: Buffer): ClawPack {
       throw new PackError('packs.invalidAgentId', String(agent?.id || ''));
     }
     if (!Array.isArray(agent.files)) throw new PackError('packs.unreadable');
+    if (agent.files.length > MAX_PACK_FILES) throw new PackError('packs.tooLarge', `files=${agent.files.length}`);
     for (const file of agent.files) {
       assertSafeRelPath(file?.path);
       if (file.encoding !== 'utf8' && file.encoding !== 'base64') throw new PackError('packs.unreadable');
       if (typeof file.content !== 'string') throw new PackError('packs.unreadable');
+      // 导入侧此前不查体积——MAX_FILE_BYTES 只用在导出。一个合法结构的包
+      // 可以带着任意大的字符串进来，写爆磁盘。
+      if (file.content.length > MAX_FILE_BYTES * 2) throw new PackError('packs.tooLarge', file.path);
+      totalContentBytes += file.content.length;
+      if (totalContentBytes > MAX_PACK_BYTES) throw new PackError('packs.tooLarge');
     }
   }
 

@@ -59,9 +59,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (data.success) {
-        if (data.token) {
-          localStorage.setItem('clawopt_auth_token', data.token);
-        }
+        // 令牌由后端以 httpOnly cookie 下发，前端不持有、也读不到。
         onLoginSuccess();
       } else {
         setError(resolveLoginErrorMessage(data, t));

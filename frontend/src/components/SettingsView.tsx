@@ -907,11 +907,8 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   };
 
   const buildUpdateRequestHeaders = (includeJson = false): HeadersInit => {
+    // 鉴权走 httpOnly cookie，同源请求自动带上；这里只管 Content-Type。
     const headers: Record<string, string> = {};
-    const authToken = localStorage.getItem('clawopt_auth_token');
-    if (authToken && authToken !== 'disabled') {
-      headers['X-ClawOPT-Auth-Token'] = authToken;
-    }
     if (includeJson) {
       headers['Content-Type'] = 'application/json';
     }

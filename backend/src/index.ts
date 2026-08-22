@@ -24,6 +24,14 @@ import {
 } from './preset-installer';
 import { resolveServablePath } from './served-paths';
 import {
+  AUTH_COOKIE_NAME,
+  AuthStore,
+  hashPassword,
+  isHashedPassword,
+  readCookie,
+  verifyPassword,
+} from './auth-store';
+import {
   MAX_PACK_BYTES,
   PackError,
   buildAgentEntry,
@@ -234,6 +242,22 @@ const upload = multer({
 const db = new DB();
 const configManager = new ConfigManager();
 const sessionManager = new SessionManager(db);
+/** 会话令牌存储：随机、可过期、可吊销。 */
+const authStore = new AuthStore(db);
+
+// 迁移：把配置里的明文口令换成 scrypt 哈希。只做一次，之后配置里不再有明文。
+(() => {
+  try {
+    const current = configManager.getConfig();
+    const stored = typeof current.loginPassword === 'string' ? current.loginPassword : '';
+    if (stored && !isHashedPassword(stored)) {
+      configManager.setConfig({ loginPassword: hashPassword(stored) });
+      console.log('[Auth] 已把明文登录口令迁移为 scrypt 哈希');
+    }
+  } catch (error) {
+    console.warn('[Auth] 口令迁移失败，仍按原值校验：', error);
+  }
+})();
 const agentProvisioner = new AgentProvisioner();
 type StructuredMessageParams = Record<string, string | number | boolean | null>;
 const CHAT_RUN_ERROR_CODE = 'chat.runError';
@@ -8136,7 +8160,17 @@ app.post('/api/config', requireAdminAuth, (req, res) => {
   for (const field of ['token', 'password', 'loginPassword']) {
     if (typeof incoming[field] === 'string' && incoming[field] === '') delete incoming[field];
   }
+
+  // 新口令一律哈希后落盘；改口令即作废所有既有会话——否则「改了密码」这个动作
+  // 挡不住已经拿到令牌的人，用户会以为自己已经处理了泄露。
+  const passwordChanged = typeof incoming.loginPassword === 'string' && incoming.loginPassword !== '';
+  if (passwordChanged) {
+    incoming.loginPassword = hashPassword(incoming.loginPassword as string);
+  }
   configManager.setConfig(incoming);
+  if (passwordChanged || incoming.loginEnabled === false) {
+    authStore.revokeAll();
+  }
   res.json({ success: true });
 });
 
@@ -8180,7 +8214,25 @@ function readRequestAuthToken(req: express.Request): string {
   if (authorization.toLowerCase().startsWith('bearer ')) {
     return authorization.slice(7).trim();
   }
-  return '';
+  // Cookie 是 Web 端的主通道：SSE 的 EventSource 设不了自定义头，而前端有 80 处
+  // fetch 调用点——逐个加头既慢又必漏。同源请求自动带 cookie，一次覆盖全部。
+  // 头这条保留给 CLI 与脚本（CLAWOPT_TOKEN）。
+  return readCookie(req.headers.cookie, AUTH_COOKIE_NAME);
+}
+
+function issueAuthCookie(res: express.Response, token: string, maxAgeMs: number): void {
+  const parts = [
+    `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',            // 关键：JS 读不到，XSS 偷不走
+    'SameSite=Lax',
+    `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
+  ];
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function clearAuthCookie(res: express.Response): void {
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
 }
 
 function requireAdminAuth(req: express.Request, _res: express.Response, next: express.NextFunction) {
@@ -8189,53 +8241,76 @@ function requireAdminAuth(req: express.Request, _res: express.Response, next: ex
     return next();
   }
 
-  const expectedToken = generateAuthToken(config.loginPassword || '123456');
-  const providedToken = readRequestAuthToken(req);
-  if (providedToken && providedToken === expectedToken) {
+  if (authStore.verify(readRequestAuthToken(req))) {
     return next();
   }
 
   return next(new StructuredRequestError(401, AUTH_LOGIN_REQUIRED_ERROR_CODE, 'Login is required to perform this action.'));
 }
 
+/**
+ * 全局 API 鉴权。
+ *
+ * 之前鉴权是逐路由手挂的，108 个路由只挂了 15 个——数据面（建会话、发消息、删会话、
+ * 建群、传文件）全部裸奔，登录页只挡住了「改配置」和「装包」。手挂的名单不可能不漏，
+ * 所以改成默认全保护 + 白名单放行。新增路由自动受保护，这是这次改动真正的收益。
+ */
+const AUTH_PUBLIC_PATHS = new Set([
+  '/api/auth/check',
+  '/api/auth/login',
+  '/api/version',
+]);
+
+app.use('/api', (req, res, next) => {
+  const config = configManager.getConfig();
+  if (!config.loginEnabled) return next();
+
+  const routePath = req.path.startsWith('/') ? `/api${req.path}` : `/api/${req.path}`;
+  if (AUTH_PUBLIC_PATHS.has(routePath)) return next();
+
+  if (authStore.verify(readRequestAuthToken(req))) return next();
+  return next(new StructuredRequestError(401, AUTH_LOGIN_REQUIRED_ERROR_CODE, 'Login is required to perform this action.'));
+});
+
 // Auth endpoints
 app.get('/api/auth/check', (req, res) => {
   const config = configManager.getConfig();
-  const providedToken = req.query.token as string | undefined;
-  
   if (!config.loginEnabled) {
-     return res.json({ loginRequired: false });
+    return res.json({ loginRequired: false });
   }
+  // 令牌从 cookie / 头里读，不再走 query——查询串会进访问日志、代理日志和浏览器历史。
+  res.json({ loginRequired: !authStore.verify(readRequestAuthToken(req)) });
+});
 
-  const correctPassword = config.loginPassword || '123456';
-  const expectedToken = generateAuthToken(correctPassword);
-
-  if (providedToken && providedToken === expectedToken) {
-     return res.json({ loginRequired: false });
-  }
-
-  res.json({ loginRequired: true });
+app.post('/api/auth/logout', (req, res) => {
+  const token = readRequestAuthToken(req);
+  if (token) authStore.revoke(token);
+  clearAuthCookie(res);
+  res.json({ success: true });
 });
 
 app.post('/api/auth/login', (req, res) => {
   const { password } = req.body;
   const config = configManager.getConfig();
-  
+
   if (!config.loginEnabled) {
     return res.json({ success: true, token: 'disabled' });
   }
-  
-  const correctPassword = config.loginPassword || '123456';
-  if (password === correctPassword) {
-    res.json({ success: true, token: generateAuthToken(correctPassword) });
-  } else {
-    res.status(401).json({
-      success: false,
-      errorCode: 'auth.invalidPassword',
-      errorParams: null,
-      errorDetail: null,
-    });
+
+  const stored = config.loginPassword || '123456';
+  if (typeof password === 'string' && verifyPassword(password, stored)) {
+    // 令牌是随机数、服务端存储、30 天过期、可吊销——不再是口令的哈希。
+    const session = authStore.issue('web');
+    issueAuthCookie(res, session.token, session.expiresAt - Date.now());
+    return res.json({ success: true, token: session.token });
   }
+
+  res.status(401).json({
+    success: false,
+    errorCode: 'auth.invalidPassword',
+    errorParams: null,
+    errorDetail: null,
+  });
 });
 
 app.get('/api/gateway/status', async (_req, res) => {

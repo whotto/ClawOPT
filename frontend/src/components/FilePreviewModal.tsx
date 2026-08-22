@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { Book, Rendition } from 'epubjs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import DOMPurify from 'dompurify';
 import { getFileIconInfo } from '../utils/fileUtils';
 
 // Configure pdf.js worker
@@ -36,6 +37,22 @@ const DOCUMENT_PREVIEW_WIDTH_CLASS = 'max-w-[1200px]';
 const DOCUMENT_PREVIEW_SCROLL_CLASS = 'w-full h-full overflow-y-auto';
 const DOCUMENT_PREVIEW_SURFACE_CLASS = `w-full ${DOCUMENT_PREVIEW_WIDTH_CLASS} mx-auto bg-white sm:rounded-2xl sm:border border-gray-200`;
 const DOCUMENT_PREVIEW_BODY_CLASS = 'p-6 sm:p-10';
+
+/**
+ * 消毒后的 HTML。
+ *
+ * 原来的做法只删 script/style/meta 等**标签**，属性一个不动——`onerror=`、
+ * `onload=`、`href="javascript:"` 全部存活，等于没消毒。而这段 HTML 可能来自
+ * 智能体写进工作区的文件，一点预览就在同源执行。
+ */
+function sanitizeHtmlFragment(html: string): string {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true, svg: true },
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'base', 'link', 'meta'],
+    FORBID_ATTR: ['srcdoc', 'formaction', 'ping'],
+    ALLOW_DATA_ATTR: false,
+  });
+}
 
 function extractRenderableDocumentBody(content: string): string {
   const trimmed = content.trim();
@@ -991,7 +1008,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
             <div
               className={`${DOCUMENT_PREVIEW_SURFACE_CLASS} ${DOCUMENT_PREVIEW_BODY_CLASS} overflow-hidden cursor-text`}
               style={TEXT_SELECTION_STYLE}
-              dangerouslySetInnerHTML={{ __html: renderedHtmlDocument }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtmlFragment(renderedHtmlDocument) }}
             />
           </div>
         )}
@@ -1004,7 +1021,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
               <div
                 className={`${DOCUMENT_PREVIEW_SURFACE_CLASS} ${DOCUMENT_PREVIEW_BODY_CLASS} overflow-hidden cursor-text`}
                 style={TEXT_SELECTION_STYLE}
-                dangerouslySetInnerHTML={{ __html: renderedHtmlDocument }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtmlFragment(renderedHtmlDocument) }}
               />
             </div>
           )

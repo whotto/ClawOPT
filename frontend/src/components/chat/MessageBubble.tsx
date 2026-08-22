@@ -1644,7 +1644,10 @@ const EmbedPreviewCard: React.FC<{ embed: EmbedPreview }> = ({ embed }) => {
         title={embed.title}
         className="block w-full border-0 bg-white"
         style={{ height: embed.height }}
-        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
+        // 绝不能有 allow-same-origin：它与 allow-scripts 同时存在时，被嵌文档
+        // 就运行在本站同源里，等于沙箱自我解除——可读同源存储、可访问 window.parent。
+        // 而 embed 的 URL 来自模型输出，模型输出可被它读到的外部内容影响。
+        sandbox="allow-scripts allow-forms allow-popups allow-downloads"
       />
     </div>
   );

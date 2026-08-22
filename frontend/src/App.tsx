@@ -249,18 +249,14 @@ export default function App() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = localStorage.getItem('clawopt_auth_token');
-        const url = token ? `/api/auth/check?token=${encodeURIComponent(token)}` : '/api/auth/check';
-        const data = await fetchJsonWithTimeout<{ loginRequired?: boolean }>(url);
-        if (data.loginRequired) {
-          localStorage.removeItem('clawopt_auth_token');
-          setIsAuthenticated(false);
-        } else {
-          setIsAuthenticated(true);
-        }
+        // 会话令牌在 httpOnly cookie 里，同源请求自动携带：既不用拼查询串
+        // （会进访问日志与浏览器历史），JS 也读不到（XSS 偷不走）。
+        const data = await fetchJsonWithTimeout<{ loginRequired?: boolean }>('/api/auth/check');
+        setIsAuthenticated(!data.loginRequired);
       } catch {
-        // If can't reach server, allow access (offline mode)
-        setIsAuthenticated(prev => prev === null ? true : prev);
+        // 探测失败不再默认放行：后端够不着时前端解锁没有意义，
+        // 真正的拦截在后端，这里放行只会让人误以为已登录。
+        setIsAuthenticated(prev => prev === null ? false : prev);
       }
     };
     checkAuth();
