@@ -77,6 +77,29 @@ node scripts/install-preset.mjs --yes        # 全默认，不问
 > 装配分两条路：Agent 与 6 份 markdown 走 API，`MEMORY.md` / `skills/` / `reference/` / `automations.sh`
 > 直接写工作区——因为 Gateway 的 API 目前不管后面这些，原因见 [`docs/preset-gap.md`](docs/preset-gap.md)。
 
+### 把自己的智能体复制给别人
+
+**导出**：侧边栏点开某个智能体（或某个团队）→ 导出 → 勾选带什么 → 下载一个 `.clawpack` 文件。
+单个智能体约 80KB，六角色整团约 440KB，微信、邮件、网盘随便发。
+
+**导入**：对方在自己的 ClawOPT 里进 角色预设库 → 导入 → 上传文件**或粘贴一个链接** →
+预演 → 装进自己的龙虾。ID 撞车可以当场改名。
+
+包是 gzip 压缩的 JSON，装之前能自己看清楚里面有什么：
+
+```bash
+gunzip -c 课程设计.clawpack | jq '.manifest'
+```
+
+三条硬规矩：
+
+- **凭据永不进包** —— API key、网关 token、`auth-profiles.json` 一律不导出，并对残留做扫描告警
+- **私人数据默认不带** —— `memory/` 每日记录和对话历史从不导出；`MEMORY.md` 长期记忆默认关闭，要带得自己勾
+- **导入不执行任何东西** —— `automations.sh` 只写文件，定时任务由使用者自己确认后再跑
+
+预演会明说包里哪些技能声明了执行命令的权限、哪些会联网、有没有定时任务。
+**导入别人的包等于把别人写的提示词放进自己的模型上下文**，这些信息不该藏起来。
+
 ### 文档预览增强（可选）
 
 ```bash

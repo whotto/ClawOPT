@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Settings, Boxes, ArrowLeft, X, Network, Terminal, Edit2, Trash2, Info, Cpu, Check, Search, ChevronDown, RefreshCw, GripVertical, Star } from 'lucide-react';
+import { Plus, Settings, Boxes, Share2, ArrowLeft, X, Network, Terminal, Edit2, Trash2, Info, Cpu, Check, Search, ChevronDown, RefreshCw, GripVertical, Star } from 'lucide-react';
 import { Reorder } from 'motion/react';
 import { ViewType, SettingsTab } from '../App';
 import { requestActiveContextRefresh } from '../utils/contextRefresh';
@@ -1979,6 +1979,19 @@ export default function Sidebar({
                 {t('common.close')}
               </button>
               <button
+                onClick={() => {
+                  try {
+                    localStorage.setItem('clawopt_pack_export', JSON.stringify({ kind: 'agent', id: viewingSession.id, name: viewingSession.name }));
+                  } catch { /* 隐私模式下 localStorage 不可用，退化成不预选 */ }
+                  setIsInfoModalOpen(false);
+                  navigateTo('settings', 'presets', false);
+                }}
+                className="flex-1 flex items-center justify-center sm:gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-bold transition-all"
+              >
+                <Share2 className="hidden sm:block w-4 h-4" />
+                {t('sidebar.exportPack')}
+              </button>
+              <button
                 onClick={() => handleStartEdit(null, viewingSession)}
                 className="flex-1 flex items-center justify-center sm:gap-2 px-4 py-2.5 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 rounded-xl font-bold transition-all"
               >
@@ -2485,6 +2498,18 @@ export default function Sidebar({
                 className="flex-1 flex items-center justify-center sm:gap-2 px-4 py-2.5 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 rounded-xl font-bold transition-all active:scale-[0.98]"
               >
                 <Edit2 className="hidden sm:block w-4 h-4" />{t('common.edit')}
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    localStorage.setItem('clawopt_pack_export', JSON.stringify({ kind: 'team', id: viewingGroup.id, name: viewingGroup.name }));
+                  } catch { /* 隐私模式下 localStorage 不可用，退化成不预选 */ }
+                  setIsGroupInfoOpen(false);
+                  navigateTo('settings', 'presets', false);
+                }}
+                className="flex-1 flex items-center justify-center sm:gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-bold transition-all active:scale-[0.98]"
+              >
+                <Share2 className="hidden sm:block w-4 h-4" />{t('sidebar.exportPack')}
               </button>
               <button
                 onClick={() => { setIsGroupInfoOpen(false); setIsResetGroupModalOpen(true); }}

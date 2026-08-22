@@ -23,6 +23,21 @@ import {
   presetsDirExists,
 } from './preset-installer';
 import {
+  MAX_PACK_BYTES,
+  PackError,
+  buildAgentEntry,
+  buildPack,
+  parsePack,
+  readPackFile,
+  sanitizeFileName,
+  serializePack,
+  writeAgentFiles,
+  type ClawPack,
+  type PackAgent,
+  type PackTeam,
+  type PackWarning,
+} from './agent-pack';
+import {
   GroupChatEngine,
   appendToolProgressLine,
   createAgentResponseFailedMessage,
@@ -244,6 +259,11 @@ const AGENT_ID_REQUIRED_ERROR_CODE = 'agents.idRequired';
 const PRESET_NOT_FOUND_ERROR_CODE = 'presets.notFound';
 const PRESET_NO_ROLE_SELECTED_ERROR_CODE = 'presets.noRoleSelected';
 const PRESET_INSTALL_FAILED_ERROR_CODE = 'presets.installFailed';
+const PACK_SOURCE_REQUIRED_ERROR_CODE = 'packs.sourceRequired';
+const PACK_AGENT_NOT_FOUND_ERROR_CODE = 'packs.agentNotFound';
+const PACK_TEAM_NOT_FOUND_ERROR_CODE = 'packs.teamNotFound';
+const PACK_FETCH_FAILED_ERROR_CODE = 'packs.fetchFailed';
+const PACK_URL_BLOCKED_ERROR_CODE = 'packs.urlBlocked';
 const AGENT_ID_CONTAINS_WHITESPACE_ERROR_CODE = 'agents.idContainsWhitespace';
 const AGENT_ID_ALREADY_EXISTS_ERROR_CODE = 'agents.idAlreadyExists';
 const GROUP_ID_REQUIRED_ERROR_CODE = 'groups.idRequired';
@@ -9144,6 +9164,319 @@ app.get('/api/sessions', (_req, res) => {
 //   ① 建 Agent + 写 6 份 markdown（走 sessionManager + agentProvisioner，与手工建 Agent 同一条链路）
 //   ② MEMORY.md / BOOTSTRAP.md / skills/ / reference/ / automations.sh 直接写工作区
 // 详见 docs/preset-gap.md。
+
+// ── 智能体 / 团队打包（.clawpack）─────────────────────────────────────────
+// 把这台机器上的一个 Agent 或一个团队打成包发给别人，对方在自己的 ClawOPT 上装回去。
+// 导入侧的三道闸门：路径白名单（agent-pack.ts）、装之前先预演、导入不执行任何东西。
+
+const packUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_PACK_BYTES } });
+
+/** 拉取远端包。只允许 http/https，且拦住指向内网与回环的地址（SSRF）。 */
+async function fetchRemotePack(rawUrl: string): Promise<Buffer> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new PackError(PACK_FETCH_FAILED_ERROR_CODE, rawUrl);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new PackError(PACK_URL_BLOCKED_ERROR_CODE, parsed.protocol);
+  }
+  const host = parsed.hostname.toLowerCase();
+  const isPrivate =
+    host === 'localhost' || host === '::1' || host.endsWith('.local') || host.endsWith('.internal') ||
+    /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) || /^0\./.test(host);
+  if (isPrivate) {
+    throw new PackError(PACK_URL_BLOCKED_ERROR_CODE, host);
+  }
+
+  const response = await axios.get<ArrayBuffer>(parsed.toString(), {
+    responseType: 'arraybuffer',
+    timeout: 15000,
+    maxContentLength: MAX_PACK_BYTES,
+    maxBodyLength: MAX_PACK_BYTES,
+    maxRedirects: 3,
+    validateStatus: status => status >= 200 && status < 300,
+  });
+  return Buffer.from(response.data);
+}
+
+/** 请求体或上传文件里取出包。两种入口，一套解析。 */
+async function readPackFromRequest(req: express.Request): Promise<ClawPack> {
+  const uploaded = (req as any).file as { buffer?: Buffer } | undefined;
+  if (uploaded?.buffer?.length) {
+    return parsePack(uploaded.buffer);
+  }
+  const url = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+  if (url) {
+    return parsePack(await fetchRemotePack(url));
+  }
+  throw new PackError(PACK_SOURCE_REQUIRED_ERROR_CODE);
+}
+
+function buildPackAgentEntry(agentId: string, displayName: string, options: any, warnings: PackWarning[]): PackAgent {
+  const entry = buildAgentEntry(agentId, displayName, agentProvisioner.getWorkspacePath(agentId), options, warnings);
+  const session = sessionManager.getSession(agentId);
+  const runtimeSettings = readEffectiveAgentRuntimeSettings(session, agentId);
+  entry.runtime = {
+    runtimeMode: runtimeSettings.runtimeMode,
+    systemPromptMode: runtimeSettings.systemPromptMode,
+    toolMode: runtimeSettings.toolMode,
+    processStartTag: session?.process_start_tag || '',
+    processEndTag: session?.process_end_tag || '',
+  };
+  if (options.includeModelConfig) {
+    const modelConfig = agentProvisioner.readAgentModelConfig(agentId);
+    entry.model = {
+      model: modelConfig.modelOverride,
+      fallbackMode: modelConfig.fallbackMode,
+      fallbacks: modelConfig.fallbacks,
+    };
+  }
+  return entry;
+}
+
+app.post('/api/packs/export', requireAdminAuth, async (req, res) => {
+  try {
+    const kind = req.body?.kind === 'team' ? 'team' : 'agent';
+    const id = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
+    const options = {
+      includeMemory: req.body?.includeMemory === true,
+      includeAutomations: req.body?.includeAutomations !== false,
+      includeModelConfig: req.body?.includeModelConfig === true,
+    };
+    const warnings: PackWarning[] = [];
+
+    let agents: PackAgent[] = [];
+    let team: PackTeam | null = null;
+    let name = '';
+    let summary = '';
+
+    if (kind === 'agent') {
+      const session = sessionManager.getSession(id);
+      if (!session) return res.status(404).json(buildStructuredApiError(PACK_AGENT_NOT_FOUND_ERROR_CODE, null, { agentId: id }));
+      agents = [buildPackAgentEntry(id, session.name, options, warnings)];
+      name = session.name;
+      summary = "";
+    } else {
+      const group = db.getGroupChat(id);
+      if (!group) return res.status(404).json(buildStructuredApiError(PACK_TEAM_NOT_FOUND_ERROR_CODE, null, { groupId: id }));
+      const members = db.getGroupMembers(id);
+      agents = members.map((member, index) => {
+        const session = sessionManager.getSession(member.agent_id);
+        if (!session) {
+          warnings.push({ code: 'memberMissing', detail: member.agent_id });
+          return null;
+        }
+        void index;
+        return buildPackAgentEntry(member.agent_id, session.name, options, warnings);
+      }).filter((entry): entry is PackAgent => entry !== null);
+      team = {
+        id: group.id,
+        name: group.name,
+        description: group.description || '',
+        systemPrompt: group.system_prompt || '',
+        processStartTag: group.process_start_tag || '',
+        processEndTag: group.process_end_tag || '',
+        maxChainDepth: group.max_chain_depth ?? 6,
+        members: members.map((member, index) => ({
+          agentId: member.agent_id,
+          displayName: member.display_name,
+          roleDescription: member.role_description || '',
+          position: index,
+        })),
+      };
+      name = group.name;
+      summary = group.description || '';
+    }
+
+    if (!agents.length) {
+      return res.status(400).json(buildStructuredApiError(PACK_AGENT_NOT_FOUND_ERROR_CODE, null, { agentId: id }));
+    }
+
+    const pack = buildPack({
+      kind,
+      name,
+      summary,
+      appVersion: getCurrentAppVersionInfo().version,
+      agents,
+      team,
+      options,
+      warnings,
+    });
+    const body = serializePack(pack);
+    const fileName = `${sanitizeFileName(name)}.clawpack`;
+
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.setHeader('X-Clawpack-Manifest', encodeURIComponent(JSON.stringify(pack.manifest)));
+    res.send(body);
+  } catch (error: any) {
+    res.status(500).json(buildStructuredApiError(PRESET_INSTALL_FAILED_ERROR_CODE, error?.message || String(error)));
+  }
+});
+
+/** 预演：解析包、报清楚里面有什么、哪些 ID 会撞车。一个字节都不写。 */
+app.post('/api/packs/inspect', requireAdminAuth, packUpload.single('file'), async (req, res) => {
+  try {
+    const pack = await readPackFromRequest(req);
+    const agents = pack.agents.map(agent => ({
+      id: agent.id,
+      name: agent.name,
+      skills: agent.skills,
+      fileCount: agent.files.length,
+      hasAutomations: agent.files.some(file => file.path === 'automations.sh'),
+      hasMemory: agent.files.some(file => file.path === 'MEMORY.md'),
+      conflict: Boolean(sessionManager.getSession(agent.id)),
+      soulPreview: readPackFile(agent, 'SOUL.md').slice(0, 400),
+    }));
+    res.json({
+      success: true,
+      kind: pack.kind,
+      exportedAt: pack.exportedAt,
+      exportedBy: pack.exportedBy,
+      manifest: pack.manifest,
+      team: pack.team ? { ...pack.team, conflict: Boolean(db.getGroupChat(pack.team.id)) } : null,
+      agents,
+    });
+  } catch (error: any) {
+    const code = error instanceof PackError ? error.code : PRESET_INSTALL_FAILED_ERROR_CODE;
+    res.status(400).json(buildStructuredApiError(code, error?.message || String(error)));
+  }
+});
+
+app.post('/api/packs/install', requireAdminAuth, packUpload.single('file'), async (req, res) => {
+  try {
+    const pack = await readPackFromRequest(req);
+    const rawRename = req.body?.rename;
+    const rename: Record<string, string> = typeof rawRename === 'string'
+      ? JSON.parse(rawRename || '{}')
+      : (rawRename && typeof rawRename === 'object' ? rawRename : {});
+    const overwrite = req.body?.overwrite === true || req.body?.overwrite === 'true';
+    const installTeam = req.body?.installTeam !== false && req.body?.installTeam !== 'false';
+    const applyModel = req.body?.applyModel === true || req.body?.applyModel === 'true';
+
+    const idMap: Record<string, string> = {};
+    const results: any[] = [];
+
+    for (const agent of pack.agents) {
+      const requestedId = typeof rename[agent.id] === 'string' && rename[agent.id].trim() ? rename[agent.id].trim() : agent.id;
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(requestedId)) {
+        results.push({ sourceId: agent.id, targetId: requestedId, status: 'failed', error: 'invalid id' });
+        continue;
+      }
+      const existing = sessionManager.getSession(requestedId);
+      if (existing && !overwrite) {
+        results.push({ sourceId: agent.id, targetId: requestedId, status: 'skipped', skills: agent.skills });
+        continue;
+      }
+      try {
+        if (!existing) {
+          sessionManager.createSession({
+            id: requestedId,
+            name: agent.name,
+            process_start_tag: agent.runtime?.processStartTag,
+            process_end_tag: agent.runtime?.processEndTag,
+            runtime_mode: normalizeAgentRuntimeMode(agent.runtime?.runtimeMode),
+            system_prompt_mode: normalizeAgentSystemPromptMode(agent.runtime?.systemPromptMode),
+            tool_mode: normalizeAgentToolMode(agent.runtime?.toolMode),
+          });
+        }
+        await agentProvisioner.provision({
+          agentId: requestedId,
+          identityContent: readPackFile(agent, 'IDENTITY.md') || undefined,
+          soulContent: readPackFile(agent, 'SOUL.md') || undefined,
+          agentsContent: readPackFile(agent, 'AGENTS.md') || undefined,
+          userContent: readPackFile(agent, 'USER.md') || undefined,
+          toolsContent: readPackFile(agent, 'TOOLS.md') || undefined,
+          heartbeatContent: readPackFile(agent, 'HEARTBEAT.md') || undefined,
+          model: applyModel ? (agent.model?.model || undefined) : undefined,
+          fallbackMode: applyModel ? normalizeFallbackMode(agent.model?.fallbackMode) ?? 'inherit' : undefined,
+          fallbacks: applyModel ? normalizeFallbackList(agent.model?.fallbacks) : undefined,
+          systemPromptMode: normalizeAgentSystemPromptMode(agent.runtime?.systemPromptMode),
+          toolMode: normalizeAgentToolMode(agent.runtime?.toolMode),
+        });
+        sessionManager.updateSession(requestedId, { agentId: requestedId, name: agent.name });
+        const written = writeAgentFiles(agent, agentProvisioner.getWorkspacePath(requestedId));
+        idMap[agent.id] = requestedId;
+        results.push({
+          sourceId: agent.id,
+          targetId: requestedId,
+          status: existing ? 'updated' : 'created',
+          fileCount: written,
+          skills: agent.skills,
+        });
+      } catch (error: any) {
+        results.push({ sourceId: agent.id, targetId: requestedId, status: 'failed', error: error?.message || String(error) });
+      }
+    }
+
+    let teamResult: any = null;
+    if (pack.kind === 'team' && pack.team && installTeam) {
+      const sourceTeam = pack.team;
+      const requestedTeamId = typeof rename[`team:${sourceTeam.id}`] === 'string' && rename[`team:${sourceTeam.id}`].trim()
+        ? rename[`team:${sourceTeam.id}`].trim()
+        : sourceTeam.id;
+      const validation = validateGroupId(requestedTeamId);
+      if (validation.issue) {
+        teamResult = { targetId: requestedTeamId, status: 'failed', error: validation.issue };
+      } else if (db.getGroupChat(validation.normalizedId) && !overwrite) {
+        teamResult = { targetId: validation.normalizedId, status: 'skipped' };
+      } else {
+        const teamId = validation.normalizedId;
+        const now = new Date().toISOString();
+        const existingTeam = db.getGroupChat(teamId);
+        const allGroups = db.getGroupChats();
+        const maxPosition = allGroups.length > 0 ? Math.max(...allGroups.map(group => group.position || 0)) : -1;
+        db.saveGroupChat({
+          id: teamId,
+          name: sourceTeam.name,
+          description: sourceTeam.description || '',
+          system_prompt: sourceTeam.systemPrompt || '',
+          process_start_tag: sourceTeam.processStartTag || '',
+          process_end_tag: sourceTeam.processEndTag || '',
+          max_chain_depth: sourceTeam.maxChainDepth ?? 6,
+          runtime_session_epoch: existingTeam?.runtime_session_epoch ?? createNextGroupRuntimeSessionEpoch(),
+          position: existingTeam?.position ?? maxPosition + 1,
+          created_at: existingTeam?.created_at || now,
+          updated_at: now,
+        });
+        const members = sourceTeam.members
+          .map(member => ({ ...member, targetId: idMap[member.agentId] }))
+          .filter(member => Boolean(member.targetId));
+        members.forEach((member, index) => {
+          db.saveGroupMember({
+            id: `gm_${teamId}_${member.targetId}`,
+            group_id: teamId,
+            agent_id: member.targetId as string,
+            display_name: member.displayName || (member.targetId as string),
+            role_description: member.roleDescription || '',
+            position: index,
+          });
+        });
+        ensureGroupWorkspace(teamId);
+        teamResult = {
+          targetId: teamId,
+          status: existingTeam ? 'updated' : 'created',
+          memberCount: members.length,
+          droppedMembers: sourceTeam.members.length - members.length,
+        };
+      }
+    }
+
+    const failed = results.filter(result => result.status === 'failed');
+    res.json({
+      success: failed.length === 0,
+      results,
+      team: teamResult,
+      manifest: pack.manifest,
+    });
+  } catch (error: any) {
+    const code = error instanceof PackError ? error.code : PRESET_INSTALL_FAILED_ERROR_CODE;
+    res.status(400).json(buildStructuredApiError(code, error?.message || String(error)));
+  }
+});
 
 app.get('/api/presets', (_req, res) => {
   if (!presetsDirExists()) {
