@@ -9447,8 +9447,12 @@ app.post('/api/packs/share', requireAdminAuth, async (req, res) => {
       return res.status(404).json(buildStructuredApiError(built.error, null, built.params || null));
     }
 
+    // 探针用 `gh api user` 而不是 `gh auth status`：后者在旧版 gh 里强制校验
+    // `repo` + `read:org` 两个 scope，于是一个只带 `gist`（分享真正需要的那个）的
+    // 令牌会被判成不可用——探针比它守护的操作更严，就会拦下本来能跑的调用。
+    // `gh api user` 只要求令牌本身有效，与建 gist 的实际要求对齐。
     const ghReady = await new Promise<{ ok: boolean; detail: string }>(resolve => {
-      const probe = spawn('gh', ['auth', 'status']);
+      const probe = spawn('gh', ['api', 'user', '-q', '.login']);
       let stderr = '';
       probe.stderr?.on('data', chunk => { stderr += chunk.toString(); });
       probe.on('error', () => resolve({ ok: false, detail: 'notInstalled' }));
