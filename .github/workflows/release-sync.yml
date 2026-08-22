@@ -26,3 +26,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_RELEASE_NOTES_FILE: docs/release-notes-${{ github.ref_name }}.md
         run: node scripts/github-release-sync.mjs --verify-tag-ref --github-release
+
+      # 预构建产物。deploy-release.sh 一直在找这个文件，但此前没有任何流程生成它，
+      # 于是每台机器都静默回退到本地全量构建——2GB 的主机会被 vite 打到 load 17、
+      # SSH 断连。构建放在 CI 做一次，所有部署共享。
+      - name: Install dependencies
+        run: |
+          npm install --include=dev --no-audit --no-fund
+          npm --prefix backend install --include=dev --no-audit --no-fund
+          npm --prefix frontend install --include=dev --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack dist artifact
+        run: |
+          test -d backend/dist && test -d frontend/dist
+          tar -czf "clawopt-dist-${{ github.ref_name }}.tgz" \
+            backend/dist frontend/dist .clawopt-build.json
+          ls -lh "clawopt-dist-${{ github.ref_name }}.tgz"
+
+      - name: Upload dist artifact to Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            "clawopt-dist-${{ github.ref_name }}.tgz" --clobber

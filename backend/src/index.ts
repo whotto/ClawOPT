@@ -9866,6 +9866,11 @@ app.post('/api/presets/:presetId/install', requireAdminAuth, async (req, res) =>
       const written = writeWorkspaceExtras(preset.id, preset, role, vals, workspaceDir);
       results.push({ ...plan, workspaceFileCount: written, status: existing ? 'updated' : 'created' });
     } catch (error: any) {
+      // 失败要把这一轮刚建的 session 撤掉。留着的话，下次重试会被判成
+      // 「已存在 → 跳过」，界面还显示「已安装」——用户不勾覆盖就永远修不好。
+      if (!existing) {
+        try { sessionManager.deleteSession(role.id); } catch { /* 撤不掉就让结果里的失败信息说话 */ }
+      }
       results.push({ ...plan, status: 'failed', error: error?.message || String(error) });
     }
   }

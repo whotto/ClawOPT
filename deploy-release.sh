@@ -64,8 +64,13 @@ cd "$PROJECT_ROOT"
 # 前端 vite build 峰值约 1GB 内存 + 312MB 依赖。
 # 若 GitHub Release 提供了 dist 产物，直接下载解压，跳过整个构建链。
 PREBUILT_OK=0
-REL_TAG="$(curl -fsSL -m 20 https://api.github.com/repos/whotto/ClawOPT/releases/latest 2>/dev/null \
-           | grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
+# 产物必须和当前检出的代码同一个 tag。之前是「拉 latest release 的产物、解到 main HEAD
+# 的代码树上」——前端产物和后端源码来自两个提交，出问题时无从判断谁对谁错。
+REL_TAG="${CLAWOPT_DEPLOY_REF:-}"
+case "$REL_TAG" in
+    v*) ;;                     # 明确的发布 tag，可以用它的预构建产物
+    *)  REL_TAG="$(git describe --tags --exact-match 2>/dev/null || true)" ;;
+esac
 if [ -n "$REL_TAG" ] && [ "${CLAWOPT_FORCE_BUILD:-0}" != "1" ]; then
     ART="https://github.com/whotto/ClawOPT/releases/download/${REL_TAG}/clawopt-dist-${REL_TAG}.tgz"
     echo "尝试预构建产物: $REL_TAG"
@@ -75,6 +80,21 @@ if [ -n "$REL_TAG" ] && [ "${CLAWOPT_FORCE_BUILD:-0}" != "1" ]; then
         echo "✓ 已使用预构建产物，跳过前端构建"
     else
         echo "· 无预构建产物，回退到本地构建"
+    fi
+else
+    echo "· 当前检出不是发布 tag（或已强制本地构建），跳过预构建产物"
+fi
+
+# 小内存主机上本地全量构建是已知的事故源：前端 vite 峰值约 1GB，
+# 2GB 机器会进 swap 风暴，连 sshd 都可能失去响应。
+if [ "$PREBUILT_OK" != "1" ]; then
+    AVAIL_MB="$(free -m 2>/dev/null | awk '/^Mem:/{print $7}')"
+    if [ -n "$AVAIL_MB" ] && [ "$AVAIL_MB" -lt 1200 ] && [ "${CLAWOPT_ALLOW_LOCAL_BUILD:-0}" != "1" ]; then
+        echo "" >&2
+        echo "拒绝在本机构建：可用内存仅 ${AVAIL_MB}MB，前端构建峰值约 1GB。" >&2
+        echo "  · 优先做法：等这个版本的 Release 传完预构建产物，再升级" >&2
+        echo "  · 确实要在本机构建：CLAWOPT_ALLOW_LOCAL_BUILD=1 ./deploy-release.sh $CLAWOPT_PORT" >&2
+        exit 1
     fi
 fi
 

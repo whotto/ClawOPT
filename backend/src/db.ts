@@ -128,7 +128,28 @@ export class DB {
     fs.mkdirSync(base, { recursive: true });
     const dbPath = path.join(base, 'clawopt.sqlite');
     this.db = new Database(dbPath);
+
+    // WAL：默认的 delete journal 在断电/OOM-kill 时有损坏窗口，且并发读写差
+    // （这台机器上后端与备份脚本会同时碰这个库）。synchronous=NORMAL 是 WAL 下的
+    // 常规搭配：崩溃最多丢最后一个事务，不会损坏库文件。
+    try {
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('synchronous = NORMAL');
+      this.db.pragma('busy_timeout = 5000');
+    } catch (error) {
+      console.warn('[DB] 设置 WAL 失败，回落到默认日志模式：', error);
+    }
+
     this.init();
+  }
+
+  /**
+   * 在线备份到指定路径。用 SQLite 自己的 backup 而不是 cp——
+   * cp 一个正在写入的库会拷到撕裂的中间状态，而这种损坏往往到恢复时才发现。
+   */
+  backupTo(targetPath: string): void {
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    this.db.exec(`VACUUM INTO '${targetPath.replace(/'/g, "''")}'`);
   }
 
   private init() {
@@ -252,18 +273,28 @@ export class DB {
     `);
 
     // Migration: add system_prompt to existing tables
-    try {
-      this.db.exec("ALTER TABLE group_chats ADD COLUMN system_prompt TEXT DEFAULT ''");
-    } catch (e) {}
+    // 迁移的 catch 只该吞「列已存在」。原来是裸 catch {}，磁盘满、库损坏、
+    // 权限不足会被一并咽掉，之后的 SQL 才在运行时炸，且现场已经丢了。
+    const addColumn = (sql: string) => {
+      try {
+        this.db.exec(sql);
+      } catch (error: any) {
+        const message = String(error?.message || '');
+        if (/duplicate column name/i.test(message)) return;
+        throw error;
+      }
+    };
+
+    addColumn("ALTER TABLE group_chats ADD COLUMN system_prompt TEXT DEFAULT ''");
 
     // Migration: add process tags for transparency feature
-    try { this.db.exec("ALTER TABLE group_chats ADD COLUMN process_start_tag TEXT DEFAULT ''"); } catch (e) {}
-    try { this.db.exec("ALTER TABLE group_chats ADD COLUMN process_end_tag TEXT DEFAULT ''"); } catch (e) {}
-    try { this.db.exec("ALTER TABLE group_messages ADD COLUMN process_content TEXT"); } catch (e) {}
+    addColumn("ALTER TABLE group_chats ADD COLUMN process_start_tag TEXT DEFAULT ''");
+    addColumn("ALTER TABLE group_chats ADD COLUMN process_end_tag TEXT DEFAULT ''");
+    addColumn("ALTER TABLE group_messages ADD COLUMN process_content TEXT");
     // Migration: add max_chain_depth
-    try { this.db.exec("ALTER TABLE group_chats ADD COLUMN max_chain_depth INTEGER DEFAULT 6"); } catch (e) {}
-    try { this.db.exec("ALTER TABLE group_chats ADD COLUMN runtime_session_epoch INTEGER DEFAULT 0"); } catch (e) {}
-    try { this.db.exec("ALTER TABLE group_chats ADD COLUMN position INTEGER DEFAULT 0"); } catch (e) {}
+    addColumn("ALTER TABLE group_chats ADD COLUMN max_chain_depth INTEGER DEFAULT 6");
+    addColumn("ALTER TABLE group_chats ADD COLUMN runtime_session_epoch INTEGER DEFAULT 0");
+    addColumn("ALTER TABLE group_chats ADD COLUMN position INTEGER DEFAULT 0");
 
     // Backfill stable ordering for legacy group rows that predate the position column.
     try {
@@ -275,7 +306,11 @@ export class DB {
         });
         transaction(groupRows);
       }
-    } catch (e) {}
+    } catch (error) {
+      // 回填只是让老数据有个稳定顺序，失败不该拦住启动；但要留声，
+      // 否则「群组顺序莫名其妙」这类问题查不到根。
+      console.warn('[DB] 群组顺序回填失败：', error);
+    }
 
     try {
       this.db.exec("ALTER TABLE sessions ADD COLUMN characterId TEXT");

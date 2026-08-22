@@ -917,8 +917,9 @@ export class AgentProvisioner {
   async provision(opts: ProvisionOptions): Promise<boolean> {
     try {
       if (!fs.existsSync(this.openclawDir)) {
-        console.error('OpenClaw directory not found at', this.openclawDir);
-        return false;
+        // 抛而不是 return false：调用方从来不看这个返回值，于是「OpenClaw 根本没装」
+        // 也会被报成装配成功，界面全绿而 Agent 是空壳。
+        throw new Error(`OpenClaw directory not found at ${this.openclawDir}`);
       }
 
 
@@ -986,7 +987,9 @@ export class AgentProvisioner {
       return configChanged;
     } catch (error) {
       console.error('Failed to provision agent:', error);
-      return false;
+      // 同上：失败必须让调用方知道。装配是「一键复制」的主链路，
+      // 它静默成功比直接报错危险得多——用户以为装好了，实际什么都没有。
+      throw error;
     }
   }
 

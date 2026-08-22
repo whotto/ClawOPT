@@ -88,6 +88,9 @@
 - 本仓库正式发布依赖两部分同时成功：`git tag` 推送成功，以及 GitHub Actions `Release Sync` 成功创建 GitHub Release；只有 tag 没有 Release，不算发布完成。
 - 发布前先把根 `package.json.version` 改到目标版本；`package-lock.json` 作为派生文件同步更新，但版本真值源仍然只有根 `package.json`。
 - 发布前必须新增对应的 release notes 文件，命名固定为 `docs/release-notes-vX.Y.Z.md`；内容可精简，但文件必须存在。GitHub Actions 会读取这个文件创建 Release，缺失时会导致 tag 已推送但 Release 失败。
+- 生产机默认**不构建**：发布时 CI 会产出 `clawopt-dist-vX.Y.Z.tgz` 并挂到 Release，`deploy-release.sh` 只在检出的 tag 与产物匹配时使用它。可用内存低于 1200MB 时脚本直接拒绝本地构建（`CLAWOPT_ALLOW_LOCAL_BUILD=1` 可强制）——2GB 主机跑 vite 会进 swap 风暴，连 sshd 都可能失去响应。
+- `update.sh` 默认部署**最新发布 tag**，不是 `origin/main`；开发机跟 main 要显式 `CLAWOPT_TARGET_REF=main`。部署失败会自动回滚到升级前的提交并用旧代码重新部署——不回滚的话，工作区已是新代码、dist 可能是半成品，而 `Restart=always` 会拿着坏产物每 10 秒崩一次。
+- 数据备份走 `scripts/backup.sh`（SQLite 用 `VACUUM INTO` 在线备份、工作区打包、`openclaw.json` 脱敏后留档），建议 cron 每日一次保留 7 份。SQLite 已开 WAL。
 - 发布前必须跑 `npm run presets:check`；预设与角色配置包不一致时不得发布——装出来的团队会和配置包分叉，而且不报错。
 - 发布顺序固定为：更新版本号 -> 新增 `docs/release-notes-vX.Y.Z.md` -> 运行必要的 `npm run test` / `npm run build` -> 提交到 `main` -> 推送 `main` -> 执行 `npm run release:publish` 推送 tag。
 - `npm run release:publish` 只负责创建并推送 tag；GitHub Release 由 `.github/workflows/release-sync.yml` 在 tag push 后自动创建，不要每次都重新寻找手工发布方法。

@@ -64,15 +64,43 @@ TARGET_PORT=${1:-$EXISTING_PORT}
 TARGET_PORT=${TARGET_PORT:-3115}
 
 emit_phase "git-pull"
-echo "正在从 GitHub 强制同步代码，目录: $PROJECT_ROOT..."
 cd "$PROJECT_ROOT"
+
+# 升级前先记住当前位置，失败时能退回来。
+PRE_UPDATE_REF="$(git rev-parse HEAD 2>/dev/null || true)"
+[ -n "$PRE_UPDATE_REF" ] && echo "$PRE_UPDATE_REF" > /tmp/clawopt-pre-update-ref
+
 git fetch origin main --tags
-git reset --hard origin/main
+
+# 部署目标默认是**最新的发布 tag**，不是 main HEAD。
+# 之前部署 main 会让「用户看到的版本号」与「实际跑的代码」对不上——
+# 界面显示 v1.1.0，跑的却是 tag 之后的任意提交；预构建产物也会和源码错版。
+# 需要跟 main 的（开发机）显式设 CLAWOPT_TARGET_REF=main。
+TARGET_REF="${CLAWOPT_TARGET_REF:-}"
+if [ -z "$TARGET_REF" ]; then
+    TARGET_REF="$(git tag -l 'v*' --sort=-v:refname | head -n1)"
+    [ -z "$TARGET_REF" ] && TARGET_REF="origin/main"
+fi
+echo "正在同步代码到 $TARGET_REF，目录: $PROJECT_ROOT..."
+git reset --hard "$TARGET_REF"
 git clean -fd
+export CLAWOPT_DEPLOY_REF="$TARGET_REF"
 
 emit_phase "deploy-release"
 echo "开始升级端口 $TARGET_PORT 的服务..."
-./deploy-release.sh "$TARGET_PORT"
+if ! ./deploy-release.sh "$TARGET_PORT"; then
+    # 失败就退回升级前那个提交。不回滚的话，工作区已经是新代码、dist 可能是半成品，
+    # 而 systemd 的 Restart=always 会拿着坏产物每 10 秒崩一次。
+    echo "升级失败，正在回滚到升级前的版本..." >&2
+    if [ -s /tmp/clawopt-pre-update-ref ]; then
+        git reset --hard "$(cat /tmp/clawopt-pre-update-ref)" && git clean -fd
+        echo "已回滚到 $(cat /tmp/clawopt-pre-update-ref)，正在用回滚后的代码重启服务..." >&2
+        ./deploy-release.sh "$TARGET_PORT" || echo "回滚后的重新部署也失败了，需要人工介入。" >&2
+    else
+        echo "没有记录到升级前的提交，无法自动回滚。" >&2
+    fi
+    exit 1
+fi
 
 emit_phase "complete"
 echo "================================================"
