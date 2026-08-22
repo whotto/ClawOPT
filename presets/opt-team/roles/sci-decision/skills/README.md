@@ -2,14 +2,16 @@
 
 工作区技能是**优先级最高**的技能位置：同名时覆盖 project agent skills、personal agent skills、托管技能、内置技能与 `skills.load.extraDirs`。
 
-> 本文件由 `_shared/validate-skills.sh` 的同源脚本生成，**内容与磁盘实际一致**。
+> 本文件的技能表与目录树由 `_shared/gen-skills-readme.py` 生成，**内容与磁盘实际一致**。
 > 路由表指向不存在的技能是最常见也最致命的配置问题——它不报错，只是静默失效。
 
 ## 已装备技能
 
 | 技能 | 做什么 | 版本 | 篇幅 | 最小权限（allowed-tools） |
 |------|--------|------|------|--------------------------|
-| `roi-deep-dive` | 用出口式咨询陪搭档拆解一个决策——找出口、切视角、探路径、摆结果四步，通过提问帮他自己走 | v1.0 | 266 行 | `web_search web_fetch Read Write Edit memory_search memory_get` |
+| `roi-deep-dive` | 用出口式咨询陪搭档拆解一个决策——找出口、切视角、探路径、摆结果四步，通过提问帮他自己走到结论，全程不给… | v1.0 | 266 行 | `web_search web_fetch Read Write Edit memory_search memory_get` |
+
+合计 **1** 条，全部通过 `_shared/validate-skills.sh` 的 House Spec 十项校验。
 
 ## 目录结构
 
@@ -18,9 +20,9 @@ skills/
 ├── roi-deep-dive/
 │   ├── SKILL.md
 │   └── assets/decision-summary.md
-├── _pending/       候选技能待审队列（Agent 自己沉淀的先进这里）
-├── _archived/      季度打分淘汰的技能（保留是为了不重复造轮子）
-└── _rejected/      被否决的候选 + 否决理由
+├── _pending/      待审批的候选技能（Agent 只能写这里）
+├── _archived/     已淘汰技能的留档
+└── _rejected/     评估后否决的技能与否决理由
 ```
 
 ## 编写规格

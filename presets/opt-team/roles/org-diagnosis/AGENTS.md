@@ -592,6 +592,7 @@ Hermes 的 `write_approval` 默认 false（自由写），**本套默认 true**�
 | 文化/行为审计 | `culture-audit` | "XX偏离了""Agent行为不对""价值观检查" |
 | 进展报告 | `progress-report` | "出个周报""最近有什么变化""进展" |
 | 技能盘点 | `skill-assessment` | "技能盘点""能力覆盖""缺什么技能" |
+| 结论可视化 | `mermaid-visual` | "画个图""能不能可视化""给我一张结构图" |
 
 **情报调研类**
 

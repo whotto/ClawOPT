@@ -19,6 +19,8 @@
 - `cd frontend && npm run dev`: 启动前端开发服务。
 - `npm run build`: 同时构建前后端。
 - `npm run release`: 构建后启动 release 预览流程。
+- `npm run presets:check`: 比对 `presets/opt-team/` 与角色配置包源（默认 `../openclaw-agents`）；不一致退出码 1，发布前卡口。
+- `npm run presets:sync`: 把角色配置包同步进预设，并按 `PARAM_RULES` 把具体值换回 `{{...}}` 占位符。
 - `./deploy-release.sh [port]`: 安装依赖、构建并部署 user-level systemd 服务。
 - `npm run test`: 运行仓库级最小自动检查；当前仅覆盖前后端 TypeScript 类型检查，不等于完整业务测试。
 - `cd backend && npm run test`: 后端 TypeScript 类型检查。
@@ -38,6 +40,8 @@
 - 新增模块的风格和样式必须参考现有模块；颜色、字号、按钮尺寸、边框、间距、交互反馈等保持一致，不要单独做一套新视觉。
 - 全局不要使用阴影；需要层级或分隔时，优先使用浅灰色边框。
 - 不要保留死代码。
+- `presets/opt-team/` 是角色配置包（`../openclaw-agents`）的**参数化副本**，唯一真值源在配置包一侧；改预设内容要改源再跑 `npm run presets:sync`，不要直接手改副本。副本里的 `{{USER_TITLE}}` / `{{USER_ROLE}}` / `{{USER_STRENGTH}}` / `{{USER_BLINDSPOT}}` / `{{AGENT_AVATAR}}` 由同步脚本按规则生成，手工拷贝会把占位符写死成具体值，装配器的参数填充随之失效。
+- 新增预设占位符时，必须同时改三处：`scripts/sync-presets.mjs` 的 `PARAM_RULES`、`presets/opt-team/preset.json` 的 `params`、以及装配器的 `fillPlaceholders` 覆盖范围。
 - 不要把对用户有意义的参数、阈值、开关、配置做成隐藏实现；应优先提供界面入口让用户配置。
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
 
@@ -73,6 +77,7 @@
 - 本仓库正式发布依赖两部分同时成功：`git tag` 推送成功，以及 GitHub Actions `Release Sync` 成功创建 GitHub Release；只有 tag 没有 Release，不算发布完成。
 - 发布前先把根 `package.json.version` 改到目标版本；`package-lock.json` 作为派生文件同步更新，但版本真值源仍然只有根 `package.json`。
 - 发布前必须新增对应的 release notes 文件，命名固定为 `docs/release-notes-vX.Y.Z.md`；内容可精简，但文件必须存在。GitHub Actions 会读取这个文件创建 Release，缺失时会导致 tag 已推送但 Release 失败。
+- 发布前必须跑 `npm run presets:check`；预设与角色配置包不一致时不得发布——装出来的团队会和配置包分叉，而且不报错。
 - 发布顺序固定为：更新版本号 -> 新增 `docs/release-notes-vX.Y.Z.md` -> 运行必要的 `npm run test` / `npm run build` -> 提交到 `main` -> 推送 `main` -> 执行 `npm run release:publish` 推送 tag。
 - `npm run release:publish` 只负责创建并推送 tag；GitHub Release 由 `.github/workflows/release-sync.yml` 在 tag push 后自动创建，不要每次都重新寻找手工发布方法。
 - 发布后必须显式核对四项一致：根 `package.json.version`、远端 `main` 对应 commit、远端 tag `vX.Y.Z^{}`、GitHub Release 页面；四项不一致时，不得宣称版本已发布完成。

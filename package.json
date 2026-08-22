@@ -15,6 +15,8 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "version:meta": "node scripts/write-build-meta.mjs",
+    "presets:sync": "node scripts/sync-presets.mjs --apply",
+    "presets:check": "node scripts/sync-presets.mjs --check",
     "build": "npm run version:meta && npm run build:backend && npm run build:frontend",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",

@@ -1,47 +1,57 @@
-# skills/ — 课程设计的技能库（外部装配型）
+# skills/ — 课程设计的技能库
 
-与 OPT 五角色不同，课程设计的 10 个技能**全部来自外部生态**（360 SkillHub / ClawHub / 内置库），
-不由本配置包自行编写——重写别人的成熟技能既无必要也不安全。
+工作区技能是**优先级最高**的技能位置：同名时覆盖 project agent skills、personal agent skills、托管技能、内置技能与 `skills.load.extraDirs`。
 
-本目录负责的是：**装配清单 + 准入流程 + 装完之后的接线**。
+> 本文件的技能表与目录树由 `_shared/gen-skills-readme.py` 生成，**内容与磁盘实际一致**。
+> 路由表指向不存在的技能是最常见也最致命的配置问题——它不报错，只是静默失效。
 
-## 装配清单
+第一版这里写的是「10 个技能全部来自外部生态」。现在不是了：课程设计最吃重的五件事已经有本地实现，
+外部只剩四条**可选**技能（销售转化型结构、线上直播转化、营销案例拆解、多人辩证对话）。
+本地技能全部通过 House Spec 十项校验，信任级别 T1，不占用第三方准入的审批成本。
 
-### 默认底座（4 个，所有 Agent 必配）
+## 已装备技能
 
-| Skill | 能力 | 触发场景 | 信任级别 |
-|-------|------|---------|---------|
-| `humanizer-zh` | 去 AI 味，课程材料像人写的 | 生成大纲/教案/案例后自动调用；{{USER_TITLE}}说"太 AI 了" | T2 |
-| `ljg-plain` | 白话改写，把复杂 AI 概念讲清楚 | 课程中解释 AI 概念；非技术学员看不懂术语 | T2 |
-| `ljg-card` | 内容可视化，课程框架图、知识点卡片 | 需要结构可视化、学习路径图 | T2 |
-| `structured-context-compressor` | 长对话上下文压缩 | 多轮课程设计防 Token 溢出 | T2 |
+| 技能 | 做什么 | 版本 | 篇幅 | 最小权限（allowed-tools） |
+|------|--------|------|------|--------------------------|
+| `course-material-pack` | 把一个课程主题做成讲师拿了就能上台的完整物料包——讲师手册（含逐段话术、时间分配、观察要点、应对预案）、… | v1.0 | 176 行 | `Read Write Grep Glob web_search web_fetch memory_search memory_get` |
+| `deck-builder` | 把课程大纲或讲稿做成能上台放的课件——单文件 Reveal.js HTML，浏览器打开即用，带分步揭示、… | v1.0 | 184 行 | `Read Write Grep Glob exec web_fetch` |
+| `human-writing` | 把任何要交给人读的中文稿子写成"一个见过事、查过材料的人在说话"，并按七遍顺序改掉 AI 腔 | v1.0 | 172 行 | `Read Write Grep Glob exec` |
+| `mermaid-visual` | 把已经想清楚的结构画成图——课程框架图、学习路径、决策树、流程图、组织关系、时间线、四象限、对比矩阵 | v1.0 | 179 行 | `Read Write Grep exec` |
+| `socratic-training-design` | 设计"让学员自己把思维漏洞说出来"的环节——递进式追问链、认知探测题、有杀伤力的决策场景、三角色博弈（对… | v1.0 | 180 行 | `Read Write Grep web_search web_fetch memory_search memory_get` |
 
-### 课程设计核心（3 个，360 SkillHub）
+合计 **5** 条，全部通过 `_shared/validate-skills.sh` 的 House Spec 十项校验。
 
-| Skill | owner | 能力 | 触发场景 | 信任级别 |
-|-------|-------|------|---------|---------|
-| `dapianke` | rampagepeter | 6 大阶段课程设计全流程（定位→框架→开场→中场→收尾→销售），跨会话持久化 | 从零设计新课；优化现有结构 | T3 |
-| `training-course-designer` | brandon-zhanghaodong | 一键生成 14 份专业培训文档 | 需要完整课程包交付 | T3 |
-| `webinar-outline-pro` | harrylabsj | 结构化活动大纲（时间规划+互动设计+转化引导） | 线上工作坊、互动教学环节 | T3 |
+## 待安装的外部技能
 
-### 思维训练与场景设计（3 个）
+装机清单在 `EXTERNAL.md`（机器可读，`audit-routing.sh` 靠它区分「待装」与「路由到不存在的技能」）。
+四条全部是**可选增强**，不装也不影响主流程。**T3 必须先问{{USER_TITLE}}。**
 
-| Skill | owner | 能力 | 触发场景 | 信任级别 |
-|-------|-------|------|---------|---------|
-| `adaptive-socratic-questioning` | perpetualhui | 递进式追问链，揭露认知缺口 | AI 思维训练环节 | T3 |
-| `the-4p-marketing-consultant` | jacobluxj | 4P 框架 + 真实商业案例 | AI+商业场景实战案例 | T3 |
-| `ljg-roundtable` | 内置（李继刚系列） | 结构化多人辩证对话 | AI 决策模拟环节 | T1 |
+## 目录结构
 
-**合计**：4 底座 + 6 专业 = 10 个。
-
-## 已移除（及原因，避免重复引入）
-
-| Skill | 移除原因 |
-|-------|---------|
-| `creator-course-outline` | 偏创作者课程，不适配企业家/创业者场景 |
-| `instructional-design-cn` | 偏传统教学设计，不适配体验式/实战型课程 |
-| `ljg-learn` / `ljg-writes` | 偏知识拆解和写作，不是课程设计核心能力 |
-| `ljg-invest` | 投资分析框架与 AI 课程设计无关 |
+```
+skills/
+├── course-material-pack/
+│   ├── SKILL.md
+│   ├── assets/exercise-set.md
+│   └── assets/facilitator-guide.md
+├── deck-builder/
+│   ├── SKILL.md
+│   └── assets/deck-skeleton.html
+├── human-writing/
+│   ├── SKILL.md
+│   ├── references/revision.md
+│   └── scripts/check_prose.py
+├── mermaid-visual/
+│   ├── SKILL.md
+│   ├── assets/chart-patterns.md
+│   └── scripts/mermaid-export.py
+├── socratic-training-design/
+│   ├── SKILL.md
+│   └── assets/question-chain.md
+├── _pending/      待审批的候选技能（Agent 只能写这里）
+├── _archived/     已淘汰技能的留档
+└── _rejected/     评估后否决的技能与否决理由
+```
 
 ## 准入流程（安装前必走，一步不能省）
 

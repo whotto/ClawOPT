@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>课程名</title>
+<!-- 离线优先。拿不到本地 dist/ 时把下面两行换成 CDN，并告知现场需要网络 -->
+<link rel="stylesheet" href="dist/reset.css">
+<link rel="stylesheet" href="dist/reveal.css">
+<link rel="stylesheet" href="dist/theme/white.css">
+<style>
+  :root { --ink:#1f2328; --accent:#c2410c; --muted:#6b7280; }
+  .reveal { font-family:"PingFang SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif; color:var(--ink); }
+  .reveal h1 { font-size:2.4em; letter-spacing:.02em; }
+  .reveal h2 { font-size:1.8em; }
+  .reveal p, .reveal li { font-size:1.05em; line-height:1.5; }   /* 折算 ≥24px */
+  .reveal .big-number { font-size:5em; font-weight:700; color:var(--accent); line-height:1; }
+  .reveal .source { font-size:.5em; color:var(--muted); }
+  .reveal .two-col { display:flex; gap:2em; text-align:left; }
+  .reveal .two-col > div { flex:1; }
+  .reveal section img { max-width:100%; max-height:60vh; }
+  .reveal .task { border:1px solid #d1d5db; padding:.8em 1em; text-align:left; }
+  .reveal .task h3 { margin-top:0; }
+</style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+
+<!-- 封面 -->
+<section>
+  <h1>课程名</h1>
+  <p>讲师 · 日期</p>
+  <aside class="notes">开场第一句话写在这里。不要念课程名。</aside>
+</section>
+
+<!-- 章节页 -->
+<section>
+  <h1>一 · 先看清现在</h1>
+  <aside class="notes">这一段要让他们意识到自己是 AI 旁观者。</aside>
+</section>
+
+<!-- 概念页：一句话 + 三个关键词，分步出现 -->
+<section>
+  <h2>指挥者和使用者的差别</h2>
+  <p class="fragment">会提问 → 会拆任务</p>
+  <p class="fragment">看结果 → 看过程</p>
+  <p class="fragment">用一次 → 搭一条流水线</p>
+  <aside class="notes">三点一个一个出。每出一点问一句"你现在在哪一档"。</aside>
+</section>
+
+<!-- 数字页 -->
+<section>
+  <p class="big-number">37%</p>
+  <p>上线的技能带病上岗</p>
+  <p class="source">来源：<机构> <年份>，核实于 2026-08-22</p>
+  <aside class="notes">停三秒再说话。让数字自己起作用。</aside>
+</section>
+
+<!-- 对比页 -->
+<section>
+  <h2>两种做法</h2>
+  <div class="two-col">
+    <div>
+      <h3>常见做法</h3>
+      <ul><li>先问工具</li><li>拿到就用</li><li>出错再说</li></ul>
+    </div>
+    <div>
+      <h3>换个顺序</h3>
+      <ul><li>先定退出条件</li><li>再选工具</li><li>不过就回退</li></ul>
+    </div>
+  </div>
+  <aside class="notes">让他们先说哪边像自己，再讲差别。</aside>
+</section>
+
+<!-- 图页：内联 SVG 或 mermaid-visual 的产物 -->
+<section>
+  <h2>这门课的结构</h2>
+  <img src="images/framework.svg" alt="课程结构图">
+  <p class="source">图注只说想让人看到什么</p>
+  <aside class="notes">对着图说三句：从哪开始、卡在哪、走到哪算完。</aside>
+</section>
+
+<!-- 动作页：任务 / 时间 / 交付物，三样缺一不可 -->
+<section>
+  <div class="task">
+    <h3>动手 · 25 分钟</h3>
+    <p><b>任务</b>：用你自己的业务，拆一个能交给 AI 做的任务</p>
+    <p><b>分组</b>：4 人一组，先各写 5 分钟再讨论</p>
+    <p><b>交付</b>：一页纸，含 目标 / 退出条件 / 谁验收</p>
+  </div>
+  <aside class="notes">计时器开出来。到 20 分钟提醒一次。</aside>
+</section>
+
+</div></div>
+<script src="dist/reveal.js"></script>
+<script src="plugin/notes/notes.js"></script>
+<script>
+Reveal.initialize({ hash:true, slideNumber:'c/t', transition:'fade', plugins:[RevealNotes] });
+</script>
+</body>
+</html>

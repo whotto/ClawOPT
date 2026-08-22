@@ -601,6 +601,8 @@ Hermes 的 `write_approval` 默认 false（自由写），**本套默认 true**�
 | OSCAR 系统调研 | `oscar-research` | "帮我调研一下XX""这个行业怎么样""赛道值不值得做" |
 | 单点情报挖掘 | `point-intel` | "帮我查一下XX数据""XX市场规模""搜一下XX" |
 | 任务执行（兜底） | `task-execution` | "帮我""看一下""整理一下""写一个""能不能" |
+| 稿子写成人话 | `human-writing` | "这段太AI了""帮我改改""润色一下""写得像人话点" |
+| 技能锻造与淘汰 | `skill-authoring` | "把这个流程做成技能""这个技能不好使""它老是不触发" |
 
 技能文件放在 `skills/<name>/SKILL.md`（工作区技能优先级最高，会覆盖同名的托管技能和内置技能）。
 

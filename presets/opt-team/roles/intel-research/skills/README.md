@@ -2,29 +2,38 @@
 
 工作区技能是**优先级最高**的技能位置：同名时覆盖 project agent skills、personal agent skills、托管技能、内置技能与 `skills.load.extraDirs`。
 
-> 本文件由 `_shared/validate-skills.sh` 的同源脚本生成，**内容与磁盘实际一致**。
+> 本文件的技能表与目录树由 `_shared/gen-skills-readme.py` 生成，**内容与磁盘实际一致**。
 > 路由表指向不存在的技能是最常见也最致命的配置问题——它不报错，只是静默失效。
 
 ## 已装备技能
 
 | 技能 | 做什么 | 版本 | 篇幅 | 最小权限（allowed-tools） |
 |------|--------|------|------|--------------------------|
-| `oscar-research` | 把一个说不清、多维度的复杂问题做成系统调研——一个赛道能不能做、一个行业怎么样、竞品格局 | v1.0 | 249 行 | `web_search web_fetch memory_search memory_get Read Grep Write` |
+| `deep-diligence` | 对一个具体商业主体做尽调级别的深挖——要投的项目、要加盟的品牌、要合作的公司、要正面打的竞品 | v1.0 | 197 行 | `web_search web_fetch memory_search memory_get Read Grep Write` |
+| `oscar-research` | 把一个说不清、多维度的复杂问题做成系统调研——一个赛道能不能做、一个行业怎么样、竞品格局如何、一个项目靠… | v1.0 | 249 行 | `web_search web_fetch memory_search memory_get Read Grep Write` |
 | `point-intel` | 挖单个明确的信息点——某个数据、某项指标、某个时间线、某家公司的某个事实 | v1.0 | 222 行 | `web_search web_fetch memory_search memory_get Read Write` |
+
+合计 **3** 条，全部通过 `_shared/validate-skills.sh` 的 House Spec 十项校验。
 
 ## 目录结构
 
 ```
 skills/
+├── deep-diligence/
+│   ├── SKILL.md
+│   ├── assets/diligence-report.md
+│   ├── assets/weapon-decision-table.md
+│   └── references/weapons-14.md
 ├── oscar-research/
 │   ├── SKILL.md
-│   └── assets/oscar-report.md
+│   ├── assets/oscar-report.md
+│   └── references/README.md
 ├── point-intel/
 │   ├── SKILL.md
 │   └── assets/point-delivery.md
-├── _pending/       候选技能待审队列（Agent 自己沉淀的先进这里）
-├── _archived/      季度打分淘汰的技能（保留是为了不重复造轮子）
-└── _rejected/      被否决的候选 + 否决理由
+├── _pending/      待审批的候选技能（Agent 只能写这里）
+├── _archived/     已淘汰技能的留档
+└── _rejected/     评估后否决的技能与否决理由
 ```
 
 ## 编写规格

@@ -1,10 +1,10 @@
 {
   "id": "opt-team",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "OPT 六角色",
   "nameEn": "OPT Six Roles",
   "tagline": "一支配置完整的 AI 团队：上情报、下决策、左洞察、右诊断、中枢纽、外交付",
-  "description": "不是六个人设，是六套完整工作区——带人格、方法论、每步退出条件、安全边界、技能库、定时任务。共 14 个技能，全部遵循 agentskills.io 开放规范。",
+  "description": "不是六个人设，是六套完整工作区——带人格、方法论、每步退出条件、安全边界、技能库、定时任务。共 21 个技能（27 处装配），全部遵循 agentskills.io 开放规范并通过 House Spec 十项校验。",
   "author": "ClawOPT",
   "license": "见仓库 LICENSE",
   "params": [
@@ -72,7 +72,9 @@
         "deep-research",
         "task-execution",
         "oscar-research",
-        "point-intel"
+        "point-intel",
+        "human-writing",
+        "skill-authoring"
       ],
       "recommended": true
     },
@@ -84,7 +86,8 @@
       "slogan": "咱们先把事实搞清楚。",
       "skills": [
         "point-intel",
-        "oscar-research"
+        "oscar-research",
+        "deep-diligence"
       ],
       "recommended": true
     },
@@ -113,7 +116,8 @@
         "progress-report",
         "culture-audit",
         "point-intel",
-        "oscar-research"
+        "oscar-research",
+        "mermaid-visual"
       ],
       "recommended": true
     },
@@ -134,21 +138,21 @@
       "emoji": "🎓",
       "position": "外·AI 落地课程设计",
       "slogan": "让学员从 AI 旁观者变成 AI 指挥者。",
-      "skills": [],
+      "skills": [
+        "course-material-pack",
+        "socratic-training-design",
+        "human-writing",
+        "mermaid-visual",
+        "deck-builder"
+      ],
       "externalSkills": [
-        "humanizer-zh",
-        "ljg-plain",
-        "ljg-card",
-        "structured-context-compressor",
         "dapianke",
-        "training-course-designer",
         "webinar-outline-pro",
-        "adaptive-socratic-questioning",
         "the-4p-marketing-consultant",
         "ljg-roundtable"
       ],
-      "recommended": false,
-      "note": "技能全部来自 360 SkillHub / ClawHub，需自行安装（见 roles/course-design/skills/EXTERNAL.md）"
+      "recommended": true,
+      "note": "5 个本地技能已随预设装配；另有 4 条可选外部技能需自行安装（见 roles/course-design/skills/EXTERNAL.md）。deck-builder 出的是 Reveal.js HTML，不是可编辑 .pptx。"
     }
   ],
   "apiFiles": {

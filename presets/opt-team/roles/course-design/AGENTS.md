@@ -84,9 +84,9 @@
 
 **关键 Skills**：
 
-- `dapianke` 生成专业课程框架（6 大阶段：定位→框架→开场→中场→收尾→销售）
-- `webinar-outline-pro` 设计互动环节和时间规划
-- `adaptive-socratic-questioning` 生成引导式思考问题链
+- `course-material-pack` 排课程结构与时间分配（体验式骨架：开场 10% / 核心 70% / 收尾 20%）
+- `socratic-training-design` 设计引导式思考的追问链与诊断题
+- `dapianke`（待装，360 SkillHub）仅在需要「销售转化型」课程结构时补装
 
 ### 第三步：构建内容与物料
 
@@ -106,11 +106,12 @@
 
 **关键 Skills**：
 
-- `training-course-designer` 一键生成 14 份专业培训文档
-- `ljg-plain` 把复杂 AI 概念改写成白话
-- `ljg-card` 生成课程框架可视化图、知识点卡片
-- `humanizer-zh` 去除 AI 生成痕迹
-- **如需 PPT，调用 360 SkillHub 搜索最新 PPT 生成工具**（第一版选配的 `ai-ppt-generator` / `pptx-generator` 在重选中被替换；需要时按 `reference/SECURITY.md` 第三节重新走准入流程）
+- `course-material-pack` 生成完整物料包（讲师手册 / 学员练习册 / 案例库 / 评估表）
+- `human-writing` 把物料改成人话，清掉 AI 腔（七遍顺序，带机检脚本）
+- `mermaid-visual` 生成课程框架图、学习路径图、决策树
+- `deck-builder` 出课件（单文件 Reveal.js HTML，浏览器打开即用，带演讲者备注）
+- **交付顺序固定**：`course-material-pack` → `human-writing` → `mermaid-visual` → `deck-builder`。物料没过 `human-writing` 不上课件。
+- 需要**可编辑的 .pptx 源文件**时本地做不了，按 `reference/SECURITY.md` 第三节走外部技能准入流程
 
 ### 第四步：质量自检
 
@@ -145,9 +146,10 @@
 **触发词**："设计一门……课程""帮我做一个……的培训"
 
 1. 明确学员画像、课时、核心目标
-2. `dapianke` 生成课程框架
-3. `training-course-designer` 生成完整物料包
-4. `ljg-card` 生成课程结构可视化
+2. `course-material-pack` 排结构 + 生成完整物料包
+3. `human-writing` 把讲师话术和学员材料改成人话
+4. `mermaid-visual` 生成课程结构图
+5. `deck-builder` 出课件
 5. 打包交付
 
 ### 场景 2：优化现有课程
@@ -159,15 +161,15 @@
 3. 重点优化"体验环节设计 + 真实案例替换"
 4. 输出优化后的课程大纲和关键物料
 
-**关键 Skills**：`webinar-outline-pro` 重新设计互动环节；`the-4p-marketing-consultant` 补充真实商业案例；`adaptive-socratic-questioning` 设计引导式思考环节。
+**关键 Skills**：`socratic-training-design` 重设互动与追问环节；`course-material-pack` 重排时间与动手比例；真实商业案例向情报角色要（`point-intel` / `deep-diligence`），不要自己编。
 
 ### 场景 3：快速生成主题课程包
 
 **触发词**："快速出一个……主题的课""需要一个 2 小时的……工作坊"
 
 1. 确认主题和时长
-2. `webinar-outline-pro` 生成虚拟活动大纲（含时间规划、互动设计）
-3. `training-course-designer` 生成配套文档
+2. `course-material-pack` 走精简路径（Step 1 → 2 → 3 → 5），出大纲 + 讲师手册
+3. `deck-builder` 出课件，其余物料标 `TODO`
 4. 快速交付（大纲 + PPT + 核心案例）
 
 ### 场景 4：设计 AI 思维训练环节
@@ -175,9 +177,8 @@
 **触发词**："让学员从旁观者变成指挥者""培养 AI 决策思维"
 
 1. 识别学员当前认知水平（旁观者 / 使用者 / 指挥者）
-2. `adaptive-socratic-questioning` 生成递进式追问链
-3. `ljg-roundtable` 设计"AI 决策模拟"环节（如模拟董事会讨论 AI 战略）
-4. `the-4p-marketing-consultant` 提供真实商业场景背景
+2. `socratic-training-design` 生成递进式追问链（三角色 + 三档烈度）
+3. 场景素材向情报角色要真实案例，`ljg-roundtable`（待装）仅在要做多人辩证对话时补
 5. 输出"思维训练环节设计文档"（含问题链、决策点、反馈机制）
 
 ---
@@ -684,32 +685,32 @@ Hermes 的 `write_approval` 默认 false（自由写），**本套默认 true**�
 
 > `TOOLS.md` 已退役，本地工具与环境约定统一放在这一节。
 
-### 默认底座（4 个，所有 Agent 必配）
+### Skill 映射表（本地已就位，5 条）
 
-| Skill | 能力 | 触发场景 |
-|-------|------|---------|
-| `humanizer-zh` | 去除 AI 生成痕迹，让课程材料像人写的 | 生成大纲/教案/案例后自动调用；{{USER_TITLE}}说"这个文案太 AI 了" |
-| `ljg-plain` | 白话改写，把复杂 AI 概念讲清楚 | 课程中要解释 AI 概念时；非技术背景学员看不懂术语时 |
-| `ljg-card` | 内容可视化，生成课程框架图、知识点卡片 | 需要课程结构可视化、学习路径图时 |
-| `structured-context-compressor` | 长对话上下文压缩 | 多轮课程设计时自动触发，防 Token 溢出 |
+| 我能做什么 | 用什么 Skill | 用户怎么说的时候触发 |
+|-----------|-------------|-------------------|
+| 完整课程物料包 | `course-material-pack` | "设计一门课""帮我做个培训""生成培训材料""做份讲师手册" |
+| 思维训练环节 | `socratic-training-design` | "让学员自己想明白""苏格拉底式提问""这个环节总冷场""做个诊断题" |
+| 去 AI 腔 / 写成人话 | `human-writing` | "这段太AI了""润色一下""写得像人话点""改改文案" |
+| 结构可视化 | `mermaid-visual` | "画个框架图""学习路径""能不能可视化" |
+| 出课件 | `deck-builder` | "做个PPT""做课件""把大纲做成幻灯片""我要上台讲" |
 
-### 课程设计核心（3 个）
+**交付顺序固定**：`course-material-pack` → `human-writing` → `mermaid-visual` → `deck-builder`。
 
-| Skill | 来源 | 能力 | 触发场景 |
-|-------|------|------|---------|
-| `dapianke` | 360 SkillHub（owner: rampagepeter，基于《好课像大片》） | 6 大阶段课程设计全流程：定位→框架→开场→中场→收尾→销售；支持跨会话持久化 | 从零设计新课程；优化现有课程结构 |
-| `training-course-designer` | 360 SkillHub（owner: brandon-zhanghaodong） | 一键生成 14 份专业培训文档（课程大纲、讲师手册、学员手册、活动单、评估计划等） | 需要完整课程包交付时 |
-| `webinar-outline-pro` | 360 SkillHub（owner: harrylabsj） | 生成结构化活动大纲（含时间规划、互动设计、转化引导） | 设计线上工作坊、AI 实战演示课、互动式教学环节 |
+技能文件放在 `skills/<name>/SKILL.md`（工作区技能优先级最高，会覆盖同名的托管技能和内置技能）。
 
-### 思维训练与场景设计（3 个）
+### 仍待安装的外部技能（4 个，装机清单见 `skills/EXTERNAL.md`）
 
-| Skill | 来源 | 能力 | 触发场景 |
-|-------|------|------|---------|
-| `adaptive-socratic-questioning` | 360 SkillHub（owner: perpetualhui） | 生成递进式追问链，揭露认知缺口、搭建逻辑链 | 设计"AI 思维训练"环节，让学员从旁观者变成指挥者 |
-| `the-4p-marketing-consultant` | 360 SkillHub（owner: jacobluxj） | 结合真实商业案例，从顾客视角和企业经营维度解决营销问题 | 设计"AI + 商业场景"实战案例（如 AI 辅助定价、渠道优化） |
-| `ljg-roundtable` | 内置（李继刚系列） | 结构化多人辩证对话 | 设计"AI 决策模拟"环节（如模拟董事会讨论 AI 战略） |
+| Skill | 来源 | 补什么空白 | 现在怎么办 |
+|-------|------|-----------|-----------|
+| `dapianke` | 360 SkillHub（rampagepeter，基于《好课像大片》） | 销售转化型课程结构（定位→框架→开场→中场→收尾→**销售**） | 纯教学课程用 `course-material-pack` 即可；要做转化型课程再问{{USER_TITLE}}装 |
+| `webinar-outline-pro` | 360 SkillHub（harrylabsj） | 线上直播的转化引导环节 | 线下课不需要；线上转化课再装 |
+| `the-4p-marketing-consultant` | 360 SkillHub（jacobluxj） | 营销案例的顾客视角拆解 | 真实商业案例先向情报角色要（`point-intel` / `deep-diligence`） |
+| `ljg-roundtable` | 内置（李继刚系列） | 多人辩证对话 | 单线追问用 `socratic-training-design` 的三角色已够 |
 
-**合计**：4 个底座 + 6 个专业 = 10 个 Skills。
+**T3 技能必须先问{{USER_TITLE}}才能装**，流程见 `reference/SECURITY.md` §三。
+
+**合计**：本地 5 条已就位 + 外部 4 条待装。原清单里的 `training-course-designer`、`adaptive-socratic-questioning`、`humanizer-zh`、`ljg-plain`、`ljg-card`，以及悬空的 PPT 能力，已分别由上面 5 条本地技能替代 —— 它们全部通过 House Spec 十项校验，信任级别 T1，不需要走第三方准入。`structured-context-compressor` 的上下文压缩由运行时自身承担，不再单列。
 
 ### 已移除的 Skills（及原因，避免重复引入）
 
