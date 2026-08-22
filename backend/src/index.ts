@@ -65,6 +65,7 @@ import {
   validateGroupId,
 } from './group-workspace';
 import { exec, execFile, spawn } from 'child_process';
+import dns from 'dns/promises';
 import util from 'util';
 import net from 'net';
 import sharp from 'sharp';
@@ -265,6 +266,9 @@ const PACK_AGENT_NOT_FOUND_ERROR_CODE = 'packs.agentNotFound';
 const PACK_TEAM_NOT_FOUND_ERROR_CODE = 'packs.teamNotFound';
 const PACK_FETCH_FAILED_ERROR_CODE = 'packs.fetchFailed';
 const PACK_URL_BLOCKED_ERROR_CODE = 'packs.urlBlocked';
+const PACK_GH_MISSING_ERROR_CODE = 'packs.ghMissing';
+const PACK_GH_UNAUTHENTICATED_ERROR_CODE = 'packs.ghUnauthenticated';
+const PACK_GIST_FAILED_ERROR_CODE = 'packs.gistFailed';
 const AGENT_ID_CONTAINS_WHITESPACE_ERROR_CODE = 'agents.idContainsWhitespace';
 const AGENT_ID_ALREADY_EXISTS_ERROR_CODE = 'agents.idAlreadyExists';
 const GROUP_ID_REQUIRED_ERROR_CODE = 'groups.idRequired';
@@ -9182,8 +9186,42 @@ app.get('/api/sessions', (_req, res) => {
 
 const packUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_PACK_BYTES } });
 
-/** 拉取远端包。只允许 http/https，且拦住指向内网与回环的地址（SSRF）。 */
-async function fetchRemotePack(rawUrl: string): Promise<Buffer> {
+/** 这个字面量地址是不是内网/回环。 */
+function isPrivateAddress(value: string): boolean {
+  const host = value.toLowerCase().replace(/^\[|\]$/g, '');
+  return host === 'localhost' || host === '::1' || host === '::' || host.endsWith('.local') || host.endsWith('.internal')
+    || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) || /^0\./.test(host)
+    || /^f[cd][0-9a-f]{2}:/.test(host) || /^fe80:/.test(host)
+    || /^::ffff:(127|10|0)\./.test(host)
+    // 100.64/10 是运营商级 NAT，也是 Tailscale 等内网组网的常用段；
+    // 198.18/15 是基准测试保留段，被一些代理与沙箱网络当作内部地址用。
+    || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)
+    || /^198\.1[89]\./.test(host);
+}
+
+/**
+ * 主机名是否指向内网。字面量检查不够：`localtest.me`、`127.0.0.1.nip.io` 这类域名
+ * 长得像公网，解析出来却是回环地址。所以还要把名字解出来再查一遍。
+ *
+ * 这挡不住 DNS rebinding（校验之后、连接之前改解析结果），那需要在连接层锁定 IP。
+ * 这里堵的是随手就能用的那一类。
+ */
+async function resolvesToPrivateHost(hostname: string): Promise<string | null> {
+  if (isPrivateAddress(hostname)) return hostname;
+  try {
+    const records = await dns.lookup(hostname, { all: true });
+    for (const record of records) {
+      if (isPrivateAddress(record.address)) return record.address;
+    }
+  } catch {
+    // 解析不了的名字交给后续请求自己失败，不在这里下结论
+  }
+  return null;
+}
+
+/** 只允许 http/https 的公网地址；**重定向后的最终地址也要再查一次**。 */
+function assertFetchableUrl(rawUrl: string): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -9193,14 +9231,28 @@ async function fetchRemotePack(rawUrl: string): Promise<Buffer> {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new PackError(PACK_URL_BLOCKED_ERROR_CODE, parsed.protocol);
   }
-  const host = parsed.hostname.toLowerCase();
-  const isPrivate =
-    host === 'localhost' || host === '::1' || host.endsWith('.local') || host.endsWith('.internal') ||
-    /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) || /^0\./.test(host);
-  if (isPrivate) {
-    throw new PackError(PACK_URL_BLOCKED_ERROR_CODE, host);
+  return parsed;
+}
+
+/** 语法检查 + 解析检查，两道都过才允许服务端去拉。 */
+async function assertFetchableUrlResolved(rawUrl: string): Promise<URL> {
+  const parsed = assertFetchableUrl(rawUrl);
+  const privateAddress = await resolvesToPrivateHost(parsed.hostname);
+  if (privateAddress !== null) {
+    throw new PackError(PACK_URL_BLOCKED_ERROR_CODE, privateAddress);
   }
+  return parsed;
+}
+
+/**
+ * 拉取远端包。只允许 http/https 的公网地址。
+ *
+ * 只查首个地址是不够的：一个公网 URL 可以 302 到 127.0.0.1，服务端就成了跳板。
+ * gist 的 /raw/ 本身就会跨主机跳到 gist.githubusercontent.com，所以这条路径上
+ * 重定向是常态而不是异常——最终落点必须再查一次。
+ */
+async function fetchRemotePack(rawUrl: string): Promise<Buffer> {
+  const parsed = await assertFetchableUrlResolved(rawUrl);
 
   const response = await axios.get<ArrayBuffer>(parsed.toString(), {
     responseType: 'arraybuffer',
@@ -9210,6 +9262,10 @@ async function fetchRemotePack(rawUrl: string): Promise<Buffer> {
     maxRedirects: 3,
     validateStatus: status => status >= 200 && status < 300,
   });
+  const finalUrl = (response.request as any)?.res?.responseUrl;
+  if (typeof finalUrl === 'string' && finalUrl && finalUrl !== parsed.toString()) {
+    await assertFetchableUrlResolved(finalUrl);
+  }
   return Buffer.from(response.data);
 }
 
@@ -9248,65 +9304,67 @@ function buildPackAgentEntry(agentId: string, displayName: string, options: any,
   return entry;
 }
 
-app.post('/api/packs/export', requireAdminAuth, async (req, res) => {
-  try {
-    const kind = req.body?.kind === 'team' ? 'team' : 'agent';
-    const id = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
-    const options = {
-      includeMemory: req.body?.includeMemory === true,
-      includeAutomations: req.body?.includeAutomations !== false,
-      includeModelConfig: req.body?.includeModelConfig === true,
+/**
+ * 按请求组装一个包。导出与分享共用同一条组装路径——两条路各拼一次的话，
+ * 迟早出现「下载下来的包」和「分享出去的包」内容不一致。
+ */
+function buildPackFromRequest(body: any): { pack: ClawPack; name: string } | { error: string; params?: Record<string, string> } {
+  const kind = body?.kind === 'team' ? 'team' : 'agent';
+  const id = typeof body?.id === 'string' ? body.id.trim() : '';
+  const options = {
+    includeMemory: body?.includeMemory === true,
+    includeAutomations: body?.includeAutomations !== false,
+    includeModelConfig: body?.includeModelConfig === true,
+  };
+  const warnings: PackWarning[] = [];
+
+  let agents: PackAgent[] = [];
+  let team: PackTeam | null = null;
+  let name = '';
+  let summary = '';
+
+  if (kind === 'agent') {
+    const session = sessionManager.getSession(id);
+    if (!session) return { error: PACK_AGENT_NOT_FOUND_ERROR_CODE, params: { agentId: id } };
+    agents = [buildPackAgentEntry(id, session.name, options, warnings)];
+    name = session.name;
+    summary = '';
+  } else {
+    const group = db.getGroupChat(id);
+    if (!group) return { error: PACK_TEAM_NOT_FOUND_ERROR_CODE, params: { groupId: id } };
+    const members = db.getGroupMembers(id);
+    agents = members.map(member => {
+      const session = sessionManager.getSession(member.agent_id);
+      if (!session) {
+        warnings.push({ code: 'memberMissing', detail: member.agent_id });
+        return null;
+      }
+      return buildPackAgentEntry(member.agent_id, session.name, options, warnings);
+    }).filter((entry): entry is PackAgent => entry !== null);
+    team = {
+      id: group.id,
+      name: group.name,
+      description: group.description || '',
+      systemPrompt: group.system_prompt || '',
+      processStartTag: group.process_start_tag || '',
+      processEndTag: group.process_end_tag || '',
+      maxChainDepth: group.max_chain_depth ?? 6,
+      members: members.map((member, index) => ({
+        agentId: member.agent_id,
+        displayName: member.display_name,
+        roleDescription: member.role_description || '',
+        position: index,
+      })),
     };
-    const warnings: PackWarning[] = [];
+    name = group.name;
+    summary = group.description || '';
+  }
 
-    let agents: PackAgent[] = [];
-    let team: PackTeam | null = null;
-    let name = '';
-    let summary = '';
+  if (!agents.length) return { error: PACK_AGENT_NOT_FOUND_ERROR_CODE, params: { agentId: id } };
 
-    if (kind === 'agent') {
-      const session = sessionManager.getSession(id);
-      if (!session) return res.status(404).json(buildStructuredApiError(PACK_AGENT_NOT_FOUND_ERROR_CODE, null, { agentId: id }));
-      agents = [buildPackAgentEntry(id, session.name, options, warnings)];
-      name = session.name;
-      summary = "";
-    } else {
-      const group = db.getGroupChat(id);
-      if (!group) return res.status(404).json(buildStructuredApiError(PACK_TEAM_NOT_FOUND_ERROR_CODE, null, { groupId: id }));
-      const members = db.getGroupMembers(id);
-      agents = members.map((member, index) => {
-        const session = sessionManager.getSession(member.agent_id);
-        if (!session) {
-          warnings.push({ code: 'memberMissing', detail: member.agent_id });
-          return null;
-        }
-        void index;
-        return buildPackAgentEntry(member.agent_id, session.name, options, warnings);
-      }).filter((entry): entry is PackAgent => entry !== null);
-      team = {
-        id: group.id,
-        name: group.name,
-        description: group.description || '',
-        systemPrompt: group.system_prompt || '',
-        processStartTag: group.process_start_tag || '',
-        processEndTag: group.process_end_tag || '',
-        maxChainDepth: group.max_chain_depth ?? 6,
-        members: members.map((member, index) => ({
-          agentId: member.agent_id,
-          displayName: member.display_name,
-          roleDescription: member.role_description || '',
-          position: index,
-        })),
-      };
-      name = group.name;
-      summary = group.description || '';
-    }
-
-    if (!agents.length) {
-      return res.status(400).json(buildStructuredApiError(PACK_AGENT_NOT_FOUND_ERROR_CODE, null, { agentId: id }));
-    }
-
-    const pack = buildPack({
+  return {
+    name,
+    pack: buildPack({
       kind,
       name,
       summary,
@@ -9315,16 +9373,93 @@ app.post('/api/packs/export', requireAdminAuth, async (req, res) => {
       team,
       options,
       warnings,
-    });
-    const body = serializePack(pack);
-    const fileName = `${sanitizeFileName(name)}.clawpack`;
+    }),
+  };
+}
+
+app.post('/api/packs/export', requireAdminAuth, async (req, res) => {
+  try {
+    const built = buildPackFromRequest(req.body);
+    if ('error' in built) {
+      return res.status(404).json(buildStructuredApiError(built.error, null, built.params || null));
+    }
+    const body = serializePack(built.pack);
+    const fileName = `${sanitizeFileName(built.name)}.clawpack`;
 
     res.setHeader('Content-Type', 'application/gzip');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
-    res.setHeader('X-Clawpack-Manifest', encodeURIComponent(JSON.stringify(pack.manifest)));
+    res.setHeader('X-Clawpack-Manifest', encodeURIComponent(JSON.stringify(built.pack.manifest)));
     res.send(body);
   } catch (error: any) {
     res.status(500).json(buildStructuredApiError(PRESET_INSTALL_FAILED_ERROR_CODE, error?.message || String(error)));
+  }
+});
+
+/**
+ * 分享：把包上传成一个**你自己账号下的**私密 gist，换一条链接回来。
+ *
+ * 为什么走 `gh` 而不是自建中转：托管成本、包的有效期、以及「别人上传的东西经我们
+ * 的服务器分发」这份责任，都不该由本项目背。用分享者自己的 GitHub 账号，这三样
+ * 一起消失，我们只负责把文件递过去。
+ *
+ * 上传的是**未压缩的 JSON**：gist 是文本载体，塞 gzip 二进制会被破坏；而 JSON 本身
+ * 就是这个包格式的可读形态，对方在网页上就能看清里面有什么再决定装不装。
+ * 导入侧的 parsePack 同时接受 gzip 与纯 JSON，两条路一份解析。
+ */
+app.post('/api/packs/share', requireAdminAuth, async (req, res) => {
+  let tempPath = '';
+  try {
+    const built = buildPackFromRequest(req.body);
+    if ('error' in built) {
+      return res.status(404).json(buildStructuredApiError(built.error, null, built.params || null));
+    }
+
+    const ghReady = await new Promise<{ ok: boolean; detail: string }>(resolve => {
+      const probe = spawn('gh', ['auth', 'status']);
+      let stderr = '';
+      probe.stderr?.on('data', chunk => { stderr += chunk.toString(); });
+      probe.on('error', () => resolve({ ok: false, detail: 'notInstalled' }));
+      probe.on('close', code => resolve({ ok: code === 0, detail: stderr.trim() }));
+    });
+    if (!ghReady.ok) {
+      const code = ghReady.detail === 'notInstalled' ? PACK_GH_MISSING_ERROR_CODE : PACK_GH_UNAUTHENTICATED_ERROR_CODE;
+      return res.status(400).json(buildStructuredApiError(code, ghReady.detail === 'notInstalled' ? null : ghReady.detail));
+    }
+
+    const fileName = `${sanitizeFileName(built.name)}.clawpack.json`;
+    tempPath = path.join(os.tmpdir(), `clawpack-${Date.now()}-${fileName}`);
+    fs.writeFileSync(tempPath, JSON.stringify(built.pack, null, 1), 'utf-8');
+
+    const manifest = built.pack.manifest;
+    const description = `${built.pack.kind === 'team' ? 'ClawOPT team' : 'ClawOPT agent'}: ${built.name} · ${manifest.agentCount} agents · ${manifest.skillCount} skills`;
+
+    const result = await new Promise<{ stdout: string; stderr: string; code: number | null }>(resolve => {
+      const proc = spawn('gh', ['gist', 'create', '--public=false', '--desc', description, tempPath]);
+      let stdout = '';
+      let stderr = '';
+      proc.stdout?.on('data', chunk => { stdout += chunk.toString(); });
+      proc.stderr?.on('data', chunk => { stderr += chunk.toString(); });
+      proc.on('error', () => resolve({ stdout: '', stderr: 'spawn failed', code: 1 }));
+      proc.on('close', code => resolve({ stdout, stderr, code }));
+    });
+
+    if (result.code !== 0) {
+      return res.status(502).json(buildStructuredApiError(PACK_GIST_FAILED_ERROR_CODE, result.stderr.trim() || null));
+    }
+
+    const gistUrl = result.stdout.trim().split(/\s+/).pop() || '';
+    if (!/^https:\/\/gist\.github\.com\//.test(gistUrl)) {
+      return res.status(502).json(buildStructuredApiError(PACK_GIST_FAILED_ERROR_CODE, result.stdout.trim() || null));
+    }
+    // gist 的 /raw/<file> 会 302 到 gist.githubusercontent.com，导入侧照常拉得到
+    const rawUrl = `${gistUrl}/raw/${path.basename(tempPath)}`;
+
+    res.json({ success: true, gistUrl, rawUrl, manifest });
+  } catch (error: any) {
+    res.status(500).json(buildStructuredApiError(PACK_GIST_FAILED_ERROR_CODE, error?.message || String(error)));
+  } finally {
+    // 临时文件里是完整的智能体内容，别留在 /tmp
+    if (tempPath) { try { fs.unlinkSync(tempPath); } catch { /* 已经不在就算了 */ } }
   }
 });
 

@@ -185,7 +185,10 @@
     "notAPack": "這不是一個 .clawpack 包",
     "versionTooNew": "這個包來自更新版本的 ClawOPT，先升級再匯入",
     "noAgents": "包裡沒有智能體",
-    "invalidAgentId": "包裡的智能體 ID 不合法"
+    "invalidAgentId": "包裡的智能體 ID 不合法",
+    "ghMissing": "這台主機上沒有 gh 命令。裝一個 GitHub CLI 再來，或者改用「匯出 .clawpack」下載檔案自己發。",
+    "ghUnauthenticated": "gh 還沒登入。在主機上跑一次 gh auth login 再來。",
+    "gistFailed": "建立 gist 失敗"
   },
   "groups": {
     "idRequired": "團隊 ID 不能為空",
@@ -764,7 +767,16 @@
       "exportFailed": "匯出失敗",
       "importedSuffix": "（匯入）",
       "nameConflictHint": "你已經有一個叫「{{name}}」的智能體了。改個能區分的名字，否則側邊欄會並排躺著兩個同名項目。",
-      "presetBroken": "這套預設裝不了：{{reason}}。目錄還占著這個 id，修好或刪掉它。"
+      "presetBroken": "這套預設裝不了：{{reason}}。目錄還占著這個 id，修好或刪掉它。",
+      "shareButton": "分享（產生連結）",
+      "shareHint": "分享會把這個包上傳成**你自己 GitHub 帳號底下的**一個私密 gist，然後給你一條連結。本專案不存任何包。需要主機上裝了 gh 並已登入。",
+      "shareDone": "已上傳，連結如下。",
+      "shareSecretWarning": "私密 gist 不等於私有：拿到連結的人都能看。別把帶長期記憶的包分享給不該看的人。",
+      "shareLinkForImport": "給對方匯入用的連結（貼到他的「匯入」欄）",
+      "shareLinkGist": "gist 頁面（自己看內容、改描述或刪除）",
+      "copy": "複製",
+      "copied": "已複製",
+      "shareFailed": "分享失敗"
     },
     "openclawUpdate": {
       "title": "OpenClaw",

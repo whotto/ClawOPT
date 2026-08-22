@@ -185,7 +185,10 @@
     "notAPack": "This is not a .clawpack file",
     "versionTooNew": "This pack comes from a newer ClawOPT. Upgrade first.",
     "noAgents": "The pack has no agents",
-    "invalidAgentId": "Invalid agent id inside the pack"
+    "invalidAgentId": "Invalid agent id inside the pack",
+    "ghMissing": "The gh command is not installed on this host. Install GitHub CLI, or use \"Export .clawpack\" and send the file yourself.",
+    "ghUnauthenticated": "gh is not signed in. Run gh auth login on the host first.",
+    "gistFailed": "Failed to create the gist"
   },
   "groups": {
     "idRequired": "Team ID is required",
@@ -764,7 +767,16 @@
       "exportFailed": "Export failed",
       "importedSuffix": " (imported)",
       "nameConflictHint": "You already have an agent called \"{{name}}\". Give this one a distinguishable name, or the sidebar will show two identical entries.",
-      "presetBroken": "This preset cannot be installed: {{reason}}. The directory still occupies the id — fix it or delete it."
+      "presetBroken": "This preset cannot be installed: {{reason}}. The directory still occupies the id — fix it or delete it.",
+      "shareButton": "Share (get a link)",
+      "shareHint": "Sharing uploads this pack as a secret gist under **your own GitHub account** and hands you a link. This project stores nothing. Requires gh installed and signed in on the host.",
+      "shareDone": "Uploaded. Here are the links.",
+      "shareSecretWarning": "A secret gist is not private: anyone with the link can read it. Do not share a pack carrying long-term memory with people who should not see it.",
+      "shareLinkForImport": "Link for the recipient (paste into their Import field)",
+      "shareLinkGist": "Gist page (read it, edit the description, or delete it)",
+      "copy": "Copy",
+      "copied": "Copied",
+      "shareFailed": "Share failed"
     },
     "openclawUpdate": {
       "title": "OpenClaw",
