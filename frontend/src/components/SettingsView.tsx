@@ -378,6 +378,9 @@ type UpdateRestartStepStatus =
   | 'pending'
   | 'running'
   | 'completed'
+  // 这一步被跳过了，且这是正常结果——例如浏览器插件用户根本没启用。
+  // 跳过不是失败：一个没开的可选能力不该让整条升级流程报红。
+  | 'skipped'
   | 'failed';
 
 type UpdateRestartStep = {
@@ -3461,11 +3464,17 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
         : t('settings.about.restartStepWarmupBrowser'),
     statusLabel: step.status === 'completed'
       ? t('settings.about.restartStepStatusCompleted')
-      : step.status === 'failed'
-        ? t('settings.about.restartStepStatusFailed')
-        : step.status === 'running'
-          ? t('settings.about.restartStepStatusRunning')
-          : t('settings.about.restartStepStatusPending'),
+      : step.status === 'skipped'
+        ? t('settings.about.restartStepStatusSkipped')
+        : step.status === 'failed'
+          ? t('settings.about.restartStepStatusFailed')
+          : step.status === 'running'
+            ? t('settings.about.restartStepStatusRunning')
+            : t('settings.about.restartStepStatusPending'),
+    // 跳过时把「为什么跳过」翻成人话，原始 reason 是给日志看的
+    skipReason: step.status === 'skipped'
+      ? t(`settings.about.restartSkipReason.${step.detail || 'unknown'}`, { defaultValue: step.detail || '' })
+      : '',
   }));
   const openClawUpdateFailureDetail = joinDistinctLines([
     openClawUpdateStatusInfo?.rawDetail,
@@ -5921,22 +5930,26 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                       className={`rounded-xl border px-4 py-3 ${
                         step.status === 'completed'
                           ? 'border-emerald-200 bg-emerald-50'
-                          : step.status === 'failed'
-                            ? 'border-red-200 bg-red-50'
-                            : step.status === 'running'
-                              ? 'border-blue-200 bg-blue-50'
-                              : 'border-gray-200 bg-gray-50'
+                          : step.status === 'skipped'
+                            ? 'border-gray-200 bg-gray-50'
+                            : step.status === 'failed'
+                              ? 'border-red-200 bg-red-50'
+                              : step.status === 'running'
+                                ? 'border-blue-200 bg-blue-50'
+                                : 'border-gray-200 bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`flex h-7 w-7 items-center justify-center rounded-full ${
                           step.status === 'completed'
                             ? 'bg-emerald-100 text-emerald-600'
-                            : step.status === 'failed'
-                              ? 'bg-red-100 text-red-600'
-                              : step.status === 'running'
-                                ? 'bg-blue-100 text-blue-600'
-                                : 'bg-gray-200 text-gray-500'
+                            : step.status === 'skipped'
+                              ? 'bg-gray-200 text-gray-500'
+                              : step.status === 'failed'
+                                ? 'bg-red-100 text-red-600'
+                                : step.status === 'running'
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'bg-gray-200 text-gray-500'
                         }`}>
                           {step.status === 'completed' ? (
                             <Check className="h-4 w-4" />
@@ -5963,7 +5976,9 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                               {step.statusLabel}
                             </span>
                           </div>
-                          {step.detail ? (
+                          {step.status === 'skipped' && step.skipReason ? (
+                            <p className="mt-1 whitespace-pre-wrap text-xs text-gray-500">{step.skipReason}</p>
+                          ) : step.detail ? (
                             <p className="mt-1 whitespace-pre-wrap break-all text-xs text-gray-500">{step.detail}</p>
                           ) : null}
                         </div>

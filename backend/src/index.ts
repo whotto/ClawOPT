@@ -440,6 +440,7 @@ type UpdateRestartStepStatus =
   | 'pending'
   | 'running'
   | 'completed'
+  | 'skipped'
   | 'failed';
 
 type UpdateRestartStep = {
@@ -4823,6 +4824,30 @@ function synchronizeConfiguredBrowserRepairSettingsBestEffort() {
   }
 }
 
+/**
+ * 浏览器能力是否被配置排除了；返回原因，可用时返回 null。
+ *
+ * 两种排除方式，任一命中都说明**用户就没打算用浏览器**：
+ *   - `plugins.allow` 是白名单且不含 "browser"：`openclaw browser` 子命令根本不存在
+ *   - `browser.enabled` 不为 true：这正是 reconcile-openclaw-runtime.mjs 用的判据
+ *
+ * 为什么要有这个函数：升级流程末尾会做一次浏览器预热验收，而一个用户主动没启用的
+ * 可选插件不该让整条升级流程报红。之前后端缺这道判断，`browser` 键干脆不存在时
+ * `enabled` 既不是 true 也不是 false，于是既没短路也没跳过，直接去执行一个不存在的
+ * 命令，然后把配置性的「命令不可用」当成升级失败。
+ */
+function readBrowserUnavailableReason(): string | null {
+  const config = readOpenClawConfig();
+  const allow = config?.plugins?.allow;
+  if (Array.isArray(allow) && !allow.some((entry: unknown) => normalizeCliText(String(entry)) === 'browser')) {
+    return 'browser-not-allowed';
+  }
+  if (config?.browser?.enabled !== true) {
+    return 'browser-not-enabled';
+  }
+  return null;
+}
+
 function readBrowserConfigState(): BrowserConfigState {
   const config = readOpenClawConfig();
   const profile = normalizeConfiguredBrowserProfile(config);
@@ -6041,9 +6066,17 @@ async function resumePersistedUpdateRestartFlow() {
         restartSteps,
       });
 
-      const warmupResult = await scheduleDeferredBrowserWarmup();
-      if (!warmupResult.ready) {
-        throw new Error(warmupResult.detail || 'Browser warmup did not complete successfully.');
+      const unavailableReason = readBrowserUnavailableReason();
+      if (unavailableReason) {
+        // 没启用的可选能力，跳过而不是判失败——升级到此算完成。
+        restartSteps = updateRestartStepStatus(restartSteps, 'warmup_browser', 'skipped', unavailableReason);
+        patchUpdateSnapshot({ restartSteps });
+        appendUpdateLog(`Browser warmup skipped: ${unavailableReason}`);
+      } else {
+        const warmupResult = await scheduleDeferredBrowserWarmup();
+        if (!warmupResult.ready) {
+          throw new Error(warmupResult.detail || 'Browser warmup did not complete successfully.');
+        }
       }
 
       rememberLatestVersionInfo(null);

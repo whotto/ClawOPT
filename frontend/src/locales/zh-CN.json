@@ -891,7 +891,13 @@
       "viewRelease": "查看更新",
       "downloadRelease": "下载发布包",
       "projectName": "ClawOPT",
-      "projectTagline": "一键复制一支 AI 团队"
+      "projectTagline": "一键复制一支 AI 团队",
+      "restartStepStatusSkipped": "已跳过",
+      "restartSkipReason": {
+        "browser-not-allowed": "你的 OpenClaw 没有把 browser 放进 plugins.allow 白名单，浏览器能力本就不可用，因此跳过这一步。需要的话在 openclaw.json 里把 \"browser\" 加进 plugins.allow。",
+        "browser-not-enabled": "openclaw.json 里没有启用浏览器（browser.enabled 不为 true），因此跳过这一步。",
+        "unknown": "这一步被跳过了。"
+      }
     }
   }
 }

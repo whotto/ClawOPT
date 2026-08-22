@@ -34,6 +34,7 @@
 - 开发环境前端端口固定为 `3105`；启动、调试、文档和协作过程中都应保持一致，不要随意变更。
 - 版本号唯一真值源必须是仓库根 `package.json` 的 `version`；前端、后端、构建产物元数据、发布脚本和 GitHub Release 只能从这里读取版本，`package-lock.json` 等派生文件不得作为人工维护的版本真值源。
 - 修改升级链路、`deploy-release.sh`、`update.sh`、OpenClaw runtime 收敛脚本或升级状态机时，“升级成功”不得只以 build 完成为准；必须同时包含 OpenClaw runtime 收敛成功、device repair 收敛成功、browser runtime 验收成功，才允许进入 `complete` / `update_succeeded`。
+- 上一条里的 browser runtime 验收有一个例外：当用户的 `openclaw.json` 把浏览器排除在外时（`plugins.allow` 白名单不含 `browser`，或 `browser.enabled` 不为 true），这一步标记为 `skipped` 而不是 `failed`，升级照常算完成。**一个用户主动没启用的可选能力，不该让整条升级流程报红。** 判据集中在 `readBrowserUnavailableReason()`，与 `reconcile-openclaw-runtime.mjs` 里的跳过判据保持一致——两处判据分家过一次，代价就是一屏红色的假失败。
 - 聊天页中的 `loadHistory` 只用于切换单聊 / 群聊后的首屏初始化，职责是加载“当前上下文最新一页”；不要把它当作发送完成或 `regenerate` 完成后的通用刷新入口。
 - 聊天历史分页统一使用基于自增消息 ID 的 cursor 协议：`beforeId + limit`；不要改成 `offset` 分页，也不要在单聊和群聊里各自维护不同协议。
 - 发送完成或 `regenerate` 完成后，应继续在当前分页状态内通过 append / patch / ID 替换收敛消息，不要重新引入整页 reload；否则会清掉已加载的旧页。

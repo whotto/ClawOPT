@@ -891,7 +891,13 @@
       "viewRelease": "View Release",
       "downloadRelease": "Download Asset",
       "projectName": "ClawOPT",
-      "projectTagline": "Clone an AI team in one command"
+      "projectTagline": "Clone an AI team in one command",
+      "restartStepStatusSkipped": "Skipped",
+      "restartSkipReason": {
+        "browser-not-allowed": "Your OpenClaw does not list \"browser\" in plugins.allow, so browser capability is unavailable and this step was skipped. Add \"browser\" to plugins.allow in openclaw.json if you want it.",
+        "browser-not-enabled": "Browser is not enabled in openclaw.json (browser.enabled is not true), so this step was skipped.",
+        "unknown": "This step was skipped."
+      }
     }
   }
 }
