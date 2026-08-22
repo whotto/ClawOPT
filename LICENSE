@@ -1,10 +1,21 @@
-本项目基于 ClawOPT（作者 liandu2024）改造，已获原作者授权。
+MIT License
 
-⚠️ 待办：与原作者确认最终授权条款后，用正式许可证文本替换本文件。
+Copyright (c) 2026 ClawOPT Contributors
 
-需要确认清楚的三件事：
-  1. 授权范围 —— 仅使用、可修改、还是可再分发？
-  2. 署名要求 —— 是否允许移除原署名？NOTICE 中的致谢是否满足其要求？
-  3. 商业使用 —— 是否允许商业化、闭源分发？
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-在换成正式文本之前，不要对外发布本项目。
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

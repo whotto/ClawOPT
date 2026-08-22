@@ -1,6 +1,7 @@
 {
   "name": "clawopt-frontend",
   "description": "ClawOPT Frontend - OpenClaw Web Client",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

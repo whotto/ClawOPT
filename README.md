@@ -152,3 +152,11 @@ node scripts/apply-branding.mjs         # 执行
 
 它会同步处理 npm 包名、systemd 服务名、数据目录、SQLite 文件名、localStorage 键、环境变量前缀和更新源 URL——**这些漏一个就会和其他版本在同一台机器上打架。**
 
+---
+
+## 许可
+
+MIT，见 [`LICENSE`](LICENSE)。
+
+本项目基于 [OpenClaw-Chat-Gateway](https://github.com/liandu2024/OpenClaw-Chat-Gateway)（作者 liandu2024）的内核改造而来，已获原作者授权。
+上游未公开许可证，因此 MIT 覆盖的范围与授权链写在 [`NOTICE`](NOTICE) 里，再分发前请先读它。
