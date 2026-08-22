@@ -4,7 +4,11 @@
 //   - /assets/* (hashed JS/CSS): cache-first → fast load after first visit
 //   - Everything else: network-first
 
-const ASSET_CACHE = 'clawopt-assets-v2';
+// 缓存版本由构建时注入（scripts/write-build-meta.mjs 或 vite define）
+// 写死版本号会导致旧 SW 永远赖着不更新——这是"改了没生效"的常见根因
+// 构建戳从注册 URL 的 ?v= 取（public/ 下的文件不经 vite 变量替换）
+const BUILD_ID = new URL(self.location.href).searchParams.get('v') || 'dev';
+const ASSET_CACHE = `clawopt-assets-${BUILD_ID}`;
 
 // On install: skip waiting so new SW takes effect immediately
 self.addEventListener('install', () => {

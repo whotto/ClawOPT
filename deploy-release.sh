@@ -114,15 +114,20 @@ cp "$PROJECT_ROOT/clawopt.service" "$SERVICE_DIR/$SERVICE_NAME.service"
 # Update WorkingDirectory, Port, and Description in the service file
 sed -i "s|WorkingDirectory=.*|WorkingDirectory=$PROJECT_ROOT/backend|" "$SERVICE_DIR/$SERVICE_NAME.service"
 sed -i "s/Environment=PORT=.*/Environment=PORT=$CLAWOPT_PORT/" "$SERVICE_DIR/$SERVICE_NAME.service"
-# ExecStart 指向 OpenClaw 自带 Node（原生模块 ABI 依赖）
+# ExecStart 与 PATH 都指向 OpenClaw 自带 Node
+# ExecStart：backend 的 better-sqlite3 / sharp 按该版本 ABI 编译
+# PATH：backend 会 spawn `openclaw` CLI（版本检查、网关重启），
+#       该 CLI 要求 Node >=22.22.3，PATH 里若系统 Node 在前会直接失败
 if [ -n "$OC_NODE_DIR" ]; then
     sed -i "s|^ExecStart=.*|ExecStart=$OC_NODE_DIR/node dist/index.js|" "$SERVICE_DIR/$SERVICE_NAME.service"
+    sed -i "s|^Environment=PATH=.*|Environment=PATH=$OC_NODE_DIR:$HOME/.openclaw/bin:$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin|" "$SERVICE_DIR/$SERVICE_NAME.service"
 fi
 sed -i "s/Description=.*/Description=ClawOPT Service (Port $CLAWOPT_PORT)/" "$SERVICE_DIR/$SERVICE_NAME.service"
 if grep -q '^Environment=PATH=' "$SERVICE_DIR/$SERVICE_NAME.service"; then
-    sed -i "s|^Environment=PATH=.*|Environment=PATH=$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin|" "$SERVICE_DIR/$SERVICE_NAME.service"
+    # 仅在没有 OpenClaw 自带 Node 时才用系统 PATH（上面已处理有的情况）
+    [ -z "$OC_NODE_DIR" ] && sed -i "s|^Environment=PATH=.*|Environment=PATH=$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin|" "$SERVICE_DIR/$SERVICE_NAME.service"
 else
-    sed -i "/Environment=NODE_ENV=.*/a Environment=PATH=$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" "$SERVICE_DIR/$SERVICE_NAME.service"
+    sed -i "/Environment=NODE_ENV=.*/a Environment=PATH=${OC_NODE_DIR:+$OC_NODE_DIR:}$HOME/.openclaw/bin:$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" "$SERVICE_DIR/$SERVICE_NAME.service"
 fi
 
 echo "Reloading systemd daemon..."

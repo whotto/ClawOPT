@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 Environment=PORT=3115
 Environment=NODE_ENV=production
-Environment=PATH=%h/.npm-global/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PATH=%h/.openclaw/bin:%h/.npm-global/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=CLAWOPT_DATA_DIR=.clawopt_release
 WorkingDirectory=%h/ClawOPT/backend
 ExecStart=/usr/bin/node dist/index.js

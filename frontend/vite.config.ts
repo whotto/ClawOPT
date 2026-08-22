@@ -3,8 +3,14 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
+const BUILD_ID = String(Date.now());
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    {
+      name: 'inject-build-id',
+      transformIndexHtml(html) { return html.replace(/%BUILD_ID%/g, BUILD_ID); },
+    },react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

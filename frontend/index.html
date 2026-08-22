@@ -8,6 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
     <meta name="theme-color" content="#ffffff" />
     <title>ClawOPT</title>
+    <script>window.__CLAWOPT_BUILD__ = '%BUILD_ID%';</script>
   </head>
   <body>
     <div id="root"></div>
@@ -32,8 +33,19 @@
               return;
             }
 
-            const registration = await navigator.serviceWorker.register('/sw.js');
-            console.log('SW registered: ', registration);
+            // 带构建戳注册：构建戳变化 → SW 脚本 URL 变化 → 浏览器必定重新拉取
+            // （否则浏览器可能长时间沿用旧 SW，导致"改了没生效"）
+            const build = window.__CLAWOPT_BUILD__ || 'dev';
+            const registration = await navigator.serviceWorker.register(`/sw.js?v=${build}`);
+            // 主动检查更新，并在新 SW 接管时刷新一次
+            registration.update?.();
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              if (refreshing) return;
+              refreshing = true;
+              window.location.reload();
+            });
+            console.log('SW registered:', build);
           } catch (error) {
             console.log('Service worker setup failed: ', error);
           }
