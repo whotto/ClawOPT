@@ -9441,6 +9441,7 @@ app.post('/api/packs/export', requireAdminAuth, async (req, res) => {
  */
 app.post('/api/packs/share', requireAdminAuth, async (req, res) => {
   let tempPath = '';
+  let tempDir = '';
   try {
     const built = buildPackFromRequest(req.body);
     if ('error' in built) {
@@ -9463,8 +9464,12 @@ app.post('/api/packs/share', requireAdminAuth, async (req, res) => {
       return res.status(400).json(buildStructuredApiError(code, ghReady.detail === 'notInstalled' ? null : ghReady.detail));
     }
 
+    // 放进一个临时目录而不是给文件名加前缀：gist 里的文件名就是这个文件的 basename，
+    // 对方看到的是「科学决策.clawpack.json」还是「clawpack-1787402967113-科学决策.clawpack.json」，
+    // 差别全在这里。目录名带随机后缀足够避免撞车。
     const fileName = `${sanitizeFileName(built.name)}.clawpack.json`;
-    tempPath = path.join(os.tmpdir(), `clawpack-${Date.now()}-${fileName}`);
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawpack-'));
+    tempPath = path.join(tempDir, fileName);
     fs.writeFileSync(tempPath, JSON.stringify(built.pack, null, 1), 'utf-8');
 
     const manifest = built.pack.manifest;
@@ -9497,6 +9502,7 @@ app.post('/api/packs/share', requireAdminAuth, async (req, res) => {
   } finally {
     // 临时文件里是完整的智能体内容，别留在 /tmp
     if (tempPath) { try { fs.unlinkSync(tempPath); } catch { /* 已经不在就算了 */ } }
+    if (tempDir) { try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* 同上 */ } }
   }
 });
 
