@@ -6,9 +6,8 @@
       "path": "opt-team",
       "name": "OPT 六角色",
       "tagline": "一支配置完整的 AI 团队",
-      "roleCount": 6,
-      "skillCount": 21,
       "recommended": true
     }
-  ]
+  ],
+  "_comment": "角色数与技能数由 backend/src/preset-installer.ts 扫目录得出，不在这里手写——第二份清单迟早过期。"
 }

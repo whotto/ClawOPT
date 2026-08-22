@@ -761,7 +761,10 @@
       "neverIncluded": "永遠不會進包：憑據與 API key、memory/ 每日記錄、對話歷史。",
       "exportButton": "匯出 .clawpack",
       "exportDone": "已匯出 {{file}}，在你的下載目錄裡。",
-      "exportFailed": "匯出失敗"
+      "exportFailed": "匯出失敗",
+      "importedSuffix": "（匯入）",
+      "nameConflictHint": "你已經有一個叫「{{name}}」的智能體了。改個能區分的名字，否則側邊欄會並排躺著兩個同名項目。",
+      "presetBroken": "這套預設裝不了：{{reason}}。目錄還占著這個 id，修好或刪掉它。"
     },
     "openclawUpdate": {
       "title": "OpenClaw",

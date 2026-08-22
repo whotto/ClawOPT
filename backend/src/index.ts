@@ -9340,6 +9340,9 @@ app.post('/api/packs/inspect', requireAdminAuth, packUpload.single('file'), asyn
       hasAutomations: agent.files.some(file => file.path === 'automations.sh'),
       hasMemory: agent.files.some(file => file.path === 'MEMORY.md'),
       conflict: Boolean(sessionManager.getSession(agent.id)),
+      // 只报事实：这个显示名现在有没有人在用。会不会真的撞车取决于用户接下来
+      // 是覆盖同一个 ID（不会多出一条）还是改名另存（会），那是前端才知道的事。
+      nameConflict: sessionManager.getAllSessions().some(existing => existing.name === agent.name),
       soulPreview: readPackFile(agent, 'SOUL.md').slice(0, 400),
     }));
     res.json({
@@ -9364,6 +9367,10 @@ app.post('/api/packs/install', requireAdminAuth, packUpload.single('file'), asyn
     const rename: Record<string, string> = typeof rawRename === 'string'
       ? JSON.parse(rawRename || '{}')
       : (rawRename && typeof rawRename === 'object' ? rawRename : {});
+    const rawRenameNames = req.body?.renameNames;
+    const renameNames: Record<string, string> = typeof rawRenameNames === 'string'
+      ? JSON.parse(rawRenameNames || '{}')
+      : (rawRenameNames && typeof rawRenameNames === 'object' ? rawRenameNames : {});
     const overwrite = req.body?.overwrite === true || req.body?.overwrite === 'true';
     const installTeam = req.body?.installTeam !== false && req.body?.installTeam !== 'false';
     const applyModel = req.body?.applyModel === true || req.body?.applyModel === 'true';
@@ -9382,11 +9389,14 @@ app.post('/api/packs/install', requireAdminAuth, packUpload.single('file'), asyn
         results.push({ sourceId: agent.id, targetId: requestedId, status: 'skipped', skills: agent.skills });
         continue;
       }
+      const displayName = typeof renameNames[agent.id] === 'string' && renameNames[agent.id].trim()
+        ? renameNames[agent.id].trim()
+        : agent.name;
       try {
         if (!existing) {
           sessionManager.createSession({
             id: requestedId,
-            name: agent.name,
+            name: displayName,
             process_start_tag: agent.runtime?.processStartTag,
             process_end_tag: agent.runtime?.processEndTag,
             runtime_mode: normalizeAgentRuntimeMode(agent.runtime?.runtimeMode),
@@ -9408,12 +9418,13 @@ app.post('/api/packs/install', requireAdminAuth, packUpload.single('file'), asyn
           systemPromptMode: normalizeAgentSystemPromptMode(agent.runtime?.systemPromptMode),
           toolMode: normalizeAgentToolMode(agent.runtime?.toolMode),
         });
-        sessionManager.updateSession(requestedId, { agentId: requestedId, name: agent.name });
+        sessionManager.updateSession(requestedId, { agentId: requestedId, name: displayName });
         const written = writeAgentFiles(agent, agentProvisioner.getWorkspacePath(requestedId));
         idMap[agent.id] = requestedId;
         results.push({
           sourceId: agent.id,
           targetId: requestedId,
+          targetName: displayName,
           status: existing ? 'updated' : 'created',
           fileCount: written,
           skills: agent.skills,
@@ -9495,7 +9506,21 @@ app.get('/api/presets', (_req, res) => {
   }
   const summaries = listPresets().map(summary => {
     const detail = loadPreset(summary.id);
-    if (!detail) return null;
+    // 坏掉的预设也回给前端：目录还占着这个 id，静默过滤会让界面上无迹可寻。
+    if (!detail || summary.broken) {
+      return {
+        id: summary.id,
+        name: summary.name,
+        version: '',
+        tagline: summary.tagline || '',
+        description: '',
+        author: '',
+        roles: [],
+        params: [],
+        postInstall: [],
+        broken: summary.broken || 'preset.json 无法读取',
+      };
+    }
     const roles = detail.roles.map(role => ({
       id: role.id,
       name: role.name,
@@ -9509,6 +9534,7 @@ app.get('/api/presets', (_req, res) => {
       installed: Boolean(sessionManager.getSession(role.id)),
     }));
     return {
+      broken: undefined as string | undefined,
       id: detail.id,
       name: detail.name,
       version: detail.version || '',

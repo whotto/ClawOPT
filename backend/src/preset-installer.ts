@@ -55,9 +55,18 @@ export type PresetSummary = {
   id: string;
   name: string;
   tagline?: string;
+  /** 角色数：扫目录得出，不读清单里的手写值。 */
   roleCount: number;
+  /** 技能数：扫目录得出。 */
   skillCount: number;
   recommended?: boolean;
+  /**
+   * 这套预设为什么装不了，能装时为 undefined。
+   *
+   * 坏掉的预设**留在名册上**而不是被静默过滤：目录还占着那个 id，过滤掉之后
+   * 界面上没有任何东西可看、可删，而下一次有人用同名新建又会被拒。
+   */
+  broken?: string;
 };
 
 export type RoleInstallPlan = {
@@ -116,25 +125,67 @@ function countFiles(dir: string): number {
   return n;
 }
 
+/** 一套预设里所有角色的技能目录数之和（`_` 开头的分拣目录不算）。 */
+function countPresetSkills(presetId: string): number {
+  const rolesDir = path.join(PRESETS_DIR, presetId, 'roles');
+  if (!fs.existsSync(rolesDir)) return 0;
+  let total = 0;
+  for (const role of fs.readdirSync(rolesDir, { withFileTypes: true })) {
+    if (!role.isDirectory()) continue;
+    const skillsDir = path.join(rolesDir, role.name, 'skills');
+    if (!fs.existsSync(skillsDir)) continue;
+    for (const skill of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+      if (skill.isDirectory() && !skill.name.startsWith('_')
+        && fs.existsSync(path.join(skillsDir, skill.name, 'SKILL.md'))) total++;
+    }
+  }
+  return total;
+}
+
+/**
+ * 名册就是目录本身。
+ *
+ * `manifest.json` 只登记 id / 展示文案 / 是否推荐；角色数与技能数一律扫目录得出。
+ * 清单里手写一份计数就是第二份要同步的清单，而它会是最先过期的那一份——这个仓库
+ * 已经犯过一次：技能从 14 个涨到 21 个之后，`skillCount: 14` 在清单里躺了很久。
+ */
 export function listPresets(): PresetSummary[] {
   const manifestPath = path.join(PRESETS_DIR, 'manifest.json');
   if (!fs.existsSync(manifestPath)) return [];
+  let entries: any[] = [];
   try {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-    const entries: any[] = Array.isArray(manifest?.presets) ? manifest.presets : [];
-    return entries
-      .filter(e => e && typeof e.id === 'string' && fs.existsSync(path.join(PRESETS_DIR, e.path || e.id, 'preset.json')))
-      .map(e => ({
-        id: e.id,
-        name: e.name || e.id,
-        tagline: e.tagline,
-        roleCount: Number(e.roleCount) || 0,
-        skillCount: Number(e.skillCount) || 0,
-        recommended: e.recommended === true,
-      }));
+    entries = Array.isArray(manifest?.presets) ? manifest.presets : [];
   } catch {
     return [];
   }
+
+  const summaries: PresetSummary[] = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry.id !== 'string') continue;
+    const dir = path.join(PRESETS_DIR, entry.path || entry.id);
+    const definition = loadPreset(entry.id);
+    const broken = !fs.existsSync(dir)
+      ? '预设目录不存在'
+      : !fs.existsSync(path.join(dir, 'preset.json'))
+        ? '缺少 preset.json'
+        : definition === null
+          ? 'preset.json 解析失败'
+          : definition.roles.length === 0
+            ? 'preset.json 里没有任何角色'
+            : undefined;
+
+    summaries.push({
+      id: entry.id,
+      name: definition?.name || entry.name || entry.id,
+      tagline: definition?.tagline || entry.tagline,
+      roleCount: definition?.roles.length ?? 0,
+      skillCount: countPresetSkills(entry.id),
+      recommended: entry.recommended === true,
+      ...broken === undefined ? {} : { broken },
+    });
+  }
+  return summaries;
 }
 
 export function loadPreset(presetId: string): PresetDefinition | null {

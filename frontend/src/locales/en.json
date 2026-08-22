@@ -761,7 +761,10 @@
       "neverIncluded": "Never included: credentials and API keys, the memory/ daily logs, chat history.",
       "exportButton": "Export .clawpack",
       "exportDone": "Exported {{file}} to your downloads folder.",
-      "exportFailed": "Export failed"
+      "exportFailed": "Export failed",
+      "importedSuffix": " (imported)",
+      "nameConflictHint": "You already have an agent called \"{{name}}\". Give this one a distinguishable name, or the sidebar will show two identical entries.",
+      "presetBroken": "This preset cannot be installed: {{reason}}. The directory still occupies the id — fix it or delete it."
     },
     "openclawUpdate": {
       "title": "OpenClaw",

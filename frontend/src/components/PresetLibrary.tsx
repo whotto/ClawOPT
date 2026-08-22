@@ -25,6 +25,7 @@ type PresetParam = {
 
 type Preset = {
   id: string;
+  broken?: string;
   name: string;
   version: string;
   tagline: string;
@@ -56,6 +57,7 @@ type PackAgentInfo = {
   hasAutomations: boolean;
   hasMemory: boolean;
   conflict: boolean;
+  nameConflict: boolean;
   soulPreview: string;
 };
 
@@ -127,6 +129,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
   const [packUrl, setPackUrl] = useState('');
   const [inspection, setInspection] = useState<PackInspection | null>(null);
   const [renameMap, setRenameMap] = useState<Record<string, string>>({});
+  const [renameNames, setRenameNames] = useState<Record<string, string>>({});
   const [packOverwrite, setPackOverwrite] = useState(false);
   const [applyModel, setApplyModel] = useState(false);
   const [importResults, setImportResults] = useState<InstallOutcome[] | null>(null);
@@ -312,8 +315,10 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
         setInspection(null);
         return;
       }
-      setInspection(data as PackInspection);
+      const inspected = data as PackInspection;
+      setInspection(inspected);
       setRenameMap({});
+      setRenameNames({});
     } catch (err: any) {
       setPackError(err?.message || String(err));
     } finally {
@@ -328,6 +333,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
     try {
       const res = await fetch('/api/packs/install', buildPackRequest({
         rename: renameMap,
+        renameNames,
         overwrite: packOverwrite,
         applyModel,
       }));
@@ -409,6 +415,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
           {presets.map(preset => (
             <button
               key={preset.id}
+              disabled={Boolean(preset.broken)}
               onClick={() => setActiveId(preset.id)}
               className={`px-4 py-2 text-sm rounded-xl border transition-all ${
                 preset.id === activeId
@@ -416,7 +423,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
                   : 'font-normal text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
               }`}
             >
-              {preset.name}
+              {preset.name}{preset.broken ? ' ⚠' : ''}
             </button>
           ))}
         </div>
@@ -434,6 +441,9 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
                 </div>
                 {activePreset.tagline && <p className="text-sm text-gray-600 mt-1">{activePreset.tagline}</p>}
                 {activePreset.description && <p className="text-sm text-gray-500 mt-2 leading-relaxed">{activePreset.description}</p>}
+                {activePreset.broken && (
+                  <p className="text-sm text-red-600 mt-2">{t('settings.presets.presetBroken', { reason: activePreset.broken })}</p>
+                )}
               </div>
             </div>
           </div>
@@ -734,6 +744,24 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
                         className="mt-2 w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-300"
                       />
                     )}
+                    {(() => {
+                      const savingAsCopy = Boolean(renameMap[agent.id]?.trim());
+                      // 只有「确实会多出一条同名智能体」时才提示：覆盖同一个 ID 不会。
+                      const wouldDuplicate = agent.nameConflict && (savingAsCopy || !agent.conflict);
+                      if (!wouldDuplicate) return null;
+                      return (
+                        <>
+                          <input
+                            type="text"
+                            value={renameNames[agent.id] ?? `${agent.name}${t('settings.presets.importedSuffix')}`}
+                            placeholder={agent.name}
+                            onChange={e => setRenameNames(prev => ({ ...prev, [agent.id]: e.target.value }))}
+                            className="mt-2 w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-300"
+                          />
+                          <p className="text-xs text-amber-600 mt-1">{t('settings.presets.nameConflictHint', { name: agent.name })}</p>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

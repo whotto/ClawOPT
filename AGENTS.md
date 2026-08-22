@@ -19,6 +19,7 @@
 - `cd frontend && npm run dev`: 启动前端开发服务。
 - `npm run build`: 同时构建前后端。
 - `npm run release`: 构建后启动 release 预览流程。
+- `npm run locales:check`: 校验 `zh-CN` / `zh-TW` / `en` 三份 locale 的键集完全一致；缺一个语言不会报错、只会显示原始 key，所以这道门是硬性的（已并入 `npm run test`）。
 - `npm run presets:check`: 比对 `presets/opt-team/` 与角色配置包源（默认 `../openclaw-agents`）；不一致退出码 1，发布前卡口。
 - `npm run presets:sync`: 把角色配置包同步进预设，并按 `PARAM_RULES` 把具体值换回 `{{...}}` 占位符。
 - `./deploy-release.sh [port]`: 安装依赖、构建并部署 user-level systemd 服务。
@@ -56,6 +57,7 @@
 - 新增功能涉及按钮、标题、提示、空状态、表单校验、错误提示、成功提示、弹窗文案、菜单项等时，必须同步补齐三语文案。
 - 新增系统消息或接口错误时，优先使用结构化 `messageCode` / `errorCode`；前端负责本地化主句，诊断信息使用 `rawDetail` / `errorDetail` 独立展示。
 - 若本轮任务新增功能但未补齐三语支持，任务不算完成；若确实无法完成，必须明确标记 `TODO` 并说明原因。
+- 三语一致性由 `npm run locales:check` 机械校验（已并入 `npm run test`）。它只比键集，不判译文质量——把中文抄进 `en.json` 能过门，过不了评审。
 
 ## 禁止事项
 - 不要假设该仓库支持 Docker 部署。
