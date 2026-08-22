@@ -12712,6 +12712,22 @@ function decodeAbsolutePathParam(b64Path: string): string {
   return absolutePath;
 }
 
+/**
+ * 任何「按路径把文件交给浏览器」的入口都必须过这道闸门。
+ *
+ * 上一轮只给 /api/files/download 与 /openclaw 补了白名单，紧挨着的
+ * preview / preview-data / html-preview 三个入口漏了——同一类洞，堵一个不堵其余
+ * 等于没堵（实测可读 ~/.ssh/id_rsa 与 openclaw.json 里的模型 apiKey）。
+ * 所以判定收敛到这一个函数，新增出文件的路由只要复用它就不会再漏。
+ */
+function assertServablePath(absolutePath: string): string {
+  const verdict = resolveServablePath(absolutePath);
+  if (verdict.ok) return verdict.realPath;
+  if (verdict.reason === 'notFound') throw new StructuredRequestError(404, 'files.notFound', 'File not found');
+  console.warn(`[ServedPath Blocked] ${verdict.reason}: ${absolutePath}`);
+  throw new StructuredRequestError(403, 'files.notServable', 'This file is not available');
+}
+
 function decodeBase64UrlUtf8(value: string): string {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
@@ -12742,10 +12758,11 @@ function resolvePreviewAbsolutePath(req: express.Request): string {
   const filenameParam = req.query.filename as string | undefined;
 
   if (b64Path) {
-    return decodeAbsolutePathParam(b64Path);
+    return assertServablePath(decodeAbsolutePathParam(b64Path));
   }
 
-  return resolveStoredPreviewAbsolutePath(filenameParam);
+  const stored = resolveStoredPreviewAbsolutePath(filenameParam);
+  return stored ? assertServablePath(stored) : stored;
 }
 
 async function ensureConvertedPreviewPdf(absolutePath: string): Promise<string> {
@@ -12826,11 +12843,12 @@ function resolveHtmlPreviewEntryAbsolutePath(req: express.Request): string {
     if (!path.isAbsolute(absolutePath)) {
       throw new Error('Only absolute paths are allowed');
     }
-    return absolutePath;
+    return assertServablePath(absolutePath);
   }
 
   if (req.params.filename) {
-    return resolveStoredPreviewAbsolutePath(req.params.filename);
+    const stored = resolveStoredPreviewAbsolutePath(req.params.filename);
+    return stored ? assertServablePath(stored) : stored;
   }
 
   return '';
@@ -12847,7 +12865,15 @@ function resolveHtmlPreviewRequestedPath(entryAbsolutePath: string, relativePath
     return entryAbsolutePath;
   }
 
-  return path.resolve(path.dirname(entryAbsolutePath), normalizedRelativePath);
+  // 相对段里过滤了空段与 padding 段，但没过滤 `..`——一个 HTML 里写
+  // <img src="../../../../etc/passwd"> 就能越界。子资源必须留在入口文件所在目录内。
+  const entryDir = path.dirname(entryAbsolutePath);
+  const resolved = path.resolve(entryDir, normalizedRelativePath);
+  const relative = path.relative(entryDir, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new StructuredRequestError(403, 'files.notServable', 'This file is not available');
+  }
+  return resolved;
 }
 
 function serveHtmlPreviewRequest(req: express.Request, res: express.Response) {
@@ -12857,7 +12883,7 @@ function serveHtmlPreviewRequest(req: express.Request, res: express.Response) {
       return res.status(404).send('File not found');
     }
 
-    const requestedPath = resolveHtmlPreviewRequestedPath(entryAbsolutePath, req.params[0]);
+    const requestedPath = assertServablePath(resolveHtmlPreviewRequestedPath(entryAbsolutePath, req.params[0]));
     if (!fs.existsSync(requestedPath)) {
       return res.status(404).send('File not found');
     }
@@ -12871,6 +12897,9 @@ function serveHtmlPreviewRequest(req: express.Request, res: express.Response) {
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(filename)}`);
     return res.sendFile(requestedPath);
   } catch (error: any) {
+    if (isStructuredRequestError(error)) {
+      return res.status(error.status).json(error.payload);
+    }
     console.error(`[HTML Preview Error] ${error.message}`);
     if (error.message === 'Only absolute paths are allowed') {
       return res.status(403).send(error.message);
