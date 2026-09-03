@@ -1771,9 +1771,17 @@ export class AgentProvisioner {
     }
 
     if (agentId === 'main') {
-      const mainEntry = Array.isArray(config.agents?.list)
-        ? this.rosterEntryRef(config, this.rosterShapeOf(config), 'main')
-        : null;
+      // 走门面，**不要**用 `Array.isArray(config.agents.list)` 当条件。
+      //
+      // 2026.8 起名册是 `agents.entries`，`config.agents.list` 恒为 undefined，
+      // 那个三元式会直接取 null —— 每个 Agent 的独立模型都读不出来，一律
+      // 退回全局默认。生产实测：一个 `model: claude-cli/claude-sonnet-5` 的
+      // Agent 被拉进团队后，克隆体拿不到模型，回话的是 DeepSeek，而名字还挂着
+      // 「Claude Code」。单聊时看不出来，因为那条路是引擎自己读 openclaw.json。
+      //
+      // 同一份文件 1436 行早就写着这个坑（「2.x 上 config.agents.list 是
+      // undefined，旧写法会静默不做任何清理」），但只堵了那一处。
+      const mainEntry = this.rosterEntryRef(config, this.rosterShapeOf(config), 'main');
       const mainModel = this.readStoredModelValue(mainEntry?.model);
       const resolvedModel = this.normalizeModelId(mainModel.primary || globalConfig.primary);
       const modelOverride = this.normalizeModelId(mainModel.primary || globalConfig.primary);
@@ -1787,9 +1795,8 @@ export class AgentProvisioner {
       };
     }
 
-    const entry = Array.isArray(config.agents?.list)
-      ? this.rosterEntryRef(config, this.rosterShapeOf(config), agentId)
-      : null;
+    // 同上：形状判断交给门面，不在调用点重复一份，更不能用旧形状当开关。
+    const entry = this.rosterEntryRef(config, this.rosterShapeOf(config), agentId);
     const stored = this.readStoredModelValue(entry?.model);
     const resolvedModel = this.normalizeModelId(stored.primary || globalConfig.primary);
 

@@ -284,9 +284,11 @@ export class OpenClawClient extends EventEmitter {
 
       const wsUrl = this.config.gatewayUrl.replace(/^http/, 'ws');
       const wsOptions: any = {};
-      if (this.config.gatewayUrl.includes('localhost') || this.config.gatewayUrl.includes('127.0.0.1')) {
-        wsOptions.headers = { Origin: this.config.gatewayUrl };
-      }
+      // **不送 Origin 头。**
+      //
+      // Origin 是浏览器语义。送了它，网关的 `hasBrowserOriginHeader` 为真，
+      // 本地后端自动配对被一票否决（见上面那段判据），无论 id/mode 报什么。
+      // 这里原来送的还是 `ws://127.0.0.1:18789` —— 一个 scheme 都不合法的 origin。
       this.ws = new WebSocket(wsUrl, wsOptions);
 
       const fail = (err: Error) => {
@@ -318,9 +320,21 @@ export class OpenClawClient extends EventEmitter {
                 minProtocol: 3,
                 maxProtocol: 4,
                 client: {
-                  id: 'openclaw-control-ui',
+                  // 我们是**后端进程**，不是浏览器控制台。这个身份决定网关要不要
+                  // 我们出示设备身份：
+                  //
+                  //   isBackendClient = client.id === "gateway-client"
+                  //                  && client.mode === "backend"
+                  //   if (!isBackendClient || !isLocal || hasBrowserOriginHeader) return false;
+                  //
+                  // 报成 `openclaw-control-ui` / `webchat` 会走浏览器那条路，
+                  // 而浏览器必须有设备身份，我们没有 —— 于是每一次 agent 调用都以
+                  //   `control ui requires device identity (use HTTPS or localhost secure context)`
+                  // 失败。2026.7 不查这个，2026.8 查了，所以升级当天整站的聊天
+                  // 就静默不可用了（生产实测，单聊和群聊都中招）。
+                  id: 'gateway-client',
                   version: 'clawopt-backend',
-                  mode: 'webchat',
+                  mode: 'backend',
                   platform: process.platform,
                 },
                 caps: ['tool-events'],
