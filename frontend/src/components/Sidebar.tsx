@@ -1034,13 +1034,27 @@ export default function Sidebar({
           <div className="text-[15px] truncate w-full flex-1 min-w-0 text-gray-900">
             {s.name || t('sidebar.agentNum').replace('{{num}}', s.id)}
           </div>
-          {(s as any).model && (() => {
+          {(() => {
+            // 副标题回答的是「这个 Agent 由谁来跑」。
+            //
+            // 对普通 Agent 那就是模型；但对一个跑在 Claude Code 上的 Agent，
+            // 显示它名义上配的 `deepseek/...` 是**误导**——用户会以为它在用 DeepSeek。
+            // 真机截图里正是这个样子：一个 runtime=claude 的 Agent 副标题写着 DeepSeek。
+            // 显示错的信息比不显示更糟，所以运行时优先。
+            const runtimeId = (s as any).agentRuntime;
+            if (runtimeId && runtimeId !== 'openclaw') {
+              return (
+                <div className="text-[11px] font-medium truncate max-w-full text-indigo-500">
+                  {runtimeLabel(runtimeId)}
+                </div>
+              );
+            }
             const mId = (s as any).model;
+            if (!mId) return null;
             const mInfo = availableModels.find(m => m.id === mId);
-            const displayName = mInfo?.alias || mId;
             return (
               <div className="text-[11px] font-medium truncate max-w-full text-gray-500">
-                {displayName}
+                {mInfo?.alias || mId}
               </div>
             );
           })()}

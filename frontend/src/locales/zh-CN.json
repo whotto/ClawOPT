@@ -913,6 +913,17 @@
         "browser-not-enabled": "openclaw.json 里没有启用浏览器（browser.enabled 不为 true），因此跳过这一步。",
         "unknown": "这一步被跳过了。"
       }
+    },
+    "runtimeAuth": {
+      "title": "运行时账号",
+      "description": "Claude Code、Gemini、Codex 这些运行时各有自己的账号。没登录的话，选了它的 Agent 建得出来、也能进团队，但回不了话。",
+      "loading": "正在读取状态…",
+      "stateAuthenticated": "已登录（{{profiles}}）",
+      "stateMissing": "未登录",
+      "stateUnknown": "状态未知 —— 读取失败，请在主机上自行确认",
+      "copy": "复制命令",
+      "copied": "已复制",
+      "whyCliHint": "登录需要在主机上执行一次。ClawOPT 不代为执行——那需要它拿到主机的 shell 权限，而你也看不见发生了什么。设备码流程会让你在自己的浏览器里授权，凭据不经过 ClawOPT。"
     }
   }
 }

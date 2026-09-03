@@ -913,6 +913,17 @@
         "browser-not-enabled": "openclaw.json 裡沒有啟用瀏覽器（browser.enabled 不為 true），因此跳過這一步。",
         "unknown": "這一步被跳過了。"
       }
+    },
+    "runtimeAuth": {
+      "title": "執行時帳號",
+      "description": "Claude Code、Gemini、Codex 這些執行時各有自己的帳號。沒登入的話，選了它的 Agent 建得出來、也能進團隊，但回不了話。",
+      "loading": "正在讀取狀態…",
+      "stateAuthenticated": "已登入（{{profiles}}）",
+      "stateMissing": "未登入",
+      "stateUnknown": "狀態未知 —— 讀取失敗，請在主機上自行確認",
+      "copy": "複製命令",
+      "copied": "已複製",
+      "whyCliHint": "登入需要在主機上執行一次。ClawOPT 不代為執行——那需要它取得主機的 shell 權限，而你也看不見發生了什麼。裝置碼流程會讓你在自己的瀏覽器裡授權，憑證不經過 ClawOPT。"
     }
   }
 }
