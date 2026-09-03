@@ -88,7 +88,17 @@
     "editGroupTitle": "修改團隊",
     "searchAddAgent": "搜尋並新增智能體...",
     "addToFavorites": "加入收藏",
-    "removeFromFavorites": "取消收藏"
+    "removeFromFavorites": "取消收藏",
+    "agentRuntimeTitle": "執行時",
+    "agentRuntimeAuthHint": "{{runtime}} 需要 {{requires}} 帳號；未登入時這個 Agent 無法回覆。",
+    "agentRuntime": {
+      "openclaw": "OpenClaw（引擎自己跑）",
+      "claude": "Claude Code",
+      "gemini": "Gemini CLI",
+      "opencode": "OpenCode",
+      "pi": "Pi",
+      "codex": "Codex（走 ACP）"
+    }
   },
   "common": {
     "details": "詳情",

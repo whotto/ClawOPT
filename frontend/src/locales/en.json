@@ -88,7 +88,17 @@
     "editGroupTitle": "Edit Team",
     "searchAddAgent": "Search and add agents...",
     "addToFavorites": "Add to favorites",
-    "removeFromFavorites": "Remove from favorites"
+    "removeFromFavorites": "Remove from favorites",
+    "agentRuntimeTitle": "Runtime",
+    "agentRuntimeAuthHint": "{{runtime}} needs a {{requires}} account; without sign-in this agent cannot reply.",
+    "agentRuntime": {
+      "openclaw": "OpenClaw (engine itself)",
+      "claude": "Claude Code",
+      "gemini": "Gemini CLI",
+      "opencode": "OpenCode",
+      "pi": "Pi",
+      "codex": "Codex (via ACP)"
+    }
   },
   "common": {
     "details": "Details",
