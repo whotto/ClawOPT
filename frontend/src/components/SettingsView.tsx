@@ -605,28 +605,61 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   /**
    * 运行时账号状态。
    *
-   * **只读。** Gateway 协议里没有 `authLogin`，登录只有 CLI 一条路。
-   * 这里显示状态、给出该敲的命令，执行交给用户——把它做成
-   * 「点一下、背后 ssh 执行」会要求 ClawOPT 拿到主机 shell 权限。
+   * 状态只说得出「我们写的 env key 在不在」。厂商 CLI 是否已在主机上
+   * 自行登录过，我们无从判断——所以没有「未登录」这个状态。
    */
   type RuntimeAuthRow = {
     runtimeId: string;
-    provider: string | null;
-    state: 'authenticated' | 'missing' | 'unknown';
-    profiles: string[];
-    loginCommand: string | null;
+    envKey: string | null;
+    state: 'notRequired' | 'configured' | 'unknown' | 'unreadable';
+    webConfigurable: boolean;
   };
   const [runtimeAuth, setRuntimeAuth] = useState<RuntimeAuthRow[]>([]);
   const [runtimeAuthLoading, setRuntimeAuthLoading] = useState(false);
-  const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
+  /** 正在编辑的运行时 → 输入框里的值。**值只进不出**，不预填。 */
+  const [keyDraft, setKeyDraft] = useState<Record<string, string>>({});
+  const [keySaving, setKeySaving] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<Record<string, string>>({});
 
   const loadRuntimeAuth = () => {
     setRuntimeAuthLoading(true);
     fetch('/api/agent-runtimes/auth')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d?.success && Array.isArray(d.runtimes)) setRuntimeAuth(d.runtimes); })
-      .catch((err) => console.warn('[Settings] 取运行时账号状态失败：', err))
+      .catch((err) => console.warn('[Settings] 取运行时凭据状态失败：', err))
       .finally(() => setRuntimeAuthLoading(false));
+  };
+
+  /**
+   * 保存或清除一个厂商 key。
+   *
+   * 保存会**重启 Gateway**（`.env` 是启动时读的），所以这里必须等后端回话，
+   * 并把后端的结构化错误原样显示——包括「写进去了但重启失败」这种
+   * 半成功状态。报一个笼统的成功是本仓库红线 C 反对的形状。
+   */
+  const submitRuntimeKey = async (runtimeId: string, apiKey: string | null) => {
+    setKeySaving(runtimeId);
+    setKeyError((prev) => ({ ...prev, [runtimeId]: '' }));
+    try {
+      const res = await fetch(`/api/agent-runtimes/auth/${encodeURIComponent(runtimeId)}`, {
+        method: apiKey === null ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: apiKey === null ? undefined : JSON.stringify({ apiKey }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        const code = typeof data?.error === 'string' ? data.error : 'runtimeAuth.writeFailed';
+        setKeyError((prev) => ({ ...prev, [runtimeId]: t(`settings.runtimeAuth.err.${code.split('.').pop()}`, { defaultValue: code }) }));
+        return;
+      }
+      if (Array.isArray(data.runtimes)) setRuntimeAuth(data.runtimes);
+      setKeyDraft((prev) => ({ ...prev, [runtimeId]: '' }));
+    } catch (err) {
+      console.warn('[Settings] 保存厂商凭据失败：', err);
+      setKeyError((prev) => ({ ...prev, [runtimeId]: t('settings.runtimeAuth.err.writeFailed') }));
+    } finally {
+      setKeySaving(null);
+    }
   };
   useEffect(() => { loadRuntimeAuth(); }, []);
 
@@ -4324,59 +4357,71 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                   </div>
                 </div>
 
-                {/* 运行时账号 */}
+                {/* 外接 Agent 凭据 */}
                 <div className="mt-8">
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">{t('settings.runtimeAuth.title')}</h3>
                   <p className="text-sm text-gray-500 mb-4">{t('settings.runtimeAuth.description')}</p>
 
-                  <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 space-y-3">
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 space-y-1">
                     {runtimeAuthLoading && runtimeAuth.length === 0 && (
                       <div className="text-xs text-gray-400">{t('settings.runtimeAuth.loading')}</div>
                     )}
-                    {runtimeAuth.filter((row) => row.provider).map((row) => (
-                      <div key={row.runtimeId} className="flex flex-wrap items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${
-                              row.state === 'authenticated' ? 'bg-emerald-500'
-                                : row.state === 'missing' ? 'bg-gray-300' : 'bg-amber-400'
-                            }`} />
-                            <span className="text-sm font-semibold text-gray-900">
-                              {t(`sidebar.agentRuntime.${row.runtimeId}`, { defaultValue: row.runtimeId })}
-                            </span>
-                            <span className="text-xs text-gray-400">{row.provider}</span>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {row.state === 'authenticated'
-                              ? t('settings.runtimeAuth.stateAuthenticated', { profiles: row.profiles.join(', ') })
-                              : row.state === 'unknown'
-                                ? t('settings.runtimeAuth.stateUnknown')
-                                : t('settings.runtimeAuth.stateMissing')}
-                          </div>
-                          {row.loginCommand && (
-                            <code className="mt-2 block text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-1.5 text-gray-600 break-all">
-                              {row.loginCommand}
-                            </code>
-                          )}
+                    {runtimeAuth.filter((row) => row.state !== 'notRequired').map((row) => (
+                      <div key={row.runtimeId} className="py-3 border-b border-gray-50 last:border-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+                            row.state === 'configured' ? 'bg-emerald-500'
+                              : row.state === 'unreadable' ? 'bg-red-400' : 'bg-gray-300'
+                          }`} />
+                          <span className="text-sm font-semibold text-gray-900">
+                            {t(`sidebar.agentRuntime.${row.runtimeId}`, { defaultValue: row.runtimeId })}
+                          </span>
+                          {row.envKey && <code className="text-[11px] text-gray-400">{row.envKey}</code>}
                         </div>
-                        {row.loginCommand && (
-                          <button
-                            onClick={() => {
-                              const cmd = row.loginCommand;
-                              if (!cmd) return;
-                              navigator.clipboard?.writeText(cmd).then(
-                                () => { setCopiedCommand(row.runtimeId); setTimeout(() => setCopiedCommand(null), 2000); },
-                                (err) => console.warn('[Settings] 复制失败：', err),
-                              );
-                            }}
-                            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                          >
-                            {copiedCommand === row.runtimeId ? t('settings.runtimeAuth.copied') : t('settings.runtimeAuth.copy')}
-                          </button>
+
+                        <div className="text-xs text-gray-500 mt-1">
+                          {row.state === 'configured' ? t('settings.runtimeAuth.stateConfigured')
+                            : row.state === 'unreadable' ? t('settings.runtimeAuth.stateUnreadable')
+                              : row.webConfigurable ? t('settings.runtimeAuth.stateUnknown')
+                                : t('settings.runtimeAuth.stateHostOnly')}
+                        </div>
+
+                        {row.webConfigurable && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <input
+                              type="password"
+                              autoComplete="off"
+                              value={keyDraft[row.runtimeId] ?? ''}
+                              onChange={(e) => setKeyDraft((prev) => ({ ...prev, [row.runtimeId]: e.target.value }))}
+                              placeholder={row.state === 'configured'
+                                ? t('settings.runtimeAuth.placeholderReplace')
+                                : t('settings.runtimeAuth.placeholderNew')}
+                              className="flex-1 min-w-[200px] px-3 py-1.5 text-xs rounded-lg border border-gray-200 focus:border-indigo-400 focus:outline-none"
+                            />
+                            <button
+                              onClick={() => submitRuntimeKey(row.runtimeId, keyDraft[row.runtimeId] ?? '')}
+                              disabled={keySaving === row.runtimeId || !(keyDraft[row.runtimeId] ?? '').trim()}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {keySaving === row.runtimeId ? t('settings.runtimeAuth.saving') : t('settings.runtimeAuth.save')}
+                            </button>
+                            {row.state === 'configured' && (
+                              <button
+                                onClick={() => submitRuntimeKey(row.runtimeId, null)}
+                                disabled={keySaving === row.runtimeId}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                              >
+                                {t('settings.runtimeAuth.clear')}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {keyError[row.runtimeId] && (
+                          <div className="text-xs text-red-500 mt-1.5">{keyError[row.runtimeId]}</div>
                         )}
                       </div>
                     ))}
-                    <p className="text-xs text-gray-400 pt-2">{t('settings.runtimeAuth.whyCliHint')}</p>
+                    <p className="text-xs text-gray-400 pt-3 leading-relaxed">{t('settings.runtimeAuth.hint')}</p>
                   </div>
                 </div>
 

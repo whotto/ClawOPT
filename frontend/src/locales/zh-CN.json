@@ -915,15 +915,30 @@
       }
     },
     "runtimeAuth": {
-      "title": "运行时账号",
-      "description": "Claude Code、Gemini、Codex 这些运行时各有自己的账号。没登录的话，选了它的 Agent 建得出来、也能进团队，但回不了话。",
-      "loading": "正在读取状态…",
-      "stateAuthenticated": "已登录（{{profiles}}）",
-      "stateMissing": "未登录",
-      "stateUnknown": "状态未知 —— 读取失败，请在主机上自行确认",
-      "copy": "复制命令",
-      "copied": "已复制",
-      "whyCliHint": "登录需要在主机上执行一次。ClawOPT 不代为执行——那需要它拿到主机的 shell 权限，而你也看不见发生了什么。设备码流程会让你在自己的浏览器里授权，凭据不经过 ClawOPT。"
+      "title": "外接 Agent 凭据",
+      "description": "Claude Code、Gemini、Codex 这些是外接 Agent，跑的是各家自己的 CLI，用各家自己的账号。填了 API Key 它们才回得了话。",
+      "loading": "正在读取…",
+      "stateConfigured": "已配置 Key（保存后 Gateway 已重启生效）",
+      "stateUnknown": "未在此处配置。若你已在主机上用它自己的 CLI 登录过，也能用——那种情况这里看不出来。",
+      "stateHostOnly": "这个只能在主机上用它自己的 CLI 登录，没有可填的环境变量。",
+      "stateUnreadable": "读不出凭据文件（权限或文件损坏），状态未知。",
+      "placeholderNew": "粘贴 API Key",
+      "placeholderReplace": "粘贴新的 Key 以替换",
+      "save": "保存",
+      "saving": "保存中…",
+      "clear": "清除",
+      "hint": "Key 写入 ~/.openclaw/.env（权限 600），保存后自动重启 Gateway 生效。写进去就读不出来了——忘了填的是什么就重填一次，服务器不会把凭据再吐一遍。",
+      "err": {
+        "emptyValue": "Key 不能为空。",
+        "valueHasNewline": "Key 里不能有换行，请检查粘贴内容。",
+        "unreadable": "凭据文件读不出来，请检查主机上 ~/.openclaw/.env 的权限。",
+        "unknownName": "这个运行时不支持在此处配置。",
+        "notWebConfigurable": "这个运行时只能在主机上登录。",
+        "unknownRuntime": "未知的运行时。",
+        "missingKey": "没有收到 Key。",
+        "writeFailed": "保存失败。",
+        "savedButRestartFailed": "Key 已保存，但 Gateway 重启失败，尚未生效。请在主机上重启 Gateway。"
+      }
     }
   }
 }

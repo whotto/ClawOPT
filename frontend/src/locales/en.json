@@ -915,15 +915,30 @@
       }
     },
     "runtimeAuth": {
-      "title": "Runtime accounts",
-      "description": "Claude Code, Gemini, Codex and the others each need their own account. Without one, an agent using that runtime can be created and added to a team, but it cannot reply.",
-      "loading": "Reading status…",
-      "stateAuthenticated": "Signed in ({{profiles}})",
-      "stateMissing": "Not signed in",
-      "stateUnknown": "Status unknown — the probe failed; check on the host yourself",
-      "copy": "Copy command",
-      "copied": "Copied",
-      "whyCliHint": "Signing in runs once on the host. ClawOPT does not run it for you — that would require shell access to the host, and you would not see what happened. The device-code flow lets you authorize in your own browser; credentials never pass through ClawOPT."
+      "title": "External agent credentials",
+      "description": "Claude Code, Gemini and Codex are external agents: each runs its own vendor CLI with its own account. They cannot reply until a key is set.",
+      "loading": "Reading…",
+      "stateConfigured": "Key set (the gateway restarted, so it is live)",
+      "stateUnknown": "Not set here. If you already signed in on the host with the vendor CLI, that works too — this page cannot see it.",
+      "stateHostOnly": "This one can only be signed in on the host with its own CLI; it has no environment variable to fill in.",
+      "stateUnreadable": "The credential file could not be read (permissions or corruption), so the state is unknown.",
+      "placeholderNew": "Paste API key",
+      "placeholderReplace": "Paste a new key to replace it",
+      "save": "Save",
+      "saving": "Saving…",
+      "clear": "Clear",
+      "hint": "Keys are written to ~/.openclaw/.env (mode 600) and the gateway restarts so they take effect. Once written a key cannot be read back — if you forget what you entered, enter it again; the server will not hand a credential back.",
+      "err": {
+        "emptyValue": "The key cannot be empty.",
+        "valueHasNewline": "The key cannot contain a line break — check what you pasted.",
+        "unreadable": "The credential file could not be read; check permissions on ~/.openclaw/.env on the host.",
+        "unknownName": "This runtime cannot be configured here.",
+        "notWebConfigurable": "This runtime can only be signed in on the host.",
+        "unknownRuntime": "Unknown runtime.",
+        "missingKey": "No key received.",
+        "writeFailed": "Save failed.",
+        "savedButRestartFailed": "The key was saved but the gateway failed to restart, so it is not live yet. Restart the gateway on the host."
+      }
     }
   }
 }
