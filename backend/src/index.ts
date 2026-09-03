@@ -6,9 +6,6 @@ import fs from 'fs';
 import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write';
 import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeErrorDetail } from './openclaw-config';
 import { listRosterEntries, resolveRosterShape } from './agents-roster';
-import { AGENT_RUNTIMES, DEFAULT_AGENT_RUNTIME, readAgentRuntimeFromEntry, normalizeAgentRuntime } from './agent-runtimes';
-import { readRuntimeAuthStatus } from './runtime-auth';
-import { VENDOR_ENV_KEY, setVendorEnvKey, clearVendorEnvKey, VendorEnvWriteError } from './acp-vendor-env';
 import os from 'os';
 import { createServer } from 'http';
 import multer from 'multer';
@@ -6447,7 +6444,7 @@ function withConfigReadFallback<T>(fallback: T, read: () => T): { value: T; conf
 // `readAgentRuntimeConfig()`（`readEffectiveAgentRuntimeSettings()` 内部调它）在配置
 // 损坏时也会抛 ConfigReadError——和 model 字段是同一类"读不动"，同样不该让这几个只读
 // 接口整体 500。退化形状照抄它自己对"配置文件不存在"这个合法状态给出的默认值。
-const RUNTIME_SETTINGS_CONFIG_READ_FALLBACK = { systemPromptMode: 'system' as const, toolMode: 'full' as const, agentRuntime: DEFAULT_AGENT_RUNTIME };
+const RUNTIME_SETTINGS_CONFIG_READ_FALLBACK = { systemPromptMode: 'system' as const, toolMode: 'full' as const };
 
 function createStructuredChatError(rawDetail?: string | null, forcedCode?: string) {
   const detail = typeof rawDetail === 'string' && rawDetail.trim() ? rawDetail.trim() : 'Unknown error';
@@ -6766,14 +6763,12 @@ function readEffectiveAgentRuntimeSettings(sessionInfo: SessionRow | undefined, 
   runtimeMode: AgentRuntimeMode;
   systemPromptMode: AgentSystemPromptMode;
   toolMode: AgentToolMode;
-  agentRuntime: string;
 } {
   const openClawRuntime = agentProvisioner.readAgentRuntimeConfig(agentId);
   return {
     runtimeMode: normalizeAgentRuntimeMode(sessionInfo?.runtime_mode),
     systemPromptMode: openClawRuntime.systemPromptMode,
     toolMode: openClawRuntime.toolMode,
-    agentRuntime: openClawRuntime.agentRuntime,
   };
 }
 
@@ -9451,7 +9446,6 @@ app.get('/api/agents/orphans', (_req, res) => {
       .map((entry) => ({
         agentId: entry.id,
         workspace: typeof entry.workspace === 'string' ? entry.workspace : null,
-        agentRuntime: readAgentRuntimeFromEntry(entry),
       }));
 
     res.json({ success: true, orphans });
@@ -9490,102 +9484,9 @@ app.post('/api/agents/import', requireAdminAuth, (req, res) => {
   }
 
   const session = sessionManager.createSession({ id: agentId, name: agentId, agentId });
-  res.json({ success: true, session, agentRuntime: readAgentRuntimeFromEntry(entry) });
+  res.json({ success: true, session });
 });
 
-/**
- * 每个运行时的登录状态 + 该敲的命令。
- *
- * 状态只说得出「我们写的 env key 在不在」。厂商 CLI 是否已在主机上自行登录过，
- * 我们无从判断——理由见 `runtime-auth.ts`。
- */
-app.get('/api/agent-runtimes/auth', (_req, res) => {
-  try {
-    res.json({ success: true, runtimes: readRuntimeAuthStatus() });
-  } catch (error) {
-    console.error('[api] 读取运行时凭据状态失败：', error);
-    res.status(500).json({ success: false, error: 'runtimeAuth.probeFailed' });
-  }
-});
-
-/**
- * 写入一个外接 Agent 的厂商 API Key。
- *
- * **值只进不出。** 没有任何接口能把它读回来——与 openclaw 自己
- * `secrets store get` 拒绝返回 secret 是同一个判断。用户忘了填的是什么，
- * 正确做法是重填一次，不是让服务器把凭据再吐一遍。
- *
- * 写完必须重启 Gateway：`.env` 是 Gateway **启动时**读的，不重启等于没生效——
- * 而「以为配好了其实没生效」正是本仓库红线 C 反对的形状。
- */
-app.post('/api/agent-runtimes/auth/:runtimeId', async (req, res) => {
-  const { id: runtimeId, recognized } = normalizeAgentRuntime(req.params.runtimeId);
-  if (!recognized) {
-    return res.status(400).json({ success: false, error: 'runtimeAuth.unknownRuntime' });
-  }
-  const envKey = VENDOR_ENV_KEY[runtimeId];
-  if (!envKey) {
-    return res.status(400).json({ success: false, error: 'runtimeAuth.notWebConfigurable' });
-  }
-  const apiKey = (req.body as { apiKey?: unknown })?.apiKey;
-  if (typeof apiKey !== 'string') {
-    return res.status(400).json({ success: false, error: 'runtimeAuth.missingKey' });
-  }
-
-  try {
-    setVendorEnvKey(envKey, apiKey);
-  } catch (error) {
-    if (error instanceof VendorEnvWriteError) {
-      // 结构化拒绝：界面要能分辨「空值」「带换行」「文件读不动」，
-      // 而不是统一显示一句「保存失败」。
-      return res.status(400).json({ success: false, error: `runtimeAuth.${error.reason}` });
-    }
-    console.error('[api] 写入厂商凭据失败：', error);
-    return res.status(500).json({ success: false, error: 'runtimeAuth.writeFailed' });
-  }
-
-  try {
-    await restartGatewayService();
-  } catch (error) {
-    // key 已经落盘了，但没生效。**如实说**，不要报一个笼统的成功。
-    console.error('[api] 凭据已写入，但重启 Gateway 失败：', error);
-    return res.status(500).json({ success: false, error: 'runtimeAuth.savedButRestartFailed' });
-  }
-
-  return res.json({ success: true, runtimes: readRuntimeAuthStatus() });
-});
-
-/** 删除一个厂商 API Key。同样要重启才生效。 */
-app.delete('/api/agent-runtimes/auth/:runtimeId', async (req, res) => {
-  const { id: runtimeId, recognized } = normalizeAgentRuntime(req.params.runtimeId);
-  if (!recognized) {
-    return res.status(400).json({ success: false, error: 'runtimeAuth.unknownRuntime' });
-  }
-  const envKey = VENDOR_ENV_KEY[runtimeId];
-  if (!envKey) {
-    return res.status(400).json({ success: false, error: 'runtimeAuth.notWebConfigurable' });
-  }
-  try {
-    clearVendorEnvKey(envKey);
-  } catch (error) {
-    if (error instanceof VendorEnvWriteError) {
-      return res.status(400).json({ success: false, error: `runtimeAuth.${error.reason}` });
-    }
-    console.error('[api] 删除厂商凭据失败：', error);
-    return res.status(500).json({ success: false, error: 'runtimeAuth.writeFailed' });
-  }
-  try {
-    await restartGatewayService();
-  } catch (error) {
-    console.error('[api] 凭据已删除，但重启 Gateway 失败：', error);
-    return res.status(500).json({ success: false, error: 'runtimeAuth.savedButRestartFailed' });
-  }
-  return res.json({ success: true, runtimes: readRuntimeAuthStatus() });
-});
-
-app.get('/api/agent-runtimes', (_req, res) => {
-  res.json({ success: true, runtimes: AGENT_RUNTIMES, default: DEFAULT_AGENT_RUNTIME });
-});
 
 app.get('/api/sessions', (_req, res) => {
   const sessions = sessionManager.getAllSessions();
@@ -9606,7 +9507,6 @@ app.get('/api/sessions', (_req, res) => {
       runtimeMode: runtimeSettingsValue.runtimeMode,
       systemPromptMode: runtimeSettingsValue.systemPromptMode,
       toolMode: runtimeSettingsValue.toolMode,
-      agentRuntime: runtimeSettingsValue.agentRuntime,
       model,
       configReadFailed: runtimeFailed || modelFailed,
     };
@@ -10218,9 +10118,6 @@ app.post('/api/sessions', async (req, res) => {
   const runtimeMode = normalizeAgentRuntimeMode(req.body?.runtimeMode ?? req.body?.runtime_mode);
   const systemPromptMode = normalizeAgentSystemPromptMode(req.body?.systemPromptMode ?? req.body?.system_prompt_mode);
   const toolMode = normalizeAgentToolMode(req.body?.toolMode ?? req.body?.tool_mode);
-  // 谁来跑这个 Agent 的模型循环。归一化在 provisioner 里做（认不出就退默认并出声），
-  // 这里只负责把值传下去——校验只该有一处实现。
-  const agentRuntime = req.body?.agentRuntime;
 
   const rawId = typeof id === 'string' ? id : '';
   const normalizedId = rawId.trim();
@@ -10275,7 +10172,6 @@ app.post('/api/sessions', async (req, res) => {
       fallbacks,
       systemPromptMode,
       toolMode,
-      agentRuntime,
     });
 
     // Update session record with the auto-generated agentId
@@ -10324,7 +10220,6 @@ app.put('/api/sessions/:id', async (req, res) => {
   const runtimeMode = normalizeAgentRuntimeMode(req.body?.runtimeMode ?? req.body?.runtime_mode);
   const systemPromptMode = normalizeAgentSystemPromptMode(req.body?.systemPromptMode ?? req.body?.system_prompt_mode);
   const toolMode = normalizeAgentToolMode(req.body?.toolMode ?? req.body?.tool_mode);
-  const agentRuntime = req.body?.agentRuntime;
   const session = sessionManager.getSession(req.params.id);
   
   if (!session) {
@@ -10482,7 +10377,6 @@ app.post('/api/sessions/:id/reset', async (req, res) => {
         // 重置要保住运行时选择。不带这一项的话，重置一个跑在 Claude Code 上的
         // Agent 会把它悄悄变回引擎默认——用户看到的是「重置了一下就不工作了」，
         // 而没有任何东西指向真实原因。
-        agentRuntime: runtimeConfig.agentRuntime,
       });
     }
 
@@ -10530,7 +10424,6 @@ app.get('/api/sessions/:id/configs', async (req, res) => {
       runtimeMode: runtimeSettings.runtimeMode,
       systemPromptMode: runtimeSettings.systemPromptMode,
       toolMode: runtimeSettings.toolMode,
-      agentRuntime: runtimeSettings.agentRuntime,
       runtimeMetrics,
       configReadFailed,
     }

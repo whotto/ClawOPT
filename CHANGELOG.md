@@ -1,3 +1,21 @@
+## [1.5.0] — 2026-09-03
+
+### 撤回 v1.3.0–v1.4.0 的外接 Agent 方案，改走模型 ref
+
+v1.3.0 的运行时下拉框写的是引擎明确忽略的键（whole-agent runtime keys are
+legacy and ignored）。生产实测：选了 Claude Code 的 Agent 回答自己是
+DeepSeek-V4-Flash，且无任何报错。整块移除，并在每次 provision 时清理已经写进
+用户配置的废键——只删代码不清理，等于把骗人的状态留在原地。
+
+v1.4.0 的凭据页把 Key 写进 ~/.openclaw/.env，而引擎要的是自己的 auth profile。
+整页移除。
+
+正确接法：外接 Agent 就是一个模型 ref（claude-cli/claude-sonnet-5），走现有的
+模型接入，零新代码。它因此天然能单独对话、进团队、配预设。
+实测只有 claude-cli 后端已注册；gemini/codex/opencode 需 ACP，暂不放进界面。
+
+详见 docs/release-notes-v1.5.0.md。
+
 ## [1.4.0] — 2026-09-03
 
 ### 外接 Agent 凭据可在网页配置；并修正上一版接错凭据库

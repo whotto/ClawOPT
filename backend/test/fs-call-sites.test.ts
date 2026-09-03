@@ -48,7 +48,7 @@ const SRC = path.resolve(__dirname, '..', 'src');
 const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
 
 /** 建立基线当天的实际数量。改大它需要显式修改本文件——那一刻就有人看见了。 */
-const CURRENT_SITE_BUDGET = 58;
+const CURRENT_SITE_BUDGET = 57;
 
 /** 网关自己就是那唯一一处实现，不计入。 */
 const GATEWAY_FILES = new Set(['openclaw-config.ts', 'config-atomic-write.ts']);
