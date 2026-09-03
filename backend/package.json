@@ -5,10 +5,11 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc",
+    "build": "npm run clean && tsc",
     "test": "tsc --noEmit && vitest run",
     "start": "node dist/index.js",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
     "axios": "^1.6.7",
