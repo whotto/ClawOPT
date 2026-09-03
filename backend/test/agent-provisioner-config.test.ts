@@ -533,3 +533,206 @@ describe('deprovision() 不再把「配置读不动」报成删除成功', () =>
     await expect(new AgentProvisioner().deprovision('some-agent')).resolves.toBe(false);
   });
 });
+
+/**
+ * S2-A2-e · 接线之后的**端到端**：整条链路在两种形状下都工作。
+ *
+ * 门面的单元测试绿，不等于调用点接对了。Sprint 1 的教训之一是
+ * 「模块函数正确但没有调用方」——所以这批用例从 `provision()` /
+ * `deprovision()` 这些**真实入口**出发，断言落盘的文件内容。
+ *
+ * 审计表见 `.harness/s2-a2e-callsite-audit.md`：契约说四处，实际十一处。
+ */
+describe('名册门面接线：provision / deprovision 在两种形状下都落盘正确', () => {
+  it('list 形状（生产机现状）：建、改、删都落在 agents.list 且不产生 entries 键', async () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: { list: [{ id: 'existing', workspace: '/w/existing' }] },
+      models: { anthropic: { apiKey: 'sk-keep' } },
+    }));
+    const { AgentProvisioner } = await freshProvisioner();
+    const p: any = new AgentProvisioner();
+
+    await p.provision({ agentId: 'newbie' });
+    let disk = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(disk.agents.list.map((e: any) => e.id)).toEqual(['existing', 'newbie']);
+    expect('entries' in disk.agents).toBe(false);
+    expect(disk.models.anthropic.apiKey).toBe('sk-keep');
+
+    await p.deprovision('newbie');
+    disk = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(disk.agents.list.map((e: any) => e.id)).toEqual(['existing']);
+    expect('entries' in disk.agents).toBe(false);
+  });
+
+  it('entries 形状（2026.8.x）：建、改、删都落在 agents.entries 且不产生 list 键', async () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: { entries: { existing: { workspace: '/w/existing' } } },
+      models: { anthropic: { apiKey: 'sk-keep' } },
+    }));
+    const { AgentProvisioner } = await freshProvisioner();
+    const p: any = new AgentProvisioner();
+
+    await p.provision({ agentId: 'newbie' });
+    let disk = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(Object.keys(disk.agents.entries).sort()).toEqual(['existing', 'newbie']);
+    // **不产生 list 键** —— 这是「跟随现状、不擅自迁移」在落盘层面的断言
+    expect('list' in disk.agents).toBe(false);
+    // entries 形状下 id 是键，不重复存进值里
+    expect('id' in disk.agents.entries.newbie).toBe(false);
+    expect(disk.models.anthropic.apiKey).toBe('sk-keep');
+
+    await p.deprovision('newbie');
+    disk = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(Object.keys(disk.agents.entries)).toEqual(['existing']);
+    expect('list' in disk.agents).toBe(false);
+  });
+
+  it('调用方对 entry 的直接改写在两种形状下都真的落盘（不是改在副本上）', async () => {
+    // 这条防的是一个不会报错的失败：`findRosterEntry` 返回副本，
+    // 而调用方是 `entry.tools = {...}` 这样直接改的——改在副本上等于什么都没写，
+    // 配置照常落盘、接口照常报成功，只是少了那些字段。
+    for (const [label, initial] of [
+      ['list', { agents: { list: [] } }],
+      ['entries', { agents: { entries: {} } }],
+    ] as const) {
+      fs.writeFileSync(configPath, JSON.stringify(initial));
+      const { AgentProvisioner } = await freshProvisioner();
+      const p: any = new AgentProvisioner();
+
+      await p.provision({ agentId: 'shaped', toolMode: 'off' });
+
+      const disk = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const entry = label === 'list'
+        ? disk.agents.list.find((e: any) => e.id === 'shaped')
+        : disk.agents.entries.shaped;
+      expect(entry, `${label} 形状下没找到落盘的条目`).toBeTruthy();
+      // toolMode: 'off' → tools: { deny: ['*'] }。这是调用方直接改 entry 写进去的字段。
+      expect(entry.tools, `${label} 形状下调用方的改写没有落盘`).toEqual({ deny: ['*'] });
+    }
+  });
+});
+
+/**
+ * S2-A4 · 系统提示词报告的来源必须是**三态**，不是「有/没有」。
+ *
+ * OpenClaw 2026.8 把会话从 `agents/<id>/sessions/sessions.json` 迁进了
+ * `openclaw-agent.sqlite`。旧代码在 2.x 上读不到那个 JSON，返回 `null`——
+ * 而「这个 agent 真的还没跑过」也是 `null`。界面上两者都是一片空白，
+ * 用户分不出「我还没用它」和「引擎升级了、这个指标现在读不到」。
+ *
+ * 生产机上有 7 份真实的 sessions.json，升级后它们全部变成读不到——
+ * 也就是说这个降级会同时发生在 7 个 agent 上。
+ */
+describe('S2-A4 · 指标来源三态：读不到 ≠ 没有数据', () => {
+  const agentDir = (id: string) => path.join(tmpHome, '.openclaw', 'agents', id);
+
+  it('无 sessions.json + **有** sqlite 会话库 → unavailable-on-2x（诚实降级）', async () => {
+    fs.mkdirSync(agentDir('a2x'), { recursive: true });
+    fs.writeFileSync(path.join(agentDir('a2x'), 'openclaw-agent.sqlite'), 'not-really-sqlite');
+    const { AgentProvisioner } = await freshProvisioner();
+
+    const m = new AgentProvisioner().readAgentRuntimeMetrics('a2x');
+    expect(m.systemPrompt.source).toBe('unavailable-on-2x');
+    expect(m.tools.source).toBe('unavailable-on-2x');
+  });
+
+  it('无 sessions.json + **无** sqlite → agent-files / none（真的没数据）', async () => {
+    fs.mkdirSync(agentDir('afresh'), { recursive: true });
+    const { AgentProvisioner } = await freshProvisioner();
+
+    const m = new AgentProvisioner().readAgentRuntimeMetrics('afresh');
+    // 两个方向都断：必须是「没数据」那一态，**且不等于**「读不到」那一态
+    expect(m.systemPrompt.source).toBe('agent-files');
+    expect(m.tools.source).toBe('none');
+    expect(m.systemPrompt.source).not.toBe('unavailable-on-2x');
+  });
+
+  it('有 sessions.json 且含报告 → latest-run，且数字读得出来', async () => {
+    const dir = path.join(agentDir('aok'), 'sessions');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'sessions.json'), JSON.stringify({
+      s1: { updatedAt: 1, systemPromptReport: { generatedAt: 1, systemPrompt: { chars: 4321 }, tools: { schemaChars: 99 } } },
+    }));
+    const { AgentProvisioner } = await freshProvisioner();
+
+    const m = new AgentProvisioner().readAgentRuntimeMetrics('aok');
+    expect(m.systemPrompt.source).toBe('latest-run');
+    expect(m.systemPrompt.systemChars).toBe(4321);
+  });
+
+  it('三种情形的 source 互不相同——不塌成同一个值', async () => {
+    // 三种情形必须在**同一个用例**里构造：`beforeEach` 每次都重建临时 HOME，
+    // 分散在三个 it 里的话，第四个用例看到的是一个空目录。
+    // （第一版就是这么写的，红证时才发现——用例之间不共享状态是对的，
+    // 是我把它当成共享了。）
+    fs.mkdirSync(path.join(agentDir('x2x')), { recursive: true });
+    fs.writeFileSync(path.join(agentDir('x2x'), 'openclaw-agent.sqlite'), 'x');
+
+    fs.mkdirSync(agentDir('xfresh'), { recursive: true });
+
+    const dir = path.join(agentDir('xok'), 'sessions');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'sessions.json'), JSON.stringify({
+      s1: { updatedAt: 1, systemPromptReport: { generatedAt: 1, systemPrompt: { chars: 7 } } },
+    }));
+
+    const { AgentProvisioner } = await freshProvisioner();
+    const p = new AgentProvisioner();
+    const sources = ['x2x', 'xfresh', 'xok'].map((id) => p.readAgentRuntimeMetrics(id).systemPrompt.source);
+
+    expect(sources).toEqual(['unavailable-on-2x', 'agent-files', 'latest-run']);
+    expect(new Set(sources).size).toBe(3);
+  });
+});
+
+/**
+ * S2-A6 · OpenClaw 2.0 合并掉的 provider 前缀 —— 只在比较时归一，不改写文件。
+ *
+ * 上游 2026.8.1 把 `codex/*` 与 `openai-codex/*` 合并进了 `openai/*`。
+ * 用户升级并跑过 doctor 之后，配置里的 id 变成新前缀，而 ClawOPT 数据库里
+ * 存着的 agent 模型引用仍是旧前缀——校验对不上，`Unknown model id` 抛出来，
+ * 而用户什么都没做错。
+ *
+ * **如实记一笔**：生产机（2026-09-03 实测）上 `agents.defaults.models` 只有
+ * 一个 id `deepseek/deepseek-v4-flash`，**一个 codex 都没有**。
+ * 这条改动在那台机器上是空操作，没有被真机验证过。
+ */
+describe('S2-A6 · codex/* 与 openai-codex/* 归一到 openai/*', () => {
+  const withModels = (ids: string[]) => JSON.stringify({
+    agents: { defaults: { models: Object.fromEntries(ids.map((id) => [id, {}])) }, list: [] },
+  });
+
+  it('配置里是新前缀、引用是旧前缀时，校验通过（升级后的常见情形）', async () => {
+    fs.writeFileSync(configPath, withModels(['openai/gpt-5.4']));
+    const { AgentProvisioner } = await freshProvisioner();
+    await expect(
+      new AgentProvisioner().provision({ agentId: 'a', model: 'codex/gpt-5.4' } as any),
+    ).resolves.not.toThrow();
+  });
+
+  it('配置里是旧前缀、引用是新前缀时也通过（反方向）', async () => {
+    fs.writeFileSync(configPath, withModels(['openai-codex/gpt-5.4']));
+    const { AgentProvisioner } = await freshProvisioner();
+    await expect(
+      new AgentProvisioner().provision({ agentId: 'b', model: 'openai/gpt-5.4' } as any),
+    ).resolves.not.toThrow();
+  });
+
+  it('**真的不存在的模型仍然报错**——归一不是「一律放行」', async () => {
+    fs.writeFileSync(configPath, withModels(['openai/gpt-5.4']));
+    const { AgentProvisioner } = await freshProvisioner();
+    await expect(
+      new AgentProvisioner().provision({ agentId: 'c', model: 'anthropic/nope' } as any),
+    ).rejects.toThrow(/Unknown model id/);
+  });
+
+  it('归一只发生在比较时，**磁盘上的配置一个字节都不改**', async () => {
+    fs.writeFileSync(configPath, withModels(['openai/gpt-5.4']));
+    const before = fs.readFileSync(configPath, 'utf-8');
+    const { AgentProvisioner } = await freshProvisioner();
+
+    // 用一个不会触发写入的只读路径来验：读模型列表
+    new AgentProvisioner().readAvailableModels();
+    expect(fs.readFileSync(configPath, 'utf-8')).toBe(before);
+  });
+});

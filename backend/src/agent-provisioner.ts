@@ -1,6 +1,15 @@
 import fs from 'fs';
 import { writeJsonAtomicSync } from './config-atomic-write';
 import {
+  describeRosterWarnings,
+  findRosterEntry,
+  listRosterEntries,
+  removeRosterEntry,
+  resolveRosterShape,
+  rosterEntryRef,
+  upsertRosterEntry,
+} from './agents-roster';
+import {
   ConfigReadError,
   readJsonConfigSafe,
   assertRegularFile,
@@ -96,11 +105,17 @@ export interface AgentRuntimeMetricsSnapshot {
   systemPrompt: {
     systemChars: number | null;
     agentChars: number;
-    source: 'latest-run' | 'agent-files';
+    /**
+     * 数字从哪来。**`unavailable-on-2x` 是新增的第三态**：
+     * OpenClaw 2026.8 把会话迁进了 sqlite，本版 ClawOPT 读不到那个来源。
+     * 它与 `agent-files`（真的没有运行记录）必须分开——
+     * 界面上都显示空白的话，用户分不出「还没跑过」和「引擎升级了读不到」。
+     */
+    source: 'latest-run' | 'agent-files' | 'unavailable-on-2x';
   };
   tools: {
     charsByMode: Record<AgentToolMode, number | null>;
-    source: 'latest-run' | 'none';
+    source: 'latest-run' | 'none' | 'unavailable-on-2x';
   };
 }
 
@@ -149,6 +164,25 @@ export class AgentProvisioner {
    * 保留这个私有方法而不是让每个调用点直接调网关，是因为本类里有二十多处调用，
    * 逐个替换会让 diff 淹没掉真正的改动；而它现在只是一行转发，不构成第二条判据。
    */
+/**
+   * 解析这份配置该按哪种名册形状读写，并把告警说出来。
+   *
+   * 全类里所有碰名册的地方都走它——**判据只实现一次**。
+   * 告警只在形状发生「非常规」情形时才有内容（两种形状并存、版本探测不到），
+   * 所以这里直接打日志不会变成噪声。
+   */
+  private rosterShapeOf(config: any): 'list' | 'entries' {
+    const view = resolveRosterShape(config as Record<string, unknown>);
+    const message = describeRosterWarnings(view.warnings);
+    if (message) console.warn(`[AgentProvisioner] ${message}`);
+    return view.shape;
+  }
+
+/** 配置里那条记录的真实引用。调用方会直接改它，所以不能给副本。 */
+  private rosterEntryRef(config: any, shape: 'list' | 'entries', agentId: string): any | null {
+    return rosterEntryRef(config as Record<string, unknown>, shape, agentId);
+  }
+
   private readConfigFile(): any | null {
     return readOpenClawConfigSafe();
   }
@@ -357,11 +391,35 @@ export class AgentProvisioner {
     );
   }
 
+  /**
+   * 把 OpenClaw 2.0 合并掉的旧 provider 前缀归一到新前缀（S2-A6）。
+   *
+   * 上游 2026.8.1 把 `codex/*` 与 `openai-codex/*` 合并进了 `openai/*`。
+   * 用户升级并跑过 doctor 之后，配置里的 id 变成新前缀，而 ClawOPT 数据库里
+   * 存着的 agent 模型引用仍是旧前缀——校验时对不上，`Unknown model id` 抛出来，
+   * 而用户什么都没做错。
+   *
+   * **只在比较时归一，不改写任何文件。** 改写用户的配置是 doctor 的职责；
+   * 我们只需要认得出「这两个 id 指的是同一个模型」。
+   *
+   * 契约把这条写成「读 `clawopt-models.json` 时映射」——那是写契约时的假设。
+   * 实测：生产机上那个文件**不存在**，模型 id 来自 `agents.defaults.models`。
+   * 所以落点改到 id 真正被校验的地方。
+   */
+  private normalizeModelIdPrefix(id: string): string {
+    return id.replace(/^(?:codex|openai-codex)\//, 'openai/');
+  }
+
   private validateModelIds(config: any, ids: string[]): void {
     const configuredIds = this.getConfiguredModelIds(config);
     if (configuredIds.size === 0) return;
 
-    const missing = ids.filter((id) => !configuredIds.has(id));
+    // 两侧都归一再比：配置里可能已经是新前缀（跑过 doctor），
+    // 而传进来的引用可能还是旧的——反过来也可能。
+    const normalizedConfigured = new Set([...configuredIds].map((id) => this.normalizeModelIdPrefix(id)));
+    const missing = ids.filter(
+      (id) => !configuredIds.has(id) && !normalizedConfigured.has(this.normalizeModelIdPrefix(id)),
+    );
     if (missing.length > 0) {
       throw new Error(`Unknown model id: ${missing.join(', ')}`);
     }
@@ -632,27 +690,57 @@ export class AgentProvisioner {
 
   private ensureAgentEntry(config: any, agentId: string, workspaceDir: string) {
     if (!config.agents) config.agents = {};
-    if (!config.agents.list) config.agents.list = [];
+    const shape = this.rosterShapeOf(config);
+    const existing = findRosterEntry(config, shape, agentId);
 
-    let entry = config.agents.list.find((item: any) => item.id === agentId);
-    if (!entry) {
-      entry = { id: agentId, workspace: workspaceDir };
-      config.agents.list.push(entry);
-      return { entry, created: true, workspaceChanged: false };
+    if (!existing) {
+      upsertRosterEntry(config, shape, { id: agentId, workspace: workspaceDir });
+      // 返回**配置里那一份**的引用，而不是刚才传进去的字面量——
+      // 调用方接下来会继续往 entry 上挂 model / tools 等字段，
+      // 挂在一个副本上等于什么都没写。
+      return { entry: this.rosterEntryRef(config, shape, agentId)!, created: true, workspaceChanged: false };
     }
 
-    let workspaceChanged = false;
-    if (entry.workspace !== workspaceDir) {
-      entry.workspace = workspaceDir;
-      workspaceChanged = true;
+    const workspaceChanged = existing.workspace !== workspaceDir;
+    if (workspaceChanged) {
+      upsertRosterEntry(config, shape, { id: agentId, workspace: workspaceDir });
     }
 
-    return { entry, created: false, workspaceChanged };
+    return { entry: this.rosterEntryRef(config, shape, agentId)!, created: false, workspaceChanged };
   }
 
   private findAgentEntry(config: any, agentId: string): any | null {
-    if (!Array.isArray(config?.agents?.list)) return null;
-    return config.agents.list.find((item: any) => item?.id === agentId) || null;
+    if (!config?.agents) return null;
+    return this.rosterEntryRef(config, this.rosterShapeOf(config), agentId);
+  }
+
+  /**
+   * 系统提示词报告的来源状态。**三态，不是「有/没有」两态。**
+   *
+   * OpenClaw 2026.8 把会话从 `agents/<id>/sessions/sessions.json` 迁进了
+   * `openclaw-agent.sqlite`。旧代码在 2.x 上读不到那个 JSON，返回 `null`——
+   * 而「真的没有数据」也是 `null`。界面上两者都是一片空白，
+   * 用户分不出「这个 agent 还没跑过」和「你的引擎升级了、这个指标现在读不到」。
+   *
+   * 这正是本项目反复修的那类失败：把两个不同的事实塌进同一个值。
+   */
+  private readSystemPromptReportSource(agentId: string):
+    | { status: 'ok'; report: any }
+    | { status: 'noData' }
+    | { status: 'unavailableOn2x' } {
+    const agentDir = path.join(this.openclawDir, 'agents', agentId);
+    const sessionsPath = path.join(agentDir, 'sessions', 'sessions.json');
+
+    if (!fs.existsSync(sessionsPath)) {
+      // 判据：同一个 agent 目录下有没有 2.x 的 sqlite 会话库。
+      // 有 → 引擎已经是 2.x，这个指标在本版 ClawOPT 上读不到（诚实降级）。
+      // 没有 → 这个 agent 确实还没有会话数据。
+      const sqlitePath = path.join(agentDir, 'openclaw-agent.sqlite');
+      return fs.existsSync(sqlitePath) ? { status: 'unavailableOn2x' } : { status: 'noData' };
+    }
+
+    const report = this.readLatestSystemPromptReport(agentId);
+    return report ? { status: 'ok', report } : { status: 'noData' };
   }
 
   private readLatestSystemPromptReport(agentId: string): any | null {
@@ -683,7 +771,8 @@ export class AgentProvisioner {
   }
 
   readAgentRuntimeMetrics(agentId: string, toolsCatalogResult?: any): AgentRuntimeMetricsSnapshot {
-    const report = this.readLatestSystemPromptReport(agentId);
+    const source = this.readSystemPromptReportSource(agentId);
+    const report = source.status === 'ok' ? source.report : null;
     const reportToolEntries = Array.isArray(report?.tools?.entries) ? report.tools.entries : [];
     const toolEntryByName = new Map<string, { schemaChars?: number }>();
     for (const entry of reportToolEntries) {
@@ -740,11 +829,11 @@ export class AgentProvisioner {
       systemPrompt: {
         systemChars: typeof report?.systemPrompt?.chars === 'number' ? report.systemPrompt.chars : null,
         agentChars: this.buildAgentSystemPromptOverride(agentId).length,
-        source: report ? 'latest-run' : 'agent-files',
+        source: report ? 'latest-run' : (source.status === 'unavailableOn2x' ? 'unavailable-on-2x' : 'agent-files'),
       },
       tools: {
         charsByMode,
-        source: report ? 'latest-run' : 'none',
+        source: report ? 'latest-run' : (source.status === 'unavailableOn2x' ? 'unavailable-on-2x' : 'none'),
       },
     };
   }
@@ -942,16 +1031,13 @@ export class AgentProvisioner {
     if (!config) return false; // 文件不存在：全新安装，合法状态
 
     if (!config.agents) config.agents = {};
-    if (!config.agents.list) config.agents.list = [];
-
     const workspaceDir = this.getWorkspacePath('main');
-    const existing = config.agents.list.find((a: any) => a.id === 'main');
+    const shape = this.rosterShapeOf(config);
 
-    if (existing) {
-      if (existing.workspace === workspaceDir) return false; // already correct
-      existing.workspace = workspaceDir;
-    } else {
-      config.agents.list.push({ id: 'main', workspace: workspaceDir });
+    // upsert 自己判断有没有变化，不必先 find 再分支——
+    // 少一处「读一遍再写一遍」的重复判定，就少一个两边分家的机会。
+    if (!upsertRosterEntry(config, shape, { id: 'main', workspace: workspaceDir })) {
+      return false; // 已经是对的
     }
 
     // Ensure the workspace directory exists
@@ -1076,19 +1162,13 @@ export class AgentProvisioner {
       if (!config) return false;
 
       let configChanged = false;
-      if (config.agents?.list && Array.isArray(config.agents.list)) {
-        const before = config.agents.list.length;
-        config.agents.list = config.agents.list.filter(
-          (a: any) => a.id !== agentId
-        );
-        if (config.agents.list.length < before) {
-          configChanged = true;
-          // If list is empty, remove it entirely to keep config clean
-          if (config.agents.list.length === 0) {
-            delete config.agents.list;
-          }
-          writeJsonAtomicSync(configPath, config);
-        }
+      if (removeRosterEntry(config, this.rosterShapeOf(config), agentId)) {
+        configChanged = true;
+        console.log(`[AgentProvisioner] Removed agent "${agentId}" from openclaw.json`);
+        // 原块里这一句在 if 内部——删掉一条之后必须落盘，
+        // 替换时差点把它一起丢掉。丢了的话：内存里删了、文件里还在，
+        // 而返回值说「删成功」——正是本项目反复修的那类失败。
+        writeJsonAtomicSync(configPath, config);
       }
 
       // Clean up workspace directory
@@ -1137,18 +1217,8 @@ export class AgentProvisioner {
     const config = this.readConfigFile();
     if (!config) return false;
 
-    if (!config.agents?.list || !Array.isArray(config.agents.list)) {
+    if (!removeRosterEntry(config, this.rosterShapeOf(config), agentId)) {
       return false;
-    }
-
-    const before = config.agents.list.length;
-    config.agents.list = config.agents.list.filter((a: any) => a.id !== agentId);
-    if (config.agents.list.length === before) {
-      return false;
-    }
-
-    if (config.agents.list.length === 0) {
-      delete config.agents.list;
     }
 
     writeJsonAtomicSync(configPath, config);
@@ -1341,8 +1411,11 @@ export class AgentProvisioner {
     this.pruneImageGenerationModel(config, new Set([modelId]));
 
     // 3. Fallback agents that were using this model (deleting their 'model' falls back to default)
-    if (Array.isArray(config.agents.list)) {
-      config.agents.list.forEach((agent: any) => {
+    {
+      // 走门面：2.x 上 `config.agents.list` 是 undefined，旧写法会**静默不做任何清理**——
+      // 删掉一个模型/端点之后，引用它的 agent 字段还留着，界面上看不出来，
+      // 直到那个 agent 下次发言时报错。
+      listRosterEntries(config, this.rosterShapeOf(config)).forEach((agent: any) => {
         const pruned = this.pruneModelValue(agent.model, new Set([modelId]));
         if (pruned === undefined) delete agent.model;
         else agent.model = pruned;
@@ -1387,8 +1460,9 @@ export class AgentProvisioner {
     config.agents.defaults.model.primary = modelId;
 
     // Explicitly sync this to the 'main' agent in agents.list so OpenClaw Gateway hot-swaps it
-    if (config.agents.list && Array.isArray(config.agents.list)) {
-      const mainAgent = config.agents.list.find((a: any) => a.id === 'main');
+    {
+      // 走门面：2.x 上旧写法找不到 main，于是**设默认模型点了没反应**，且无任何提示。
+      const mainAgent: any = this.rosterEntryRef(config, this.rosterShapeOf(config), 'main');
       if (mainAgent) {
         const mainModel = this.readStoredModelValue(mainAgent.model);
         mainAgent.model = mainModel.hasFallbacks
@@ -1499,8 +1573,9 @@ export class AgentProvisioner {
       this.pruneImageGenerationModel(config, deletedSet);
 
       // Fallback agents using any deleted model
-      if (Array.isArray(config.agents.list)) {
-        config.agents.list.forEach((agent: any) => {
+      {
+        // 同上：2.x 上旧写法静默不清理。
+        listRosterEntries(config, this.rosterShapeOf(config)).forEach((agent: any) => {
           const pruned = this.pruneModelValue(agent.model, deletedSet);
           if (pruned === undefined) delete agent.model;
           else agent.model = pruned;
@@ -1676,7 +1751,7 @@ export class AgentProvisioner {
 
     if (agentId === 'main') {
       const mainEntry = Array.isArray(config.agents?.list)
-        ? config.agents.list.find((item: any) => item.id === 'main')
+        ? this.rosterEntryRef(config, this.rosterShapeOf(config), 'main')
         : null;
       const mainModel = this.readStoredModelValue(mainEntry?.model);
       const resolvedModel = this.normalizeModelId(mainModel.primary || globalConfig.primary);
@@ -1692,7 +1767,7 @@ export class AgentProvisioner {
     }
 
     const entry = Array.isArray(config.agents?.list)
-      ? config.agents.list.find((item: any) => item.id === agentId)
+      ? this.rosterEntryRef(config, this.rosterShapeOf(config), agentId)
       : null;
     const stored = this.readStoredModelValue(entry?.model);
     const resolvedModel = this.normalizeModelId(stored.primary || globalConfig.primary);
