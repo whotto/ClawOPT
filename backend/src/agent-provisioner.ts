@@ -732,11 +732,26 @@ export class AgentProvisioner {
     const sessionsPath = path.join(agentDir, 'sessions', 'sessions.json');
 
     if (!fs.existsSync(sessionsPath)) {
-      // 判据：同一个 agent 目录下有没有 2.x 的 sqlite 会话库。
+      // 判据：这个 agent 有没有 2.x 的 sqlite 会话库。
       // 有 → 引擎已经是 2.x，这个指标在本版 ClawOPT 上读不到（诚实降级）。
       // 没有 → 这个 agent 确实还没有会话数据。
-      const sqlitePath = path.join(agentDir, 'openclaw-agent.sqlite');
-      return fs.existsSync(sqlitePath) ? { status: 'unavailableOn2x' } : { status: 'noData' };
+      //
+      // **路径是在真机上量出来的，不是从文档推的。** 第一版写的是
+      // `agents/<id>/openclaw-agent.sqlite`，少了一层——真实位置是
+      // `agents/<id>/agent/openclaw-agent.sqlite`（2026-09-03 生产机实测）。
+      // 猜错这一层的后果不是报错，是**判据永远不成立**：升级之后界面照样一片空白，
+      // 而我们以为已经修好了。这正是「诚实降级」自己变得不诚实的方式。
+      //
+      // 迁移还会把旧的 jsonl 归档到 `session-sqlite-import-archive/`，
+      // 那也是 2.x 的确证——两个都认，任一存在即判定为 2.x。
+      const sqliteCandidates = [
+        path.join(agentDir, 'agent', 'openclaw-agent.sqlite'),
+        path.join(agentDir, 'openclaw-agent.sqlite'),
+        path.join(agentDir, 'session-sqlite-import-archive'),
+      ];
+      return sqliteCandidates.some((candidate) => fs.existsSync(candidate))
+        ? { status: 'unavailableOn2x' }
+        : { status: 'noData' };
     }
 
     const report = this.readLatestSystemPromptReport(agentId);
