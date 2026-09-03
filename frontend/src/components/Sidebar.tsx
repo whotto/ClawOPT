@@ -50,8 +50,6 @@ type AgentRuntimeMetrics = {
     charsByMode?: Partial<Record<AgentToolMode, number | null>>;
   };
 };
-/** 谁来执行这个 Agent 的模型循环。清单从 /api/agent-runtimes 拉，不在前端硬编码。 */
-type AgentRuntimeOption = { id: string; kind: 'native' | 'acp'; requires: string | null };
 type AgentEditorTab = 'soul' | 'user' | 'agents' | 'tools' | 'heartbeat' | 'identity';
 type AgentEditorContentKey = 'soulContent' | 'userContent' | 'agentsContent' | 'toolsContent' | 'heartbeatContent' | 'identityContent';
 type SidebarFavorites = {
@@ -294,7 +292,6 @@ export default function Sidebar({
     systemPromptMode: 'system' as AgentSystemPromptMode,
     toolMode: 'full' as AgentToolMode,
     runtimeMetrics: null as AgentRuntimeMetrics | null,
-    agentRuntime: 'openclaw',
     soulContent: '', userContent: '', agentsContent: '', toolsContent: '', heartbeatContent: '', identityContent: '',
     fallbackMode: 'disabled' as ModelFallbackMode,
     fallbacks: [] as string[],
@@ -348,19 +345,6 @@ export default function Sidebar({
     { id: 'system', label: t('sidebar.systemPromptModeSystem') },
     { id: 'agent', label: t('sidebar.systemPromptModeAgent') },
   ];
-  /**
-   * 可选运行时。**从后端拉，不在前端硬编码一份副本**——
-   * 副本会和后端分家，而分家的那天用户会看到一个选不了的选项。
-   */
-  const [agentRuntimeOptions, setAgentRuntimeOptions] = useState<AgentRuntimeOption[]>([]);
-  useEffect(() => {
-    fetch('/api/agent-runtimes')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.success && Array.isArray(d.runtimes)) setAgentRuntimeOptions(d.runtimes); })
-      .catch((err) => console.warn('[Sidebar] 取运行时清单失败，下拉框将只有默认项：', err));
-  }, []);
-  const runtimeLabel = (id: string) => t(`sidebar.agentRuntime.${id}`, { defaultValue: id });
-
   const toolModeOptions: Array<{ id: AgentToolMode; label: string }> = [
     { id: 'full', label: t('sidebar.toolModeFull') },
     { id: 'coding', label: t('sidebar.toolModeCoding') },
@@ -747,7 +731,6 @@ export default function Sidebar({
             runtimeMode: normalizedSessionData.runtimeMode,
             systemPromptMode: normalizedSessionData.systemPromptMode,
             toolMode: normalizedSessionData.toolMode,
-            agentRuntime: normalizedSessionData.agentRuntime,
             fallbackMode: normalizedSessionData.fallbackMode,
             fallbacks: normalizedSessionData.fallbacks,
             process_start_tag: normalizedSessionData.process_start_tag,
@@ -770,7 +753,6 @@ export default function Sidebar({
             runtimeMode: normalizedSessionData.runtimeMode,
             systemPromptMode: normalizedSessionData.systemPromptMode,
             toolMode: normalizedSessionData.toolMode,
-            agentRuntime: normalizedSessionData.agentRuntime,
             fallbackMode: normalizedSessionData.fallbackMode,
             fallbacks: normalizedSessionData.fallbacks,
             process_start_tag: normalizedSessionData.process_start_tag,
@@ -800,7 +782,6 @@ export default function Sidebar({
             systemPromptMode: 'system',
             toolMode: 'full',
             runtimeMetrics: null,
-            agentRuntime: 'openclaw',
             soulContent: '',
             userContent: '',
             agentsContent: '',
@@ -910,7 +891,6 @@ export default function Sidebar({
           systemPromptMode: 'system' as AgentSystemPromptMode,
           toolMode: 'full' as AgentToolMode,
           runtimeMetrics: null as AgentRuntimeMetrics | null,
-          agentRuntime: 'openclaw' as string,
         };
         if (fullSession) {
           const configRes = await fetch(`/api/sessions/${session.id}/configs`);
@@ -929,7 +909,6 @@ export default function Sidebar({
             systemPromptMode: configs.systemPromptMode || fullSession.systemPromptMode || fullSession.system_prompt_mode || 'system',
             toolMode: configs.toolMode || fullSession.toolMode || fullSession.tool_mode || 'full',
             runtimeMetrics: configs.runtimeMetrics || null,
-            agentRuntime: configs.agentRuntime || 'openclaw',
             process_start_tag: fullSession.process_start_tag || '',
             process_end_tag: fullSession.process_end_tag || '',
             soulContent: configs.soulContent || '',
@@ -1035,20 +1014,11 @@ export default function Sidebar({
             {s.name || t('sidebar.agentNum').replace('{{num}}', s.id)}
           </div>
           {(() => {
-            // 副标题回答的是「这个 Agent 由谁来跑」。
+            // 副标题回答的是「这个 Agent 由谁来跑」，而答案就写在它的模型 ref 里。
             //
-            // 对普通 Agent 那就是模型；但对一个跑在 Claude Code 上的 Agent，
-            // 显示它名义上配的 `deepseek/...` 是**误导**——用户会以为它在用 DeepSeek。
-            // 真机截图里正是这个样子：一个 runtime=claude 的 Agent 副标题写着 DeepSeek。
-            // 显示错的信息比不显示更糟，所以运行时优先。
-            const runtimeId = (s as any).agentRuntime;
-            if (runtimeId && runtimeId !== 'openclaw') {
-              return (
-                <div className="text-[11px] font-medium truncate max-w-full text-indigo-500">
-                  {runtimeLabel(runtimeId)}
-                </div>
-              );
-            }
+            // 外接 Agent（Claude Code 等）是一个模型 ref —— `claude-cli/claude-sonnet-5`，
+            // 别名 `Claude Code`。所以这里显示模型别名，对普通 Agent 和外接 Agent
+            // 都是对的，不需要第二套显示逻辑。
             const mId = (s as any).model;
             if (!mId) return null;
             const mInfo = availableModels.find(m => m.id === mId);
@@ -1410,7 +1380,6 @@ export default function Sidebar({
                   systemPromptMode: 'system',
                   toolMode: 'full',
                   runtimeMetrics: null,
-            agentRuntime: 'openclaw',
                   fallbackMode: 'disabled',
                   fallbacks: [],
                   process_start_tag: '',
@@ -1783,34 +1752,7 @@ export default function Sidebar({
                       </select>
                     </div>
 
-                    {agentRuntimeOptions.length > 1 && (
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span className="text-sm font-bold text-gray-700">{t('sidebar.agentRuntimeTitle')}</span>
-                        <select
-                          value={newSessionData.agentRuntime}
-                          onChange={(event) => setNewSessionData((prev) => ({
-                            ...prev,
-                            agentRuntime: event.target.value,
-                          }))}
-                          className="min-w-[180px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        >
-                          {agentRuntimeOptions.map((option) => (
-                            <option key={option.id} value={option.id}>{runtimeLabel(option.id)}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* 选了外部运行时就如实说需要什么账号——别让用户建完才发现用不了。 */}
-                    {newSessionData.agentRuntime !== 'openclaw' && (
-                      <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700">
-                        {t('sidebar.agentRuntimeAuthHint', {
-                          runtime: runtimeLabel(newSessionData.agentRuntime),
-                          requires: agentRuntimeOptions.find((o) => o.id === newSessionData.agentRuntime)?.requires || '',
-                        })}
-                      </div>
-                    )}
-                  </div>
+</div>
                 ) : (
                   <div className="rounded-2xl border border-gray-100 bg-gray-50/40 p-4 text-xs text-gray-400">
                     {t('sidebar.runtimeModeDirectHint')}

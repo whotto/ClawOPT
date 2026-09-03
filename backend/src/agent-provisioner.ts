@@ -1,12 +1,6 @@
 import fs from 'fs';
 import { writeJsonAtomicSync } from './config-atomic-write';
 import {
-  buildRuntimeConfig,
-  normalizeAgentRuntime,
-  readAgentRuntimeFromEntry,
-  type AgentRuntimeId,
-} from './agent-runtimes';
-import {
   describeRosterWarnings,
   findRosterEntry,
   listRosterEntries,
@@ -95,7 +89,6 @@ export interface ProvisionOptions {
    * 选 ACP 系的（claude / gemini / opencode / pi / codex）会在名册条目上
    * 写 `runtime: { type: 'acp', acp: { agent, cwd } }`。
    */
-  agentRuntime?: string;
 }
 
 export type AgentFallbackMode = 'inherit' | 'custom' | 'disabled';
@@ -112,7 +105,6 @@ export interface AgentRuntimeConfigSnapshot {
   systemPromptMode: AgentSystemPromptMode;
   toolMode: AgentToolMode;
   /** 谁来执行这个 Agent 的模型循环。`openclaw` = 引擎自己跑。 */
-  agentRuntime: AgentRuntimeId;
 }
 
 export interface AgentRuntimeMetricsSnapshot {
@@ -905,8 +897,6 @@ export class AgentProvisioner {
       toolMode: hasDenyAll
         ? 'off'
         : (profile === 'coding' || profile === 'messaging' || profile === 'minimal' ? profile : 'full'),
-      // 从名册条目反推运行时，供界面回显。读不出就是默认（引擎自己跑）。
-      agentRuntime: readAgentRuntimeFromEntry(entry),
     };
   }
 
@@ -1157,7 +1147,6 @@ export class AgentProvisioner {
         opts.fallbacks,
         opts.systemPromptMode,
         opts.toolMode,
-        opts.agentRuntime,
       );
 
       if (configChanged || createdWorkspaceArtifacts || copiedAuthProfile) {
@@ -2055,7 +2044,6 @@ export class AgentProvisioner {
     fallbacks: string[] = [],
     systemPromptMode: AgentSystemPromptMode = 'system',
     toolMode: AgentToolMode = 'full',
-    agentRuntime?: string,
   ): boolean {
     const config = this.readConfigFile();
     if (!config) return false;
@@ -2099,22 +2087,24 @@ export class AgentProvisioner {
         entry.tools = { profile: nextToolMode };
       }
 
-      // 运行时：`openclaw` 是引擎默认，**不落盘**——显式写一个默认值进用户的配置
-      // 等于加一行噪声，而且一旦上游改了默认名，那行就成了错的。
-      const { id: runtimeId, recognized } = normalizeAgentRuntime(agentRuntime);
-      if (!recognized) {
-        // 认不出来就退回默认，但要出声：静默接受一个未知别名会把它写进
-        // openclaw.json，而引擎读到未知别名时的行为我们没验过。
-        console.warn(
-          `[AgentProvisioner] 未知的 agent runtime "${String(agentRuntime)}"，退回 openclaw：agentId=${agentId}`,
-        );
-      }
-      const runtimeConfig = buildRuntimeConfig(runtimeId, workspaceDir);
-      if (runtimeConfig) {
-        entry.runtime = runtimeConfig;
-      } else {
-        delete entry.runtime;
-      }
+      // 清掉 `entry.runtime`。
+      //
+      // v1.3.0 到 v1.4.0 之间，ClawOPT 的「运行时」下拉框往这里写
+      // `{ type: 'acp', acp: { agent: 'claude' } }`。**引擎从来不读它**：
+      //
+      //   > whole-agent runtime keys are legacy and ignored.
+      //   > （docs/concepts/agent-runtimes.md）
+      //
+      // 生产实测：一个 runtime=claude 的 Agent 被问「你是哪个模型」，
+      // 回答 `DeepSeek-V4-Flash`。选了等于没选，且**没有任何报错**。
+      //
+      // 光把写入的代码删掉不够——已经写进用户配置里的那些废键会留在原地。
+      // 每次 provision 都删一次，让升级本身把上一版的痕迹清干净。
+      // （`openclaw doctor --fix` 也会清，但不能指望用户跑过它。）
+      //
+      // 外接 Agent 的正确接法是模型 ref（`claude-cli/claude-sonnet-5`），
+      // 走 `model` 字段，不在这一层。
+      delete entry.runtime;
 
       return previousSerialized !== JSON.stringify({
         systemPromptOverride: entry.systemPromptOverride,

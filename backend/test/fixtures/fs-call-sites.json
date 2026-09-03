@@ -1,10 +1,5 @@
 [
   {
-    "file": "acp-vendor-env.ts",
-    "call": "readFileSync",
-    "context": "target"
-  },
-  {
     "file": "agent-bootstrap-context.ts",
     "call": "readFileSync",
     "context": "filePath"

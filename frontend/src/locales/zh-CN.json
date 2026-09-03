@@ -88,17 +88,7 @@
     "editGroupTitle": "修改团队",
     "searchAddAgent": "搜索并添加智能体...",
     "addToFavorites": "加入收藏",
-    "removeFromFavorites": "取消收藏",
-    "agentRuntimeTitle": "运行时",
-    "agentRuntimeAuthHint": "{{runtime}} 需要 {{requires}} 账号；未登录时这个 Agent 无法回复。",
-    "agentRuntime": {
-      "openclaw": "OpenClaw（引擎自己跑）",
-      "claude": "Claude Code",
-      "gemini": "Gemini CLI",
-      "opencode": "OpenCode",
-      "pi": "Pi",
-      "codex": "Codex（走 ACP）"
-    }
+    "removeFromFavorites": "取消收藏"
   },
   "common": {
     "details": "详情",
@@ -912,32 +902,6 @@
         "browser-not-allowed": "你的 OpenClaw 没有把 browser 放进 plugins.allow 白名单，浏览器能力本就不可用，因此跳过这一步。需要的话在 openclaw.json 里把 \"browser\" 加进 plugins.allow。",
         "browser-not-enabled": "openclaw.json 里没有启用浏览器（browser.enabled 不为 true），因此跳过这一步。",
         "unknown": "这一步被跳过了。"
-      }
-    },
-    "runtimeAuth": {
-      "title": "外接 Agent 凭据",
-      "description": "Claude Code、Gemini、Codex 这些是外接 Agent，跑的是各家自己的 CLI，用各家自己的账号。填了 API Key 它们才回得了话。",
-      "loading": "正在读取…",
-      "stateConfigured": "已配置 Key（保存后 Gateway 已重启生效）",
-      "stateUnknown": "未在此处配置。若你已在主机上用它自己的 CLI 登录过，也能用——那种情况这里看不出来。",
-      "stateHostOnly": "这个只能在主机上用它自己的 CLI 登录，没有可填的环境变量。",
-      "stateUnreadable": "读不出凭据文件（权限或文件损坏），状态未知。",
-      "placeholderNew": "粘贴 API Key",
-      "placeholderReplace": "粘贴新的 Key 以替换",
-      "save": "保存",
-      "saving": "保存中…",
-      "clear": "清除",
-      "hint": "Key 写入 ~/.openclaw/.env（权限 600），保存后自动重启 Gateway 生效。写进去就读不出来了——忘了填的是什么就重填一次，服务器不会把凭据再吐一遍。",
-      "err": {
-        "emptyValue": "Key 不能为空。",
-        "valueHasNewline": "Key 里不能有换行，请检查粘贴内容。",
-        "unreadable": "凭据文件读不出来，请检查主机上 ~/.openclaw/.env 的权限。",
-        "unknownName": "这个运行时不支持在此处配置。",
-        "notWebConfigurable": "这个运行时只能在主机上登录。",
-        "unknownRuntime": "未知的运行时。",
-        "missingKey": "没有收到 Key。",
-        "writeFailed": "保存失败。",
-        "savedButRestartFailed": "Key 已保存，但 Gateway 重启失败，尚未生效。请在主机上重启 Gateway。"
       }
     }
   }
