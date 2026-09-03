@@ -7,6 +7,7 @@ import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write'
 import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeErrorDetail } from './openclaw-config';
 import { listRosterEntries, resolveRosterShape } from './agents-roster';
 import { AGENT_RUNTIMES, DEFAULT_AGENT_RUNTIME, readAgentRuntimeFromEntry } from './agent-runtimes';
+import { readRuntimeAuthStatus } from './runtime-auth';
 import os from 'os';
 import { createServer } from 'http';
 import multer from 'multer';
@@ -9489,6 +9490,22 @@ app.post('/api/agents/import', requireAdminAuth, (req, res) => {
 
   const session = sessionManager.createSession({ id: agentId, name: agentId, agentId });
   res.json({ success: true, session, agentRuntime: readAgentRuntimeFromEntry(entry) });
+});
+
+/**
+ * 每个运行时的登录状态 + 该敲的命令。
+ *
+ * **只读。** Gateway 协议里没有 `authLogin`，登录只有 CLI 一条路，
+ * 而把它做成「点一下、背后 ssh 执行」会要求 ClawOPT 拿到主机 shell 权限。
+ * 这里给状态和命令，执行交给用户。
+ */
+app.get('/api/agent-runtimes/auth', async (_req, res) => {
+  try {
+    res.json({ success: true, runtimes: await readRuntimeAuthStatus() });
+  } catch (error) {
+    console.error('[api] 读取运行时登录状态失败：', error);
+    res.status(500).json({ success: false, error: 'runtimeAuth.probeFailed' });
+  }
 });
 
 app.get('/api/agent-runtimes', (_req, res) => {

@@ -602,6 +602,35 @@ function normalizeGatewayRestartTaskInfo(raw: unknown): GatewayRestartTaskInfo |
 export default function SettingsView({ isConnected, settingsTab, onMenuClick, onModelsChanged, onAgentsChanged }: SettingsViewProps) {
   const { t, i18n } = useTranslation();
 
+  /**
+   * 运行时账号状态。
+   *
+   * **只读。** Gateway 协议里没有 `authLogin`，登录只有 CLI 一条路。
+   * 这里显示状态、给出该敲的命令，执行交给用户——把它做成
+   * 「点一下、背后 ssh 执行」会要求 ClawOPT 拿到主机 shell 权限。
+   */
+  type RuntimeAuthRow = {
+    runtimeId: string;
+    provider: string | null;
+    state: 'authenticated' | 'missing' | 'unknown';
+    profiles: string[];
+    loginCommand: string | null;
+  };
+  const [runtimeAuth, setRuntimeAuth] = useState<RuntimeAuthRow[]>([]);
+  const [runtimeAuthLoading, setRuntimeAuthLoading] = useState(false);
+  const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
+
+  const loadRuntimeAuth = () => {
+    setRuntimeAuthLoading(true);
+    fetch('/api/agent-runtimes/auth')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.success && Array.isArray(d.runtimes)) setRuntimeAuth(d.runtimes); })
+      .catch((err) => console.warn('[Settings] 取运行时账号状态失败：', err))
+      .finally(() => setRuntimeAuthLoading(false));
+  };
+  useEffect(() => { loadRuntimeAuth(); }, []);
+
+
   const openSettingsErrorModal = (message: string, detail = '') => {
     setGatewayErrorMessage(message);
     setGatewayErrorDetail(detail);
@@ -4292,6 +4321,62 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                  </div>
+                </div>
+
+                {/* 运行时账号 */}
+                <div className="mt-8">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{t('settings.runtimeAuth.title')}</h3>
+                  <p className="text-sm text-gray-500 mb-4">{t('settings.runtimeAuth.description')}</p>
+
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 space-y-3">
+                    {runtimeAuthLoading && runtimeAuth.length === 0 && (
+                      <div className="text-xs text-gray-400">{t('settings.runtimeAuth.loading')}</div>
+                    )}
+                    {runtimeAuth.filter((row) => row.provider).map((row) => (
+                      <div key={row.runtimeId} className="flex flex-wrap items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+                              row.state === 'authenticated' ? 'bg-emerald-500'
+                                : row.state === 'missing' ? 'bg-gray-300' : 'bg-amber-400'
+                            }`} />
+                            <span className="text-sm font-semibold text-gray-900">
+                              {t(`sidebar.agentRuntime.${row.runtimeId}`, { defaultValue: row.runtimeId })}
+                            </span>
+                            <span className="text-xs text-gray-400">{row.provider}</span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {row.state === 'authenticated'
+                              ? t('settings.runtimeAuth.stateAuthenticated', { profiles: row.profiles.join(', ') })
+                              : row.state === 'unknown'
+                                ? t('settings.runtimeAuth.stateUnknown')
+                                : t('settings.runtimeAuth.stateMissing')}
+                          </div>
+                          {row.loginCommand && (
+                            <code className="mt-2 block text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-1.5 text-gray-600 break-all">
+                              {row.loginCommand}
+                            </code>
+                          )}
+                        </div>
+                        {row.loginCommand && (
+                          <button
+                            onClick={() => {
+                              const cmd = row.loginCommand;
+                              if (!cmd) return;
+                              navigator.clipboard?.writeText(cmd).then(
+                                () => { setCopiedCommand(row.runtimeId); setTimeout(() => setCopiedCommand(null), 2000); },
+                                (err) => console.warn('[Settings] 复制失败：', err),
+                              );
+                            }}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            {copiedCommand === row.runtimeId ? t('settings.runtimeAuth.copied') : t('settings.runtimeAuth.copy')}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <p className="text-xs text-gray-400 pt-2">{t('settings.runtimeAuth.whyCliHint')}</p>
                   </div>
                 </div>
 

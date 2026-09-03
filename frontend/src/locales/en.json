@@ -913,6 +913,17 @@
         "browser-not-enabled": "Browser is not enabled in openclaw.json (browser.enabled is not true), so this step was skipped.",
         "unknown": "This step was skipped."
       }
+    },
+    "runtimeAuth": {
+      "title": "Runtime accounts",
+      "description": "Claude Code, Gemini, Codex and the others each need their own account. Without one, an agent using that runtime can be created and added to a team, but it cannot reply.",
+      "loading": "Reading status…",
+      "stateAuthenticated": "Signed in ({{profiles}})",
+      "stateMissing": "Not signed in",
+      "stateUnknown": "Status unknown — the probe failed; check on the host yourself",
+      "copy": "Copy command",
+      "copied": "Copied",
+      "whyCliHint": "Signing in runs once on the host. ClawOPT does not run it for you — that would require shell access to the host, and you would not see what happened. The device-code flow lets you authorize in your own browser; credentials never pass through ClawOPT."
     }
   }
 }
