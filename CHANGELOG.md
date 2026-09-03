@@ -1,3 +1,18 @@
+## [1.5.1] — 2026-09-03
+
+### 修三个只在真机上才看得见的故障
+
+1. **整站聊天不可用**：ClawOPT 连网关时报 client.id=openclaw-control-ui / mode=webchat
+   并送 Origin 头，被 2026.8 当成浏览器而要求设备身份。改报 gateway-client / backend，
+   不再送 Origin。很可能从 8.2 升级当天就坏了。
+2. **外接 Agent 进团队变回默认模型**：readAgentModelConfig 用
+   Array.isArray(config.agents.list) 当开关，entries 形状下恒为 null，
+   于是团队克隆体拿不到模型。加棘轮禁止在调用点重判名册形状。
+3. **新成员首次被 @ 必失败一次**：配置写完到网关热重载之间有窗口，
+   在源头等（上限 8 秒）而不是在调用点重试。
+
+详见 docs/release-notes-v1.5.1.md。
+
 ## [1.5.0] — 2026-09-03
 
 ### 撤回 v1.3.0–v1.4.0 的外接 Agent 方案，改走模型 ref
