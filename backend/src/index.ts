@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write';
 import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeErrorDetail } from './openclaw-config';
+import { listRosterEntries, resolveRosterShape } from './agents-roster';
 import os from 'os';
 import { createServer } from 'http';
 import multer from 'multer';
@@ -7940,7 +7941,11 @@ function collectGroupRuntimeAgentIds(groupId: string): string[] {
   if (fs.existsSync(configPath)) {
     try {
       const config = readOpenClawConfigSafe() ?? {};
-      const agentList = Array.isArray(config?.agents?.list) ? config.agents.list : [];
+      // 走门面：契约只说了「agent-provisioner.ts 里现有四处」，按那句话永远找不到这一处。
+      // 2.x 上旧写法返回空集，于是删群/重置群时**不清理任何运行时 agent**，
+      // 工作区与配置条目全部残留。
+      const rosterShape = resolveRosterShape(config as Record<string, unknown>).shape;
+      const agentList = listRosterEntries(config as Record<string, unknown>, rosterShape);
       for (const entry of agentList) {
         if (typeof entry?.id === 'string' && entry.id.startsWith(runtimeAgentPrefix)) {
           collected.add(entry.id);
