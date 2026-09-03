@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import fs from 'fs';
+import { ConfigReadError, readJsonConfigSafe } from './openclaw-config';
 import os from 'os';
 import path from 'path';
 import type DB from './db';
@@ -722,9 +723,18 @@ function buildGroupContextMessageSummary(
 
 function isGroupHostTakeoverEnabled(): boolean {
   try {
-    const config = JSON.parse(fs.readFileSync(GROUP_HOST_TAKEOVER_CONFIG_PATH, 'utf-8'));
+    // 走网关：同样是大写变量名躲过了守卫。本 sprint 不碰群聊的执行逻辑，
+    // 但「读配置」这条判据不该在这个文件里有第二份实现。
+    const read = readJsonConfigSafe(GROUP_HOST_TAKEOVER_CONFIG_PATH);
+    const config: any = read.exists ? read.value : {};
     return !config?.tools?.profile && config?.tools?.exec?.security === 'full';
-  } catch {
+  } catch (error) {
+    // 「配置读不动」与「这台机器没开 host takeover」是两件事，返回值都是 false，
+    // 但只有后者是用户的选择。静默地把前者当成后者，用户会看到一个功能忽然不见了、
+    // 而日志里一点痕迹都没有——红线 C 正是防这个。
+    // 返回 false 是对的（失败朝着关闭的方向），但**不能不出声**。
+    const reason = error instanceof ConfigReadError ? `${error.reason}：${error.detail}` : String(error);
+    console.warn(`[GroupChat] 读取 host takeover 配置失败（${reason}），本次按关闭处理`);
     return false;
   }
 }
