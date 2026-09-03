@@ -1,6 +1,12 @@
 import fs from 'fs';
 import { writeJsonAtomicSync } from './config-atomic-write';
 import {
+  buildRuntimeConfig,
+  normalizeAgentRuntime,
+  readAgentRuntimeFromEntry,
+  type AgentRuntimeId,
+} from './agent-runtimes';
+import {
   describeRosterWarnings,
   findRosterEntry,
   listRosterEntries,
@@ -84,6 +90,12 @@ export interface ProvisionOptions {
   fallbacks?: string[];
   systemPromptMode?: AgentSystemPromptMode;
   toolMode?: AgentToolMode;
+  /**
+   * 谁来执行这个 Agent 的模型循环。默认 `openclaw`（引擎自己跑）。
+   * 选 ACP 系的（claude / gemini / opencode / pi / codex）会在名册条目上
+   * 写 `runtime: { type: 'acp', acp: { agent, cwd } }`。
+   */
+  agentRuntime?: string;
 }
 
 export type AgentFallbackMode = 'inherit' | 'custom' | 'disabled';
@@ -99,6 +111,8 @@ export interface AgentModelConfigSnapshot {
 export interface AgentRuntimeConfigSnapshot {
   systemPromptMode: AgentSystemPromptMode;
   toolMode: AgentToolMode;
+  /** 谁来执行这个 Agent 的模型循环。`openclaw` = 引擎自己跑。 */
+  agentRuntime: AgentRuntimeId;
 }
 
 export interface AgentRuntimeMetricsSnapshot {
@@ -891,6 +905,8 @@ export class AgentProvisioner {
       toolMode: hasDenyAll
         ? 'off'
         : (profile === 'coding' || profile === 'messaging' || profile === 'minimal' ? profile : 'full'),
+      // 从名册条目反推运行时，供界面回显。读不出就是默认（引擎自己跑）。
+      agentRuntime: readAgentRuntimeFromEntry(entry),
     };
   }
 
@@ -1141,6 +1157,7 @@ export class AgentProvisioner {
         opts.fallbacks,
         opts.systemPromptMode,
         opts.toolMode,
+        opts.agentRuntime,
       );
 
       if (configChanged || createdWorkspaceArtifacts || copiedAuthProfile) {
@@ -2038,6 +2055,7 @@ export class AgentProvisioner {
     fallbacks: string[] = [],
     systemPromptMode: AgentSystemPromptMode = 'system',
     toolMode: AgentToolMode = 'full',
+    agentRuntime?: string,
   ): boolean {
     const config = this.readConfigFile();
     if (!config) return false;
@@ -2065,6 +2083,7 @@ export class AgentProvisioner {
       const previousSerialized = JSON.stringify({
         systemPromptOverride: entry.systemPromptOverride,
         tools: entry.tools,
+        runtime: entry.runtime,
       });
       const nextSystemPromptMode = this.normalizeSystemPromptMode(systemPromptMode);
       if (nextSystemPromptMode === 'agent') {
@@ -2080,9 +2099,27 @@ export class AgentProvisioner {
         entry.tools = { profile: nextToolMode };
       }
 
+      // 运行时：`openclaw` 是引擎默认，**不落盘**——显式写一个默认值进用户的配置
+      // 等于加一行噪声，而且一旦上游改了默认名，那行就成了错的。
+      const { id: runtimeId, recognized } = normalizeAgentRuntime(agentRuntime);
+      if (!recognized) {
+        // 认不出来就退回默认，但要出声：静默接受一个未知别名会把它写进
+        // openclaw.json，而引擎读到未知别名时的行为我们没验过。
+        console.warn(
+          `[AgentProvisioner] 未知的 agent runtime "${String(agentRuntime)}"，退回 openclaw：agentId=${agentId}`,
+        );
+      }
+      const runtimeConfig = buildRuntimeConfig(runtimeId, workspaceDir);
+      if (runtimeConfig) {
+        entry.runtime = runtimeConfig;
+      } else {
+        delete entry.runtime;
+      }
+
       return previousSerialized !== JSON.stringify({
         systemPromptOverride: entry.systemPromptOverride,
         tools: entry.tools,
+        runtime: entry.runtime,
       });
     })();
 

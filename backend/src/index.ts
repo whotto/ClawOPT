@@ -6,6 +6,7 @@ import fs from 'fs';
 import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write';
 import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeErrorDetail } from './openclaw-config';
 import { listRosterEntries, resolveRosterShape } from './agents-roster';
+import { AGENT_RUNTIMES, DEFAULT_AGENT_RUNTIME, readAgentRuntimeFromEntry } from './agent-runtimes';
 import os from 'os';
 import { createServer } from 'http';
 import multer from 'multer';
@@ -6444,7 +6445,7 @@ function withConfigReadFallback<T>(fallback: T, read: () => T): { value: T; conf
 // `readAgentRuntimeConfig()`（`readEffectiveAgentRuntimeSettings()` 内部调它）在配置
 // 损坏时也会抛 ConfigReadError——和 model 字段是同一类"读不动"，同样不该让这几个只读
 // 接口整体 500。退化形状照抄它自己对"配置文件不存在"这个合法状态给出的默认值。
-const RUNTIME_SETTINGS_CONFIG_READ_FALLBACK = { systemPromptMode: 'system' as const, toolMode: 'full' as const };
+const RUNTIME_SETTINGS_CONFIG_READ_FALLBACK = { systemPromptMode: 'system' as const, toolMode: 'full' as const, agentRuntime: DEFAULT_AGENT_RUNTIME };
 
 function createStructuredChatError(rawDetail?: string | null, forcedCode?: string) {
   const detail = typeof rawDetail === 'string' && rawDetail.trim() ? rawDetail.trim() : 'Unknown error';
@@ -6763,12 +6764,14 @@ function readEffectiveAgentRuntimeSettings(sessionInfo: SessionRow | undefined, 
   runtimeMode: AgentRuntimeMode;
   systemPromptMode: AgentSystemPromptMode;
   toolMode: AgentToolMode;
+  agentRuntime: string;
 } {
   const openClawRuntime = agentProvisioner.readAgentRuntimeConfig(agentId);
   return {
     runtimeMode: normalizeAgentRuntimeMode(sessionInfo?.runtime_mode),
     systemPromptMode: openClawRuntime.systemPromptMode,
     toolMode: openClawRuntime.toolMode,
+    agentRuntime: openClawRuntime.agentRuntime,
   };
 }
 
@@ -9413,6 +9416,85 @@ app.put('/api/characters/:agentId/user-md', (req, res) => {
   res.json({ success: true });
 });
 
+/**
+ * 可选的 agent 运行时。**前端不该自己硬编码这张表**——
+ * 硬编码的副本会和后端分家，而分家的那天用户会看到一个选不了的选项。
+ */
+/**
+ * 引擎名册里有、而 ClawOPT 自己库里没有的 Agent。
+ *
+ * ## 为什么需要这个
+ *
+ * ClawOPT 的会话列表来自它自己的 SQLite（`sessionManager.getAllSessions()`），
+ * **不读 `openclaw.json`**。所以任何在引擎侧建的 Agent——用 `openclaw agents`
+ * 建的、手改配置建的、或者从别处迁移过来的——ClawOPT 都看不见，
+ * 既不能单聊也不能加进团队。
+ *
+ * 这不是 ACP 带来的新问题，是一直存在的：两边各有一份名册，而只有一个方向同步。
+ * 2026-09-03 在生产机上实测确认（引擎里建的 ACP Agent，ClawOPT 列表仍是 7 个）。
+ *
+ * 这个接口只**报告差异**，不自动导入——自动把引擎里的东西塞进用户的会话列表
+ * 是一个他没要求过的副作用。导入由 `POST /api/agents/import` 显式触发。
+ */
+app.get('/api/agents/orphans', (_req, res) => {
+  try {
+    const config = readOpenClawConfigSafe();
+    if (!config) return res.json({ success: true, orphans: [] });
+
+    const shape = resolveRosterShape(config as Record<string, unknown>).shape;
+    const known = new Set(sessionManager.getAllSessions().map((s) => s.agentId).filter(Boolean));
+
+    const orphans = listRosterEntries(config as Record<string, unknown>, shape)
+      .filter((entry) => !known.has(entry.id))
+      .map((entry) => ({
+        agentId: entry.id,
+        workspace: typeof entry.workspace === 'string' ? entry.workspace : null,
+        agentRuntime: readAgentRuntimeFromEntry(entry),
+      }));
+
+    res.json({ success: true, orphans });
+  } catch (error) {
+    if (error instanceof ConfigReadError) {
+      return res.status(500).json(
+        buildStructuredApiError(AGENT_CONFIG_READ_FAILED_ERROR_CODE, error.detail, { reason: error.reason }),
+      );
+    }
+    throw error;
+  }
+});
+
+/**
+ * 把引擎名册里的一个 Agent 纳进 ClawOPT。
+ *
+ * **只建 ClawOPT 侧的会话记录，不碰 `openclaw.json`**——那个 Agent 在引擎里
+ * 已经是对的了，我们没有理由重写它的配置。写回去只会引入一次不必要的
+ * gateway 重载，以及一个「导入把我的配置改了」的意外。
+ */
+app.post('/api/agents/import', requireAdminAuth, (req, res) => {
+  const agentId = typeof req.body?.agentId === 'string' ? req.body.agentId.trim() : '';
+  if (!agentId) {
+    return res.status(400).json(buildStructuredApiError(AGENT_ID_REQUIRED_ERROR_CODE, null, {}));
+  }
+
+  const config = readOpenClawConfigSafe();
+  const shape = config ? resolveRosterShape(config as Record<string, unknown>).shape : 'list';
+  const entry = config ? listRosterEntries(config as Record<string, unknown>, shape).find((e) => e.id === agentId) : null;
+  if (!entry) {
+    return res.status(404).json(buildStructuredApiError('agents.notInRoster', agentId, { agentId }));
+  }
+
+  if (sessionManager.getAllSessions().some((s) => s.agentId === agentId)) {
+    return res.status(409).json(buildStructuredApiError(AGENT_ID_ALREADY_EXISTS_ERROR_CODE, agentId, { agentId }));
+  }
+
+  const session = sessionManager.createSession({ id: agentId, name: agentId, agentId });
+  res.json({ success: true, session, agentRuntime: readAgentRuntimeFromEntry(entry) });
+});
+
+app.get('/api/agent-runtimes', (_req, res) => {
+  res.json({ success: true, runtimes: AGENT_RUNTIMES, default: DEFAULT_AGENT_RUNTIME });
+});
+
 app.get('/api/sessions', (_req, res) => {
   const sessions = sessionManager.getAllSessions();
   const sessionsWithModel = sessions.map(session => {
@@ -10043,6 +10125,9 @@ app.post('/api/sessions', async (req, res) => {
   const runtimeMode = normalizeAgentRuntimeMode(req.body?.runtimeMode ?? req.body?.runtime_mode);
   const systemPromptMode = normalizeAgentSystemPromptMode(req.body?.systemPromptMode ?? req.body?.system_prompt_mode);
   const toolMode = normalizeAgentToolMode(req.body?.toolMode ?? req.body?.tool_mode);
+  // 谁来跑这个 Agent 的模型循环。归一化在 provisioner 里做（认不出就退默认并出声），
+  // 这里只负责把值传下去——校验只该有一处实现。
+  const agentRuntime = req.body?.agentRuntime;
 
   const rawId = typeof id === 'string' ? id : '';
   const normalizedId = rawId.trim();
@@ -10097,6 +10182,7 @@ app.post('/api/sessions', async (req, res) => {
       fallbacks,
       systemPromptMode,
       toolMode,
+      agentRuntime,
     });
 
     // Update session record with the auto-generated agentId
@@ -10145,6 +10231,7 @@ app.put('/api/sessions/:id', async (req, res) => {
   const runtimeMode = normalizeAgentRuntimeMode(req.body?.runtimeMode ?? req.body?.runtime_mode);
   const systemPromptMode = normalizeAgentSystemPromptMode(req.body?.systemPromptMode ?? req.body?.system_prompt_mode);
   const toolMode = normalizeAgentToolMode(req.body?.toolMode ?? req.body?.tool_mode);
+  const agentRuntime = req.body?.agentRuntime;
   const session = sessionManager.getSession(req.params.id);
   
   if (!session) {
@@ -10299,6 +10386,10 @@ app.post('/api/sessions/:id/reset', async (req, res) => {
         fallbacks: modelConfig.fallbacks,
         systemPromptMode: runtimeConfig.systemPromptMode,
         toolMode: runtimeConfig.toolMode,
+        // 重置要保住运行时选择。不带这一项的话，重置一个跑在 Claude Code 上的
+        // Agent 会把它悄悄变回引擎默认——用户看到的是「重置了一下就不工作了」，
+        // 而没有任何东西指向真实原因。
+        agentRuntime: runtimeConfig.agentRuntime,
       });
     }
 
