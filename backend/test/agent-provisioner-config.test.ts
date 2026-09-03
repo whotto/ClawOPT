@@ -628,7 +628,11 @@ describe('S2-A4 · 指标来源三态：读不到 ≠ 没有数据', () => {
 
   it('无 sessions.json + **有** sqlite 会话库 → unavailable-on-2x（诚实降级）', async () => {
     fs.mkdirSync(agentDir('a2x'), { recursive: true });
-    fs.writeFileSync(path.join(agentDir('a2x'), 'openclaw-agent.sqlite'), 'not-really-sqlite');
+    fs.mkdirSync(path.join(agentDir('a2x'), 'agent'), { recursive: true });
+    // 真机路径：`agents/<id>/agent/openclaw-agent.sqlite`（2026-09-03 生产机实测）。
+    // 第一版用例把它放在 `agents/<id>/` 下——**和实现一起错**，所以它是绿的。
+    // 用例与实现共享同一个错误假设时，测试证明不了任何事。
+    fs.writeFileSync(path.join(agentDir('a2x'), 'agent', 'openclaw-agent.sqlite'), 'not-really-sqlite');
     const { AgentProvisioner } = await freshProvisioner();
 
     const m = new AgentProvisioner().readAgentRuntimeMetrics('a2x');
@@ -665,8 +669,8 @@ describe('S2-A4 · 指标来源三态：读不到 ≠ 没有数据', () => {
     // 分散在三个 it 里的话，第四个用例看到的是一个空目录。
     // （第一版就是这么写的，红证时才发现——用例之间不共享状态是对的，
     // 是我把它当成共享了。）
-    fs.mkdirSync(path.join(agentDir('x2x')), { recursive: true });
-    fs.writeFileSync(path.join(agentDir('x2x'), 'openclaw-agent.sqlite'), 'x');
+    fs.mkdirSync(path.join(agentDir('x2x'), 'agent'), { recursive: true });
+    fs.writeFileSync(path.join(agentDir('x2x'), 'agent', 'openclaw-agent.sqlite'), 'x');
 
     fs.mkdirSync(agentDir('xfresh'), { recursive: true });
 
@@ -734,5 +738,48 @@ describe('S2-A6 · codex/* 与 openai-codex/* 归一到 openai/*', () => {
     // 用一个不会触发写入的只读路径来验：读模型列表
     new AgentProvisioner().readAvailableModels();
     expect(fs.readFileSync(configPath, 'utf-8')).toBe(before);
+  });
+});
+
+/**
+ * 真机形态回归 —— 2026-09-03 在生产机（OpenClaw 2026.8.2）上量到的目录结构。
+ *
+ * 升级后 `agents/<id>/` 下的实际内容：
+ *   agent/openclaw-agent.sqlite        ← 会话库在这里，**不是** agents/<id>/ 下
+ *   sessions/skills-prompts/           ← sessions/ 还在，但里面没有 sessions.json
+ *   session-sqlite-import-archive/     ← 迁移把旧 jsonl 归档在这里
+ *
+ * 第一版判据少写了一层 `agent/`，于是在真机上**永远判成 noData**——
+ * 界面照样一片空白，而我们以为已经修好了。
+ */
+describe('真机形态：2026.8 升级后的 agent 目录结构', () => {
+  const agentDir2 = (id: string) => path.join(tmpHome, '.openclaw', 'agents', id);
+
+  it('照搬生产机的目录形状时判为 unavailable-on-2x', async () => {
+    const d = agentDir2('prodshape');
+    fs.mkdirSync(path.join(d, 'agent'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'sessions', 'skills-prompts'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'session-sqlite-import-archive'), { recursive: true });
+    fs.writeFileSync(path.join(d, 'agent', 'openclaw-agent.sqlite'), 'x');
+
+    const { AgentProvisioner } = await freshProvisioner();
+    expect(new AgentProvisioner().readAgentRuntimeMetrics('prodshape').systemPrompt.source)
+      .toBe('unavailable-on-2x');
+  });
+
+  it('只有归档目录（sqlite 还没建）时也算 2.x', async () => {
+    const d = agentDir2('archiveonly');
+    fs.mkdirSync(path.join(d, 'session-sqlite-import-archive'), { recursive: true });
+    const { AgentProvisioner } = await freshProvisioner();
+    expect(new AgentProvisioner().readAgentRuntimeMetrics('archiveonly').systemPrompt.source)
+      .toBe('unavailable-on-2x');
+  });
+
+  it('干净的 1.x 目录（只有 agent/，没有 sqlite 也没有归档）仍判为 noData', async () => {
+    const d = agentDir2('cleanv1');
+    fs.mkdirSync(path.join(d, 'agent'), { recursive: true });
+    const { AgentProvisioner } = await freshProvisioner();
+    expect(new AgentProvisioner().readAgentRuntimeMetrics('cleanv1').systemPrompt.source)
+      .toBe('agent-files');
   });
 });
