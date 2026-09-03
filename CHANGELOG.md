@@ -3,6 +3,25 @@
 本项目的版本记录从 1.0.0 重新开始。
 基线为上游 ClawOPT v2.4.5，其历史见 `docs/_upstream-archive/`。
 
+## [1.2.4] — 2026-09-03
+
+### 新增：为 OpenClaw 2026.8 做好准备
+
+让**同一份代码同时正确工作于 OpenClaw 2026.7.x 与 2026.8.x**。无新功能。
+**打算升级 OpenClaw 的话，请先升到这一版，再升引擎。**
+
+- **名册门面**：统一 `agents.list[]`（旧）与 `agents.entries{}`（新），
+  策略是「跟随现状，不主动迁移」——迁移是 `openclaw doctor` 的职责。
+  探测不到引擎版本时按 `list` 走，因为两个方向的失败代价不对称。
+- **版本探测不再 shell out**：`openclaw --version` 成不成功取决于谁的 PATH 在前。
+  改为解析 `command -v openclaw` 指向的那一份的 `package.json`。
+- **部署链路加迁移闸门**：引擎 2.x 且配置有废弃键时先跑 `doctor --fix
+  --non-interactive` 并校验退出码，失败阻断部署。
+- **「读不到」不再伪装成「没有数据」**：2.x 上读不到系统提示词报告时界面明说，
+  并把此前无人消费的 `configReadFailed` 接上了。
+
+详见 [`docs/release-notes-v1.2.4.md`](docs/release-notes-v1.2.4.md)。
+
 ## [1.2.3] — 2026-09-02
 
 ### 修复：配置访问加固

@@ -159,6 +159,44 @@ systemctl --user enable "$SERVICE_NAME.service"
 if [ "$SKIP_SERVICE_RESTART" = "1" ]; then
     echo "Skipping service restart because CLAWOPT_SKIP_SERVICE_RESTART=1"
 else
+    # ── 迁移闸门（S2-A5）────────────────────────────────────────────
+    # OpenClaw 2026.8 换了配置 schema（agents.list → agents.entries）与会话存储。
+    # 引擎已经是 2.x 而配置里还留着废弃键时，**必须先跑 doctor 迁移，再重启 gateway**——
+    # 顺序反了的话，gateway 带着半旧的配置起来，行为不可预测。
+    #
+    # 退出码必须校验。AGENTS.md：「升级成功」不得只以 build 完成为准。
+    # 这里失败**阻断部署**，不是打一句 Warning——一次没跑成的迁移，
+    # 和一次跑成了的迁移，在日志里长得一模一样。
+    #
+    # 另有一个上游坑：`doctor --fix` 在没有 TTY 时曾静默跳过 2.0 迁移
+    # （通过 ssh 或自动化调用正好是这种情形，upstream 记为 P1 并已修）。
+    # 所以显式传 --non-interactive，并且**校验退出码**，不假设它做了事。
+    emit_phase "openclaw-migration-gate"
+    if command -v openclaw >/dev/null 2>&1 && [ -f "$HOME/.openclaw/openclaw.json" ]; then
+        NEEDS_MIGRATION="$(node "$PROJECT_ROOT/scripts/needs-openclaw-migration.mjs" 2>/dev/null || echo "unknown")"
+        case "$NEEDS_MIGRATION" in
+            yes)
+                echo "检测到引擎已是 2026.8+ 且配置里仍有废弃键，先跑迁移..."
+                if ! openclaw doctor --fix --non-interactive; then
+                    echo "错误：openclaw doctor --fix 失败（退出码 $?）。" >&2
+                    echo "  配置可能处于迁移到一半的状态，**不继续重启 gateway**。" >&2
+                    echo "  手动处理后重跑本脚本；升级前快照见 ~/clawopt-backups/。" >&2
+                    exit 1
+                fi
+                echo "迁移完成。"
+                ;;
+            no)
+                echo "无需迁移（引擎与配置 schema 一致）。"
+                ;;
+            *)
+                # 判断不了就说出来，不猜。跑一次多余的 doctor 比带着未知状态重启安全，
+                # 但那是用户的选择，不是脚本替他做的决定。
+                echo "Warning: 判断不出是否需要迁移（$NEEDS_MIGRATION）；未自动跑 doctor。" >&2
+                echo "  若刚升过 OpenClaw，建议手动跑一次：openclaw doctor --fix" >&2
+                ;;
+        esac
+    fi
+
     emit_phase "restart-openclaw-runtime"
     echo "Restarting OpenClaw gateway..."
     if command -v openclaw >/dev/null 2>&1; then
