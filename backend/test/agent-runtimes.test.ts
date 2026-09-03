@@ -165,3 +165,33 @@ describe('端到端：provision 把运行时写进名册，读回来一致', () 
     expect('entries' in disk.agents).toBe(false);
   });
 });
+
+/**
+ * 回显必须真的到达前端 —— 真机验收暴露的缺口。
+ *
+ * 2026-09-03 在生产机上验收 v1.3.0 时发现：名册写对了、引擎认了、会话列表里也有了，
+ * 但 `GET /api/sessions/:id/configs` 返回的 `agentRuntime` 是 **undefined**。
+ *
+ * 原因是那两处响应在**逐字段拷贝** `runtimeSettings`，而不是展开——
+ * 我在 `readEffectiveAgentRuntimeSettings()` 里加了新字段，拷贝那侧没跟着加。
+ *
+ * 后果不是报错：下拉框会一直显示「OpenClaw（默认）」，**哪怕这个 Agent
+ * 明明跑在 Claude Code 上**。用户改一次别的设置保存，就把运行时改回默认了。
+ * 逐字段拷贝的代价就是这个——加字段时它不会提醒你。
+ */
+describe('运行时回显：新增字段必须出现在 configs 响应里', () => {
+  it('readEffectiveAgentRuntimeSettings 的每个字段都在 configs 的组装里被引用', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'index.ts'), 'utf-8');
+
+    // 从函数的返回类型里取出字段名，再逐个检查响应组装处有没有引用。
+    const fn = src.slice(src.indexOf('function readEffectiveAgentRuntimeSettings'));
+    const sig = fn.slice(0, fn.indexOf('} {'));
+    const fields = [...sig.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
+    expect(fields.length, '解析不出字段名，用例本身失效了').toBeGreaterThanOrEqual(4);
+
+    for (const field of fields) {
+      const uses = (src.match(new RegExp(`runtimeSettings(?:Value)?\\.${field}\\b`, 'g')) ?? []).length;
+      expect(uses, `configs 响应没有带上 ${field} —— 逐字段拷贝漏了它`).toBeGreaterThanOrEqual(2);
+    }
+  });
+});

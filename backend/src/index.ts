@@ -9514,6 +9514,7 @@ app.get('/api/sessions', (_req, res) => {
       runtimeMode: runtimeSettingsValue.runtimeMode,
       systemPromptMode: runtimeSettingsValue.systemPromptMode,
       toolMode: runtimeSettingsValue.toolMode,
+      agentRuntime: runtimeSettingsValue.agentRuntime,
       model,
       configReadFailed: runtimeFailed || modelFailed,
     };
@@ -10437,6 +10438,7 @@ app.get('/api/sessions/:id/configs', async (req, res) => {
       runtimeMode: runtimeSettings.runtimeMode,
       systemPromptMode: runtimeSettings.systemPromptMode,
       toolMode: runtimeSettings.toolMode,
+      agentRuntime: runtimeSettings.agentRuntime,
       runtimeMetrics,
       configReadFailed,
     }
