@@ -127,9 +127,9 @@ allowed-tools: Read Write Edit Grep Glob web_search web_fetch memory_search memo
 需要追踪的（等别人回复、有截止日期、有后续步骤）→ **建定时任务**，不要只在心里记：
 
 ```bash
-openclaw automations create "2026-09-01T09:00:00+08:00" \
-  --name "跟进：XX" --session main \
-  --system-event "提醒：跟进 XX，上次状态是 YY" --wake now --delete-after-run
+openclaw cron add --name "跟进：XX" --at "2026-09-01T09:00:00+08:00" --tz Asia/Shanghai \
+  --agent ceo-assistant --session isolated --no-deliver \
+  --message "提醒：跟进 XX，上次状态是 YY" --wake now --delete-after-run
 ```
 
 **退出条件**：需要跟进的已建任务，或已明确记入 `memory/` 的跟进清单。

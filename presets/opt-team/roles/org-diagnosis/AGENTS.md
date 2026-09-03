@@ -435,7 +435,7 @@ API 迁移方案正在另一个会话里设计。本线程后续轮次不要改 
 
 | 意图类型 | 用什么 | 例子 |
 |---------|--------|------|
-| 时间触发 | 定时任务（automations） | "周五早上 9 点提醒我" |
+| 时间触发 | 定时任务（`openclaw cron`） | "周五早上 9 点提醒我" |
 | 事件触发 | 长效意图（standing intent） | "下次谁提到发布清单，提醒我确认回滚负责人" |
 | 愿望/长期目标 | Markdown + 明确的复盘日期 | "这个季度改进交付清单" |
 
@@ -445,21 +445,20 @@ API 迁移方案正在另一个会话里设计。本线程后续轮次不要改 
 
 ## 定时任务与心跳（Automations & Heartbeat）
 
-> **重要变更**：`HEARTBEAT.md` 在当前版本的 OpenClaw 中**已经退役**——运行时不再读取它。心跳指令现在存放在系统托管的 monitor cron scratch 里，周期性任务用 automations（定时任务）表达。本工作区保留了 `HEARTBEAT.md` 仅作为迁移说明和人类可读的意图记录。
+> **重要变更**：`HEARTBEAT.md` 在当前版本的 OpenClaw 中**已经退役**——运行时不再读取它。周期性任务一律用 cron 任务表达，CLI 入口是 `openclaw cron`（旧名 `openclaw automations` 在 2026.7.1-2 已经不存在，写错名字会直接报 Unknown command）。本工作区保留了 `HEARTBEAT.md` 仅作为迁移说明和人类可读的意图记录。
 
 ### 心跳（Heartbeat）
 
 收到心跳轮询时，**不要每次都只回 `HEARTBEAT_OK`**。心跳的价值在于"带着完整会话上下文批量做周期性检查"。
 
-查看和更新心跳清单：
+查看本角色现有的周期任务：
 
 ```bash
-openclaw automations list --all          # 找到 monitor 任务的 jobId
-openclaw automations scratch <jobId>
-openclaw automations scratch <jobId> --set "..."
+openclaw cron list --all --agent org-diagnosis
+openclaw system heartbeat last
 ```
 
-清单保持短小——它每次心跳都进上下文，写长了纯烧 token。
+本版 CLI 没有 `scratch` 子命令，心跳清单没有可写入的存放点；清单的落地形态就是 `automations.sh` 里那几条 cron 任务，任务文案即清单内容。文案保持短小——它每次触发都进上下文，写长了纯烧 token。
 
 **主动联系搭档的时机**：有重要的事到期了；有临期的跟进项（<2h）；发现了对他确实有用的东西；距离上次说话已经超过 8 小时。
 
@@ -469,22 +468,25 @@ openclaw automations scratch <jobId> --set "..."
 
 ### 定时任务（Automations）
 
-需要精确时间、独立运行、换模型、或一次性提醒的，用 automations，不要用心跳：
+需要精确时间、独立运行、换模型、或一次性提醒的，建 cron 任务，不要用心跳：
 
 ```bash
 # 一次性提醒
-openclaw automations create "2026-09-01T09:00:00+08:00" \
-  --name "提醒" --session main \
-  --system-event "提醒：确认上周诊断建议的执行情况" \
+openclaw cron add --name "提醒" --at "2026-09-01T09:00:00+08:00" --tz Asia/Shanghai \
+  --agent org-diagnosis --session isolated --no-deliver \
+  --message "提醒：确认上周诊断建议的执行情况" \
   --wake now --delete-after-run
 
 # 周期任务
-openclaw automations add --name "每周体检" --cron "0 9 * * 1" --tz Asia/Shanghai \
-  --session main --system-event "执行每周例行检查"
+openclaw cron add --name "每周体检" --cron "0 9 * * 1" --tz Asia/Shanghai \
+  --agent org-diagnosis --session isolated --no-deliver \
+  --message "执行每周例行检查"
 
-openclaw automations list
-openclaw automations runs --id <job-id>
+openclaw cron list --agent org-diagnosis
+openclaw cron runs --id <job-id>
 ```
+
+**两个参数不能想当然**：`--session main` 只对默认 Agent 有效，本角色不是默认 Agent，写 main 会被 Gateway 拒掉（`invalid cron.add params`），必须用 `--session isolated`；配套地，载荷字段是 `--message` 而不是 `--system-event`。没有绑定消息渠道时加 `--no-deliver`，否则每次触发都会投递失败。
 
 本工作区的推荐定时任务已经写好在 `automations.sh` 里，执行一次即可全部创建。
 
