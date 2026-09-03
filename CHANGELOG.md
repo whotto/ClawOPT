@@ -1,3 +1,19 @@
+## [1.4.0] — 2026-09-03
+
+### 外接 Agent 凭据可在网页配置；并修正上一版接错凭据库
+
+v1.3.2 读 openclaw 的 auth-profiles 判断 Claude Code 有没有登录，那是错的库——
+外接 Agent 用各家 CLI 自己的凭据。后果是页面自信地显示错的状态。
+
+现在页面上直接填 API Key，写入 ~/.openclaw/.env（600）并重启 Gateway 生效。
+这是引擎文档给的路径（provide the required provider key on the Gateway host
+environment），不需要 TTY。
+
+状态去掉了「未登录」：我们只确知自己写的变量在不在，说不出厂商 CLI 的登录状态。
+Pi 无环境变量，如实标为「只能在主机上登录」。
+
+详见 docs/release-notes-v1.4.0.md。
+
 ## [1.3.2] — 2026-09-03
 
 ### 新增：运行时账号页；修复：副标题显示错的信息

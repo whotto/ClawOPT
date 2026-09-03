@@ -6,8 +6,9 @@ import fs from 'fs';
 import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write';
 import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeErrorDetail } from './openclaw-config';
 import { listRosterEntries, resolveRosterShape } from './agents-roster';
-import { AGENT_RUNTIMES, DEFAULT_AGENT_RUNTIME, readAgentRuntimeFromEntry } from './agent-runtimes';
+import { AGENT_RUNTIMES, DEFAULT_AGENT_RUNTIME, readAgentRuntimeFromEntry, normalizeAgentRuntime } from './agent-runtimes';
 import { readRuntimeAuthStatus } from './runtime-auth';
+import { VENDOR_ENV_KEY, setVendorEnvKey, clearVendorEnvKey, VendorEnvWriteError } from './acp-vendor-env';
 import os from 'os';
 import { createServer } from 'http';
 import multer from 'multer';
@@ -9495,17 +9496,91 @@ app.post('/api/agents/import', requireAdminAuth, (req, res) => {
 /**
  * 每个运行时的登录状态 + 该敲的命令。
  *
- * **只读。** Gateway 协议里没有 `authLogin`，登录只有 CLI 一条路，
- * 而把它做成「点一下、背后 ssh 执行」会要求 ClawOPT 拿到主机 shell 权限。
- * 这里给状态和命令，执行交给用户。
+ * 状态只说得出「我们写的 env key 在不在」。厂商 CLI 是否已在主机上自行登录过，
+ * 我们无从判断——理由见 `runtime-auth.ts`。
  */
-app.get('/api/agent-runtimes/auth', async (_req, res) => {
+app.get('/api/agent-runtimes/auth', (_req, res) => {
   try {
-    res.json({ success: true, runtimes: await readRuntimeAuthStatus() });
+    res.json({ success: true, runtimes: readRuntimeAuthStatus() });
   } catch (error) {
-    console.error('[api] 读取运行时登录状态失败：', error);
+    console.error('[api] 读取运行时凭据状态失败：', error);
     res.status(500).json({ success: false, error: 'runtimeAuth.probeFailed' });
   }
+});
+
+/**
+ * 写入一个外接 Agent 的厂商 API Key。
+ *
+ * **值只进不出。** 没有任何接口能把它读回来——与 openclaw 自己
+ * `secrets store get` 拒绝返回 secret 是同一个判断。用户忘了填的是什么，
+ * 正确做法是重填一次，不是让服务器把凭据再吐一遍。
+ *
+ * 写完必须重启 Gateway：`.env` 是 Gateway **启动时**读的，不重启等于没生效——
+ * 而「以为配好了其实没生效」正是本仓库红线 C 反对的形状。
+ */
+app.post('/api/agent-runtimes/auth/:runtimeId', async (req, res) => {
+  const { id: runtimeId, recognized } = normalizeAgentRuntime(req.params.runtimeId);
+  if (!recognized) {
+    return res.status(400).json({ success: false, error: 'runtimeAuth.unknownRuntime' });
+  }
+  const envKey = VENDOR_ENV_KEY[runtimeId];
+  if (!envKey) {
+    return res.status(400).json({ success: false, error: 'runtimeAuth.notWebConfigurable' });
+  }
+  const apiKey = (req.body as { apiKey?: unknown })?.apiKey;
+  if (typeof apiKey !== 'string') {
+    return res.status(400).json({ success: false, error: 'runtimeAuth.missingKey' });
+  }
+
+  try {
+    setVendorEnvKey(envKey, apiKey);
+  } catch (error) {
+    if (error instanceof VendorEnvWriteError) {
+      // 结构化拒绝：界面要能分辨「空值」「带换行」「文件读不动」，
+      // 而不是统一显示一句「保存失败」。
+      return res.status(400).json({ success: false, error: `runtimeAuth.${error.reason}` });
+    }
+    console.error('[api] 写入厂商凭据失败：', error);
+    return res.status(500).json({ success: false, error: 'runtimeAuth.writeFailed' });
+  }
+
+  try {
+    await restartGatewayService();
+  } catch (error) {
+    // key 已经落盘了，但没生效。**如实说**，不要报一个笼统的成功。
+    console.error('[api] 凭据已写入，但重启 Gateway 失败：', error);
+    return res.status(500).json({ success: false, error: 'runtimeAuth.savedButRestartFailed' });
+  }
+
+  return res.json({ success: true, runtimes: readRuntimeAuthStatus() });
+});
+
+/** 删除一个厂商 API Key。同样要重启才生效。 */
+app.delete('/api/agent-runtimes/auth/:runtimeId', async (req, res) => {
+  const { id: runtimeId, recognized } = normalizeAgentRuntime(req.params.runtimeId);
+  if (!recognized) {
+    return res.status(400).json({ success: false, error: 'runtimeAuth.unknownRuntime' });
+  }
+  const envKey = VENDOR_ENV_KEY[runtimeId];
+  if (!envKey) {
+    return res.status(400).json({ success: false, error: 'runtimeAuth.notWebConfigurable' });
+  }
+  try {
+    clearVendorEnvKey(envKey);
+  } catch (error) {
+    if (error instanceof VendorEnvWriteError) {
+      return res.status(400).json({ success: false, error: `runtimeAuth.${error.reason}` });
+    }
+    console.error('[api] 删除厂商凭据失败：', error);
+    return res.status(500).json({ success: false, error: 'runtimeAuth.writeFailed' });
+  }
+  try {
+    await restartGatewayService();
+  } catch (error) {
+    console.error('[api] 凭据已删除，但重启 Gateway 失败：', error);
+    return res.status(500).json({ success: false, error: 'runtimeAuth.savedButRestartFailed' });
+  }
+  return res.json({ success: true, runtimes: readRuntimeAuthStatus() });
 });
 
 app.get('/api/agent-runtimes', (_req, res) => {
