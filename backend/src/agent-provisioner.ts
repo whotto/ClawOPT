@@ -1,7 +1,26 @@
 import fs from 'fs';
+import { writeJsonAtomicSync } from './config-atomic-write';
+import {
+  ConfigReadError,
+  readJsonConfigSafe,
+  assertRegularFile,
+  readOpenClawConfigSafe,
+  sanitizeErrorDetail,
+} from './openclaw-config';
 import path from 'path';
 import os from 'os';
 import type { AgentSystemPromptMode, AgentToolMode } from './db';
+
+/**
+ * `openclaw.json` 读不动时抛出的结构化失败。形状照抄 `served-paths.ts` 的判词——
+ * 调用方要能在 `reason` 上分辨"文件读不了"和"内容不是合法 JSON"是两件不同的事，
+ * 而不是塌成同一个 `null`（那正是 S1-A1 修的缺陷：塌成 null 会被上游误判成
+ * "没有变化"，装配报成功，Agent 却从未写进配置）。
+ */
+// 配置读取的判据全部搬进 `openclaw-config.ts`——那是全仓库唯一的读取入口。
+// 这里只做**再导出**，让既有的 `import { ConfigReadError } from './agent-provisioner'`
+// 不必全部改写；新代码请直接从 `./openclaw-config` 导入。
+export { ConfigReadError } from './openclaw-config';
 
 const DEFAULT_USER_MD = `# User Profile
 
@@ -124,39 +143,52 @@ export class AgentProvisioner {
     this.repairKnownModelCapabilities();
   }
 
+  /**
+   * 读 `openclaw.json`。判据全在 `openclaw-config.ts`——**这里不再有第二套实现**。
+   *
+   * 保留这个私有方法而不是让每个调用点直接调网关，是因为本类里有二十多处调用，
+   * 逐个替换会让 diff 淹没掉真正的改动；而它现在只是一行转发，不构成第二条判据。
+   */
   private readConfigFile(): any | null {
-    const configPath = path.join(this.openclawDir, 'openclaw.json');
-    if (!fs.existsSync(configPath)) return null;
-
-    try {
-      return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    } catch (error) {
-      console.error('Failed to read openclaw.json:', error);
-      return null;
-    }
+    return readOpenClawConfigSafe();
   }
+
 
   private writeConfigFile(config: any): void {
     const configPath = path.join(this.openclawDir, 'openclaw.json');
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    writeJsonAtomicSync(configPath, config);
   }
 
   private readUiModelsFile(): Record<string, any> {
     const uiModelsPath = path.join(this.openclawDir, 'clawopt-models.json');
-    if (!fs.existsSync(uiModelsPath)) return {};
 
+    // 走网关而不是自己 readFileSync：这个文件曾经是**挂死整个后端**的入口。
+    // 把它换成命名管道，一次 `GET /api/models` 就让所有路由永久挂起，
+    // 无日志、需要 kill -9——上一轮只给 openclaw.json 加了闸门，
+    // 这一个漏在外面。判据只该有一处实现（`AGENTS.md`：堵一个不堵其余等于没堵）。
     try {
-      const parsed = JSON.parse(fs.readFileSync(uiModelsPath, 'utf-8'));
-      return parsed && typeof parsed === 'object' ? parsed : {};
+      const result = readJsonConfigSafe(uiModelsPath);
+      // 这是一份 UI 侧的覆盖文件，不是主配置：形状不对时退回空覆盖是合理降级。
+      // 但**要出声**——静默退回会让「文件坏了」和「本来就没配」长得一模一样。
+      if (!result.exists) return {};
+      const parsed = result.value;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        console.warn('[AgentProvisioner] clawopt-models.json 不是对象，本次忽略该覆盖文件');
+        return {};
+      }
+      return parsed as Record<string, any>;
     } catch (error) {
-      console.error('Failed to read clawopt-models.json:', error);
+      // 只记 reason，不记原始 message——它可能带路径或文件原文。
+      const reason = error instanceof ConfigReadError ? error.reason : 'unknown';
+      const detail = error instanceof ConfigReadError ? error.detail : sanitizeErrorDetail(error);
+      console.error(`[AgentProvisioner] clawopt-models.json 读取失败（${reason}：${detail}），本次忽略该覆盖文件`);
       return {};
     }
   }
 
   private writeUiModelsFile(uiModels: Record<string, any>): void {
     const uiModelsPath = path.join(this.openclawDir, 'clawopt-models.json');
-    fs.writeFileSync(uiModelsPath, JSON.stringify(uiModels, null, 2));
+    writeJsonAtomicSync(uiModelsPath, uiModels);
   }
 
   private readUiImageGenerationModelConfigFrom(uiModels: Record<string, any>): ImageGenerationModelConfigSnapshot | null {
@@ -628,7 +660,12 @@ export class AgentProvisioner {
     if (!fs.existsSync(sessionsPath)) return null;
 
     try {
-      const parsed = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'));
+      // 走网关：这个文件同样可能是命名管道，同步读会永久挂死。
+      // 「只有主配置需要闸门」是上一轮的错误假设——判据是「同步读一个我们不控制的
+      // 文件路径」，凡是满足这个判据的都要过闸门。
+      const result = readJsonConfigSafe(sessionsPath);
+      if (!result.exists) return null;
+      const parsed = result.value as any;
       const entries = (Array.isArray(parsed) ? parsed : Object.values(parsed || {}))
         .filter((entry: any) => entry?.systemPromptReport && typeof entry.systemPromptReport === 'object');
 
@@ -882,9 +919,28 @@ export class AgentProvisioner {
    */
   ensureMainAgent(): boolean {
     const configPath = path.join(this.openclawDir, 'openclaw.json');
-    if (!fs.existsSync(configPath)) return false;
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    // 复用 readConfigFile()：这是启动期唯一还在自己 JSON.parse 的调用点，
+    // 配置损坏时会把 SyntaxError 未捕获地扔到 server.listen() 之前，整个
+    // 后端进程死在启动线上——比运行期任何一个「读不动」都更糟，因为端口
+    // 从未监听，连这条请求都发不出去。ConfigReadError 在这里被当成
+    // 「这一步跳过，进程继续活」，不是「没有 main agent」：真正的运行期
+    // 接口（/api/characters 等）会在服务起来之后用同一个 ConfigReadError
+    // 报告出结构化的失败原因，用户不会看到假的成功，只会晚一拍看到真相。
+    let config: any;
+    try {
+      config = this.readConfigFile();
+    } catch (error) {
+      if (error instanceof ConfigReadError) {
+        console.error(
+          `[AgentProvisioner] ensureMainAgent 跳过（openclaw.json 读不动，reason=${error.reason}）：${error.detail}`,
+        );
+        return false;
+      }
+      throw error;
+    }
+    if (!config) return false; // 文件不存在：全新安装，合法状态
+
     if (!config.agents) config.agents = {};
     if (!config.agents.list) config.agents.list = [];
 
@@ -901,7 +957,7 @@ export class AgentProvisioner {
     // Ensure the workspace directory exists
     fs.mkdirSync(workspaceDir, { recursive: true });
 
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    writeJsonAtomicSync(configPath, config);
     console.log(`[AgentProvisioner] Registered main agent workspace: ${workspaceDir}`);
     return true;
   }
@@ -966,6 +1022,11 @@ export class AgentProvisioner {
       const mainAuthPath = path.join(this.openclawDir, 'agents', 'main', 'agent', 'auth-profiles.json');
       const agentAuthPath = path.join(agentDir, 'auth-profiles.json');
       if (fs.existsSync(mainAuthPath) && !fs.existsSync(agentAuthPath)) {
+        // 先过闸门再复制。`copyFileSync` 不叫 read，但它一样会在命名管道上
+        // **永久阻塞**——第五轮对抗测试实证：把 auth-profiles.json 换成管道，
+        // 建一个 Agent 就让整个后端挂死（栈：node::fs::CopyFile → uv_fs_copyfile）。
+        // 判据是「同步操作一个不受控的路径」，与「是不是在读」无关。
+        assertRegularFile(mainAuthPath);
         fs.copyFileSync(mainAuthPath, agentAuthPath);
         copiedAuthProfile = true;
       }
@@ -1004,7 +1065,15 @@ export class AgentProvisioner {
       const configPath = path.join(this.openclawDir, 'openclaw.json');
       if (!fs.existsSync(configPath)) return false;
 
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      // 走 readConfigFile()，不再自己 JSON.parse。
+      //
+      // 原来这里是一条独立的裸解析 + 外层 `catch → return false`，于是
+      // `DELETE /api/sessions/:id` 在配置损坏时**返回 200 success**，
+      // 而配置条目、工作区、agent 状态目录、记忆库全都还在（对抗测试实证）。
+      // 「删干净了」和「一个字节没删」在界面上长得一模一样——这正是本 sprint
+      // 要修的那类失败，只是当时只审计了 provision() 这一侧。
+      const config = this.readConfigFile();
+      if (!config) return false;
 
       let configChanged = false;
       if (config.agents?.list && Array.isArray(config.agents.list)) {
@@ -1018,7 +1087,7 @@ export class AgentProvisioner {
           if (config.agents.list.length === 0) {
             delete config.agents.list;
           }
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+          writeJsonAtomicSync(configPath, config);
         }
       }
 
@@ -1045,6 +1114,10 @@ export class AgentProvisioner {
       console.log(`[AgentProvisioner] Deprovisioned agent "${agentId}"`);
       return configChanged;
     } catch (error) {
+      // ConfigReadError 往上抛：`return false` 会让 DELETE 路由报成功，
+      // 而配置条目、工作区、状态目录、记忆库一个都没删。
+      // 「删干净了」与「一个字节没删」在界面上长得一模一样，正是红线 C 禁止的形状。
+      if (error instanceof ConfigReadError) throw error;
       console.error('Failed to deprovision agent:', error);
       return false;
     }
@@ -1060,7 +1133,9 @@ export class AgentProvisioner {
     const configPath = path.join(this.openclawDir, 'openclaw.json');
     if (!fs.existsSync(configPath)) return false;
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    // 这一处是上一轮 grep 漏掉的第二条裸读路径。收进网关。
+    const config = this.readConfigFile();
+    if (!config) return false;
 
     if (!config.agents?.list || !Array.isArray(config.agents.list)) {
       return false;
@@ -1076,7 +1151,7 @@ export class AgentProvisioner {
       delete config.agents.list;
     }
 
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    writeJsonAtomicSync(configPath, config);
     return true;
   }
 
@@ -1139,9 +1214,10 @@ export class AgentProvisioner {
 
         // Overlay from clawopt-models.json 
         try {
-          const uiModelsPath = path.join(this.openclawDir, 'clawopt-models.json');
-          if (fs.existsSync(uiModelsPath)) {
-            const uiModels = JSON.parse(fs.readFileSync(uiModelsPath, 'utf-8'));
+          // 复用 readUiModelsFile()：它已经过了网关（stat 闸门 + 脱敏）。
+          // 这里原来是第三条各自为政的裸读。
+          {
+            const uiModels = this.readUiModelsFile();
             if (uiModels[id] && Array.isArray(uiModels[id].input)) {
               input = uiModels[id].input;
             }
@@ -1158,6 +1234,10 @@ export class AgentProvisioner {
         };
       });
     } catch (err) {
+      // ConfigReadError 是「配置读不动」这件事本身，不是「没有模型」——吞成 []
+      // 会让调用方以为配置是空的（合法状态），而不是坏的。往上抛，让调用方走
+      // 真正的失败路径（各路由已有的 try/catch → 结构化 500）。
+      if (err instanceof ConfigReadError) throw err;
       console.error('Failed to read models from openclaw.json:', err);
       return [];
     }
@@ -1460,6 +1540,8 @@ export class AgentProvisioner {
           api: meta?.api || 'openai-completions',
         }));
     } catch (err) {
+      // 同上（readAvailableModels）：ConfigReadError 不是「没有端点」，往上抛。
+      if (err instanceof ConfigReadError) throw err;
       console.error('Failed to read endpoints from openclaw.json:', err);
       return [];
     }
@@ -1564,7 +1646,12 @@ export class AgentProvisioner {
   readAgentModel(agentId: string): string | null {
     try {
       return this.readAgentModelConfig(agentId).resolvedModel;
-    } catch {
+    } catch (err) {
+      // 裸 catch { return null } 会把「配置读不动」伪装成「这个 Agent 没配模型」——
+      // 界面看起来一切正常，实际上根本没读到 openclaw.json。ConfigReadError 往上
+      // 抛，让调用方（各路由已有的 try/catch，或已在错误路径里的调用点自己兜底）
+      // 决定怎么处理；只有真正意料之外的错误才继续吞成 null。
+      if (err instanceof ConfigReadError) throw err;
       return null;
     }
   }

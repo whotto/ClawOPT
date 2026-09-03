@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { readJsonConfigSafe } from './openclaw-config';
 import os from 'os';
 import path from 'path';
 import { execFile } from 'child_process';
@@ -427,7 +428,9 @@ async function detectLocalAudioBackend(
 }
 
 function readOpenClawRuntimeConfig(): OpenClawRuntimeConfig {
-  return JSON.parse(fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf8')) as OpenClawRuntimeConfig;
+  // 走网关：变量名是大写的，当时那条大小写敏感的正则匹配不到它。
+  const read = readJsonConfigSafe(OPENCLAW_CONFIG_PATH);
+  return (read.exists ? read.value : {}) as OpenClawRuntimeConfig;
 }
 
 function getOpenClawAgentDir(agentId: string): string {

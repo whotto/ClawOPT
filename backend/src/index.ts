@@ -3,6 +3,8 @@ import axios from 'axios';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write';
+import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeErrorDetail } from './openclaw-config';
 import os from 'os';
 import { createServer } from 'http';
 import multer from 'multer';
@@ -12,7 +14,7 @@ import OpenClawClient, { extractOpenClawMessageText } from './openclaw-client';
 import SessionManager from './session-manager';
 import ConfigManager from './config-manager';
 import DB from './db';
-import AgentProvisioner, { type ImageGenerationEndpointModelSnapshot } from './agent-provisioner';
+import AgentProvisioner, { ConfigReadError, type ImageGenerationEndpointModelSnapshot } from './agent-provisioner';
 import {
   listPresets,
   loadPreset,
@@ -295,6 +297,7 @@ const PACK_GH_UNAUTHENTICATED_ERROR_CODE = 'packs.ghUnauthenticated';
 const PACK_GIST_FAILED_ERROR_CODE = 'packs.gistFailed';
 const AGENT_ID_CONTAINS_WHITESPACE_ERROR_CODE = 'agents.idContainsWhitespace';
 const AGENT_ID_ALREADY_EXISTS_ERROR_CODE = 'agents.idAlreadyExists';
+const AGENT_CONFIG_READ_FAILED_ERROR_CODE = 'agents.configReadFailed';
 const GROUP_ID_REQUIRED_ERROR_CODE = 'groups.idRequired';
 const GROUP_ID_CONTAINS_WHITESPACE_ERROR_CODE = 'groups.idContainsWhitespace';
 const GROUP_ID_INVALID_ERROR_CODE = 'groups.idInvalid';
@@ -1853,7 +1856,7 @@ function readLocalGatewayRuntimeConfig(): {
   if (!fs.existsSync(configPath)) return null;
 
   try {
-    const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const raw = readOpenClawConfigSafe();
     const gateway = raw?.gateway;
     if (!gateway || typeof gateway !== 'object') return null;
 
@@ -2954,16 +2957,19 @@ function snapshotTextFile(filePath: string): TextFileSnapshot {
     };
   }
 
+  // 走网关：这一行上没有 JSON.parse，所以既躲过了网关也躲过了当时那条按行匹配的
+  // 守卫。一个命名管道就能让 POST /api/config/max-permissions 永久挂住整个后端。
+  const text = readTextFileSafe(filePath);
   return {
     existed: true,
-    content: fs.readFileSync(filePath, 'utf-8'),
+    content: text.exists ? (text.value as string) : '',
   };
 }
 
 function restoreTextFile(filePath: string, snapshot: TextFileSnapshot) {
   if (snapshot.existed) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, snapshot.content || '');
+    writeFileAtomicSync(filePath, snapshot.content || '');
     return;
   }
 
@@ -4756,7 +4762,7 @@ function readOpenClawConfig(): any | null {
     if (!fs.existsSync(configPath)) {
       return null;
     }
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    return readOpenClawConfigSafe();
   } catch (error) {
     return null;
   }
@@ -4765,7 +4771,7 @@ function readOpenClawConfig(): any | null {
 function writeOpenClawConfig(config: any) {
   const configPath = getOpenClawConfigPath();
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeJsonAtomicSync(configPath, config);
 }
 
 function isMaxPermissionsConfigEnabled(config: any): boolean {
@@ -4899,7 +4905,7 @@ function readBrowserHeadedModeConfig(): BrowserHeadedModeConfig {
     throw new Error('openclaw.json not found');
   }
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  const config = readOpenClawConfigSafe() ?? {};
   const headless = config?.browser?.headless === true;
 
   return {
@@ -4914,7 +4920,7 @@ function setBrowserHeadedModeEnabled(headedModeEnabled: boolean): BrowserHeadedM
     throw new Error('openclaw.json not found');
   }
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  const config = readOpenClawConfigSafe() ?? {};
   if (!config.browser || typeof config.browser !== 'object') {
     config.browser = {};
   }
@@ -5120,7 +5126,8 @@ function patchExecApprovals(enabled: boolean) {
     return;
   }
 
-  const approvals = JSON.parse(fs.readFileSync(execApprovalsPath, 'utf-8'));
+  const approvalsRead = readJsonConfigSafe(execApprovalsPath);
+  const approvals: any = approvalsRead.exists ? approvalsRead.value : {};
   if (!approvals.defaults) approvals.defaults = {};
 
   if (enabled) {
@@ -5133,7 +5140,7 @@ function patchExecApprovals(enabled: boolean) {
     delete approvals.agents;
   }
 
-  fs.writeFileSync(execApprovalsPath, JSON.stringify(approvals, null, 2));
+  writeJsonAtomicSync(execApprovalsPath, approvals);
 }
 
 function applyMaxPermissionsConfig(config: any, enabled: boolean) {
@@ -5176,10 +5183,10 @@ function setMaxPermissionsEnabled(enabled: boolean) {
     throw new Error('openclaw.json not found');
   }
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  const config = readOpenClawConfigSafe() ?? {};
   applyMaxPermissionsConfig(config, enabled);
 
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeJsonAtomicSync(configPath, config);
   patchExecApprovals(enabled);
 
   return { enabled };
@@ -6373,6 +6380,71 @@ async function restartClawUiService() {
   return buildUpdateStatusResponse();
 }
 
+/**
+ * 只读展示路径上取 agent 模型名：配置读不动时退回 `undefined`，**并出声**。
+ *
+ * 为什么需要它（Gemini 评审 CRITICAL，本机复现）：`readConfigFile()` 三态化之后
+ * `readAgentModel()` 从「永不抛」变成「会抛」，而 `reconcileInactiveGroupLatestMessage()`
+ * 里的两处调用是裸的，外层 `app.get('/api/groups/:id/messages')` 只有一个笼统的
+ * `catch → 500`。净效果是**把一条本来能用的接口改坏了**：
+ * 改动前 `null || undefined` 兜得住、群消息列表照常返回；改动后配置一坏，
+ * 整个群的历史消息打不开。这比本 sprint 要修的原始 bug 更糟。
+ *
+ * 这里退回旧语义，但不静默——红线 C 管的是「失败要出声」，不是「失败必须致命」。
+ * 模型名只是消息上的一个标签，为它牺牲整条历史是错误的取舍。
+ */
+function readAgentModelForDisplay(agentId: string): string | undefined {
+  try {
+    return agentProvisioner.readAgentModel(agentId) || undefined;
+  } catch (error) {
+    if (!(error instanceof ConfigReadError)) throw error;
+    console.warn(
+      `[GroupMessages] 取模型名失败（${error.reason}），该条消息的模型标签留空：agentId=${agentId}`,
+    );
+    return undefined;
+  }
+}
+
+/**
+ * 在「已经在报错」的路径里，给结构化错误消息挑一个 model 标签用——纯展示用途，
+ * 不代表任何"成功"。`readAgentModel()` / `readAvailableModels()` 现在对配置读不动
+ * 会抛 ConfigReadError（这正是本 sprint 要的：别把「读不动」伪装成「没有模型」），
+ * 但这里已经在 catch 块里构建一条错误消息了——这个调用点自己再抛一次不会让用户
+ * 看到更多信息，只会让本该发出的错误响应发不出去（这个 catch 块之外没人再兜底）。
+ * 所以这里显式吞掉 ConfigReadError，退回到空字符串。
+ */
+function resolveModelTagForErrorReport(agentProvisioner: AgentProvisioner, agentId: string): string {
+  try {
+    return agentProvisioner.readAgentModel(agentId)
+      || agentProvisioner.readAvailableModels().find(m => m.primary)?.id
+      || '';
+  } catch (err) {
+    if (err instanceof ConfigReadError) return '';
+    throw err;
+  }
+}
+
+/**
+ * 纯展示型只读接口（GET /api/sessions、/api/characters、/api/sessions/:id/configs、
+ * GET /api/models）不该因为"模型标签读不到"就整条 500——用户还是要能打开列表看到
+ * 别的字段。同 `resolveModelTagForErrorReport()` 一样显式吞掉 ConfigReadError，
+ * 退回调用方给的退化值，但额外报出 `configReadFailed`，让前端能分辨出
+ * "这不是没配模型，是配置读不动"，不把两者混成一件事。
+ */
+function withConfigReadFallback<T>(fallback: T, read: () => T): { value: T; configReadFailed: boolean } {
+  try {
+    return { value: read(), configReadFailed: false };
+  } catch (err) {
+    if (err instanceof ConfigReadError) return { value: fallback, configReadFailed: true };
+    throw err;
+  }
+}
+
+// `readAgentRuntimeConfig()`（`readEffectiveAgentRuntimeSettings()` 内部调它）在配置
+// 损坏时也会抛 ConfigReadError——和 model 字段是同一类"读不动"，同样不该让这几个只读
+// 接口整体 500。退化形状照抄它自己对"配置文件不存在"这个合法状态给出的默认值。
+const RUNTIME_SETTINGS_CONFIG_READ_FALLBACK = { systemPromptMode: 'system' as const, toolMode: 'full' as const };
+
 function createStructuredChatError(rawDetail?: string | null, forcedCode?: string) {
   const detail = typeof rawDetail === 'string' && rawDetail.trim() ? rawDetail.trim() : 'Unknown error';
   const messageCode = forcedCode
@@ -7095,11 +7167,26 @@ function resetAgentRuntimeStateToInitialState(agentId: string): void {
   }
 }
 
+/**
+ * `sessionFilePath` 来自 `sessions.json` **里面的一个字段**，不是我们构造的路径。
+ *
+ * 第五轮对抗测试正是从这里进来的，而它揭示的判据比前几轮都更普适：
+ * **闸门守的是容器，守不住那只从容器里伸出来指向别处的手。**
+ * `sessions.json` 本身已经过网关了，但它内容里的那个路径没有——
+ * 在那儿放一个命名管道，发一条群消息就让整个后端永久挂住：
+ * 端口还 LISTEN、日志一声不吭、要 kill -9
+ * （栈：`node::fs::ReadFileUtf8 → uv_fs_open → open`）。而默认安装不开登录，匿名可达。
+ *
+ * 判据因此不是「这个文件是不是配置」，而是「**这个路径是不是数据给的**」。
+ * 凡是数据给的路径，都要过闸门。
+ */
 function readRuntimeSessionCwd(sessionFilePath: string): string | null {
   if (!fs.existsSync(sessionFilePath)) return null;
 
   try {
-    const firstLine = fs.readFileSync(sessionFilePath, 'utf-8').split('\n')[0]?.trim();
+    const read = readTextFileSafe(sessionFilePath);
+    if (!read.exists) return null;
+    const firstLine = (read.value as string).split('\n')[0]?.trim();
     if (!firstLine) return null;
     const payload = JSON.parse(firstLine);
     return typeof payload?.cwd === 'string' ? payload.cwd : null;
@@ -7117,7 +7204,8 @@ function runtimeAgentSessionsNeedWorkspaceReset(agentId: string, workspacePath: 
 
   if (fs.existsSync(sessionsJsonPath)) {
     try {
-      const payload = JSON.parse(fs.readFileSync(sessionsJsonPath, 'utf-8'));
+      const sessionsRead = readJsonConfigSafe(sessionsJsonPath);
+      const payload = sessionsRead.exists ? (sessionsRead.value as any) : null;
       for (const record of Object.values(payload || {})) {
         if (!record || typeof record !== 'object') continue;
 
@@ -7698,7 +7786,7 @@ async function reconcileInactiveGroupLatestMessage(groupId: string): Promise<Gro
           || latestAgentLikeMessage.sender_id !== 'system'
           || latestAgentLikeMessage.sender_name !== '系统'
         ) {
-          const modelUsed = latestAgentLikeMessage.model_used || agentProvisioner.readAgentModel(sourceAgentId) || undefined;
+          const modelUsed = latestAgentLikeMessage.model_used || readAgentModelForDisplay(sourceAgentId);
           db.updateGroupMessage(latestAgentLikeMessageId, content, modelUsed, null);
           db.updateGroupMessageSender(latestAgentLikeMessageId, 'system', '系统');
           reconciliationActions.push({
@@ -7737,7 +7825,7 @@ async function reconcileInactiveGroupLatestMessage(groupId: string): Promise<Gro
       );
 
       if (shouldReplaceWithHistoryText) {
-        const modelUsed = latestAgentLikeMessage.model_used || agentProvisioner.readAgentModel(sourceAgentId) || undefined;
+        const modelUsed = latestAgentLikeMessage.model_used || readAgentModelForDisplay(sourceAgentId);
         db.updateGroupMessage(latestAgentLikeMessageId, preferredLatestText, modelUsed, latestAgentLikeMessage.mentions || null);
         db.updateGroupMessageSender(latestAgentLikeMessageId, sourceAgentId, sourceAgentDisplayName);
         reconciliationActions.push({
@@ -7851,7 +7939,7 @@ function collectGroupRuntimeAgentIds(groupId: string): string[] {
   const configPath = path.join(openClawRoot, 'openclaw.json');
   if (fs.existsSync(configPath)) {
     try {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const config = readOpenClawConfigSafe() ?? {};
       const agentList = Array.isArray(config?.agents?.list) ? config.agents.list : [];
       for (const entry of agentList) {
         if (typeof entry?.id === 'string' && entry.id.startsWith(runtimeAgentPrefix)) {
@@ -7866,11 +7954,44 @@ function collectGroupRuntimeAgentIds(groupId: string): string[] {
   return Array.from(collected);
 }
 
-function cleanupGroupRuntimeAgent(groupId: string, options: { removeConfig?: boolean } = {}): void {
+/**
+ * 清理一个群的运行时 Agent。
+ *
+ * 返回**清理没能完成的 agentId**——注意措辞：不是「配置里还留着条目」。
+ *
+ * 这个区别是对抗测试第四轮挑出来的，而且它两个方向都错过：
+ * 配置读不动时，我们**根本无法知道**里面到底有没有这个条目——
+ * 可能压根没写进去过（那就没有残留），也可能确实留着。
+ * 上一版把「清理失败」当成「有残留」上报，等于把一件不知道的事说成了知道。
+ *
+ * 反方向同样：`removeConfigEntry()` 在「条目本来就不存在」时返回 false 而不抛，
+ * 那不是失败，不该进这个列表。
+ *
+ * 所以这里只报**我们确实知道的那件事**：这几个 agentId 的配置清理没跑完，
+ * 需要人去看一眼。调用方的文案也要照这个措辞，不能写成「配置里还留着」。
+ *
+ * 为什么不让它抛：`removeConfigEntry()` 现在会对「配置读不动」抛 ConfigReadError
+ * （这是对的，删除报成功而一个字节没删是红线 C 禁止的形状）。但如果让它在这里
+ * 直接往上冒，循环后面的工作区删除、以及调用方的 `db.deleteGroupChat()` 全都
+ * 不会执行——用户想删一个群，结果因为配置文件坏了，群、工作区、数据库行**一样都没删掉**，
+ * 只拿到一个 500。这是把「配置读不动」升级成了「群删不掉」。
+ *
+ * 与 `readAgentModelForDisplay()` 同一个取舍：外围失败不该杀掉主操作，但必须出声。
+ */
+function cleanupGroupRuntimeAgent(groupId: string, options: { removeConfig?: boolean } = {}): string[] {
+  const configCleanupFailed: string[] = [];
   for (const runtimeAgentId of collectGroupRuntimeAgentIds(groupId)) {
     removeAgentRuntimeState(runtimeAgentId);
     if (options.removeConfig) {
-      agentProvisioner.removeConfigEntry(runtimeAgentId);
+      try {
+        agentProvisioner.removeConfigEntry(runtimeAgentId);
+      } catch (error) {
+        if (!(error instanceof ConfigReadError)) throw error;
+        configCleanupFailed.push(runtimeAgentId);
+        console.error(
+          `[cleanupGroupRuntimeAgent] 无法从 openclaw.json 清除运行时 Agent（${error.reason}：${error.detail}）：${runtimeAgentId}`,
+        );
+      }
     }
 
     const runtimeWorkspacePath = agentProvisioner.getWorkspacePath(runtimeAgentId);
@@ -7878,6 +7999,8 @@ function cleanupGroupRuntimeAgent(groupId: string, options: { removeConfig?: boo
       fs.rmSync(runtimeWorkspacePath, { recursive: true, force: true });
     }
   }
+
+  return configCleanupFailed;
 }
 
 async function prepareGroupRuntimeAgent(groupId: string, sourceAgentId: string): Promise<{
@@ -8375,7 +8498,7 @@ app.get('/api/config/detect-all', async (_req, res) => {
     const openclawVersion = await readOpenClawVersion();
 
     if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const config = readOpenClawConfigSafe() ?? {};
       if (config.gateway) {
         gatewayUrl = `ws://127.0.0.1:${config.gateway.port || 18789}`;
         token = config.gateway.auth?.token || '';
@@ -8715,8 +8838,12 @@ app.post('/api/config/restart', async (_req, res) => {
 });
 
 app.get('/api/models', (_req, res) => {
-  const models = agentProvisioner.readAvailableModels();
-  res.json({ success: true, models });
+  // 配置读不动时退回空列表的旧降级行为，不让这条首屏必调的接口整体 500。
+  const { value: models, configReadFailed } = withConfigReadFallback(
+    [] as ReturnType<typeof agentProvisioner.readAvailableModels>,
+    () => agentProvisioner.readAvailableModels(),
+  );
+  res.json({ success: true, models, configReadFailed });
 });
 
 app.get('/api/models/fallbacks', (_req, res) => {
@@ -9172,19 +9299,25 @@ app.post('/api/endpoints', async (req, res) => {
 });
 
 app.get('/api/characters', (_req, res) => {
+  let configReadFailed = false;
   const characters = db.getCharacters().map(char => {
     const diskSoul = agentProvisioner.readSoul(char.agentId);
     if (diskSoul !== null) {
       char.systemPrompt = diskSoul;
     }
-    // Always read the actual model from openclaw.json (source of truth)
-    const actualModel = agentProvisioner.readAgentModel(char.agentId);
+    // Always read the actual model from openclaw.json (source of truth)——但配置读不动
+    // 时退回旧的降级行为（保留数据库里已有的 char.model），不让整个列表 500。
+    const { value: actualModel, configReadFailed: failed } = withConfigReadFallback(
+      null,
+      () => agentProvisioner.readAgentModel(char.agentId),
+    );
+    if (failed) configReadFailed = true;
     if (actualModel) {
       char.model = actualModel;
     }
     return char;
   });
-  res.json({ success: true, characters });
+  res.json({ success: true, characters, configReadFailed });
 });
 
 app.post('/api/characters', async (req, res) => {
@@ -9278,13 +9411,24 @@ app.put('/api/characters/:agentId/user-md', (req, res) => {
 app.get('/api/sessions', (_req, res) => {
   const sessions = sessionManager.getAllSessions();
   const sessionsWithModel = sessions.map(session => {
-    const runtimeSettings = readEffectiveAgentRuntimeSettings(session, session.agentId);
+    // 配置读不动时退回旧的降级行为（model 空字符串、运行时设置退回默认值），
+    // 不让整条列表 500——这里返回的是数组，没有顶层字段可挂标记位，所以
+    // configReadFailed 挂在每一行上。
+    const { value: runtimeSettingsValue, configReadFailed: runtimeFailed } = withConfigReadFallback(
+      { runtimeMode: normalizeAgentRuntimeMode(session.runtime_mode), ...RUNTIME_SETTINGS_CONFIG_READ_FALLBACK },
+      () => readEffectiveAgentRuntimeSettings(session, session.agentId),
+    );
+    const { value: model, configReadFailed: modelFailed } = withConfigReadFallback(
+      '',
+      () => agentProvisioner.readAgentModel(session.agentId) || '',
+    );
     return {
       ...session,
-      runtimeMode: runtimeSettings.runtimeMode,
-      systemPromptMode: runtimeSettings.systemPromptMode,
-      toolMode: runtimeSettings.toolMode,
-      model: agentProvisioner.readAgentModel(session.agentId) || ''
+      runtimeMode: runtimeSettingsValue.runtimeMode,
+      systemPromptMode: runtimeSettingsValue.systemPromptMode,
+      toolMode: runtimeSettingsValue.toolMode,
+      model,
+      configReadFailed: runtimeFailed || modelFailed,
     };
   });
   res.json(sessionsWithModel);
@@ -9910,9 +10054,16 @@ app.post('/api/sessions', async (req, res) => {
     return res.status(400).json(buildStructuredApiError(AGENT_ID_ALREADY_EXISTS_ERROR_CODE, null, { agentId: normalizedId }));
   }
 
+  // Provide basic default for first session if it doesn't exist
+  //
+  // 这一步单独包一层 try：Express 4（backend/package.json 钉的 ^4.18.2）不会替
+  // async handler 接管同步/异步抛错——如果 createSession() 留在下面那个大 try
+  // 之外抛错，Express 4 既不会走 error middleware 也不会回一个响应，请求会一直
+  // 悬挂到客户端超时，而不是拿到结构化的 400/500。装配失败的回滚逻辑（依赖
+  // newSession 已经建好）留在下面第二层 try，不受影响。
+  let newSession;
   try {
-    // Provide basic default for first session if it doesn't exist
-    const newSession = sessionManager.createSession({
+    newSession = sessionManager.createSession({
       id: normalizedId,
       name,
       process_start_tag,
@@ -9921,11 +10072,15 @@ app.post('/api/sessions', async (req, res) => {
       system_prompt_mode: systemPromptMode,
       tool_mode: toolMode,
     });
-    const agentId = newSession.id;
+  } catch (err: any) {
+    return res.status(500).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, err?.message));
+  }
+  const agentId = newSession.id;
 
+  try {
     // Provision agent workspace
-    await agentProvisioner.provision({ 
-      agentId, 
+    await agentProvisioner.provision({
+      agentId,
       soulContent,
       userContent,
       agentsContent,
@@ -9938,14 +10093,43 @@ app.post('/api/sessions', async (req, res) => {
       systemPromptMode,
       toolMode,
     });
-    
+
     // Update session record with the auto-generated agentId
     sessionManager.updateSession(newSession.id, { agentId });
     const finalSession = sessionManager.getSession(newSession.id);
 
     res.json({ success: true, session: finalSession });
   } catch (err: any) {
-    res.status(400).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, err?.message));
+    // provision() 失败要把上面刚建的 session 撤掉（同一个模式见 9989 行的角色包装配）。
+    // 留着就是个孤儿 session：这个 ID 已经"存在"，用户改完配置重试会被 10029 行
+    // 的 AGENT_ID_ALREADY_EXISTS 挡住，永远重试不了同一个 ID。
+    // 红线 C：回滚本身也可能失败——裸 catch {} 会让这条静默吞掉，用户看到的仍是
+    // "配置读不动"，真正卡住他的却是那条删不掉的孤儿行，日志里一点痕迹都没有。
+    // 这里必须出声：打日志，并把这件事写进错误响应，让用户知道该换个 ID 而不是
+    // 反复用同一个 ID 重试。
+    let rollbackFailed = false;
+    try {
+      sessionManager.deleteSession(newSession.id);
+    } catch (rollbackErr) {
+      rollbackFailed = true;
+      console.error('[POST /api/sessions] 回滚孤儿 session 失败，该 ID 已被锁死：', newSession.id, rollbackErr);
+    }
+
+    // ConfigReadError 是"配置读不动"，不是"装配失败"这一件笼统的事——给它自己的
+    // errorCode，而不是把它的中文 message 塞进 MODEL_UPDATE_FAILED 的 detail 里，
+    // 让前端和这里的测试都能在 errorCode 上分辨出这是哪一种失败。
+    if (err instanceof ConfigReadError) {
+      const detail = rollbackFailed
+        ? `${err.reason}: ${err.detail}（该 ID 未能撤销，请换一个 ID 或手动清理）`
+        : `${err.reason}: ${err.detail}`;
+      return res.status(500).json(
+        buildStructuredApiError(AGENT_CONFIG_READ_FAILED_ERROR_CODE, detail),
+      );
+    }
+    const detail = rollbackFailed
+      ? `${err?.message}（该 ID 未能撤销，请换一个 ID 或手动清理）`
+      : err?.message;
+    res.status(400).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, detail));
   }
 });
 
@@ -10029,9 +10213,30 @@ app.delete('/api/sessions/:id', async (req, res) => {
   if (success) {
     sessionInterruptionEpochs.delete(req.params.id);
     if (agentId && agentId !== 'main') {
-      const configChanged = await agentProvisioner.deprovision(agentId);
-      if (configChanged) {
-        // Gateway auto-reloads config
+      // deprovision() 现在会对「配置读不动」抛 ConfigReadError（原来是静默
+      // `return false`，于是这条路由报 200 success 而配置条目、工作区、状态目录、
+      // 记忆库一个都没删）。这里必须接住：本路由此前**完全没有 try/catch**，
+      // 一个异步抛错会变成未处理的 Promise 拒绝，请求悬着、进程可能被带崩。
+      try {
+        const configChanged = await agentProvisioner.deprovision(agentId);
+        if (configChanged) {
+          // Gateway auto-reloads config
+        }
+      } catch (error) {
+        if (error instanceof ConfigReadError) {
+          // session 行已经删掉了，但 openclaw.json 里的条目还在——如实说出来，
+          // 不要报成完全成功。用户需要知道去修配置，否则那个 agentId 再也建不回来。
+          console.error(
+            `[DELETE /api/sessions/:id] session 已删除，但清理 openclaw.json 失败（${error.reason}）：`,
+            req.params.id,
+          );
+          return res.status(500).json(
+            buildStructuredApiError(AGENT_CONFIG_READ_FAILED_ERROR_CODE, error.detail, {
+              reason: error.reason,
+            }),
+          );
+        }
+        throw error;
       }
     }
     res.json({ success: true });
@@ -10107,8 +10312,17 @@ app.get('/api/sessions/:id/configs', async (req, res) => {
   }
   
   const agentId = session.agentId;
-  const modelConfig = agentProvisioner.readAgentModelConfig(agentId);
-  const runtimeSettings = readEffectiveAgentRuntimeSettings(session, agentId);
+  // 配置读不动时退回"没配模型"的旧降级形状，不让这条详情页整体 500——
+  // 界面上其余六份 markdown 内容依然是真实数据，不该因为模型标签读不到就全部拿不到。
+  const { value: modelConfig, configReadFailed: modelReadFailed } = withConfigReadFallback(
+    { model: null, modelOverride: null, fallbackMode: 'inherit' as const, fallbacks: [] as string[], resolvedModel: null },
+    () => agentProvisioner.readAgentModelConfig(agentId),
+  );
+  const { value: runtimeSettings, configReadFailed: runtimeReadFailed } = withConfigReadFallback(
+    { runtimeMode: normalizeAgentRuntimeMode(session.runtime_mode), ...RUNTIME_SETTINGS_CONFIG_READ_FALLBACK },
+    () => readEffectiveAgentRuntimeSettings(session, agentId),
+  );
+  const configReadFailed = modelReadFailed || runtimeReadFailed;
   const runtimeMetrics = agentProvisioner.readAgentRuntimeMetrics(agentId);
   res.json({
     success: true,
@@ -10128,6 +10342,7 @@ app.get('/api/sessions/:id/configs', async (req, res) => {
       systemPromptMode: runtimeSettings.systemPromptMode,
       toolMode: runtimeSettings.toolMode,
       runtimeMetrics,
+      configReadFailed,
     }
   });
 });
@@ -12101,7 +12316,7 @@ app.post('/api/chat', async (req, res) => {
     const sessionInfo = db.getSession(normalizedSessionId);
     const agentId = sessionInfo?.agentId || 'main';
     const character = db.getCharacters().find(c => c.agentId === agentId);
-    const modelUsed = agentProvisioner.readAgentModel(agentId) || agentProvisioner.readAvailableModels().find(m => m.primary)?.id || '';
+    const modelUsed = resolveModelTagForErrorReport(agentProvisioner, agentId);
 
     if (typeof assistantMsgId === 'number') {
       try {
@@ -12456,7 +12671,7 @@ app.post('/api/chat/regenerate', async (req, res) => {
     );
     const sessionInfo = db.getSession(normalizedSessionId);
     const agentId = sessionInfo?.agentId || 'main';
-    const modelUsed = agentProvisioner.readAgentModel(agentId) || agentProvisioner.readAvailableModels().find(m => m.primary)?.id || '';
+    const modelUsed = resolveModelTagForErrorReport(agentProvisioner, agentId);
 
     if (typeof assistantMsgId === 'number') {
       try {
@@ -13105,10 +13320,25 @@ const groupChatEngine = new GroupChatEngine(db, getConnection, (agentId) => {
   const sessions = sessionManager.getAllSessions();
   const session = sessions.find((s: any) => s.agentId === agentId);
   if (session) {
-    const customModel = agentProvisioner.readAgentModel(agentId);
+    // group-chat-engine.ts 本 sprint 明确不碰（Sprint 3 范围）——这个 resolver
+    // 是它的调用入口，不确定它在哪些调用路径下没有自己的 try/catch，所以这里
+    // 显式吞掉 ConfigReadError、退回下面 characters 表的兜底，保持这个入口原有
+    // 的容错行为不变；真实失败已经在 readAgentModel 内部往上抛给了其它调用点。
+    let customModel: string | null = null;
+    try {
+      customModel = agentProvisioner.readAgentModel(agentId);
+    } catch (err) {
+      if (!(err instanceof ConfigReadError)) throw err;
+      // 红线 C：退回 characters 表是有意的容错，但**静默地退**不是。
+      // 不打这行日志的话，一个「openclaw.json 读不动」会表现为
+      // 「这个 Agent 忽然用上了另一个模型」，没有任何东西指向真实原因。
+      console.warn(
+        `[GroupChat] 读取 agent 模型失败（${err.reason}），回落 characters 表：agentId=${agentId}`,
+      );
+    }
     if (customModel) return customModel;
   }
-  
+
   // Fallback to characters table for hardcoded system agents
   const chars = db.getCharacters();
   const c = chars.find(x => x.agentId === agentId);
@@ -13368,10 +13598,14 @@ app.delete('/api/groups/:id', async (req, res) => {
     } catch {}
     groupChatEngine.forceResetGroupState(req.params.id);
     clearStoredFilesBySessionKey(req.params.id);
-    cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
+    const configCleanupFailed = cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
     deleteGroupWorkspace(req.params.id);
     db.deleteGroupChat(req.params.id);
-    res.json({ success: true });
+    // 群、工作区、库行都删干净了；只有 openclaw.json 的清理没跑完（配置读不动）。
+    // 措辞是「没跑完」而不是「还留着」——配置读不动时我们并不知道里面有没有那个条目。
+    res.json(configCleanupFailed.length > 0
+      ? { success: true, configCleanupFailed, warningCode: AGENT_CONFIG_READ_FAILED_ERROR_CODE }
+      : { success: true });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -13399,10 +13633,12 @@ app.post('/api/groups/:id/reset', async (req, res) => {
     });
     db.deleteGroupMessagesByGroup(req.params.id);
     clearStoredFilesBySessionKey(req.params.id);
-    cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
+    const configCleanupFailed = cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
     resetGroupWorkspace(req.params.id);
 
-    res.json({ success: true });
+    res.json(configCleanupFailed.length > 0
+      ? { success: true, configCleanupFailed, warningCode: AGENT_CONFIG_READ_FAILED_ERROR_CODE }
+      : { success: true });
   } catch (err: any) {
     console.error('Failed to reset group:', err);
     res.status(500).json({ success: false, error: err.message });

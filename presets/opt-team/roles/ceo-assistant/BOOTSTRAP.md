@@ -108,13 +108,13 @@ bash ../_shared/validate-skills.sh
 
 ```bash
 bash automations.sh
-openclaw automations list
+openclaw cron list --agent ceo-assistant
 ```
 
 - [ ] 任务都建上了
 - [ ] 时区是 `Asia/Shanghai`
 
-**验收**：`openclaw automations list` 能看到本角色的任务。
+**验收**：`openclaw cron list --agent ceo-assistant` 能看到本角色的任务。
 
 ---
 

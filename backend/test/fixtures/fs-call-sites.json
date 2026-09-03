@@ -1,0 +1,287 @@
+[
+  {
+    "file": "agent-bootstrap-context.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "agent-pack.ts",
+    "call": "readFileSync",
+    "context": "abs"
+  },
+  {
+    "file": "agent-pack.ts",
+    "call": "readFileSync",
+    "context": "abs"
+  },
+  {
+    "file": "agent-pack.ts",
+    "call": "writeFileSync",
+    "context": "target"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "writeFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "writeFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "copyFileSync",
+    "context": "mainAuthPath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "writeFileSync",
+    "context": "soulPath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "readFileSync",
+    "context": "soulPath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "agent-provisioner.ts",
+    "call": "writeFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "app-version.ts",
+    "call": "readFileSync",
+    "context": "rootPackageJsonPath"
+  },
+  {
+    "file": "app-version.ts",
+    "call": "readFileSync",
+    "context": "buildMetaPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "updateRestartStatePath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "updateRestartStatePath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "gatewayRestartStatePath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "gatewayRestartStatePath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "outputPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "outputPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "outputPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "HOST_TAKEOVER_SYSTEMD_OVERRIDE_PATH"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "HOST_TAKEOVER_SYSTEMD_OVERRIDE_PATH"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "targetPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "target.backupPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "target.targetPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "target.targetPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "target.backupPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "target.targetPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "targetPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "target.backupPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "target.targetPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "?"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "HOST_TAKEOVER_SYSTEMD_OVERRIDE_PATH"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "browserWarmupMarkerPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "packageJsonPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "packageJsonPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "shellEntrypointPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "absolutePath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "absolutePath"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "tempPath"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "f.path"
+  },
+  {
+    "file": "index.ts",
+    "call": "writeFileSync",
+    "context": "f.path"
+  },
+  {
+    "file": "index.ts",
+    "call": "readFileSync",
+    "context": "servedPath"
+  },
+  {
+    "file": "message-upload-rewrite.ts",
+    "call": "readFileSync",
+    "context": "absolutePath"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "writeFileSync",
+    "context": "to"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "readFileSync",
+    "context": "from"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "copyFileSync",
+    "context": "from"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "readFileSync",
+    "context": "manifestPath"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "readFileSync",
+    "context": "file"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "writeFileSync",
+    "context": "path.join"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "readFileSync",
+    "context": "from"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "writeFileSync",
+    "context": "to"
+  },
+  {
+    "file": "preset-installer.ts",
+    "call": "readFileSync",
+    "context": "from"
+  }
+]
