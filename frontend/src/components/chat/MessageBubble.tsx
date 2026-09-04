@@ -2,7 +2,8 @@ import React from 'react';
 import { Check, Copy, Trash2, RefreshCw, Quote, X, Download, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+// PrismAsyncLight 按需加载语言包；Prism 全量版把所有语言打进主包。
+import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { normalizeLanguage } from '../../i18n';
 import { getFileIconInfo } from '../../utils/fileUtils';

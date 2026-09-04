@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect, lazy, Suspense } from 'react';
 import { Menu, Plus, X, Search, ChevronUp, ChevronDown, Trash2, Users, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import { normalizeLanguage } from '../i18n';
 import { getFileIconInfo } from '../utils/fileUtils';
-import FilePreviewModal from './FilePreviewModal';
+// 预览模块带着 mammoth / xlsx / pdfjs（合计约 1.5MB），只在真的打开预览时才下载。
+const FilePreviewModal = lazy(() => import('./FilePreviewModal'));
 import { MessageBubble, normalizeProcessBlocks, parseAttachmentsFromContent, ProcessStepBlock } from './chat/MessageBubble';
 import { compressImage, getFileCategory, formatFileSize } from '../utils/imageCompression';
 import {
@@ -32,7 +33,9 @@ const SEARCH_DEBOUNCE_MS = 250;
 const SEARCH_MATCH_HIGHLIGHT_DURATION_MS = 5000;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 160;
 const NAV_DOT_PAGING_UNLOCK_DEBOUNCE_MS = 180;
-const GROUP_ACTIVE_RUN_RECOVERY_POLL_MS = 500;
+// SSE 才是主通道，这条轮询只是断流兜底。原来 500ms 一次，每次把整条正在生成的消息
+// （正文 + 过程）整体序列化回传，2 万字回复时每秒 80KB，和 delta 事件完全重复。
+const GROUP_ACTIVE_RUN_RECOVERY_POLL_MS = 5000;
 const GROUP_SSE_RECOVERY_THROTTLE_MS = 2000;
 const GROUP_POST_RUN_SETTLE_POLL_MS = 2000;
 const GROUP_POST_RUN_SETTLE_TIMEOUT_MS = 120000;
@@ -3071,7 +3074,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         }
       } finally { flushQueuedMessagePatches(); setIsLoading(false); }
     } else if (isGroup && currentGroup) {
-      if (isLoading) return;
+      if (isLoading || isGroupBusy) return;
       clearNewerHistoryWindowTrail();
       setIsLoading(true);
       try {
@@ -3942,7 +3945,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
                     onDelete={() => handleDeleteMessage(msg.id)}
                     isCopied={copiedId === msg.id}
                     activeCopiedId={copiedId}
-                    isLoading={isLoading}
+                    isLoading={isLoading || isGroupBusy}
                     processStartTag={resolvedProcessTags.startTag}
                     processEndTag={resolvedProcessTags.endTag}
                     isLatest={msg.role === 'user' ? msg.id === lastUserMsgId : index === visibleMessages.length - 1}
@@ -4171,7 +4174,11 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       </div>
 
       {/* File Preview Modal */}
-      {previewFile && <FilePreviewModal url={previewFile.url} filename={previewFile.filename} onClose={() => setPreviewFile(null)} />}
+      {previewFile && (
+        <Suspense fallback={null}>
+          <FilePreviewModal url={previewFile.url} filename={previewFile.filename} onClose={() => setPreviewFile(null)} />
+        </Suspense>
+      )}
 
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (

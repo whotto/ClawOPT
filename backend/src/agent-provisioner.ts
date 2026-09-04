@@ -70,6 +70,22 @@ const AGENT_SYSTEM_PROMPT_FILES = [
   'BOOTSTRAP.md',
 ] as const;
 
+/**
+ * v1.3.0–v1.4.0 的运行时下拉框写进名册的形状：`{ type: 'acp', acp: { agent, cwd? } }`。
+ * 多一个键（backend / mode / …）就不是我们写的，不动。
+ */
+export function isClawoptLegacyRuntimeDescriptor(runtime: unknown): boolean {
+  if (!runtime || typeof runtime !== 'object') return false;
+  const value = runtime as Record<string, unknown>;
+  if (value.type !== 'acp') return false;
+  const topKeys = Object.keys(value).filter((key) => key !== 'type' && key !== 'acp');
+  if (topKeys.length > 0) return false;
+  const acp = value.acp;
+  if (!acp || typeof acp !== 'object') return false;
+  const acpKeys = Object.keys(acp as Record<string, unknown>);
+  return acpKeys.length > 0 && acpKeys.every((key) => key === 'agent' || key === 'cwd');
+}
+
 export interface ProvisionOptions {
   agentId: string;
   workspaceDir?: string;
@@ -85,10 +101,11 @@ export interface ProvisionOptions {
   systemPromptMode?: AgentSystemPromptMode;
   toolMode?: AgentToolMode;
   /**
-   * 谁来执行这个 Agent 的模型循环。默认 `openclaw`（引擎自己跑）。
-   * 选 ACP 系的（claude / gemini / opencode / pi / codex）会在名册条目上
-   * 写 `runtime: { type: 'acp', acp: { agent, cwd } }`。
+   * 不改写工作区里的 SOUL/USER/AGENTS/TOOLS/HEARTBEAT/IDENTITY。
+   * 团队克隆体复用源 Agent 的工作区目录，这些文件本来就是源 Agent 的；
+   * 原来把「读不到 → ''」再写回去，会在源工作区里凭空生成空文件。
    */
+  preserveWorkspaceFiles?: boolean;
 }
 
 export type AgentFallbackMode = 'inherit' | 'custom' | 'disabled';
@@ -859,8 +876,10 @@ export class AgentProvisioner {
     };
   }
 
-  buildAgentSystemPromptOverride(agentId: string): string {
-    const workspaceDir = this.getWorkspacePath(agentId);
+  // workspaceDir 必须能传入：团队克隆体（group-<gid>--<agent>）的工作区是源 Agent 的目录，
+  // 按 id 推出来的 workspace-group-... 根本不存在，systemPromptMode=agent 的成员
+  // 进团队后就只剩一句兜底提示，SOUL/IDENTITY 全丢。
+  buildAgentSystemPromptOverride(agentId: string, workspaceDir: string = this.getWorkspacePath(agentId)): string {
     const sections: string[] = [];
 
     for (const filename of AGENT_SYSTEM_PROMPT_FILES) {
@@ -917,7 +936,7 @@ export class AgentProvisioner {
 
     const systemPromptMode = this.normalizeSystemPromptMode(runtimeConfig.systemPromptMode);
     if (systemPromptMode === 'agent') {
-      entry.systemPromptOverride = this.buildAgentSystemPromptOverride(agentId);
+      entry.systemPromptOverride = this.buildAgentSystemPromptOverride(agentId, workspaceDir);
     } else {
       delete entry.systemPromptOverride;
     }
@@ -1118,12 +1137,14 @@ export class AgentProvisioner {
         }
       };
 
-      writeFileSafe('SOUL.md', opts.soulContent, '# Agent\nDefault identity.');
-      writeFileSafe('USER.md', opts.userContent, '# User Profile\n\n- 语言偏好：中文\n- 称呼方式：随意\n');
-      writeFileSafe('AGENTS.md', opts.agentsContent, '# Agent Instructions\n\n- 遵循 SOUL.md 中定义的人格设定\n- 使用 memory/ 目录记录重要信息\n- 保持角色一致性\n');
-      writeFileSafe('TOOLS.md', opts.toolsContent);
-      writeFileSafe('HEARTBEAT.md', opts.heartbeatContent);
-      writeFileSafe('IDENTITY.md', opts.identityContent);
+      if (!opts.preserveWorkspaceFiles) {
+        writeFileSafe('SOUL.md', opts.soulContent, '# Agent\nDefault identity.');
+        writeFileSafe('USER.md', opts.userContent, '# User Profile\n\n- 语言偏好：中文\n- 称呼方式：随意\n');
+        writeFileSafe('AGENTS.md', opts.agentsContent, '# Agent Instructions\n\n- 遵循 SOUL.md 中定义的人格设定\n- 使用 memory/ 目录记录重要信息\n- 保持角色一致性\n');
+        writeFileSafe('TOOLS.md', opts.toolsContent);
+        writeFileSafe('HEARTBEAT.md', opts.heartbeatContent);
+        writeFileSafe('IDENTITY.md', opts.identityContent);
+      }
 
       // 3. Copy auth-profiles.json from main agent for credential inheritance
       const mainAuthPath = path.join(this.openclawDir, 'agents', 'main', 'agent', 'auth-profiles.json');
@@ -2079,10 +2100,11 @@ export class AgentProvisioner {
         systemPromptOverride: entry.systemPromptOverride,
         tools: entry.tools,
         runtime: entry.runtime,
+        agentRuntime: entry.agentRuntime,
       });
       const nextSystemPromptMode = this.normalizeSystemPromptMode(systemPromptMode);
       if (nextSystemPromptMode === 'agent') {
-        entry.systemPromptOverride = this.buildAgentSystemPromptOverride(agentId);
+        entry.systemPromptOverride = this.buildAgentSystemPromptOverride(agentId, workspaceDir);
       } else {
         delete entry.systemPromptOverride;
       }
@@ -2111,12 +2133,21 @@ export class AgentProvisioner {
       //
       // 外接 Agent 的正确接法是模型 ref（`claude-cli/claude-sonnet-5`），
       // 走 `model` 字段，不在这一层。
-      delete entry.runtime;
+      //
+      // 但只删**我们自己写的那种形状**。引擎文档（gateway/config-agents.md）里
+      // `agents.list[].runtime` 是一个活的 ACP 会话描述符（带 backend / mode），
+      // 真正「legacy and ignored」的是 `agentRuntime`。原先无条件删 `runtime`，
+      // 用户手配的 ACP 描述符会在任何一次 provision / reset 时静默消失。
+      if (isClawoptLegacyRuntimeDescriptor(entry.runtime)) {
+        delete entry.runtime;
+      }
+      delete entry.agentRuntime;
 
       return previousSerialized !== JSON.stringify({
         systemPromptOverride: entry.systemPromptOverride,
         tools: entry.tools,
         runtime: entry.runtime,
+        agentRuntime: entry.agentRuntime,
       });
     })();
 

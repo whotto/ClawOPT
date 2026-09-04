@@ -110,3 +110,36 @@ describe('源码里不该再有那个写入点', () => {
     expect(src).toContain('delete entry.runtime;');
   });
 });
+
+describe('只清我们自己写的那种 runtime 形状', () => {
+  // 引擎文档 gateway/config-agents.md：`agents.list[].runtime` 是活的 ACP 会话描述符
+  // （带 backend / mode），真正 legacy 的是 `agentRuntime`。
+  it('用户手配的 ACP 描述符不能被 provision 抹掉', async () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        entries: {
+          'acp-agent': {
+            workspace: '/tmp/ws',
+            runtime: { type: 'acp', acp: { agent: 'codex', backend: 'acpx', mode: 'persistent', cwd: '/tmp/ws' } },
+          },
+        },
+      },
+    }, null, 2));
+    const { AgentProvisioner } = await import('../src/agent-provisioner');
+    const p: any = new AgentProvisioner();
+    await p.provision({ agentId: 'acp-agent' });
+    expect(readEntry('acp-agent').runtime).toEqual({
+      type: 'acp', acp: { agent: 'codex', backend: 'acpx', mode: 'persistent', cwd: '/tmp/ws' },
+    });
+  });
+
+  it('引擎标为 legacy 的 agentRuntime 会被清掉', async () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: { entries: { 'old-agent': { workspace: '/tmp/ws', agentRuntime: { id: 'claude-cli' } } } },
+    }, null, 2));
+    const { AgentProvisioner } = await import('../src/agent-provisioner');
+    const p: any = new AgentProvisioner();
+    await p.provision({ agentId: 'old-agent' });
+    expect(readEntry('old-agent').agentRuntime).toBeUndefined();
+  });
+});

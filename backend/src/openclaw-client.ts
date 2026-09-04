@@ -243,6 +243,8 @@ export class OpenClawClient extends EventEmitter {
   private pending = new Map<string, Pending>();
   private connectPromise: Promise<void> | null = null;
   private sessionEventSubscriptionRefs = 0;
+  // 网关 2026.8 没有 sessions.unsubscribe（回 unknown method）。记住一次，之后不再发、不再报。
+  private sessionUnsubscribeUnsupported = false;
 
   constructor(config: OpenClawConfig) {
     super();
@@ -517,13 +519,20 @@ export class OpenClawClient extends EventEmitter {
       return;
     }
 
-    if (!this.hasOpenSocket()) {
+    if (!this.hasOpenSocket() || this.sessionUnsubscribeUnsupported) {
       return;
     }
 
     try {
       await this.request('sessions.unsubscribe', {}, 15000);
     } catch (error) {
+      if (/unknown method/i.test(String((error as Error)?.message || ''))) {
+        // 订阅随 socket 生命周期走，网关不提供退订；sessions.subscribe 可重复调用，
+        // 所以引用计数归零是安全的。原先这里把计数写回 1 并抛错，每次收尾都刷一屏堆栈。
+        this.sessionUnsubscribeUnsupported = true;
+        console.info('[OpenClaw] gateway has no sessions.unsubscribe; session event subscription stays open for the socket lifetime.');
+        return;
+      }
       this.sessionEventSubscriptionRefs = 1;
       throw error;
     }
