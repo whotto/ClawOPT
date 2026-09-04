@@ -113,11 +113,15 @@ describe('S2-A8 · 红线 A 基线冻结（Sprint 2 出口闸门）', () => {
     const tracked = execFileSync('git', ['ls-files', 'backend/test/fixtures/prompt-baseline'], {
       cwd: path.resolve(__dirname, '..', '..'), encoding: 'utf-8',
     }).trim().split('\n').filter(Boolean);
-    expect(tracked.length, '基线文件没有被 git 跟踪').toBe(MATRIX.length);
+    // 目录里除七份快照外还有 REVIEWED.md（复审记录，见下一条用例的说明），只数快照。
+    const snapshots = tracked.filter((file) => file.endsWith('.txt'));
+    expect(snapshots.length, '基线文件没有被 git 跟踪').toBe(MATRIX.length);
   });
 
   it('生成基线的提交必须早于任何触及 sendToAgent 的提交', () => {
     // 这一条是闸门的核心：它禁止「先抽取、后生成快照」。
+    // 快照字节不变时 git 记不下「有人看过」，复审结论写进 fixtures/prompt-baseline/REVIEWED.md
+    // 并随之提交——那次提交就是「基线在引擎改动之后被重新审视」的证据。只准追加。
     // Sprint 3 改 group-chat-engine.ts 之后若重新生成基线，
     // 基线文件的最后修改提交就会晚于那次改动——这里会红。
     const repo = path.resolve(__dirname, '..', '..');
