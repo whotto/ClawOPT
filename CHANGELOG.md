@@ -1,3 +1,10 @@
+## [1.5.3] — 2026-09-04
+
+### 部署脚本不再写 2026.8 已废弃的 controlUi 键
+
+`patch-config.js` 每次部署都写 `dangerouslyDisableDeviceAuth` / `allowInsecureAuth`，
+网关重启报 config invalid。改为有就删、不再加。详见 docs/release-notes-v1.5.3.md。
+
 ## [1.5.2] — 2026-09-04
 
 ### 访问变快，团队上下文收口，两个删错东西的 bug

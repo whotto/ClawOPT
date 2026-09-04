@@ -21,14 +21,19 @@ try {
   }
 
   let changed = false;
-  if (!config.gateway.controlUi.dangerouslyDisableDeviceAuth) {
-    config.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
-    changed = true;
+  // 这两个键是 2026.7 之前让浏览器控制台免设备配对的开关。2026.8 把
+  // `dangerouslyDisableDeviceAuth` 标为 retired、`allowInsecureAuth` 直接判为
+  // Unrecognized key——每次部署写回去，`openclaw gateway restart` 就报
+  // 「config is invalid」。v1.5.1 起 ClawOPT 以 backend 模式连网关，
+  // 根本不走控制台那条路，这两个键已经没有存在的理由：有就删，不再加。
+  for (const retiredKey of ['dangerouslyDisableDeviceAuth', 'allowInsecureAuth']) {
+    if (retiredKey in config.gateway.controlUi) {
+      delete config.gateway.controlUi[retiredKey];
+      changed = true;
+    }
   }
-  
-  if (!config.gateway.controlUi.allowInsecureAuth) {
-    config.gateway.controlUi.allowInsecureAuth = true;
-    changed = true;
+  if (Object.keys(config.gateway.controlUi).length === 0) {
+    delete config.gateway.controlUi;
   }
 
   // Ensure commands.bash is enabled (required by OpenClaw 2026.3.12+)
@@ -43,9 +48,9 @@ try {
 
   if (changed) {
     fs.writeFileSync(openclawConfigPath, JSON.stringify(config, null, 2));
-    console.log('Successfully patched openclaw.json to allow local loopback backend connections.');
+    console.log('Patched openclaw.json: removed retired controlUi keys / ensured commands.*.');
   } else {
-    console.log('openclaw.json already configured for local backend connections.');
+    console.log('openclaw.json already clean.');
   }
 } catch (error) {
   console.error('Failed to patch openclaw.json:', error.message);
