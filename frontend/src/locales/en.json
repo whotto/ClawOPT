@@ -225,6 +225,7 @@
   },
   "group": {
     "maxChainDepthReached": "Chain forwarding reached the maximum depth ({{maxDepth}} rounds)",
+    "chainForwardingDisabled": "Chain forwarding is off; the handoff to {{agentName}} was not made",
     "agentResponseFailed": "{{agentName}} failed to respond"
   },
   "gateway": {

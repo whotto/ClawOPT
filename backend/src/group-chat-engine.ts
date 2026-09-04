@@ -53,9 +53,19 @@ const GROUP_CONTEXT_MESSAGE_MAX_CHARS = 900;
 const GROUP_CONTEXT_MESSAGE_HEAD_CHARS = 380;
 const GROUP_CONTEXT_MESSAGE_TAIL_CHARS = 380;
 const GROUP_CONTEXT_RECENT_WINDOW = 15;
+// 历史窗口除了「最多 15 条」再加一道字符预算：15 条 × 900 字的摘要在长对话里
+// 每一跳都是 1.3 万字起，且原样进网关会话累积。预算按新→旧挑，至少保 1 条。
+const GROUP_CONTEXT_BUDGET_CHARS = 9000;
+// 「最新任务」原先不设上限：上一位成员 2 万字的回复会整段转交，而同一段
+// 又以 900 字摘要出现在历史里。这里保头保尾，中间省略并说明。
+const GROUP_TRIGGER_MAX_CHARS = 6000;
+const GROUP_TRIGGER_HEAD_CHARS = 4000;
+const GROUP_TRIGGER_TAIL_CHARS = 1600;
 const GROUP_CONTEXT_EVIDENCE_LINE_PATTERN = /(`|https?:\/\/|\/|\\|\.|已执行|执行|启动|运行|浏览器|监听|地址|端口|日志|结果|存在|生成|导出|输出|完成|成功|失败|校验|验证|测试|created|running|started|output|result|verified|browser|url|path|port|listen)/i;
 const MAX_CHAIN_DEPTH_MESSAGE_CODE = 'group.maxChainDepthReached' as const;
 const MAX_CHAIN_DEPTH_MESSAGE_REGEX = /^链式转发已达到最大深度 \((\d+) 轮\)$/;
+const CHAIN_FORWARDING_DISABLED_MESSAGE_CODE = 'group.chainForwardingDisabled' as const;
+const CHAIN_FORWARDING_DISABLED_MESSAGE_REGEX = /^链式转发已关闭，未转交给 (.+)$/;
 const AGENT_RESPONSE_FAILED_MESSAGE_CODE = 'group.agentResponseFailed' as const;
 const AGENT_RESPONSE_FAILED_MESSAGE_REGEX = /^❌\s+(.+?)\s+响应失败:\s*([\s\S]*)$/;
 const GROUP_HOST_TAKEOVER_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'openclaw.json');
@@ -764,6 +774,67 @@ function createMaxChainDepthMessage(maxDepth: number): Required<StructuredGroupM
   };
 }
 
+// 链式转发设为 0 时成员仍 @ 了别人：原先静默吞掉，用户只看到链条停了、不知道为什么。
+function createChainForwardingDisabledMessage(agentName: string): Required<StructuredGroupMessage> & { content: string } {
+  return {
+    content: `链式转发已关闭，未转交给 ${agentName}`,
+    messageCode: CHAIN_FORWARDING_DISABLED_MESSAGE_CODE,
+    messageParams: { agentName },
+    rawDetail: '',
+    forceSystemMessage: true,
+  };
+}
+
+/**
+ * 从最近的群消息里挑进提示词的历史窗口：新→旧，受条数与字符预算双重约束。
+ * 触发消息本身（parentId 指向的那条）若与「最新任务」内容一致则不重复放进历史。
+ */
+export function selectGroupContextWindow(
+  rows: GroupMessageRow[],
+  options: {
+    triggerParentId?: number | null;
+    triggerMsg?: string;
+    triggerSenderName?: string;
+    maxRows?: number;
+    budgetChars?: number;
+  } = {},
+): GroupMessageRow[] {
+  const maxRows = options.maxRows ?? GROUP_CONTEXT_RECENT_WINDOW;
+  const budget = options.budgetChars ?? GROUP_CONTEXT_BUDGET_CHARS;
+  const trigger = (options.triggerMsg || '').trim();
+  const picked: GroupMessageRow[] = [];
+  let used = 0;
+
+  for (let index = rows.length - 1; index >= 0 && picked.length < maxRows; index -= 1) {
+    const row = rows[index];
+    const isTriggerRow = options.triggerParentId != null
+      && row.id === options.triggerParentId
+      && (
+        (trigger !== '' && row.content.trim() === trigger)
+        || (options.triggerSenderName !== undefined && row.sender_type === 'agent' && row.sender_name === options.triggerSenderName)
+        || (row.sender_type === 'user' && trigger !== '' && row.content.trim() === trigger)
+      );
+    if (isTriggerRow) continue;
+
+    const bodyChars = Math.min(
+      row.content.length + (row.process_content?.length ?? 0),
+      GROUP_CONTEXT_MESSAGE_MAX_CHARS + 64,
+    );
+    const cost = bodyChars + (row.sender_name?.length ?? 2) + 4;
+    if (picked.length > 0 && used + cost > budget) break;
+    picked.unshift(row);
+    used += cost;
+  }
+
+  return picked;
+}
+
+export function truncateGroupTriggerMessage(triggerMsg: string): string {
+  if (triggerMsg.length <= GROUP_TRIGGER_MAX_CHARS) return triggerMsg;
+  const omitted = triggerMsg.length - GROUP_TRIGGER_HEAD_CHARS - GROUP_TRIGGER_TAIL_CHARS;
+  return `${triggerMsg.slice(0, GROUP_TRIGGER_HEAD_CHARS)}\n\n…（中间省略 ${omitted} 字，全文已作为上一条消息保存在团队对话里）…\n\n${triggerMsg.slice(-GROUP_TRIGGER_TAIL_CHARS)}`;
+}
+
 export function createAgentResponseFailedMessage(agentName: string, rawDetail?: string | null): Required<StructuredGroupMessage> & { content: string } {
   const detail = (rawDetail || '').trim();
   return {
@@ -777,6 +848,16 @@ export function createAgentResponseFailedMessage(agentName: string, rawDetail?: 
 
 export function getStructuredGroupMessage(content?: string | null): StructuredGroupMessage {
   if (!content) return {};
+
+  const chainDisabledMatch = content.match(CHAIN_FORWARDING_DISABLED_MESSAGE_REGEX);
+  if (chainDisabledMatch) {
+    return {
+      messageCode: CHAIN_FORWARDING_DISABLED_MESSAGE_CODE,
+      messageParams: { agentName: chainDisabledMatch[1] },
+      rawDetail: '',
+      forceSystemMessage: true,
+    };
+  }
 
   const maxDepthMatch = content.match(MAX_CHAIN_DEPTH_MESSAGE_REGEX);
   if (maxDepthMatch) {
@@ -1081,6 +1162,34 @@ export class GroupChatEngine extends EventEmitter {
     return [...new Set(mentioned)];
   }
 
+  private saveSystemNotice(
+    groupId: string,
+    parentId: number | undefined,
+    notice: Required<StructuredGroupMessage> & { content: string },
+  ): number {
+    const noticeId = this.db.saveGroupMessage({
+      group_id: groupId,
+      parent_id: parentId,
+      sender_type: 'agent',
+      sender_id: 'system',
+      sender_name: '系统',
+      content: notice.content,
+    });
+    this.emit('message', {
+      groupId,
+      id: noticeId,
+      parent_id: parentId,
+      sender_type: 'agent',
+      sender_id: 'system',
+      sender_name: '系统',
+      content: notice.content,
+      messageCode: notice.messageCode,
+      messageParams: notice.messageParams,
+      created_at: new Date().toISOString(),
+    });
+    return noticeId;
+  }
+
   private resolveTargetAgentIds(groupId: string, content: string, members: GroupMemberRow[]): string[] {
     let targetAgentIds = this.parseMentions(content, members);
 
@@ -1214,7 +1323,7 @@ export class GroupChatEngine extends EventEmitter {
     }
 
     // 4. Trigger message
-    parts.push(`最新任务 (${triggerSenderName}):\n${triggerMsg}`);
+    parts.push(`最新任务 (${triggerSenderName}):\n${truncateGroupTriggerMessage(triggerMsg)}`);
 
     // 5. End reminder
     if (hasProcessTags) {
@@ -1364,33 +1473,13 @@ export class GroupChatEngine extends EventEmitter {
     const maxDepth = group?.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
 
     if (maxDepth === 0 && depth > 0) {
-      // 链式转发设为 0 时禁止自动转发
-      return parentId;
+      // 链式转发设为 0 时禁止自动转发——但要说出来，不能静默停在这里。
+      const targetName = this.db.getGroupMembers(groupId).find(m => m.agent_id === agentId)?.display_name || agentId;
+      return this.saveSystemNotice(groupId, parentId, createChainForwardingDisabledMessage(targetName));
     }
 
     if (maxDepth > 0 && depth >= maxDepth) {
-      const { content: warnMsg, messageCode, messageParams } = createMaxChainDepthMessage(maxDepth);
-      const warnId = this.db.saveGroupMessage({
-        group_id: groupId,
-        parent_id: parentId,
-        sender_type: 'agent',
-        sender_id: 'system',
-        sender_name: '系统',
-        content: warnMsg,
-      });
-      this.emit('message', {
-        groupId,
-        id: warnId,
-        parent_id: parentId,
-        sender_type: 'agent',
-        sender_id: 'system',
-        sender_name: '系统',
-        content: warnMsg,
-        messageCode,
-        messageParams,
-        created_at: new Date().toISOString(),
-      });
-      return warnId;
+      return this.saveSystemNotice(groupId, parentId, createMaxChainDepthMessage(maxDepth));
     }
 
     const members = this.resolveMembers(this.db.getGroupMembers(groupId));
@@ -1470,7 +1559,11 @@ export class GroupChatEngine extends EventEmitter {
       const allRecent = this.db
         .getGroupMessages(groupId, 100)
         .filter(message => message.id !== msgId);
-      const promptContextMessages = allRecent.slice(-GROUP_CONTEXT_RECENT_WINDOW);
+      const promptContextMessages = selectGroupContextWindow(allRecent, {
+        triggerParentId: parentId,
+        triggerMsg,
+        triggerSenderName,
+      });
       
       const isResetCommand = triggerMsg.trim() === '/new';
       const remainingDepth = maxDepth === 0 ? 0 : Math.max(0, maxDepth - depth);

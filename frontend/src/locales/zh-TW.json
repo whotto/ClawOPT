@@ -225,6 +225,7 @@
   },
   "group": {
     "maxChainDepthReached": "鏈式轉發已達到最大深度 ({{maxDepth}} 輪)",
+    "chainForwardingDisabled": "鏈式轉發已關閉，未轉交給 {{agentName}}",
     "agentResponseFailed": "{{agentName}} 回應失敗"
   },
   "gateway": {

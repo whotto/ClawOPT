@@ -559,8 +559,14 @@ export default function Sidebar({
       } catch {}
     };
     loadGroups();
-    const timer = setInterval(loadGroups, 10000);
-    return () => clearInterval(timer);
+    // 标签页在后台时不轮询；切回来时立即刷新一次。
+    const timer = setInterval(() => { if (document.visibilityState !== 'hidden') void loadGroups(); }, 10000);
+    const handleVisible = () => { if (document.visibilityState !== 'hidden') void loadGroups(); };
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisible);
+    };
   }, []);
 
   const reloadGroups = async () => {

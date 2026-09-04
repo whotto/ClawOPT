@@ -13,6 +13,11 @@ const CONNECTION_STATUS_STORAGE_TTL_MS = 30 * 1000;
 const BOOTSTRAP_REQUEST_TIMEOUT_MS = 8000;
 const CONNECTION_STATUS_POLL_CONNECTED_MS = 10000;
 const CONNECTION_STATUS_POLL_DISCONNECTED_MS = 2000;
+// 鉴权探测原来每 3 秒一次：一个标签页一天 2.9 万次请求，跨境链路上每次 300ms 起。
+// 改口令后要立刻登出的诉求，30 秒加「切回标签页时立即探测」就够了。
+const AUTH_CHECK_POLL_MS = 30000;
+const MODELS_POLL_MS = 30000;
+const isPageVisible = () => document.visibilityState !== 'hidden';
 const CONNECTION_STATUS_REFRESH_EVENT = 'clawopt:refresh-connection-status';
 
 type SessionSummary = {
@@ -260,10 +265,16 @@ export default function App() {
       }
     };
     checkAuth();
-    
-    // Periodically poll auth to log out instantly on password change
-    const tokenTimer = setInterval(checkAuth, 3000);
-    return () => clearInterval(tokenTimer);
+
+    // Periodically poll auth to log out on password change; skip while the tab is hidden,
+    // and re-check as soon as the user comes back.
+    const tokenTimer = setInterval(() => { if (isPageVisible()) void checkAuth(); }, AUTH_CHECK_POLL_MS);
+    const handleVisible = () => { if (isPageVisible()) void checkAuth(); };
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => {
+      clearInterval(tokenTimer);
+      document.removeEventListener('visibilitychange', handleVisible);
+    };
   }, []);
 
   useEffect(() => {
@@ -331,7 +342,7 @@ export default function App() {
 
     void checkStatus();
     const timer = window.setInterval(() => {
-      void checkStatus();
+      if (isPageVisible()) void checkStatus();
     }, isConnected ? CONNECTION_STATUS_POLL_CONNECTED_MS : CONNECTION_STATUS_POLL_DISCONNECTED_MS);
     window.addEventListener('focus', handleImmediateCheck);
     window.addEventListener('online', handleImmediateCheck);
@@ -362,7 +373,7 @@ export default function App() {
 
   useEffect(() => {
     reloadModels();
-    const modelTimer = setInterval(reloadModels, 30000);
+    const modelTimer = setInterval(() => { if (isPageVisible()) void reloadModels(); }, MODELS_POLL_MS);
     return () => clearInterval(modelTimer);
   }, []);
 

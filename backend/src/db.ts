@@ -270,6 +270,9 @@ export class DB {
         model_used TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+      -- 群消息的所有读取都是 group_id 过滤 + id 倒序；没有这个索引时 SQLite
+      -- 沿主键倒着扫全表直到凑够一页，群越多越慢。
+      CREATE INDEX IF NOT EXISTS idx_group_messages_group_id_id ON group_messages(group_id, id);
     `);
 
     // Migration: add system_prompt to existing tables

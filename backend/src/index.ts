@@ -1,6 +1,7 @@
 import express, { type Response as ExpressResponse } from 'express';
 import axios from 'axios';
 import cors from 'cors';
+import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write';
@@ -205,6 +206,18 @@ const server = createServer(app);
 
 // Middleware
 app.use(cors());
+// 压缩 JSON / JS / CSS 响应。前端主包 3.4MB 未压缩直出，跨境链路上首屏要十几秒；
+// nginx 只按默认 gzip_types（text/html）压，JS 与 JSON 都漏了。在这里压一遍，
+// 不再依赖前面有没有代理、代理配没配对。SSE 流必须跳过：压缩会把事件攒在缓冲区里，
+// 前端就看不到实时推送了。
+app.use(compression({
+  filter: (req, res) => {
+    const contentType = String(res.getHeader('Content-Type') || '');
+    if (contentType.includes('text/event-stream')) return false;
+    if (String(req.headers.accept || '').includes('text/event-stream')) return false;
+    return compression.filter(req, res);
+  },
+}));
 app.use(express.json());
 
 const dataDir = process.env.CLAWOPT_DATA_DIR || '.clawopt';
@@ -8065,15 +8078,13 @@ async function prepareGroupRuntimeAgent(groupId: string, sourceAgentId: string):
     resetRuntimeAgentSessions(runtimeAgentId);
   }
 
+  // 克隆体的工作区就是源 Agent 的目录，里面的 SOUL/USER/... 本来就是源 Agent 的，
+  // 不再「读出来再写回去」：源 Agent 缺哪个文件，原来这里就会在它的工作区里
+  // 生成一个空的同名文件（readAgentFile 缺省返回 ''，而 '' !== undefined 会触发写入）。
   await agentProvisioner.provision({
     agentId: runtimeAgentId,
     workspaceDir: runtimeWorkspacePath,
-    soulContent: agentProvisioner.readSoul(sourceAgentId) || undefined,
-    userContent: agentProvisioner.readAgentFile(sourceAgentId, 'USER.md', ''),
-    agentsContent: agentProvisioner.readAgentFile(sourceAgentId, 'AGENTS.md', ''),
-    toolsContent: agentProvisioner.readAgentFile(sourceAgentId, 'TOOLS.md', ''),
-    heartbeatContent: agentProvisioner.readAgentFile(sourceAgentId, 'HEARTBEAT.md', ''),
-    identityContent: agentProvisioner.readAgentFile(sourceAgentId, 'IDENTITY.md', ''),
+    preserveWorkspaceFiles: true,
     model: sourceModelConfig.modelOverride || undefined,
     fallbackMode: sourceModelConfig.fallbackMode,
     fallbacks: sourceModelConfig.fallbacks,
@@ -14012,6 +14023,18 @@ app.post('/api/groups/:id/messages/regenerate', async (req, res) => {
     
     if (!targetMsg || targetMsg.sender_type !== 'agent' || !targetMsg.sender_id) {
        return res.status(400).json({ success: false, error: 'Cannot regenerate this message' });
+    }
+
+    // 与发消息走同一把群锁。原先这里不查锁：正在流式输出的那条被点「重新生成」，
+    // 旧 run 继续往已删除的消息 id 写 delta，前端据此复活一条幽灵消息，
+    // 同一群会话上两个 run 并行，/stop 只能停后起的那个。
+    if (groupChatEngine.isGroupProcessing(req.params.id)) {
+      return res.status(409).json({
+        ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE, null, {
+          minutes: groupChatEngine.groupLockAgeMinutes(req.params.id) ?? 0,
+        }),
+        runState: groupChatEngine.getGroupRunState(req.params.id),
+      });
     }
 
     // In linear group history, regenerate reuses the parent trigger message.
