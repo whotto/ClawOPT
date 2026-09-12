@@ -70,6 +70,22 @@ cd "$PROJECT_ROOT"
 PRE_UPDATE_REF="$(git rev-parse HEAD 2>/dev/null || true)"
 [ -n "$PRE_UPDATE_REF" ] && echo "$PRE_UPDATE_REF" > /tmp/clawopt-pre-update-ref
 
+# 光记住提交不够——升级过程里 patch-config.js 每次都会改写 openclaw.json 与
+# exec-approvals.json，迁移闸门还可能跑 doctor 把名册整个换形状。只回滚代码的话，
+# 「回滚成功」之后是**旧代码配新配置**。所以升级前把配置也照一张。
+# 照不上就不升级：几 KB 都写不下的磁盘，升级本来也会失败，只是失败得更晚、更难查。
+if ! PRE_UPDATE_SNAPSHOT="$(bash "$PROJECT_ROOT/scripts/snapshot-openclaw-config.sh" pre-update)"; then
+    echo "错误：升级前快照失败，**不开始升级**。" >&2
+    echo "  请确认 ${BACKUP_DIR:-$HOME/clawopt-backups} 可写、磁盘有空间后重试。" >&2
+    exit 1
+fi
+if [ -n "$PRE_UPDATE_SNAPSHOT" ]; then
+    echo "$PRE_UPDATE_SNAPSHOT" > /tmp/clawopt-pre-update-snapshot
+    echo "已保存升级前配置快照：$PRE_UPDATE_SNAPSHOT"
+else
+    rm -f /tmp/clawopt-pre-update-snapshot   # 全新安装没有配置可照，别留上一次的路径
+fi
+
 git fetch origin main --tags
 
 # 部署目标默认是**最新的发布 tag**，不是 main HEAD。
@@ -94,7 +110,23 @@ if ! ./deploy-release.sh "$TARGET_PORT"; then
     echo "升级失败，正在回滚到升级前的版本..." >&2
     if [ -s /tmp/clawopt-pre-update-ref ]; then
         git reset --hard "$(cat /tmp/clawopt-pre-update-ref)" && git clean -fd
-        echo "已回滚到 $(cat /tmp/clawopt-pre-update-ref)，正在用回滚后的代码重启服务..." >&2
+        echo "已回滚到 $(cat /tmp/clawopt-pre-update-ref)。" >&2
+
+        # 配置必须跟着代码一起退回去，否则回滚出来的是旧代码 + 新配置这种
+        # 从未被测试过的组合。顺序也重要：先恢复配置，再重新部署，
+        # 让重新部署跑在回滚后的配置上。
+        if [ -s /tmp/clawopt-pre-update-snapshot ]; then
+            if bash "$PROJECT_ROOT/scripts/restore-openclaw-config.sh" "$(cat /tmp/clawopt-pre-update-snapshot)"; then
+                echo "配置已一并回滚。" >&2
+            else
+                echo "警告：配置回滚失败，当前配置可能与回滚后的代码不同代。" >&2
+                echo "  升级前快照：$(cat /tmp/clawopt-pre-update-snapshot)" >&2
+            fi
+        else
+            echo "警告：没有升级前的配置快照，只回滚了代码。" >&2
+        fi
+
+        echo "正在用回滚后的代码重启服务..." >&2
         ./deploy-release.sh "$TARGET_PORT" || echo "回滚后的重新部署也失败了，需要人工介入。" >&2
     else
         echo "没有记录到升级前的提交，无法自动回滚。" >&2

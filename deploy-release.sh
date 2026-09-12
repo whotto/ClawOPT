@@ -177,8 +177,31 @@ else
         case "$NEEDS_MIGRATION" in
             yes)
                 echo "检测到引擎已是 2026.8+ 且配置里仍有废弃键，先跑迁移..."
-                if ! openclaw doctor --fix --non-interactive; then
-                    echo "错误：openclaw doctor --fix 失败（退出码 $?）。" >&2
+                # 快照必须在 doctor **之前**。这段脚本此前对用户说「升级前快照见
+                # ~/clawopt-backups/」，而没有任何代码创建过那个目录——backup.sh
+                # 写得是对的，但全仓库零调用点。迁移一旦跑到一半，用户手里就只剩
+                # 一份半新半旧的 openclaw.json，而它含 gateway 凭据与全部模型 apiKey。
+                # 照不上快照就不迁移（fail closed）：没有退路的迁移不该开始。
+                if ! MIGRATION_SNAPSHOT="$(bash "$PROJECT_ROOT/scripts/snapshot-openclaw-config.sh" pre-migration)"; then
+                    echo "错误：迁移前快照失败，**不继续迁移**。" >&2
+                    echo "  请确认 ${BACKUP_DIR:-$HOME/clawopt-backups} 可写后重跑本脚本。" >&2
+                    exit 1
+                fi
+                [ -n "$MIGRATION_SNAPSHOT" ] && echo "已保存迁移前快照：$MIGRATION_SNAPSHOT"
+
+                # 退出码必须用 `|| DOCTOR_EXIT=$?` 捕获。原来写成
+                # `if ! openclaw doctor; then echo "（退出码 $?）"`，而 `$?` 在那里
+                # 取到的是 `!` 取反之后的结果（恒为 0），于是这句诊断**永远报「退出码 0」**
+                # ——一条一直在说谎的错误信息，比没有错误信息更糟。
+                # 写成 `cmd || VAR=$?` 既拿得到真实退出码，在 set -e 下也不会提前中断。
+                DOCTOR_EXIT=0
+                openclaw doctor --fix --non-interactive || DOCTOR_EXIT=$?
+                if [ "$DOCTOR_EXIT" -ne 0 ]; then
+                    # 必须写 ${DOCTOR_EXIT} 而不是 $DOCTOR_EXIT：后面紧跟的是**全角**
+                    # 右括号，bash 会把它的 UTF-8 字节当成变量名的一部分吃掉，输出变成乱码。
+                    # 原来的 `$?）` 没事，只是因为 `?` 是单字符特殊参数、立即终止。
+                    # 这个仓库的 shell 字符串全是中文，花括号在这里不是风格问题。
+                    echo "错误：openclaw doctor --fix 失败（退出码 ${DOCTOR_EXIT}）。" >&2
                     echo "  配置可能处于迁移到一半的状态，**不继续重启 gateway**。" >&2
                     echo "  手动处理后重跑本脚本；升级前快照见 ~/clawopt-backups/。" >&2
                     exit 1

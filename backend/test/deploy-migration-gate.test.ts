@@ -29,11 +29,18 @@ function installFakeOpenclaw(doctorExit: number, version: string) {
   fs.mkdirSync(pkgRoot, { recursive: true });
   fs.writeFileSync(path.join(pkgRoot, 'package.json'), JSON.stringify({ name: 'openclaw', version }));
 
+  // doctor 分支**覆写配置**，模拟真实迁移把 list 改成 entries。
+  // 这不是装饰：下面「快照必须先于 doctor」那两条用例靠它做**行为**判据——
+  // 快照里存的若是旧形状，就证明快照发生在 doctor 之前。
+  // 不这样做的话，只能去读脚本文本里两段的先后，那正是本文件开头反对的做法。
   const real = path.join(pkgRoot, 'openclaw.mjs');
   fs.writeFileSync(real, `#!/usr/bin/env bash
 echo "$*" >> "${callLog}"
 case "$1" in
-  doctor) exit ${doctorExit} ;;
+  doctor)
+    printf '%s' '{"agents":{"entries":{"main":{}}}}' > "$HOME/.openclaw/openclaw.json"
+    exit ${doctorExit}
+    ;;
   *) exit 0 ;;
 esac
 `, { mode: 0o755 });
@@ -115,6 +122,11 @@ describe('S2-A5 · 迁移闸门的行为', () => {
     expect(code, `闸门应当以非 0 退出，实际 ${code}；输出：${out}`).not.toBe(0);
     // ② 日志里没有 gateway restart —— 顺序对了这条才有意义
     expect(calls).not.toContain('gateway restart');
+    // ③ 报出来的退出码必须是 doctor **真实的**那个（这里假 openclaw 退 3）。
+    //    原实现写的是 `if ! cmd; then echo "$?"`，而 `$?` 在 then 分支里是 `!` 取反
+    //    之后的结果，恒为 0 —— 这句诊断一直在说「退出码 0」。一条说谎的错误信息
+    //    会把排查的人引向完全错误的方向，所以钉住它。
+    expect(out, `退出码没有如实报出；输出：${out}`).toContain('退出码 3');
   });
 
   it('doctor 成功时继续，且传了 --non-interactive', () => {
@@ -147,6 +159,67 @@ describe('S2-A5 · 迁移闸门的行为', () => {
     const { code } = runGate({ HOME: sandbox });
     expect(code).toBe(0);
     expect(fs.readFileSync(callLog, 'utf-8')).not.toContain('doctor');
+  });
+
+  /**
+   * 快照必须先于迁移 —— v1.5.4。
+   *
+   * `deploy-release.sh` 在 doctor 失败时对用户说「升级前快照见 ~/clawopt-backups/」。
+   * 而在 v1.5.4 之前，**没有任何代码路径创建过那个目录**——`scripts/backup.sh` 写得
+   * 是对的，但全仓库零调用点，`AGENTS.md` 与两份 release notes 里那句「建议配 cron」
+   * 实现数为 0。那句提示是一张空头支票，而它出现的位置恰恰是配置**可能已经迁到一半**、
+   * 最需要快照的时刻。
+   *
+   * 这跟 `deploy-release.sh` 自己在 restart 段写的那句「契约写着、代码不跑」是同一个形状，
+   * 当时为 reconcile 脚本修过一次，备份这条漏下了。赌注是 `openclaw.json`——
+   * `config-atomic-write.test.ts` 的文件头亲口说它「含 gateway 凭据、全部模型 apiKey、
+   * 全部 Agent 定义，而 ClawOPT 没有为它做过备份」。
+   */
+  const findSnapshots = () => {
+    const dir = path.join(sandbox, 'clawopt-backups');
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir).filter((name) => name.startsWith('pre-migration-'));
+  };
+
+  it('doctor 成功时，快照先于迁移落盘，且存的是**迁移前**的配置', () => {
+    stageLegacyConfig();
+    installFakeOpenclaw(0, '2026.8.2');
+
+    const { code, out } = runGate({ HOME: sandbox });
+    expect(code, `输出：${out}`).toBe(0);
+
+    const snaps = findSnapshots();
+    expect(snaps, `迁移跑了却没有任何快照；闸门输出：${out}`).toHaveLength(1);
+
+    // 关键断言：快照里必须是**旧形状**。假 doctor 已经把磁盘上的配置改成了 entries，
+    // 所以快照若也是 entries，就说明它是在 doctor **之后**照的，等于没照。
+    const saved = JSON.parse(
+      fs.readFileSync(path.join(sandbox, 'clawopt-backups', snaps[0], 'openclaw.json'), 'utf-8'),
+    );
+    expect(saved?.agents?.list, '快照存的是迁移后的配置——它照晚了').toBeTruthy();
+    expect(saved?.agents?.entries).toBeUndefined();
+  });
+
+  it('doctor 失败时快照**仍然在**——那正是脚本让用户去找的东西', () => {
+    stageLegacyConfig();
+    installFakeOpenclaw(3, '2026.8.2');
+
+    const { code, out } = runGate({ HOME: sandbox });
+    expect(code, `闸门应当以非 0 退出；输出：${out}`).not.toBe(0);
+
+    // 失败路径才是快照真正被用到的那条。这里没有快照，用户就只剩一份被迁到一半的配置。
+    expect(findSnapshots(), `doctor 失败了却没有快照可回退；输出：${out}`).toHaveLength(1);
+  });
+
+  it('无需迁移时不照快照（不在每次部署堆垃圾）', () => {
+    fs.writeFileSync(
+      path.join(sandbox, '.openclaw', 'openclaw.json'),
+      JSON.stringify({ agents: { entries: { main: {} } } }),
+    );
+    installFakeOpenclaw(0, '2026.8.2');
+
+    expect(runGate({ HOME: sandbox }).code).toBe(0);
+    expect(findSnapshots()).toHaveLength(0);
   });
 
   it('闸门在脚本里的位置必须**在 gateway restart 之前**', () => {

@@ -30,9 +30,13 @@ const BASELINE_DIR = path.join(__dirname, 'fixtures', 'prompt-baseline');
 /** 一条群成员记录的最小形状。字段取自 `GroupMemberRow` 里 buildAgentPrompt 真正读的那几个。 */
 const member = (agentId: string, displayName: string, role = '') => ({
   id: 1, group_id: 'g', agent_id: agentId, display_name: displayName,
-  role_description: role, runtime_kind: 'openclaw' as const, external_profile_id: null,
+  role_description: role,
   position: 0, created_at: '2026-01-01T00:00:00Z',
 }) as any;
+// 夹具里原来还有 `runtime_kind: 'openclaw'` 与 `external_profile_id: null` 两个字段，
+// 是 v1.3.0 那次「给 Agent 选运行时」被 v1.5.0 撤回后留下的残骸：DB 里没有这两列、
+// src/ 下零引用、buildAgentPrompt 也不读它们。留着的唯一效果是让下一个做外部 Agent
+// 接入的人以为已经有了脚手架。删掉不影响基线字节（下面的快照比对会证明这一点）。
 
 /** 一条群消息。 */
 const msg = (i: number, content: string, senderType: 'user' | 'agent' = 'agent') => ({
