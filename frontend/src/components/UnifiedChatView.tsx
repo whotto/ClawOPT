@@ -19,14 +19,14 @@ import {
 import { ACTIVE_CONTEXT_REFRESH_EVENT, type ActiveContextRefreshDetail } from '../utils/contextRefresh';
 import { getGroupIdValidationKey } from '../utils/groupId';
 import { markdownRehypePlugins, markdownRemarkPlugins, normalizeMathMarkdown } from '../utils/markdownMath';
-import { type ChatMessage, parsePositiveCursorValue, mergeMessagePreservingContent, mergeMessagePatchPreservingContent, mergeMessageCollectionPreservingContent } from "../utils/message-merge";
+import { type ChatMessage, mergeMessagePreservingContent, mergeMessagePatchPreservingContent, mergeMessageCollectionPreservingContent } from "../utils/message-merge";
+import { HISTORY_FETCH_BATCH_MIN_LIMIT, type HistoryPageInfo, type HistoryPageSnapshot, normalizeHistoryPageInfo, createEmptyHistoryPageInfo, buildLinearHistoryWindowSnapshot, areHistoryPageInfosEqual, areMessageListsEquivalent } from "../utils/history-window";
 
 // ============ TYPES ============
 
 const GROUP_MAX_CHAIN_DEPTH_MESSAGE_CODE = 'group.maxChainDepthReached';
 const STREAM_UPDATE_BATCH_MS = 40;
 const NAV_DOTS_MAX_VISIBLE = 40;
-const HISTORY_FETCH_BATCH_MIN_LIMIT = 40;
 const HISTORY_WINDOW_MAX_FETCH_BATCHES = 8;
 const HISTORY_LOAD_TRIGGER_PX = 72;
 const HISTORY_TOUCH_TRIGGER_PX = 28;
@@ -57,18 +57,6 @@ type NavDotSummary = {
 };
 type NavDot = { id: string; top: number; offsetTop: number; summary: NavDotSummary };
 type HistoryPagingDirection = 'older' | 'newer';
-type HistoryPageInfo = {
-  limit: number;
-  hasMoreOlder: boolean;
-  oldestLoadedId: number | null;
-  newestLoadedId: number | null;
-  nextBeforeId: number | null;
-};
-type HistoryPageSnapshot = {
-  messages: ChatMessage[];
-  activeLeafId: string | null;
-  pageInfo: HistoryPageInfo;
-};
 type HistoryPageNotice = {
   id: number;
   direction: HistoryPagingDirection;
@@ -107,97 +95,10 @@ function isPersistedMessageId(value: string | null | undefined): boolean {
   return typeof value === 'string' && /^\d+$/.test(value.trim());
 }
 
-function normalizeHistoryPageInfo(rawPageInfo: any, fallbackLimit = HISTORY_FETCH_BATCH_MIN_LIMIT): HistoryPageInfo {
-  const limit = parsePositiveCursorValue(rawPageInfo?.limit) ?? fallbackLimit;
-  const oldestLoadedId = parsePositiveCursorValue(rawPageInfo?.oldestLoadedId);
-  const newestLoadedId = parsePositiveCursorValue(rawPageInfo?.newestLoadedId);
-  const hasMoreOlder = Boolean(rawPageInfo?.hasMoreOlder);
-  const nextBeforeId = hasMoreOlder
-    ? (parsePositiveCursorValue(rawPageInfo?.nextBeforeId) ?? oldestLoadedId)
-    : null;
 
-  return {
-    limit,
-    hasMoreOlder,
-    oldestLoadedId,
-    newestLoadedId,
-    nextBeforeId,
-  };
-}
 
-function createEmptyHistoryPageInfo(limit = HISTORY_FETCH_BATCH_MIN_LIMIT): HistoryPageInfo {
-  return {
-    limit,
-    hasMoreOlder: false,
-    oldestLoadedId: null,
-    newestLoadedId: null,
-    nextBeforeId: null,
-  };
-}
 
-function buildLinearHistoryWindowSnapshot(
-  messages: ChatMessage[],
-  pageInfo: HistoryPageInfo,
-  maxUserRounds: number,
-  getPreferredLeafId: (nextMessages: ChatMessage[]) => string | null,
-): HistoryPageSnapshot {
-  const resolvedLeafId = getPreferredLeafId(messages);
 
-  if (messages.length === 0) {
-    return {
-      messages,
-      activeLeafId: resolvedLeafId,
-      pageInfo: createEmptyHistoryPageInfo(pageInfo.limit),
-    };
-  }
-
-  const userMessages = messages.filter((message) => message.role === 'user');
-  let trimmedMessages = messages;
-  if (maxUserRounds > 0 && userMessages.length > maxUserRounds) {
-    const firstUserToKeep = userMessages[userMessages.length - maxUserRounds];
-    const firstRetainedIndex = messages.findIndex((message) => message.id === firstUserToKeep.id);
-    if (firstRetainedIndex > 0) {
-      trimmedMessages = messages.slice(firstRetainedIndex);
-    }
-  }
-
-  const oldestLoadedId = parsePositiveCursorValue(trimmedMessages[0]?.id);
-  const newestLoadedId = parsePositiveCursorValue(trimmedMessages[trimmedMessages.length - 1]?.id);
-  const hasMoreOlder = pageInfo.hasMoreOlder || trimmedMessages.length !== messages.length;
-
-  return {
-    messages: trimmedMessages,
-    activeLeafId: getPreferredLeafId(trimmedMessages),
-    pageInfo: {
-      ...pageInfo,
-      oldestLoadedId,
-      newestLoadedId,
-      hasMoreOlder,
-      nextBeforeId: hasMoreOlder ? oldestLoadedId : null,
-    },
-  };
-}
-
-function areHistoryPageInfosEqual(left: HistoryPageInfo, right: HistoryPageInfo): boolean {
-  return left.limit === right.limit
-    && left.hasMoreOlder === right.hasMoreOlder
-    && left.oldestLoadedId === right.oldestLoadedId
-    && left.newestLoadedId === right.newestLoadedId
-    && left.nextBeforeId === right.nextBeforeId;
-}
-
-function areMessageListsEquivalent(left: ChatMessage[], right: ChatMessage[]): boolean {
-  if (left === right) return true;
-  if (left.length !== right.length) return false;
-
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index]?.id !== right[index]?.id) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 function mergeHistoryMessages(olderMessages: ChatMessage[], newerMessages: ChatMessage[]): ChatMessage[] {
   const merged: ChatMessage[] = [];
