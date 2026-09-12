@@ -23,6 +23,10 @@ export type GroupMemberRow = {
   display_name: string;
   role_description?: string;
   position: number;
+  /** 路线 B：'openclaw'（默认）或某个外部运行时，如 'claude-code'。 */
+  runtime?: string;
+  /** 外部运行时的配置，JSON 文本。不传表示「不改」，不是「清空」。 */
+  external_config?: string | null;
 };
 
 export type GroupMessageRow = {
@@ -273,6 +277,19 @@ export class DB {
       -- 群消息的所有读取都是 group_id 过滤 + id 倒序；没有这个索引时 SQLite
       -- 沿主键倒着扫全表直到凑够一页，群越多越慢。
       CREATE INDEX IF NOT EXISTS idx_group_messages_group_id_id ON group_messages(group_id, id);
+
+      -- 外部 Agent 的会话映射（路线 B）。
+      -- 它不是缓存：实测冷起一次 $0.0594、续话 $0.0067，差 8.8 倍。
+      -- 丢了这张表就等于每轮都按冷起计价，所以要跟着库一起持久化。
+      -- 主键是 (群, 成员)：同一个成员在不同群里是不同的会话，各自独立。
+      CREATE TABLE IF NOT EXISTS external_sessions (
+        group_id TEXT NOT NULL,
+        member_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (group_id, member_id)
+      );
     `);
 
     // Migration: add system_prompt to existing tables
@@ -289,6 +306,12 @@ export class DB {
     };
 
     addColumn("ALTER TABLE group_chats ADD COLUMN system_prompt TEXT DEFAULT ''");
+
+    // 路线 B：群成员多一个运行时维度。默认 'openclaw' 而不是 NULL，
+    // 否则每个判断点都要写 `?? 'openclaw'`，迟早有人漏一处。
+    addColumn("ALTER TABLE group_members ADD COLUMN runtime TEXT NOT NULL DEFAULT 'openclaw'");
+    // 外部运行时的配置（工作目录、模型、工具白名单…），JSON 文本，可为空。
+    addColumn("ALTER TABLE group_members ADD COLUMN external_config TEXT");
 
     // Migration: add process tags for transparency feature
     addColumn("ALTER TABLE group_chats ADD COLUMN process_start_tag TEXT DEFAULT ''");
@@ -752,14 +775,41 @@ export class DB {
   deleteGroupChat(id: string) {
     this.db.prepare('DELETE FROM group_messages WHERE group_id = ?').run(id);
     this.db.prepare('DELETE FROM group_members WHERE group_id = ?').run(id);
+    // 这个库的级联是手写的，不是 FK 驱动的。新加一张表而忘了在这里补一行，
+    // 后果不是报错，是孤儿行在库里越积越多而没人发现。
+    this.db.prepare('DELETE FROM external_sessions WHERE group_id = ?').run(id);
     this.db.prepare('DELETE FROM group_chats WHERE id = ?').run(id);
   }
 
   // --- Group Members ---
   saveGroupMember(member: GroupMemberRow) {
+    // runtime / external_config 用 COALESCE(excluded.x, group_members.x)：
+    // 调用方不传这两项时保持原值。改个显示名的一次保存，不该顺手把成员的
+    // 运行时退回 openclaw —— 那种覆盖不会报错，只会让外部 Agent 悄悄变回
+    // 普通 Agent，正是 v1.5.0 那类「界面显示得像配好了」的故障形状。
+    // 用**具名**参数，不用位置参数：UPDATE 分支要引用调用方传进来的原始值
+    // （可能是 null），而 `excluded.runtime` 拿到的是 VALUES 里 COALESCE 之后的
+    // 结果，永远不为 null —— 那样写 ON CONFLICT 里的 COALESCE 就形同虚设，
+    // 每次保存都会把运行时冲回 openclaw。
     this.db
-      .prepare('INSERT INTO group_members (id, group_id, agent_id, display_name, role_description, position) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name, role_description=excluded.role_description, position=excluded.position')
-      .run(member.id, member.group_id, member.agent_id, member.display_name, member.role_description || '', member.position || 0);
+      .prepare(`INSERT INTO group_members (id, group_id, agent_id, display_name, role_description, position, runtime, external_config)
+                VALUES (@id, @group_id, @agent_id, @display_name, @role_description, @position, COALESCE(@runtime, 'openclaw'), @external_config)
+                ON CONFLICT(id) DO UPDATE SET
+                  display_name=excluded.display_name,
+                  role_description=excluded.role_description,
+                  position=excluded.position,
+                  runtime=COALESCE(@runtime, group_members.runtime),
+                  external_config=COALESCE(@external_config, group_members.external_config)`)
+      .run({
+        id: member.id,
+        group_id: member.group_id,
+        agent_id: member.agent_id,
+        display_name: member.display_name,
+        role_description: member.role_description || '',
+        position: member.position || 0,
+        runtime: member.runtime ?? null,
+        external_config: member.external_config ?? null,
+      });
   }
 
   getGroupMembers(groupId: string): GroupMemberRow[] {
@@ -772,6 +822,35 @@ export class DB {
 
   deleteGroupMembers(groupId: string) {
     this.db.prepare('DELETE FROM group_members WHERE group_id = ?').run(groupId);
+    this.db.prepare('DELETE FROM external_sessions WHERE group_id = ?').run(groupId);
+  }
+
+  // --- 外部 Agent 会话映射 ---
+  getExternalSession(groupId: string, memberId: string): string | null {
+    const row = this.db
+      .prepare('SELECT session_id FROM external_sessions WHERE group_id = ? AND member_id = ?')
+      .get(groupId, memberId) as { session_id?: string } | undefined;
+    return row?.session_id ?? null;
+  }
+
+  setExternalSession(groupId: string, memberId: string, sessionId: string) {
+    this.db
+      .prepare(`INSERT INTO external_sessions (group_id, member_id, session_id)
+                VALUES (?, ?, ?)
+                ON CONFLICT(group_id, member_id) DO UPDATE SET
+                  session_id=excluded.session_id,
+                  updated_at=CURRENT_TIMESTAMP`)
+      .run(groupId, memberId, sessionId);
+  }
+
+  clearExternalSession(groupId: string, memberId: string) {
+    this.db.prepare('DELETE FROM external_sessions WHERE group_id = ? AND member_id = ?').run(groupId, memberId);
+  }
+
+  /** 只给用例与诊断用：数一数有没有孤儿行。 */
+  countExternalSessions(): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS n FROM external_sessions').get() as { n: number };
+    return row?.n ?? 0;
   }
 
   // --- Group Messages ---
