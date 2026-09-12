@@ -226,7 +226,8 @@
   "group": {
     "maxChainDepthReached": "链式转发已达到最大深度 ({{maxDepth}} 轮)",
     "chainForwardingDisabled": "链式转发已关闭，未转交给 {{agentName}}",
-    "agentResponseFailed": "{{agentName}} 响应失败"
+    "agentResponseFailed": "{{agentName}} 响应失败",
+    "memberBusy": "{{agentName}} 正在处理上一条消息，本次未转交"
   },
   "gateway": {
     "testFailed": "网关连接测试失败",

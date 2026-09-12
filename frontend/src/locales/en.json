@@ -226,7 +226,8 @@
   "group": {
     "maxChainDepthReached": "Chain forwarding reached the maximum depth ({{maxDepth}} rounds)",
     "chainForwardingDisabled": "Chain forwarding is off; the handoff to {{agentName}} was not made",
-    "agentResponseFailed": "{{agentName}} failed to respond"
+    "agentResponseFailed": "{{agentName}} failed to respond",
+    "memberBusy": "{{agentName}} is still working on the previous message; this one was not handed over"
   },
   "gateway": {
     "testFailed": "Gateway connection test failed",

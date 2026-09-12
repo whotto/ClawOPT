@@ -65,6 +65,7 @@ const GROUP_CONTEXT_EVIDENCE_LINE_PATTERN = /(`|https?:\/\/|\/|\\|\.|已执行|�
 const MAX_CHAIN_DEPTH_MESSAGE_CODE = 'group.maxChainDepthReached' as const;
 const MAX_CHAIN_DEPTH_MESSAGE_REGEX = /^链式转发已达到最大深度 \((\d+) 轮\)$/;
 const CHAIN_FORWARDING_DISABLED_MESSAGE_CODE = 'group.chainForwardingDisabled' as const;
+const MEMBER_BUSY_MESSAGE_CODE = 'group.memberBusy' as const;
 const CHAIN_FORWARDING_DISABLED_MESSAGE_REGEX = /^链式转发已关闭，未转交给 (.+)$/;
 const AGENT_RESPONSE_FAILED_MESSAGE_CODE = 'group.agentResponseFailed' as const;
 const AGENT_RESPONSE_FAILED_MESSAGE_REGEX = /^❌\s+(.+?)\s+响应失败:\s*([\s\S]*)$/;
@@ -775,6 +776,20 @@ function createMaxChainDepthMessage(maxDepth: number): Required<StructuredGroupM
 }
 
 // 链式转发设为 0 时成员仍 @ 了别人：原先静默吞掉，用户只看到链条停了、不知道为什么。
+/**
+ * 成员正忙。改成每成员一把锁之后，这条取代了原来那个「整群 409」的沉默行为——
+ * 用户得看见是**谁**在忙，而不是整个群没反应。
+ */
+function createMemberBusyMessage(agentName: string): Required<StructuredGroupMessage> & { content: string } {
+  return {
+    content: `${agentName} 正在处理上一条消息，本次未转交`,
+    messageCode: MEMBER_BUSY_MESSAGE_CODE,
+    messageParams: { agentName },
+    rawDetail: '',
+    forceSystemMessage: true,
+  };
+}
+
 function createChainForwardingDisabledMessage(agentName: string): Required<StructuredGroupMessage> & { content: string } {
   return {
     content: `链式转发已关闭，未转交给 ${agentName}`,
@@ -957,6 +972,57 @@ export class GroupChatEngine extends EventEmitter {
    */
   private processingSince = new Map<string, number>();
 
+  /**
+   * 每成员一把锁，键是 (群, 成员)。
+   *
+   * 原来整轮派发握着群锁：一个 Claude Code 跑 10 分钟，整个群 10 分钟不能说话。
+   * 外部 Agent 的典型时长就是分钟级，而「多 Agent 协作」的前提是别人还能说话——
+   * 所以 per-member 是结论，不是选项。
+   *
+   * 陈旧阈值沿用群锁那一套（15 分钟）：外部子进程跑飞时，成员不能永远锁死。
+   */
+  private processingMembers = new Map<string, number>();
+
+  /**
+   * 锁键。**带长度前缀**，不是简单拼接——`${groupId}::${agentId}` 会让
+   * ('g1::a', 'b') 与 ('g1', 'a::b') 落到同一把锁上，两个不同成员互相顶掉。
+   * 群 id 与 Agent id 都可能来自用户输入，不能假设它们不含分隔符。
+   */
+  memberLockKey(groupId: string, agentId: string): string {
+    return `${groupId.length}:${groupId}:${agentId}`;
+  }
+
+  private isMemberLockStale(key: string): boolean {
+    const since = this.processingMembers.get(key);
+    if (!since) return false;
+    return Date.now() - since > GroupChatEngine.STALE_LOCK_MS;
+  }
+
+  /** 拿到锁返回 true；已被占用且未陈旧返回 false。 */
+  acquireMemberLock(groupId: string, agentId: string): boolean {
+    const key = this.memberLockKey(groupId, agentId);
+    if (this.processingMembers.has(key)) {
+      if (!this.isMemberLockStale(key)) return false;
+      const minutes = Math.floor((Date.now() - (this.processingMembers.get(key) ?? 0)) / 60000);
+      console.warn(`[GroupChat] 成员 ${agentId}（群 ${groupId}）的运行锁已持有 ${minutes} 分钟，判定为卡死并允许接管`);
+    }
+    this.processingMembers.set(key, Date.now());
+    return true;
+  }
+
+  releaseMemberLock(groupId: string, agentId: string): void {
+    this.processingMembers.delete(this.memberLockKey(groupId, agentId));
+  }
+
+  /** 这个群里还有没有成员在跑。运行态展示与「群忙不忙」都看它。 */
+  hasBusyMember(groupId: string): boolean {
+    const prefix = `${groupId.length}:${groupId}:`;
+    for (const key of this.processingMembers.keys()) {
+      if (key.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
   /** 超过这个时长仍未释放，视为卡死，允许新消息抢占。 */
   private static readonly STALE_LOCK_MS = 15 * 60 * 1000;
 
@@ -980,7 +1046,7 @@ export class GroupChatEngine extends EventEmitter {
     const currentRun = activeRun || pendingRun;
     this.emit('run_state', {
       groupId,
-      active: this.processingGroups.has(groupId) || !!currentRun,
+      active: this.processingGroups.has(groupId) || this.hasBusyMember(groupId) || !!currentRun,
       agentId: currentRun?.agentId || null,
       runId: activeRun?.runId || null,
       startedAt: currentRun?.startedAt || null,
@@ -1067,7 +1133,7 @@ export class GroupChatEngine extends EventEmitter {
     const currentRun = activeRun || pendingRun;
     return {
       groupId,
-      active: this.processingGroups.has(groupId) || !!currentRun,
+      active: this.processingGroups.has(groupId) || this.hasBusyMember(groupId) || !!currentRun,
       agentId: currentRun?.agentId || null,
       runId: activeRun?.runId || null,
       startedAt: currentRun?.startedAt || null,
@@ -1075,7 +1141,8 @@ export class GroupChatEngine extends EventEmitter {
   }
 
   isGroupProcessing(groupId: string) {
-    return this.processingGroups.has(groupId) || this.pendingRuns.has(groupId) || this.activeRuns.has(groupId);
+    return this.processingGroups.has(groupId) || this.hasBusyMember(groupId)
+      || this.pendingRuns.has(groupId) || this.activeRuns.has(groupId);
   }
 
   getGroupActiveRunMessage(groupId: string) {
@@ -1339,21 +1406,18 @@ export class GroupChatEngine extends EventEmitter {
    * Send a user message to the group chat, route to agents.
    */
   async sendUserMessage(groupId: string, content: string, specifiedParentId?: number): Promise<void> {
-    if (this.processingGroups.has(groupId)) {
-      if (!this.isGroupLockStale(groupId)) {
-        const error = new Error('Group run already in progress.');
-        (error as Error & { code?: string }).code = 'GROUP_RUN_IN_PROGRESS';
-        throw error;
-      }
-      // 卡了太久：放行新一轮，否则这个群只能靠 /stop 才能恢复。
-      console.warn(`[GroupChat] 群 ${groupId} 的运行锁已持有 ${this.groupLockAgeMinutes(groupId)} 分钟，判定为卡死并允许新一轮开始`);
-      this.processingGroups.delete(groupId);
-      this.processingSince.delete(groupId);
-    }
-
+    // **这里不再握整轮群锁。**
+    //
+    // 原来整轮派发都握着它：一个 Claude Code 跑 10 分钟，整个群 10 分钟不能说话，
+    // 第二条消息直接吃 409。而「多 Agent 协作」的前提就是别人还能说话——
+    // 所以并发控制下沉到 sendToAgent 里的每成员一把锁。
+    //
+    // 下面「算 parent → 落库 → 广播」那一段全是同步调用，Node 单线程下本来就原子，
+    // 不需要锁来保护；群锁真正挡住的是整轮派发，而那正是不该挡的东西。
+    //
+    // 重新生成（rerunUserMessage）仍然走群锁——v1.5.2 明确要求过，它重写的是
+    // 已有消息的分支，和追加一条新消息不是一回事。
     const resetEpoch = this.getResetEpoch(groupId);
-    this.processingGroups.add(groupId);
-    this.processingSince.set(groupId, Date.now());
     this.emitRunState(groupId);
 
     try {
@@ -1384,8 +1448,6 @@ export class GroupChatEngine extends EventEmitter {
         throw error;
       }
     } finally {
-      this.processingGroups.delete(groupId);
-      this.processingSince.delete(groupId);
       this.emitRunState(groupId);
     }
   }
@@ -1485,6 +1547,12 @@ export class GroupChatEngine extends EventEmitter {
     const members = this.resolveMembers(this.db.getGroupMembers(groupId));
     const member = members.find(m => m.agent_id === agentId);
     if (!member) return parentId;
+
+    // 每成员一把锁。拿不到说明这个成员正在跑上一轮——**说出来**，
+    // 不要静默排队，也不要像从前那样让整个群 409。
+    if (!this.acquireMemberLock(groupId, agentId)) {
+      return this.saveSystemNotice(groupId, parentId, createMemberBusyMessage(member.display_name));
+    }
 
     // Emit typing indicator
     this.emit('typing', { groupId, agentId, displayName: member.display_name });
@@ -2382,6 +2450,9 @@ export class GroupChatEngine extends EventEmitter {
       }
       return msgId || parentId;
     } finally {
+      // 锁必须在这里放，不能在 try 的出口放——中途抛错、被 /stop 打断、
+      // 上游超时都会跳过那些出口，而成员锁一旦漏放就只能等 15 分钟陈旧接管。
+      this.releaseMemberLock(groupId, agentId);
       if (sessionEventsSubscribed && sessionEventsClient) {
         sessionEventsSubscribed = false;
         try {
