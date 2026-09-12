@@ -40,8 +40,11 @@ describe('成员锁必须真的接在派发路径上', () => {
     // 锁漏放一次，那个成员就要等 15 分钟陈旧接管才能再说话。
     const finallyIndex = body.lastIndexOf('} finally {');
     expect(finallyIndex, 'sendToAgent 没有 finally 块').toBeGreaterThan(0);
+    // 现在有两处释放（外部分支一处、网关路径一处），所以断言**最后一处**在
+    // 最后一个 finally 里——那是网关路径的出口。外部分支自己那处由下面的
+    // 「外部分支自己释放成员锁」单独守。
     expect(
-      body.indexOf('releaseMemberLock') > finallyIndex,
+      body.lastIndexOf('releaseMemberLock') > finallyIndex,
       'releaseMemberLock 不在 finally 里——异常路径会漏放锁',
     ).toBe(true);
   });
@@ -64,3 +67,34 @@ describe('成员锁必须真的接在派发路径上', () => {
     expect(SRC, 'isGroupBusy 没算成员锁，界面会显示成空闲').toContain('hasBusyMember');
   });
 });
+
+describe('外部成员必须真的被路由过去', () => {
+  it('sendToAgent 按 member.runtime 分岔', () => {
+    const body = methodBody('sendToAgent');
+    expect(body, '外部成员仍然走网关路径——runtime 字段等于没接')
+      .toContain('runExternalMember');
+    expect(body).toContain("member.runtime");
+  });
+
+  it('外部分支自己释放成员锁（它提前 return，走不到下面那个 finally）', () => {
+    const body = methodBody('sendToAgent');
+    const branch = body.slice(body.indexOf('runExternalMember'));
+    const head = branch.slice(0, 400);
+    expect(head, '外部分支 return 之后没放锁，那个成员要等 15 分钟陈旧接管')
+      .toContain('releaseMemberLock');
+    // 而且要在它自己的 finally 里：外部执行器抛错时同样得放锁。
+    expect(
+      head.indexOf('} finally {') >= 0 && head.indexOf('} finally {') < head.indexOf('releaseMemberLock'),
+      '外部分支的释放不在 finally 里——执行器抛错就会漏放锁',
+    ).toBe(true);
+  });
+
+  it('外部路径不复用网关那条流程（两条路要分开）', () => {
+    // runExternalMember 里若出现网关客户端，说明两条路又缠在一起了。
+    const src = SRC.slice(SRC.indexOf('private async runExternalMember'));
+    const body = src.slice(0, src.indexOf('\n  public async sendToAgent('));
+    expect(body).not.toContain('OpenClawClient');
+    expect(body).not.toContain('subscribeSessionEvents');
+  });
+});
+

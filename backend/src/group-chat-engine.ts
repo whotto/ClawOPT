@@ -1,4 +1,7 @@
 import crypto from 'crypto';
+import { randomUUID } from 'crypto';
+import { ClaudeCodeAdapter } from './external-agents/claude-code';
+import { runExternalAgent } from './external-agents/executor';
 import fs from 'fs';
 import { ConfigReadError, readJsonConfigSafe } from './openclaw-config';
 import os from 'os';
@@ -66,6 +69,11 @@ const MAX_CHAIN_DEPTH_MESSAGE_CODE = 'group.maxChainDepthReached' as const;
 const MAX_CHAIN_DEPTH_MESSAGE_REGEX = /^链式转发已达到最大深度 \((\d+) 轮\)$/;
 const CHAIN_FORWARDING_DISABLED_MESSAGE_CODE = 'group.chainForwardingDisabled' as const;
 const MEMBER_BUSY_MESSAGE_CODE = 'group.memberBusy' as const;
+
+/** 外部成员的 sender_id 前缀：与 OpenClaw 的 agentId 命名空间彻底隔开。 */
+export function externalSenderId(runtime: string, agentId: string): string {
+  return `ext:${runtime}:${agentId}`;
+}
 const CHAIN_FORWARDING_DISABLED_MESSAGE_REGEX = /^链式转发已关闭，未转交给 (.+)$/;
 const AGENT_RESPONSE_FAILED_MESSAGE_CODE = 'group.agentResponseFailed' as const;
 const AGENT_RESPONSE_FAILED_MESSAGE_REGEX = /^❌\s+(.+?)\s+响应失败:\s*([\s\S]*)$/;
@@ -1515,6 +1523,109 @@ export class GroupChatEngine extends EventEmitter {
    *   2. No self-mention forwarding
    *   3. Relaxed A->B->A to allow iterative multi-agent tasks (like Coder<=>Tester loops)
    */
+  /**
+   * 外部运行时成员的派发路径。
+   *
+   * **它和网关那条路完全分开。** 网关那条上有整套会话对账、文本快照保护、
+   * 工具进度 i18n，全是从事故里长出来的；为了加一个分支去动它，风险远大于收益。
+   *
+   * 会话只在成功时落库：实测 `--resume` 指向不存在的会话会失败退出
+   * （No conversation found with session ID），所以失败的那一轮若把 uuid 写进去，
+   * 之后每一轮都会拿着一个死会话去 resume，永久失败。
+   */
+  private async runExternalMember(
+    groupId: string,
+    member: GroupMemberRow,
+    triggerMsg: string,
+    triggerSenderName: string,
+    parentId?: number,
+    runner: typeof runExternalAgent = runExternalAgent,
+  ): Promise<number | undefined> {
+    const runtime = member.runtime || 'claude-code';
+    const senderId = externalSenderId(runtime, member.agent_id);
+
+    let config: any = {};
+    try {
+      config = member.external_config ? JSON.parse(member.external_config) : {};
+    } catch {
+      // 坏 JSON 不该让这个成员彻底不能用——退回默认值，工作目录缺失时下面会报错。
+      console.warn(`[GroupChat] 成员 ${member.agent_id} 的 external_config 解析失败，按默认值处理`);
+    }
+
+    const existingSession = this.db.getExternalSession(groupId, member.id);
+    const sessionId = existingSession ?? randomUUID();
+    const resume = Boolean(existingSession);
+
+    const createdAt = new Date().toISOString();
+    const msgId = this.db.saveGroupMessage({
+      group_id: groupId,
+      parent_id: parentId,
+      sender_type: 'agent',
+      sender_id: senderId,
+      sender_name: member.display_name,
+      content: '',
+      process_content: '',
+      model_used: config.model || runtime,
+      created_at: createdAt,
+    });
+
+    const basePayload = {
+      groupId,
+      id: msgId,
+      parent_id: parentId,
+      sender_type: 'agent' as const,
+      sender_id: senderId,
+      sender_name: member.display_name,
+      model_used: config.model || runtime,
+      created_at: createdAt,
+    };
+    this.emit('message', { ...basePayload, content: '', process_content: '', process_streaming: false });
+    this.emit('typing', { groupId, agentId: member.agent_id, displayName: member.display_name });
+
+    const adapter = new ClaudeCodeAdapter();
+    const built = adapter.buildCommand({
+      sessionId,
+      resume,
+      prompt: truncateGroupTriggerMessage(`${triggerSenderName}：${triggerMsg}`),
+      workingDir: config.workingDir || process.cwd(),
+      model: config.model,
+      allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
+      maxBudgetUsd: typeof config.maxBudgetUsd === 'number' ? config.maxBudgetUsd : undefined,
+      appendSystemPrompt: config.appendSystemPrompt,
+    });
+
+    let accumulated = '';
+    try {
+      const result = await runner(built, adapter, {
+        onEvent: (event) => {
+          if (event.kind !== 'delta' || !event.text) return;
+          accumulated += event.text;
+          this.emit('delta', { ...basePayload, content: accumulated, process_content: '', process_streaming: true });
+        },
+      });
+
+      const finalText = result.finalText ?? accumulated;
+
+      if (result.ok) {
+        // 只有成功才把会话记下来。
+        this.db.setExternalSession(groupId, member.id, sessionId);
+        this.db.updateGroupMessage(msgId, finalText, config.model || runtime, undefined, '');
+        this.emit('edit', { ...basePayload, content: finalText, process_content: '', process_streaming: false });
+      } else {
+        // 续话失败：把映射清掉，让下一轮重新开一个会话，而不是一直撞同一堵墙。
+        if (resume) this.db.clearExternalSession(groupId, member.id);
+        const detail = result.errorDetail || 'unknown';
+        const message = `${member.display_name} 执行失败（${detail}）`;
+        this.db.updateGroupMessage(msgId, message, config.model || runtime, undefined, '');
+        this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
+      }
+    } finally {
+      this.emit('typing_done', { groupId, agentId: member.agent_id });
+    }
+
+    return msgId;
+  }
+
   public async sendToAgent(
     groupId: string,
     groupName: string,
@@ -1552,6 +1663,17 @@ export class GroupChatEngine extends EventEmitter {
     // 不要静默排队，也不要像从前那样让整个群 409。
     if (!this.acquireMemberLock(groupId, agentId)) {
       return this.saveSystemNotice(groupId, parentId, createMemberBusyMessage(member.display_name));
+    }
+
+    // 外部运行时走**完全独立**的一条路，不进下面的网关流程。
+    // 那条流程上有整套会话对账、文本快照保护、工具进度 i18n，全是从事故里长出来的；
+    // 为了加一个分支去改它，风险远大于收益。
+    if ((member.runtime || 'openclaw') !== 'openclaw') {
+      try {
+        return await this.runExternalMember(groupId, member, triggerMsg, triggerSenderName, parentId);
+      } finally {
+        this.releaseMemberLock(groupId, agentId);
+      }
     }
 
     // Emit typing indicator
