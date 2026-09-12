@@ -12,6 +12,16 @@ import type {
   ExternalRunRequest,
 } from './types';
 
+/**
+ * 超过这个字节数的 prompt 改走 stdin。
+ *
+ * 取值远低于 ARG_MAX（Linux 上通常约 2 MB，且 argv 与 envp 共享这个上限），
+ * 但又足够高，让绝大多数群消息仍然走位置参数——走 argv 时 `ps` 里看得见完整
+ * 命令，排障方便得多。按**字节**算而不是字符数：中文一个字三字节，按字符判会
+ * 严重低估。
+ */
+export const PROMPT_STDIN_THRESHOLD_BYTES = 96 * 1024;
+
 export class ClaudeCodeAdapter implements ExternalAgentAdapter {
   readonly runtime = 'claude-code';
 
@@ -52,9 +62,22 @@ export class ClaudeCodeAdapter implements ExternalAgentAdapter {
       args.push('--max-budget-usd', String(request.maxBudgetUsd));
     }
 
-    // prompt 放最后一个位置参数。命令走数组传参、不过 shell，所以引号、`$`、
-    // 反引号都不需要转义。（已知边界：位置参数受 ARG_MAX 限制，极长的 prompt
-    // 需要改走 stdin —— 那条路还没在真机上量过，不写进来。）
+    // prompt 默认放最后一个位置参数。命令走数组传参、不过 shell，所以引号、`$`、
+    // 反引号都不需要转义。
+    //
+    // 但位置参数受 ARG_MAX 限制，群上下文一长就会撞上——症状是 E2BIG：进程根本
+    // 起不来，看起来像「这个成员不说话」。超过阈值就改走 stdin。
+    const promptBytes = Buffer.byteLength(request.prompt, 'utf-8');
+    if (promptBytes > PROMPT_STDIN_THRESHOLD_BYTES) {
+      return {
+        command: 'claude',
+        args,
+        cwd: request.workingDir,
+        stdin: 'pipe',
+        stdinData: request.prompt,
+      };
+    }
+
     args.push(request.prompt);
 
     return {

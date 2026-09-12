@@ -77,6 +77,17 @@ export function runExternalAgent(
       detached: true,
     });
 
+    // 长 prompt 走 stdin（绕开 ARG_MAX）。喂完**必须关闭**——不关的话子进程会
+    // 一直等更多输入，这一轮永远不结束，而成员锁要等 15 分钟陈旧接管才放得掉。
+    if (built.stdin === 'pipe' && child.stdin) {
+      child.stdin.on('error', (error) => {
+        // 子进程没读完就退出时会 EPIPE。那不是我们的错，也不该把这一轮拖垮——
+        // 真正的失败会从退出码或事件流里反映出来。
+        console.warn('[ExternalAgent] 写 stdin 失败：', sanitizeErrorDetail(error));
+      });
+      child.stdin.end(built.stdinData ?? '');
+    }
+
     const finish = (result: RunResult) => {
       if (settled) return;
       settled = true;

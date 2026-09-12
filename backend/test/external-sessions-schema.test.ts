@@ -188,3 +188,82 @@ describe('迁移', () => {
     expect(again.getExternalSession('g1', 'm1'), '重启后会话丢了，等于每轮都按冷起计价').toBe('a');
   });
 });
+
+/**
+ * 会话可续性是**状态判定**，不是「删掉就等于不可续」—— 借鉴 HKUDS/OpenOPC。
+ *
+ * 我们原来的做法是失败就把映射删掉。它能防住「拿着死会话去 resume」，但顺手丢掉了
+ * 「这个成员上次为什么失败」——而那恰恰是排障最想看的东西。
+ *
+ * OpenOPC 的 `external_session_identity.py` 把这件事拆成两层：行一直在（保留观测
+ * 价值），能不能续由状态决定：
+ *
+ *     NON_RESUMABLE_EXTERNAL_SESSION_STATUSES = {
+ *       failed, cancelled, denied, rejected,
+ *       hard_timeout, idle_timeout, startup_timeout
+ *     }
+ *
+ * 超时被细分成三种也是有道理的：启动就超时（多半是命令/凭据问题）、跑到一半空闲
+ * 超时、硬超时，三者的处置本来就不同。
+ */
+describe('会话状态与可续性', () => {
+  it('成功写入的会话状态是 ok，且可续', async () => {
+    const db = await freshDb();
+    seedGroup(db);
+    db.setExternalSession('g1', 'm1', 'uuid-1');
+    expect(db.getResumableExternalSession('g1', 'm1')).toBe('uuid-1');
+  });
+
+  it('**失败的会话行仍然在**，但不可续', async () => {
+    const db = await freshDb();
+    seedGroup(db);
+    db.setExternalSession('g1', 'm1', 'uuid-1');
+    db.markExternalSessionUnusable('g1', 'm1', 'failed', 'exit 1');
+
+    expect(db.getResumableExternalSession('g1', 'm1'), '失败的会话被当成可续了').toBeNull();
+    // 行还在：排障要看得到「上次为什么失败」。
+    expect(db.countExternalSessions()).toBe(1);
+    const row = db.getExternalSessionRow('g1', 'm1');
+    expect(row.status).toBe('failed');
+    expect(row.last_error).toBe('exit 1');
+  });
+
+  it('七种不可续状态逐一生效，不是只认 failed 一种', async () => {
+    const db = await freshDb();
+    seedGroup(db);
+    for (const status of ['failed', 'cancelled', 'denied', 'rejected', 'hard_timeout', 'idle_timeout', 'startup_timeout']) {
+      db.setExternalSession('g1', 'm1', `uuid-${status}`);
+      db.markExternalSessionUnusable('g1', 'm1', status, 'x');
+      expect(db.getResumableExternalSession('g1', 'm1'), `${status} 被当成可续`).toBeNull();
+    }
+  });
+
+  it('认不出的状态按**可续**处理——不认识不等于坏了', async () => {
+    // 反向：把未知状态当成不可续，会让每一轮都冷起，成本差 8.8 倍。
+    const db = await freshDb();
+    seedGroup(db);
+    db.setExternalSession('g1', 'm1', 'uuid-1');
+    db.markExternalSessionUnusable('g1', 'm1', '某个将来才有的状态', '');
+    expect(db.getResumableExternalSession('g1', 'm1')).toBe('uuid-1');
+  });
+
+  it('重新成功之后状态回到 ok，错误清空', async () => {
+    const db = await freshDb();
+    seedGroup(db);
+    db.setExternalSession('g1', 'm1', 'uuid-1');
+    db.markExternalSessionUnusable('g1', 'm1', 'failed', 'exit 1');
+    db.setExternalSession('g1', 'm1', 'uuid-2');
+
+    const row = db.getExternalSessionRow('g1', 'm1');
+    expect(row.status).toBe('ok');
+    expect(row.last_error).toBeNull();
+    expect(db.getResumableExternalSession('g1', 'm1')).toBe('uuid-2');
+  });
+
+  it('没有记录时可续查询返回 null，不抛', async () => {
+    const db = await freshDb();
+    expect(db.getResumableExternalSession('g1', 'm1')).toBeNull();
+    expect(db.getExternalSessionRow('g1', 'm1')).toBeNull();
+  });
+});
+

@@ -19,13 +19,14 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { GroupChatEngine } from '../src/group-chat-engine';
+import { NON_RESUMABLE_EXTERNAL_SESSION_STATUSES as NON_RESUMABLE } from '../src/db';
 
 type Emitted = { event: string; payload: any };
 
 function makeEngine(overrides: Record<string, any> = {}) {
   const engine: any = Object.create(GroupChatEngine.prototype);
   const emitted: Emitted[] = [];
-  const sessions = new Map<string, string>();
+  const sessions = new Map<string, { session_id: string; status: string; last_error: string | null }>();
   const saved: any[] = [];
   let nextId = 100;
 
@@ -35,9 +36,19 @@ function makeEngine(overrides: Record<string, any> = {}) {
   engine.saved = saved;
 
   engine.db = {
-    getExternalSession: (g: string, m: string) => sessions.get(`${g}|${m}`) ?? null,
-    setExternalSession: (g: string, m: string, s: string) => { sessions.set(`${g}|${m}`, s); },
-    clearExternalSession: (g: string, m: string) => { sessions.delete(`${g}|${m}`); },
+    getExternalSessionRow: (g: string, m: string) => sessions.get(`${g}|${m}`) ?? null,
+    getResumableExternalSession: (g: string, m: string) => {
+      const row = sessions.get(`${g}|${m}`);
+      if (!row) return null;
+      return NON_RESUMABLE.has(row.status) ? null : row.session_id;
+    },
+    setExternalSession: (g: string, m: string, id: string) => {
+      sessions.set(`${g}|${m}`, { session_id: id, status: 'ok', last_error: null });
+    },
+    markExternalSessionUnusable: (g: string, m: string, status: string, detail?: string) => {
+      const row = sessions.get(`${g}|${m}`);
+      if (row) sessions.set(`${g}|${m}`, { ...row, status, last_error: detail ?? null });
+    },
     saveGroupMessage: (row: any) => { saved.push(row); return ++nextId; },
     updateGroupMessage: vi.fn(),
     updateGroupMessageSender: vi.fn(),
@@ -115,15 +126,17 @@ describe('会话生命周期', () => {
     expect(args[args.indexOf('--resume') + 1]).toBe(uuid);
   });
 
-  it('**失败的那一轮不把会话写进去**——否则之后每轮都拿着不存在的会话去 resume', async () => {
+  it('首轮失败时会话**建了行但标成不可续**——不会有下一轮拿着不存在的会话去 resume', async () => {
+    // 早先的做法是「失败就不写」。改成「写了再标」是为了留痕：
+    // 首轮失败往往是配置问题（工作目录、凭据），那一条 last_error 最有价值。
     const engine = makeEngine();
     const { runner } = fakeRunner({ ok: false, errorDetail: 'exit 1' });
     await engine.runExternalMember('g1', member(), '任务', '用户', undefined, runner);
 
-    expect(engine.db.getExternalSession('g1', 'm1')).toBeNull();
+    expect(engine.db.getResumableExternalSession('g1', 'm1')).toBeNull();
   });
 
-  it('续话失败时清掉映射，让下一轮重新开始，而不是一直撞同一堵墙', async () => {
+  it('续话失败时把会话标成不可续（**行保留**），下一轮重新开始', async () => {
     const engine = makeEngine();
     engine.db.setExternalSession('g1', 'm1', 'dead-uuid');
 
@@ -131,7 +144,21 @@ describe('会话生命周期', () => {
     await engine.runExternalMember('g1', member(), '任务', '用户', undefined, runner);
 
     expect(calls[0].args).toContain('--resume');
-    expect(engine.db.getExternalSession('g1', 'm1'), '死会话没清掉，后面每轮都会失败').toBeNull();
+    expect(engine.db.getResumableExternalSession('g1', 'm1'), '死会话仍被当成可续，后面每轮都会失败').toBeNull();
+    // 行要留着：排障得看得到上次为什么失败。
+    const row = engine.db.getExternalSessionRow('g1', 'm1');
+    expect(row.status).toBe('failed');
+    expect(row.last_error).toBe('exit 1');
+  });
+
+  it('中断与超时各自记成不同的状态，不都塞成 failed', async () => {
+    for (const [flag, expected] of [['aborted', 'cancelled'], ['timedOut', 'hard_timeout']] as const) {
+      const engine = makeEngine();
+      engine.db.setExternalSession('g1', 'm1', 'uuid');
+      const runner = async () => ({ ok: false, exitCode: null, aborted: flag === 'aborted', timedOut: flag === 'timedOut', errorDetail: flag });
+      await engine.runExternalMember('g1', member(), '任务', '用户', undefined, runner as any);
+      expect(engine.db.getExternalSessionRow('g1', 'm1').status, `${flag} 被记成了别的状态`).toBe(expected);
+    }
   });
 });
 

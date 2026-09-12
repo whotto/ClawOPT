@@ -174,3 +174,40 @@ else echo '{"type":"result","subtype":"success","is_error":false,"result":"stdin
     expect(fs.realpathSync(String(result.finalText))).toBe(fs.realpathSync(sandbox));
   });
 });
+
+describe('stdin 传 prompt', () => {
+  it('**把 stdinData 喂进去，并且喂完关闭**', async () => {
+    // 不关的话子进程会一直等更多输入——症状是这一轮永远不结束，
+    // 而成员锁要等 15 分钟陈旧接管才放得掉。
+    const script = path.join(sandbox, 'fake-claude.sh');
+    fs.writeFileSync(script, `#!/usr/bin/env bash
+payload="$(cat)"          # 读到 EOF 才返回；stdin 不关这里就永远卡住
+printf '{"type":"result","subtype":"success","is_error":false,"result":"%s"}\\n' "\${#payload}"
+`, { mode: 0o755 });
+
+    const long = 'x'.repeat(200000);
+    const built: BuiltCommand = {
+      command: script, args: [], cwd: sandbox, stdin: 'pipe', stdinData: long,
+    };
+    const result = await runExternalAgent(built, adapter, { onEvent: () => {} });
+
+    expect(result.ok, 'stdin 没关，子进程一直在等输入').toBe(true);
+    expect(result.finalText, '喂进去的内容长度对不上').toBe(String(long.length));
+  }, 20000);
+
+  it('中文按字节喂，不被截断', async () => {
+    const script = path.join(sandbox, 'fake-claude.sh');
+    fs.writeFileSync(script, `#!/usr/bin/env bash
+payload="$(cat)"
+printf '{"type":"result","subtype":"success","is_error":false,"result":"%s"}\\n' "$payload"
+`, { mode: 0o755 });
+
+    const cjk = '群聊上下文';
+    const built: BuiltCommand = {
+      command: script, args: [], cwd: sandbox, stdin: 'pipe', stdinData: cjk,
+    };
+    const result = await runExternalAgent(built, adapter, { onEvent: () => {} });
+    expect(result.finalText).toBe(cjk);
+  }, 20000);
+});
+

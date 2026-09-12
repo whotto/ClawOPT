@@ -45,6 +45,13 @@ export interface BuiltCommand {
    * 群聊里每条消息 3 秒，用户感觉得到。
    */
   stdin: 'devnull' | 'pipe';
+  /**
+   * `stdin: 'pipe'` 时要喂进去的内容，喂完**立刻关闭**——不关的话子进程会一直
+   * 等更多输入。长 prompt 走这条路是为了绕开 `ARG_MAX`（Linux 上 argv + envp
+   * 合计通常约 2 MB），撞上它的症状是 `E2BIG`：进程根本起不来，
+   * 看起来像「这个成员不说话」。
+   */
+  stdinData?: string;
 }
 
 export type ExternalRunEventKind =

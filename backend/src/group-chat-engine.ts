@@ -1552,7 +1552,8 @@ export class GroupChatEngine extends EventEmitter {
       console.warn(`[GroupChat] 成员 ${member.agent_id} 的 external_config 解析失败，按默认值处理`);
     }
 
-    const existingSession = this.db.getExternalSession(groupId, member.id);
+    // 只取**能续**的那个：状态不允许续话时当作没有，重开一个新会话。
+    const existingSession = this.db.getResumableExternalSession(groupId, member.id);
     const sessionId = existingSession ?? randomUUID();
     const resume = Boolean(existingSession);
 
@@ -1612,9 +1613,19 @@ export class GroupChatEngine extends EventEmitter {
         this.db.updateGroupMessage(msgId, finalText, config.model || runtime, undefined, '');
         this.emit('edit', { ...basePayload, content: finalText, process_content: '', process_streaming: false });
       } else {
-        // 续话失败：把映射清掉，让下一轮重新开一个会话，而不是一直撞同一堵墙。
-        if (resume) this.db.clearExternalSession(groupId, member.id);
+        // 失败不删行，只标状态——行留着，排障才看得到「上次为什么失败」。
+        // 超时分成两种记：硬超时与中断的处置本来就不同。
+        const failureStatus = result.aborted ? 'cancelled'
+          : result.timedOut ? 'hard_timeout'
+          : 'failed';
         const detail = result.errorDetail || 'unknown';
+        if (resume) {
+          this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
+        } else {
+          // 首轮就失败：先把行建出来再标，否则没有行可标，那次失败不留痕迹。
+          this.db.setExternalSession(groupId, member.id, sessionId);
+          this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
+        }
         const message = `${member.display_name} 执行失败（${detail}）`;
         this.db.updateGroupMessage(msgId, message, config.model || runtime, undefined, '');
         this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });

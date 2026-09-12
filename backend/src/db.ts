@@ -16,6 +16,29 @@ export type GroupChatRow = {
   updated_at?: string;
 };
 
+/**
+ * 不可续的会话状态。**认不出的状态按可续处理**——不认识不等于坏了，
+ * 反过来会让每一轮都冷起（实测冷起比续话贵 8.8 倍）。
+ */
+export const NON_RESUMABLE_EXTERNAL_SESSION_STATUSES = new Set([
+  'failed', 'cancelled', 'denied', 'rejected',
+  'hard_timeout', 'idle_timeout', 'startup_timeout',
+]);
+
+export function externalSessionStatusAllowsResume(status: unknown): boolean {
+  return !NON_RESUMABLE_EXTERNAL_SESSION_STATUSES.has(String(status ?? '').trim().toLowerCase());
+}
+
+export type ExternalSessionRow = {
+  group_id: string;
+  member_id: string;
+  session_id: string;
+  status: string;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type GroupMemberRow = {
   id: string;
   group_id: string;
@@ -286,6 +309,10 @@ export class DB {
         group_id TEXT NOT NULL,
         member_id TEXT NOT NULL,
         session_id TEXT NOT NULL,
+        -- 可续性是**状态判定**，不是「删掉就等于不可续」。行一直留着，
+        -- 排障要看得到「这个成员上次为什么失败」。
+        status TEXT NOT NULL DEFAULT 'ok',
+        last_error TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (group_id, member_id)
@@ -312,6 +339,8 @@ export class DB {
     addColumn("ALTER TABLE group_members ADD COLUMN runtime TEXT NOT NULL DEFAULT 'openclaw'");
     // 外部运行时的配置（工作目录、模型、工具白名单…），JSON 文本，可为空。
     addColumn("ALTER TABLE group_members ADD COLUMN external_config TEXT");
+    addColumn("ALTER TABLE external_sessions ADD COLUMN status TEXT NOT NULL DEFAULT 'ok'");
+    addColumn("ALTER TABLE external_sessions ADD COLUMN last_error TEXT");
 
     // Migration: add process tags for transparency feature
     addColumn("ALTER TABLE group_chats ADD COLUMN process_start_tag TEXT DEFAULT ''");
@@ -834,13 +863,45 @@ export class DB {
   }
 
   setExternalSession(groupId: string, memberId: string, sessionId: string) {
+    // 写入即代表这一轮成功：状态回到 ok，上次的错误清掉。
     this.db
-      .prepare(`INSERT INTO external_sessions (group_id, member_id, session_id)
-                VALUES (?, ?, ?)
+      .prepare(`INSERT INTO external_sessions (group_id, member_id, session_id, status, last_error)
+                VALUES (?, ?, ?, 'ok', NULL)
                 ON CONFLICT(group_id, member_id) DO UPDATE SET
                   session_id=excluded.session_id,
+                  status='ok',
+                  last_error=NULL,
                   updated_at=CURRENT_TIMESTAMP`)
       .run(groupId, memberId, sessionId);
+  }
+
+  /**
+   * 把会话标成不可续，但**保留这一行**。
+   *
+   * 原来的做法是直接删。那能防住「拿着死会话去 resume」，但顺手丢掉了
+   * 「上次为什么失败」——而那正是排障最想看的。状态细分到超时的三种，
+   * 是因为启动就超时（多半是命令或凭据问题）、跑到一半空闲超时、硬超时，
+   * 三者的处置本来就不同。
+   */
+  markExternalSessionUnusable(groupId: string, memberId: string, status: string, detail?: string) {
+    this.db
+      .prepare(`UPDATE external_sessions SET status = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE group_id = ? AND member_id = ?`)
+      .run(status, detail || null, groupId, memberId);
+  }
+
+  getExternalSessionRow(groupId: string, memberId: string): ExternalSessionRow | null {
+    const row = this.db
+      .prepare('SELECT * FROM external_sessions WHERE group_id = ? AND member_id = ?')
+      .get(groupId, memberId) as ExternalSessionRow | undefined;
+    return row ?? null;
+  }
+
+  /** 只返回**能续**的会话 id；状态不允许续话时返回 null。 */
+  getResumableExternalSession(groupId: string, memberId: string): string | null {
+    const row = this.getExternalSessionRow(groupId, memberId);
+    if (!row) return null;
+    return externalSessionStatusAllowsResume(row.status) ? row.session_id : null;
   }
 
   clearExternalSession(groupId: string, memberId: string) {

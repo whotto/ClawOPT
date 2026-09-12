@@ -187,3 +187,53 @@ describe('流解析 —— 事件形状取自真机抓包', () => {
     expect(ev?.text).toBeFalsy();
   });
 });
+
+/**
+ * 长 prompt 走 stdin —— 借鉴 HKUDS/OpenOPC。
+ *
+ * 位置参数受 `ARG_MAX` 限制（Linux 上通常约 2 MB，且整个 argv + envp 共享这个上限）。
+ * 群上下文一长——多成员、长历史、附件语境文本——就会撞上它，而症状是
+ * `E2BIG`：进程根本起不来，看起来像「这个成员不说话」。
+ *
+ * 我在写契约表时把 `max_prompt_bytes` 标成「未知/待测」，因为没在真机上量过。
+ * OpenOPC 的 `adapters/base.py` 给了现成答案：stdin 策略有四档，其中
+ * `pipe_prompt_then_close`——把 prompt 从 stdin 喂进去然后**关闭**。
+ * 关闭这一步是必须的：不关的话子进程会一直等更多输入。
+ *
+ * 阈值取得保守：远低于 ARG_MAX，但足够让绝大多数群消息仍走 argv（argv 更好排障，
+ * `ps` 里看得见完整命令）。
+ */
+describe('prompt 传输通道', () => {
+  it('短 prompt 仍走 argv —— ps 里看得见，好排障', () => {
+    const built = adapter.buildCommand(req({ prompt: '短消息' }));
+    expect(built.args[built.args.length - 1]).toBe('短消息');
+    expect(built.stdin).toBe('devnull');
+    expect(built.stdinData).toBeUndefined();
+  });
+
+  it('**超长 prompt 改走 stdin，并且不出现在 argv 里**', () => {
+    const long = '很长的群上下文。'.repeat(20000);   // 远超阈值
+    const built = adapter.buildCommand(req({ prompt: long }));
+
+    expect(built.stdin, '长 prompt 仍走 argv，迟早撞 E2BIG').toBe('pipe');
+    expect(built.stdinData).toBe(long);
+    expect(built.args.join('\u0000'), 'prompt 同时出现在 argv 里，等于没绕开 ARG_MAX')
+      .not.toContain(long.slice(0, 200));
+  });
+
+  it('走 stdin 时其余参数一个不少', () => {
+    const long = 'x'.repeat(300000);
+    const built = adapter.buildCommand(req({ prompt: long, model: 'claude-sonnet-5' }));
+    expect(built.args).toContain('--verbose');
+    expect(built.args).toContain('--session-id');
+    expect(built.args[built.args.indexOf('--model') + 1]).toBe('claude-sonnet-5');
+  });
+
+  it('阈值按**字节**算，不按字符数——中文一个字三字节', () => {
+    // 20 万个中文字 = 60 万字节。按字符数判会以为还没到阈值。
+    const cjk = '群'.repeat(200000);
+    expect(Buffer.byteLength(cjk, 'utf-8')).toBeGreaterThan(cjk.length);
+    expect(adapter.buildCommand(req({ prompt: cjk })).stdin).toBe('pipe');
+  });
+});
+
