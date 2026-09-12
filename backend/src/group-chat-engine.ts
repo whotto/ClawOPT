@@ -74,6 +74,15 @@ const MEMBER_BUSY_MESSAGE_CODE = 'group.memberBusy' as const;
 export function externalSenderId(runtime: string, agentId: string): string {
   return `ext:${runtime}:${agentId}`;
 }
+
+/** `ext:<runtime>:<agentId>` 的逆运算；不是这个形状就返回 null。 */
+export function parseExternalSenderId(value: string): { runtime: string; agentId: string } | null {
+  if (!value.startsWith('ext:')) return null;
+  const rest = value.slice(4);
+  const sep = rest.indexOf(':');
+  if (sep <= 0 || sep === rest.length - 1) return null;
+  return { runtime: rest.slice(0, sep), agentId: rest.slice(sep + 1) };
+}
 const CHAIN_FORWARDING_DISABLED_MESSAGE_REGEX = /^链式转发已关闭，未转交给 (.+)$/;
 const AGENT_RESPONSE_FAILED_MESSAGE_CODE = 'group.agentResponseFailed' as const;
 const AGENT_RESPONSE_FAILED_MESSAGE_REGEX = /^❌\s+(.+?)\s+响应失败:\s*([\s\S]*)$/;
@@ -1302,6 +1311,26 @@ export class GroupChatEngine extends EventEmitter {
     return noticeId;
   }
 
+  /**
+   * 按「成员引用」查成员。引用可能是裸的 `agent_id`，也可能是外部成员的
+   * `sender_id`（`ext:<runtime>:<agentId>`）——后者会从三个地方回传进来：
+   * 不带 @ 时的「回复上一个发言者」、重新生成、运行恢复。
+   *
+   * 不认第二种写法的后果不是报错，是 `sendToAgent` 里 `find` 落空后静默
+   * `return parentId`：用户追问一句，群里毫无反应。
+   *
+   * 判据只实现一次，放在这里，三个调用点都经过 `sendToAgent` 自然享受到。
+   */
+  resolveMemberByAgentRef(members: GroupMemberRow[], ref: string): GroupMemberRow | undefined {
+    const direct = members.find((m) => m.agent_id === ref);
+    if (direct) return direct;
+
+    const parsed = parseExternalSenderId(ref);
+    if (!parsed) return undefined;
+    // 运行时也要对上：同名 agentId 换了运行时就是另一回事。
+    return members.find((m) => m.agent_id === parsed.agentId && (m.runtime || 'openclaw') === parsed.runtime);
+  }
+
   private resolveTargetAgentIds(groupId: string, content: string, members: GroupMemberRow[]): string[] {
     let targetAgentIds = this.parseMentions(content, members);
 
@@ -1571,13 +1600,21 @@ export class GroupChatEngine extends EventEmitter {
    * 之后每一轮都会拿着一个死会话去 resume，永久失败。
    */
   private async runExternalMember(
-    groupId: string,
-    member: GroupMemberRow,
-    triggerMsg: string,
-    triggerSenderName: string,
-    parentId?: number,
+    opts: {
+      groupId: string;
+      groupName: string;
+      member: GroupMemberRow;
+      allMembers: GroupMemberRow[];
+      triggerMsg: string;
+      triggerSenderName: string;
+      depth: number;
+      parentId?: number;
+      resetEpoch?: number;
+      remainingDepth?: number;
+    },
     runner: typeof runExternalAgent = runExternalAgent,
   ): Promise<number | undefined> {
+    const { groupId, groupName, member, allMembers, triggerMsg, triggerSenderName, depth, parentId } = opts;
     const runtime = member.runtime || 'claude-code';
     const senderId = externalSenderId(runtime, member.agent_id);
 
@@ -1624,7 +1661,30 @@ export class GroupChatEngine extends EventEmitter {
     const built = adapter.buildCommand({
       sessionId,
       resume,
-      prompt: truncateGroupTriggerMessage(`${triggerSenderName}：${triggerMsg}`),
+      // 复用网关那条路的 prompt 组装：团队名册、群设定、最近历史、@ 协议、剩余深度
+      // 全在里面。此前这里只有一行 `${发言人}：${内容}`——外部成员既不知道群里有谁，
+      // 也看不见上文，**就算想 @ 别人也不知道该 @ 谁**。
+      //
+      // 不另写一套：两套 prompt 组装迟早分家，而这个仓库为「两处判据分家」栽过不止一次。
+      // 过程标签传 undefined —— 外部 Agent 不产出过程标签，不该被要求去写。
+      prompt: this.buildAgentPrompt(
+        groupName,
+        this.db.getGroupChat(groupId)?.system_prompt || '',
+        member,
+        allMembers,
+        selectGroupContextWindow(
+          this.db.getGroupMessages(groupId, 100).filter((m) => m.id !== msgId),
+          { triggerParentId: parentId, triggerMsg, triggerSenderName },
+        ),
+        triggerMsg,
+        triggerSenderName,
+        undefined,
+        undefined,
+        config.workingDir,
+        undefined,
+        undefined,
+        opts.remainingDepth ?? 0,
+      ),
       workingDir: config.workingDir || process.cwd(),
       model: config.model,
       allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
@@ -1649,6 +1709,23 @@ export class GroupChatEngine extends EventEmitter {
         this.db.setExternalSession(groupId, member.id, sessionId);
         this.db.updateGroupMessage(msgId, finalText, config.model || runtime, undefined, '');
         this.emit('edit', { ...basePayload, content: finalText, process_content: '', process_streaming: false });
+
+        // 链式转发：外部成员 @ 了别人，那个人要真的被叫起来。
+        // 此前这里是叶子节点——外部 Agent 说「@情报调研 帮我查一下」，那句话只作为
+        // 文本停在群里，协作因此是**单向**的（OpenClaw 能转给外部，外部转不回来）。
+        //
+        // 走的是同一个 sendToAgent，所以它在里面按 runtime 分岔、重新查 max_chain_depth、
+        // 重新拿成员锁——转发的语义与网关那条路完全一致，不是另一套。
+        let lastMsgId = msgId;
+        for (const nextAgentId of this.parseMentions(finalText, allMembers)) {
+          if (nextAgentId === member.agent_id) continue;   // 不转给自己
+          const next = await this.sendToAgent(
+            groupId, groupName, nextAgentId, finalText, member.display_name,
+            depth + 1, lastMsgId, opts.resetEpoch,
+          );
+          if (next !== undefined) lastMsgId = next;
+        }
+        return lastMsgId;
       } else {
         // 失败不删行，只标状态——行留着，排障才看得到「上次为什么失败」。
         // 超时分成两种记：硬超时与中断的处置本来就不同。
@@ -1704,8 +1781,12 @@ export class GroupChatEngine extends EventEmitter {
     }
 
     const members = this.resolveMembers(this.db.getGroupMembers(groupId));
-    const member = members.find(m => m.agent_id === agentId);
+    const member = this.resolveMemberByAgentRef(members, agentId);
     if (!member) return parentId;
+    // **归一**：后面所有地方（成员锁、typing 事件、落库）都用裸 agent_id。
+    // 不归一的话，`eng` 与 `ext:claude-code:eng` 会拿到两把不同的锁，
+    // 「成员正忙」这条判据整个失效。
+    agentId = member.agent_id;
 
     // 每成员一把锁。拿不到说明这个成员正在跑上一轮——**说出来**，
     // 不要静默排队，也不要像从前那样让整个群 409。
@@ -1718,7 +1799,12 @@ export class GroupChatEngine extends EventEmitter {
     // 为了加一个分支去改它，风险远大于收益。
     if ((member.runtime || 'openclaw') !== 'openclaw') {
       try {
-        return await this.runExternalMember(groupId, member, triggerMsg, triggerSenderName, parentId);
+        return await this.runExternalMember({
+          groupId, groupName, member, allMembers: members,
+          triggerMsg, triggerSenderName, depth, parentId,
+          resetEpoch: effectiveResetEpoch,
+          remainingDepth: maxDepth === 0 ? 0 : Math.max(0, maxDepth - depth),
+        });
       } finally {
         this.releaseMemberLock(groupId, agentId);
       }
