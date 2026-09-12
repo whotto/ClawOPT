@@ -46,8 +46,8 @@ export type GroupMemberRow = {
   display_name: string;
   role_description?: string;
   position: number;
-  /** 路线 B：'openclaw'（默认）或某个外部运行时，如 'claude-code'。 */
-  runtime?: string;
+  /** 路线 B：'openclaw'（默认）或某个外部运行时，如 'claude-code'。不传表示「不改」。 */
+  runtime?: string | null;
   /** 外部运行时的配置，JSON 文本。不传表示「不改」，不是「清空」。 */
   external_config?: string | null;
 };
@@ -852,6 +852,56 @@ export class DB {
   deleteGroupMembers(groupId: string) {
     this.db.prepare('DELETE FROM group_members WHERE group_id = ?').run(groupId);
     this.db.prepare('DELETE FROM external_sessions WHERE group_id = ?').run(groupId);
+  }
+
+  /** 删掉一个成员，连同它的外部会话——否则留孤儿行。 */
+  deleteGroupMember(groupId: string, memberId: string) {
+    this.db.prepare('DELETE FROM group_members WHERE id = ?').run(memberId);
+    this.db.prepare('DELETE FROM external_sessions WHERE group_id = ? AND member_id = ?').run(groupId, memberId);
+  }
+
+  /**
+   * 按传入的列表更新群成员。
+   *
+   * **不是「删光重插」。** 路由原来的做法是 `deleteGroupMembers()` 再整批重插，
+   * 而那个方法带级联——连同该群的全部外部会话一起删；成员行也没了，于是
+   * `saveGroupMember` 里 `COALESCE(@runtime, group_members.runtime)` 的保护完全失效，
+   * 重插时 runtime 落回默认的 'openclaw'。
+   *
+   * 后果：用户只是改了个群名或调了下顺序，**所有外部成员退回 OpenClaw、会话全丢**，
+   * 下一轮按冷起计价（实测贵 8.2 倍），而且没有任何报错。
+   *
+   * 所以改成增量 upsert：只删真正被移除的成员。`runtime` / `external_config`
+   * 不传就保持原值（由 saveGroupMember 的 COALESCE 负责），传了才改。
+   */
+  replaceGroupMembers(
+    groupId: string,
+    members: Array<{
+      agentId: string; displayName?: string; roleDescription?: string;
+      runtime?: string | null; externalConfig?: string | null;
+    }>,
+  ) {
+    const existing = this.getGroupMembers(groupId);
+    const keep = new Set<string>();
+
+    members.forEach((m, idx) => {
+      const id = `gm_${groupId}_${m.agentId}`;
+      keep.add(id);
+      this.saveGroupMember({
+        id,
+        group_id: groupId,
+        agent_id: m.agentId,
+        display_name: m.displayName || m.agentId,
+        role_description: m.roleDescription || '',
+        position: idx,
+        runtime: m.runtime ?? null,
+        external_config: m.externalConfig ?? null,
+      });
+    });
+
+    for (const row of existing) {
+      if (!keep.has(row.id)) this.deleteGroupMember(groupId, row.id);
+    }
   }
 
   // --- 外部 Agent 会话映射 ---

@@ -9,6 +9,7 @@ import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeE
 import { listRosterEntries, resolveRosterShape } from './agents-roster';
 import { buildDiagnosticsReport } from './diagnostics';
 import { checkRuntimeInvariants } from './runtime-invariants';
+import { buildExternalRuntimeList } from './external-agents/registry';
 import { detectOpenClawVersion } from './openclaw-version';
 import os from 'os';
 import { createServer } from 'http';
@@ -8200,6 +8201,18 @@ function resolveBinaryOnPath(name: string): boolean {
   return false;
 }
 
+/**
+ * 这台主机上有哪些外部运行时可用。界面据此决定成员的运行时能不能选中——
+ * 选一个主机上没有的，等于配好之后一 @ 就失败（生产机 2026-09-12 的实际状态）。
+ */
+app.get('/api/external-runtimes', (_req, res) => {
+  try {
+    res.json({ success: true, runtimes: buildExternalRuntimeList(resolveBinaryOnPath) });
+  } catch (error: unknown) {
+    res.status(500).json(buildStructuredApiError('externalRuntimes.unavailable', sanitizeErrorDetail(error)));
+  }
+});
+
 app.get('/api/diagnostics', (_req, res) => {
   (async () => {
     // 网关探测是异步的，而报告构造是同步的（同步才好测）。先探完再把结果闭包进去。
@@ -13750,17 +13763,18 @@ app.put('/api/groups/:id', (req, res) => {
 
     // Replace members if provided
     if (Array.isArray(members)) {
-      db.deleteGroupMembers(req.params.id);
-      members.forEach((m: any, idx: number) => {
-        db.saveGroupMember({
-          id: `gm_${req.params.id}_${m.agentId}`,
-          group_id: req.params.id,
-          agent_id: m.agentId,
-          display_name: m.displayName || m.agentId,
-          role_description: m.roleDescription || '',
-          position: idx,
-        });
-      });
+      // 增量 upsert，不是「删光重插」——后者会连同该群的外部会话一起删掉，
+      // 并让成员的 runtime 落回默认值。详见 db.replaceGroupMembers 的注释。
+      //
+      // runtime / externalConfig 从这里进来，补上此前「有配置、无界面入口」
+      // 的缺口（AGENTS.md:75）。
+      db.replaceGroupMembers(req.params.id, members.map((m: any) => ({
+        agentId: m.agentId,
+        displayName: m.displayName,
+        roleDescription: m.roleDescription,
+        runtime: m.runtime ?? null,
+        externalConfig: m.externalConfig ?? null,
+      })));
     }
 
     res.json({ success: true });
