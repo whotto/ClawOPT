@@ -1,28 +1,88 @@
 @import "tailwindcss";
 
+/**
+ * 设计 token 是这次全局重做的**唯一改动点**。
+ *
+ * 每一个 `text-gray-700` / `bg-gray-50` / `border-gray-100` 都从这里取值，
+ * 所以换这里等于整个应用一起变，不必去动一万三千行 JSX。
+ * 豁免记录见 docs/design-decisions.md（AGENTS.md:72 由仓库所有者明确豁免）。
+ *
+ * 三条自我约束：
+ * ① **无阴影这条没被豁免**（AGENTS.md:73）。层级只用三样东西做：
+ *    三级表面填充、发丝线、一条强调轨。
+ * ② **交互色与身份色分开。** 现在所有蓝色都意味着「可点」；运行时身份若也用蓝，
+ *    这个信号就塌了。外部运行时另有身份色，只用作细轨与角标底色，
+ *    **不用在任何可点元素上**。
+ * ③ **不做逐运行时配色。** 五种运行时各一色会变成阅兵，第六种就没得挑。
+ */
 @theme {
-  /* 中文渲染是这个产品的日常，而字体栈里一直没有 CJK——中文从来在吃回退字体。
-     这类缺陷不会有人报：回退字体也能显示，只是难看，没人会为「难看」提 bug。 */
+  /* 中文渲染是这个产品的日常，字体栈里必须有 CJK——原来没有，中文一直在吃回退字体。 */
   --font-sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
                system-ui, -apple-system, sans-serif;
   /* 标识符（agentId / 路径 / UUID / 版本号）一律等宽，扫读时对得齐。 */
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
                "Liberation Mono", monospace;
 
-  /* "Middle Ground" gray palette for better definition and clean look */
-  --color-gray-50:  #f6f8fb;
-  --color-gray-100: #ecf0f4;
-  --color-gray-200: #dde2e8;
-  --color-gray-300: #bdc5d0;
-  --color-gray-400: #8da0b3;
-  --color-gray-500: #64748b;
-  --color-gray-600: #475569;
-  --color-gray-700: #334155;
-  --color-gray-800: #1e293b;
-  --color-gray-900: #0f172a;
-  --color-gray-950: #020617;
+  /* ── 中性色 ──────────────────────────────────────────────
+   * 位置不变（所有现有类继续可用），重新调过步长。
+   * 原来的毛病：50 与 100 太近（#f6f8fb / #ecf0f4）分不出「地」与「凹陷」，
+   * 而 300 → 400 一步跨得太大，中间调不够用来排文字层级。
+   * 偏冷中性，带一点点绿向，避免读成「又一个 bootstrap 蓝灰」。
+   */
+  --color-gray-50:  #f7f8fa;   /* 应用底色 */
+  --color-gray-100: #eceef2;   /* 凹陷填充 / 发丝线 */
+  --color-gray-200: #dcdfe5;   /* 常规边框 */
+  --color-gray-300: #c2c7d0;   /* 强边框 / 禁用态文字 */
+  --color-gray-400: #939aa7;   /* 弱化文字 */
+  --color-gray-500: #6e7686;   /* 次要文字 */
+  --color-gray-600: #4c5462;   /* 次要文字（强） */
+  --color-gray-700: #3a414e;   /* 正文 */
+  --color-gray-800: #262c36;   /* 小标题 */
+  --color-gray-900: #171c24;   /* 墨色 */
+  --color-gray-950: #0b0e13;
 
-  /* Global shadow override */
+  /* ── 交互色：蓝只用来表示「可点」 ────────────────────── */
+  --color-accent-50:  #eef3fd;
+  --color-accent-100: #d8e3fa;
+  --color-accent-200: #b4c9f4;
+  --color-accent-400: #5b86e0;
+  --color-accent-500: #3a6bd4;
+  --color-accent-600: #2a55b8;
+  --color-accent-700: #21458f;
+
+  /* ── 身份色：外部运行时 ───────────────────────────────
+   * 与交互蓝拉开色相，且**不用在可点元素上**——它回答的是「谁在执行」，
+   * 不是「能不能按」。引擎内置的成员不着色（它是默认，不该喊）。
+   */
+  --color-runtime-50:  #e9f4f2;
+  --color-runtime-100: #cfe6e2;
+  --color-runtime-300: #79b3aa;
+  --color-runtime-500: #2f8578;
+  --color-runtime-600: #1f6b60;
+  --color-runtime-700: #16524a;
+
+  /* ── 语义色：与交互色、身份色都不同相 ─────────────────── */
+  --color-success-50:  #e8f4ec;
+  --color-success-500: #2f7d4f;
+  --color-success-600: #24633e;
+  --color-warning-50:  #fbf1e3;
+  --color-warning-500: #a8700f;
+  --color-warning-600: #8a5b0a;
+  --color-danger-50:   #fbebe9;
+  --color-danger-500:  #b3453a;
+  --color-danger-600:  #92362d;
+
+  /* ── 身份轨宽度 ───────────────────────────────────────
+   * 起个显式名字而不是散落的 `w-0.5`，是为了让将来改它的人不必先考古
+   * 「当初为什么定 2px」。
+   *
+   * 2px 是在「发丝线 = 1px」这套体系里唯一克制的下一档（3px 就进装饰区间）。
+   * **待真机使用一周后校准**：身份轨的真实观感只有在长对话流里才看得出来，
+   * 现在争 2 还是 3 是在没有使用样本时做参数调优。改它的成本 = 改这一行。
+   */
+  --identity-track-width: 2px;
+
+  /* 全局取消阴影（AGENTS.md:73，未被豁免）。层级靠填充与发丝线。 */
   --shadow-sm: 0 0 #0000;
   --shadow: 0 0 #0000;
   --shadow-md: 0 0 #0000;
@@ -51,20 +111,20 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* slate-300 */
+  background: var(--color-gray-300);
   border-radius: 10px;
   border: 3px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* slate-400 */
+  background: var(--color-gray-400);
   border: 3px solid transparent;
   background-clip: padding-box;
 }
 
 /* Global interaction styles */
-button, 
+button,
 a,
 [role="button"] {
   cursor: pointer;
@@ -76,21 +136,18 @@ a:disabled {
 }
 
 /**
- * 键盘焦点必须看得见 —— **合规补齐，不是审美选择**。
- *
- * Tailwind 的 preflight 去掉了浏览器默认的 outline，而全局又没有补回来，
- * 于是用键盘操作这个界面时焦点在哪是纯猜的。这是事实上的 WCAG 2.1 AA
- * (2.4.7 Focus Visible) 违规，与视觉偏好不是一类问题。
+ * 键盘焦点必须看得见。此前全局没有定义，Tailwind 的 preflight 又把浏览器默认的
+ * outline 去掉了——用键盘操作这个界面时，焦点在哪是纯猜的。
  *
  * 用 `:focus-visible` 而不是 `:focus`：鼠标点击不该冒出焦点框，只有键盘导航才要。
  */
 :where(button, a, [role="button"], input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--color-accent-500);
   outline-offset: 2px;
   border-radius: 0.375rem;
 }
 
-/* 尊重系统的「减少动态效果」设置（WCAG 2.3.3）。 */
+/* 尊重系统的「减少动态效果」设置。 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
