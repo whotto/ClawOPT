@@ -903,7 +903,13 @@
         "browser-not-allowed": "你的 OpenClaw 沒有把 browser 放進 plugins.allow 白名單，瀏覽器能力本就不可用，因此跳過這一步。需要的話在 openclaw.json 裡把 \"browser\" 加進 plugins.allow。",
         "browser-not-enabled": "openclaw.json 裡沒有啟用瀏覽器（browser.enabled 不為 true），因此跳過這一步。",
         "unknown": "這一步被跳過了。"
-      }
+      },
+      "diagnosticsTitle": "診斷快照",
+      "diagnosticsHint": "把版本、引擎、名冊、閘道與最近日誌複製成一份 JSON。憑證與使用者名稱已去識別化，可直接貼給維護者。",
+      "diagnosticsCopy": "複製診斷資訊",
+      "diagnosticsCopying": "正在收集...",
+      "diagnosticsCopied": "已複製",
+      "diagnosticsFailed": "複製失敗"
     }
   }
 }

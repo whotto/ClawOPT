@@ -903,7 +903,13 @@
         "browser-not-allowed": "Your OpenClaw does not list \"browser\" in plugins.allow, so browser capability is unavailable and this step was skipped. Add \"browser\" to plugins.allow in openclaw.json if you want it.",
         "browser-not-enabled": "Browser is not enabled in openclaw.json (browser.enabled is not true), so this step was skipped.",
         "unknown": "This step was skipped."
-      }
+      },
+      "diagnosticsTitle": "Diagnostics snapshot",
+      "diagnosticsHint": "Copies version, engine, roster, gateway and recent logs as JSON. Credentials and your username are redacted, so it is safe to paste to a maintainer.",
+      "diagnosticsCopy": "Copy diagnostics",
+      "diagnosticsCopying": "Collecting...",
+      "diagnosticsCopied": "Copied",
+      "diagnosticsFailed": "Copy failed"
     }
   }
 }

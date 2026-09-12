@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment, type ChangeEvent } from 'react';
 import { Eye, EyeOff, Check, X, Loader2, Edit2, Trash2, Plus, Menu, Activity, Globe, Zap, Wrench, ArrowUpDown, Link2, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SettingsTab } from '../App';
@@ -667,6 +667,40 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   const [appVersionInfo, setAppVersionInfo] = useState<AppVersionInfo | null>(null);
   const [appVersionError, setAppVersionError] = useState<InlineErrorState>(EMPTY_INLINE_ERROR);
   const [isLoadingAppVersion, setIsLoadingAppVersion] = useState(false);
+
+  // 诊断快照：一键取回现场。这个产品装在用户自己的主机上，我们看不见——
+  // 此前排障能拿到的只有一句截图或者一次 SSH。
+  const [diagnosticsState, setDiagnosticsState] = useState<'idle' | 'working' | 'copied' | 'failed'>('idle');
+
+  const handleCopyDiagnostics = useCallback(async () => {
+    setDiagnosticsState('working');
+    try {
+      const res = await fetch('/api/diagnostics');
+      if (!res.ok) throw new Error(String(res.status));
+      const text = JSON.stringify(await res.json(), null, 2);
+
+      // ClawOPT 常以 http 跑在内网 IP 上，而 navigator.clipboard 要求安全上下文，
+      // 在那种部署下它**根本不存在**。所以必须留一条不依赖它的退路，
+      // 否则这个按钮会在最需要它的那批机器上静默失效。
+      if (window.isSecureContext && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+      setDiagnosticsState('copied');
+    } catch {
+      setDiagnosticsState('failed');
+    }
+    window.setTimeout(() => setDiagnosticsState('idle'), 2400);
+  }, []);
   const [openClawLatestVersionInfo, setOpenClawLatestVersionInfo] = useState<OpenClawLatestVersionInfo | null>(null);
   const [openClawLatestVersionError, setOpenClawLatestVersionError] = useState<InlineErrorState>(EMPTY_INLINE_ERROR);
   const [isCheckingOpenClawLatestVersion, setIsCheckingOpenClawLatestVersion] = useState(false);
@@ -5626,6 +5660,45 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
                   </div>
               </div>
+
+                <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 w-full">
+                  <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-2xl font-black text-gray-900 tracking-tighter leading-tight mb-1">
+                        {t('settings.about.diagnosticsTitle')}
+                      </div>
+                      <div className="text-[0.85rem] font-medium text-gray-400 leading-snug">
+                        {t('settings.about.diagnosticsHint')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      id="copy-diagnostics"
+                      onClick={handleCopyDiagnostics}
+                      disabled={diagnosticsState === 'working'}
+                      className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-60 ${
+                        diagnosticsState === 'failed'
+                          ? 'bg-red-50 text-red-600 border border-red-200'
+                          : diagnosticsState === 'copied'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-gray-900 text-white hover:bg-gray-800'
+                      }`}
+                    >
+                      {diagnosticsState === 'working' && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {diagnosticsState === 'copied' && <Check className="w-4 h-4" />}
+                      {diagnosticsState === 'failed' && <X className="w-4 h-4" />}
+                      {diagnosticsState === 'idle' && <Activity className="w-4 h-4" />}
+                      {diagnosticsState === 'working'
+                        ? t('settings.about.diagnosticsCopying')
+                        : diagnosticsState === 'copied'
+                          ? t('settings.about.diagnosticsCopied')
+                          : diagnosticsState === 'failed'
+                            ? t('settings.about.diagnosticsFailed')
+                            : t('settings.about.diagnosticsCopy')}
+                    </button>
+                  </div>
+                </div>
+
             </div>
           )}
 
