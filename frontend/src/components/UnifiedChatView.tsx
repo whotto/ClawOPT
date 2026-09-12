@@ -19,6 +19,7 @@ import {
 import { ACTIVE_CONTEXT_REFRESH_EVENT, type ActiveContextRefreshDetail } from '../utils/contextRefresh';
 import { getGroupIdValidationKey } from '../utils/groupId';
 import { markdownRehypePlugins, markdownRemarkPlugins, normalizeMathMarkdown } from '../utils/markdownMath';
+import { type ChatMessage, parsePositiveCursorValue, mergeMessagePreservingContent, mergeMessagePatchPreservingContent, mergeMessageCollectionPreservingContent } from "../utils/message-merge";
 
 // ============ TYPES ============
 
@@ -49,7 +50,6 @@ const MODAL_FIELD_LABEL_CLASS = 'block text-sm font-semibold text-gray-700 mb-1.
 const MODAL_TEXT_INPUT_CLASS = 'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500';
 const MODAL_TEXTAREA_CLASS = 'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder:text-gray-400 outline-none transition-all resize-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500';
 
-type StructuredMessageParams = Record<string, string | number | boolean | null>;
 type NavDotSummary = {
   primary: string;
   secondary?: string;
@@ -84,21 +84,6 @@ type GroupRunState = {
   startedAt: number | null;
 };
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  processContent?: string;
-  processStreaming?: boolean;
-  timestamp: Date;
-  model?: string;
-  agentId?: string;
-  agentName?: string;
-  parentId?: string;
-  messageCode?: string;
-  messageParams?: StructuredMessageParams;
-  rawDetail?: string;
-}
 
 interface GroupChat {
   id: string;
@@ -117,14 +102,6 @@ interface GroupMember {
 
 type GroupChatMember = GroupChat['members'][number];
 
-function parsePositiveCursorValue(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return Math.floor(value);
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-  return null;
-}
 
 function isPersistedMessageId(value: string | null | undefined): boolean {
   return typeof value === 'string' && /^\d+$/.test(value.trim());
@@ -235,9 +212,6 @@ function mergeHistoryMessages(olderMessages: ChatMessage[], newerMessages: ChatM
   return merged;
 }
 
-function hasOwnMessageField<T extends object>(value: T, key: keyof any): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
 
 function resolveProcessTagPair(
   primaryStartTag?: string | null,
@@ -265,178 +239,12 @@ function resolveProcessTagPair(
   };
 }
 
-function hasExplicitProcessState(incoming: Partial<ChatMessage>): boolean {
-  const hasProcessContent = hasOwnMessageField(incoming, 'processContent')
-    && typeof incoming.processContent === 'string'
-    && incoming.processContent.trim().length > 0;
-  const hasProcessStreaming = hasOwnMessageField(incoming, 'processStreaming')
-    && typeof incoming.processStreaming === 'boolean';
-  return hasProcessContent || hasProcessStreaming;
-}
 
-function shouldPreferIncomingMessageContent(
-  existing: Pick<ChatMessage, 'content' | 'role' | 'messageCode'> | undefined,
-  incoming: Partial<ChatMessage>,
-): boolean {
-  if (!hasOwnMessageField(incoming, 'content')) {
-    return false;
-  }
 
-  const currentContent = typeof existing?.content === 'string' ? existing.content : '';
-  const nextContent = typeof incoming.content === 'string' ? incoming.content : '';
-  const normalizedCurrent = currentContent.trim();
-  const normalizedNext = nextContent.trim();
-  const nextRole = incoming.role ?? existing?.role;
-  const nextMessageCode = hasOwnMessageField(incoming, 'messageCode')
-    ? incoming.messageCode
-    : existing?.messageCode;
-  const currentIsSystemLike = existing?.role === 'system' || !!existing?.messageCode;
-  const nextIsSystemLike = nextRole === 'system' || !!nextMessageCode;
-  const explicitProcessState = hasExplicitProcessState(incoming);
 
-  if (!normalizedNext) {
-    if (explicitProcessState) {
-      return true;
-    }
-    return !normalizedCurrent;
-  }
 
-  if (!normalizedCurrent) {
-    return true;
-  }
 
-  if (nextContent === currentContent) {
-    return true;
-  }
 
-  if (nextIsSystemLike) {
-    return true;
-  }
-
-  if (currentIsSystemLike) {
-    return true;
-  }
-
-  if (normalizedNext === normalizedCurrent) {
-    return nextContent.length >= currentContent.length;
-  }
-
-  if (normalizedNext.startsWith(normalizedCurrent)) {
-    return true;
-  }
-
-  if (normalizedCurrent.startsWith(normalizedNext)) {
-    if (explicitProcessState) {
-      return true;
-    }
-    return false;
-  }
-
-  if (explicitProcessState) {
-    return true;
-  }
-
-  return normalizedNext.length > normalizedCurrent.length;
-}
-
-function shouldPreferIncomingSupplementalContent(
-  currentValue: string | undefined,
-  nextValue: string | undefined,
-  options?: { allowShorterReplacement?: boolean },
-): boolean {
-  const currentContent = typeof currentValue === 'string' ? currentValue : '';
-  const nextContent = typeof nextValue === 'string' ? nextValue : '';
-  const normalizedCurrent = currentContent.trim();
-  const normalizedNext = nextContent.trim();
-
-  if (!normalizedNext) {
-    if (options?.allowShorterReplacement) {
-      return true;
-    }
-    return !normalizedCurrent;
-  }
-
-  if (!normalizedCurrent) {
-    return true;
-  }
-
-  if (nextContent === currentContent) {
-    return true;
-  }
-
-  if (normalizedNext === normalizedCurrent) {
-    return nextContent.length >= currentContent.length;
-  }
-
-  if (normalizedNext.startsWith(normalizedCurrent)) {
-    return true;
-  }
-
-  if (normalizedCurrent.startsWith(normalizedNext)) {
-    return !!options?.allowShorterReplacement;
-  }
-
-  return normalizedNext.length > normalizedCurrent.length;
-}
-
-function shouldAllowTerminalProcessContentReplacement(incoming: Partial<ChatMessage>): boolean {
-  return hasOwnMessageField(incoming, 'processContent')
-    && hasOwnMessageField(incoming, 'processStreaming')
-    && incoming.processStreaming === false;
-}
-
-function mergeMessagePreservingContent(existing: ChatMessage, incoming: Partial<ChatMessage>): ChatMessage {
-  const next = { ...existing, ...incoming };
-  if (hasOwnMessageField(incoming, 'content') && !shouldPreferIncomingMessageContent(existing, incoming)) {
-    next.content = existing.content;
-  }
-  if (hasOwnMessageField(incoming, 'processContent') && !shouldPreferIncomingSupplementalContent(
-    existing.processContent,
-    incoming.processContent,
-    { allowShorterReplacement: shouldAllowTerminalProcessContentReplacement(incoming) },
-  )) {
-    next.processContent = existing.processContent;
-  }
-  return next;
-}
-
-function mergeMessagePatchPreservingContent(
-  existingPatch: Partial<ChatMessage>,
-  incomingPatch: Partial<ChatMessage>,
-): Partial<ChatMessage> {
-  const next = { ...existingPatch, ...incomingPatch };
-  if (hasOwnMessageField(incomingPatch, 'content') && !shouldPreferIncomingMessageContent({
-    content: typeof existingPatch.content === 'string' ? existingPatch.content : '',
-    role: existingPatch.role || 'assistant',
-    messageCode: existingPatch.messageCode,
-  }, incomingPatch)) {
-    next.content = existingPatch.content;
-  }
-  if (hasOwnMessageField(incomingPatch, 'processContent') && !shouldPreferIncomingSupplementalContent(
-    typeof existingPatch.processContent === 'string' ? existingPatch.processContent : '',
-    incomingPatch.processContent,
-    { allowShorterReplacement: shouldAllowTerminalProcessContentReplacement(incomingPatch) },
-  )) {
-    next.processContent = existingPatch.processContent;
-  }
-  return next;
-}
-
-function mergeMessageCollectionPreservingContent(
-  baseMessages: ChatMessage[],
-  incomingMessages: ChatMessage[],
-): ChatMessage[] {
-  const mergedMap = new Map(baseMessages.map((message) => [message.id, message]));
-  incomingMessages.forEach((message) => {
-    const existing = mergedMap.get(message.id);
-    mergedMap.set(message.id, existing ? mergeMessagePreservingContent(existing, message) : message);
-  });
-  return Array.from(mergedMap.values()).sort((left, right) => {
-    const leftId = parsePositiveCursorValue(left.id) ?? Number.MAX_SAFE_INTEGER;
-    const rightId = parsePositiveCursorValue(right.id) ?? Number.MAX_SAFE_INTEGER;
-    return leftId - rightId;
-  });
-}
 
 function isContainerNearBottom(container: HTMLElement, threshold = AUTO_SCROLL_BOTTOM_THRESHOLD_PX): boolean {
   return container.scrollHeight - container.scrollTop - container.clientHeight <= threshold;
