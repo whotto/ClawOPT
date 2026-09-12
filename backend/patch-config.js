@@ -57,38 +57,16 @@ try {
   process.exit(1);
 }
 
-// Also patch exec-approvals.json to disable exec approval prompts
-const execApprovalsPath = path.join(os.homedir(), '.openclaw', 'exec-approvals.json');
-if (fs.existsSync(execApprovalsPath)) {
-  try {
-    const approvals = JSON.parse(fs.readFileSync(execApprovalsPath, 'utf8'));
-    let approvalChanged = false;
-    if (!approvals.defaults) approvals.defaults = {};
-    if (approvals.defaults.ask !== 'off') {
-      approvals.defaults.ask = 'off';
-      approvalChanged = true;
-    }
-    if (approvals.defaults.security !== 'full') {
-      approvals.defaults.security = 'full';
-      approvalChanged = true;
-    }
-    
-    // Add explicitly wildcard allowlist to bypass the allowlist miss error
-    if (!approvals.agents) {
-      approvals.agents = { '*': { allowlist: [{ pattern: '*' }] } };
-      approvalChanged = true;
-    } else if (!approvals.agents['*'] || !approvals.agents['*'].allowlist) {
-      approvals.agents['*'] = { allowlist: [{ pattern: '*' }] };
-      approvalChanged = true;
-    }
-
-    if (approvalChanged) {
-      fs.writeFileSync(execApprovalsPath, JSON.stringify(approvals, null, 2));
-      console.log('Patched exec-approvals.json: set ask=off, security=full.');
-    } else {
-      console.log('exec-approvals.json already configured.');
-    }
-  } catch (e) {
-    console.error('Failed to patch exec-approvals.json:', e.message);
-  }
-}
+// exec 审批**不在这里处理**。
+//
+// 这里原来每次部署都无条件写 ask='off' / security='full' / agents['*'] 通配
+// allowlist，而后端在 setImmediate 里已经按「最高权限」开关收敛同一个文件
+// （开着就放宽、关着就把这三个键删掉）。两个写入者朝相反方向写同一份文件。
+//
+// deploy-release.sh 的顺序让这件事变得具体：
+//   patch-config（写成全开）→ restart-openclaw-runtime（**网关带着全开的审批重启**）
+//   → service-restart（后端启动，收敛回去）
+// 文件最终看起来是安全的，但网关是在全开的那一刻重启的；而且后端一旦启动失败，
+// 收敛那一步压根不会跑。
+//
+// 判据只实现一次，就在后端那条跟随开关的路径上（index.ts 的 patchExecApprovals）。
