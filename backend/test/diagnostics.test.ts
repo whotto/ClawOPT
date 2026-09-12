@@ -24,6 +24,7 @@ import { buildDiagnosticsReport } from '../src/diagnostics';
 import { createLogger, resetLogBufferForTests } from '../src/logger';
 
 const deps = (over: Partial<Parameters<typeof buildDiagnosticsReport>[0]> = {}) => ({
+  checkInvariants: () => [] as any[],
   readConfig: () => ({ agents: { list: [{ id: 'main' }, { id: 'biz' }] } }) as Record<string, unknown>,
   detectEngineVersion: () => ({ known: true as const, raw: '2026.7.1-2', year: 2026, month: 7, patch: 1 }),
   gatewayStatus: () => ({ connected: true, endpoint: 'ws://127.0.0.1:18789' }),
@@ -108,3 +109,35 @@ describe('任何一块失败都不能让整份报告塌掉', () => {
     expect(JSON.stringify(report)).not.toContain('sk-LEAK');
   });
 });
+
+describe('运行时不变量并进报告', () => {
+  it('告警出现在报告里，排障时一眼看到「这台机器哪里坏了」', () => {
+    const report = buildDiagnosticsReport(deps({
+      checkInvariants: () => [
+        { code: 'memberLockStale', severity: 'warning', message: '成员 a1 的运行锁已持有 20 分钟' },
+      ],
+    }));
+    expect(report.invariants).toHaveLength(1);
+    expect(report.invariants[0].code).toBe('memberLockStale');
+  });
+
+  it('不变量检查自己抛错时，报告其余部分照常产出', () => {
+    const report = buildDiagnosticsReport(deps({
+      checkInvariants: () => { throw new Error('boom'); },
+    }));
+    expect(report.app.version, '一块失败把整份报告拖垮了').toBeTruthy();
+    expect(report.invariants).toEqual([]);
+  });
+
+  it('告警里的绝对路径同样过脱敏', () => {
+    const home = os.homedir();
+    const report = buildDiagnosticsReport(deps({
+      checkInvariants: () => [
+        { code: 'externalMemberWorkdirMissing', severity: 'critical', message: 'x',
+          details: { workingDir: `${home}/projects/app` } },
+      ],
+    }));
+    expect(JSON.stringify(report)).not.toContain(home);
+  });
+});
+

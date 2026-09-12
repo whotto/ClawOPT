@@ -137,3 +137,34 @@ describe('成员锁', () => {
     expect(e.acquireMemberLock('g1', 'a::b'), '两个不同成员被拼成了同一把锁').toBe(true);
   });
 });
+
+describe('持锁快照（诊断用）', () => {
+  it('**键能原样切回 (groupId, agentId)**，含分隔符与中文都不出错', () => {
+    // 键是 `${groupId.length}:${groupId}:${agentId}`。切回去时靠长度前缀定位，
+    // 不能用 split(':')——那会在 groupId 自己含冒号时切错。
+    const e = memberEngine();
+    const pairs: Array<[string, string]> = [
+      ['g1', 'a1'],
+      ['g1::a', 'b'],        // 与下一行在朴素拼接下会撞成同一把锁
+      ['g1', 'a::b'],
+      ['含中文的群', '成员'],
+    ];
+    for (const [g, a] of pairs) e.acquireMemberLock(g, a);
+
+    const snap = e.heldMemberLockSnapshot();
+    expect(snap).toHaveLength(pairs.length);
+    expect(snap.map((s: any) => [s.groupId, s.agentId])).toEqual(pairs);
+  });
+
+  it('给出持锁时长，诊断靠它判断是不是泄漏', () => {
+    const e = memberEngine();
+    e.processingMembers.set(e.memberLockKey('g1', 'a1'), Date.now() - 20 * 60 * 1000);
+    const [entry] = e.heldMemberLockSnapshot();
+    expect(entry.heldMs).toBeGreaterThan(19 * 60 * 1000);
+  });
+
+  it('没有持锁时返回空数组', () => {
+    expect(memberEngine().heldMemberLockSnapshot()).toEqual([]);
+  });
+});
+

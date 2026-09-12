@@ -8,6 +8,7 @@ import { writeJsonAtomicSync, writeFileAtomicSync } from './config-atomic-write'
 import { readOpenClawConfigSafe, readJsonConfigSafe, readTextFileSafe, sanitizeErrorDetail } from './openclaw-config';
 import { listRosterEntries, resolveRosterShape } from './agents-roster';
 import { buildDiagnosticsReport } from './diagnostics';
+import { checkRuntimeInvariants } from './runtime-invariants';
 import { detectOpenClawVersion } from './openclaw-version';
 import os from 'os';
 import { createServer } from 'http';
@@ -8181,6 +8182,24 @@ app.get('/api/version', (_req, res) => {
  * 一句截图或者一次 SSH。整份报告在 buildDiagnosticsReport 里过脱敏，工作区绝对
  * 路径里的用户名换成 ~，凭据类字段一律抹掉。
  */
+/**
+ * 沿 PATH 找可执行文件。不 shell out 去跑 `command -v`——
+ * `openclaw-version.ts` 为同一个原因也不 shell out：起进程的成败取决于谁的 PATH
+ * 在前，而我们要问的只是「这个文件在不在」。
+ */
+function resolveBinaryOnPath(name: string): boolean {
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    try {
+      const candidate = path.join(dir, name);
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return true;
+    } catch {
+      // 单个目录不可读不该让整次探测失败
+    }
+  }
+  return false;
+}
+
 app.get('/api/diagnostics', (_req, res) => {
   (async () => {
     // 网关探测是异步的，而报告构造是同步的（同步才好测）。先探完再把结果闭包进去。
@@ -8199,6 +8218,14 @@ app.get('/api/diagnostics', (_req, res) => {
       detectEngineVersion: () => detectOpenClawVersion(),
       gatewayStatus: () => gateway,
       browserHealth: () => ({ state: fs.existsSync(browserWarmupMarkerPath) ? 'warmup-pending' : 'ready' }),
+      checkInvariants: () => checkRuntimeInvariants({
+        readConfig: () => readOpenClawConfigSafe(),
+        listGroupMembers: () => db.listAllGroupMembers() as any,
+        listExternalSessions: () => db.listAllExternalSessions() as any,
+        heldMemberLocks: () => groupChatEngine.heldMemberLockSnapshot(),
+        binaryExists: resolveBinaryOnPath,
+        pathExists: (target: string) => fs.existsSync(target),
+      }),
     }));
   })().catch((error: unknown) => {
     // 排障工具自己在故障现场崩掉等于没有，所以这里也要给出一份可解析的东西。

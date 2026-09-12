@@ -1022,6 +1022,21 @@ export class GroupChatEngine extends EventEmitter {
     this.processingMembers.delete(this.memberLockKey(groupId, agentId));
   }
 
+  /** 当前持有的成员锁快照。只给诊断用——锁泄漏在界面上是看不见的。 */
+  heldMemberLockSnapshot(): Array<{ groupId: string; agentId: string; heldMs: number }> {
+    const now = Date.now();
+    const out: Array<{ groupId: string; agentId: string; heldMs: number }> = [];
+    for (const [key, since] of this.processingMembers) {
+      // 键是 `${groupId.length}:${groupId}:${agentId}`，按长度前缀切回去。
+      const firstColon = key.indexOf(':');
+      const len = Number(key.slice(0, firstColon));
+      const groupId = key.slice(firstColon + 1, firstColon + 1 + len);
+      const agentId = key.slice(firstColon + 2 + len);
+      out.push({ groupId, agentId, heldMs: now - since });
+    }
+    return out;
+  }
+
   /** 这个群里还有没有成员在跑。运行态展示与「群忙不忙」都看它。 */
   hasBusyMember(groupId: string): boolean {
     const prefix = `${groupId.length}:${groupId}:`;

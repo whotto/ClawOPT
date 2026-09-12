@@ -908,6 +908,16 @@ export class DB {
     this.db.prepare('DELETE FROM external_sessions WHERE group_id = ? AND member_id = ?').run(groupId, memberId);
   }
 
+  /** 只给诊断用：跨群列出全部成员。 */
+  listAllGroupMembers(): GroupMemberRow[] {
+    return this.db.prepare('SELECT * FROM group_members').all() as GroupMemberRow[];
+  }
+
+  /** 只给诊断用：列出全部外部会话。 */
+  listAllExternalSessions(): ExternalSessionRow[] {
+    return this.db.prepare('SELECT * FROM external_sessions').all() as ExternalSessionRow[];
+  }
+
   /** 只给用例与诊断用：数一数有没有孤儿行。 */
   countExternalSessions(): number {
     const row = this.db.prepare('SELECT COUNT(*) AS n FROM external_sessions').get() as { n: number };

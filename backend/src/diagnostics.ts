@@ -18,12 +18,15 @@ import { resolveRosterShape, listRosterEntries } from './agents-roster';
 import { sanitizeErrorDetail } from './openclaw-config';
 import { recentLogEntries, redactLogValue, type LogEntry } from './logger';
 import type { OpenClawVersionResult } from './openclaw-version';
+import type { RuntimeInvariantIssue } from './runtime-invariants';
 
 export interface DiagnosticsDeps {
   readConfig: () => Record<string, unknown> | null;
   detectEngineVersion: () => OpenClawVersionResult;
   gatewayStatus: () => { connected: boolean; endpoint?: string };
   browserHealth: () => { state: string };
+  /** 运行时不变量。CI 照不到「某台机器上的状态坏了」，这一层补的就是那个。 */
+  checkInvariants: () => RuntimeInvariantIssue[];
 }
 
 export interface DiagnosticsReport {
@@ -34,6 +37,7 @@ export interface DiagnosticsReport {
   gateway: { available: boolean; connected: boolean | null; endpoint?: string; detail?: string };
   browser: { available: boolean; state: string | null; detail?: string };
   runtime: { node: string; platform: string; arch: string };
+  invariants: RuntimeInvariantIssue[];
   logs: LogEntry[];
 }
 
@@ -56,6 +60,7 @@ export function buildDiagnosticsReport(deps: DiagnosticsDeps, logLimit = DIAGNOS
   const config = attempt(() => deps.readConfig());
   const gateway = attempt(() => deps.gatewayStatus());
   const browser = attempt(() => deps.browserHealth());
+  const invariants = attempt(() => deps.checkInvariants());
 
   const engineResult = engine.ok ? engine.value : null;
 
@@ -104,6 +109,7 @@ export function buildDiagnosticsReport(deps: DiagnosticsDeps, logLimit = DIAGNOS
       ? { available: true, state: browser.value.state }
       : { available: false, state: null, detail: browser.detail },
     runtime: { node: process.version, platform: process.platform, arch: process.arch },
+    invariants: invariants.ok ? invariants.value : [],
     logs: recentLogEntries(logLimit),
   };
 
