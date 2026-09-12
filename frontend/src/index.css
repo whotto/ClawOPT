@@ -1,7 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", "system-ui", "-apple-system", "sans-serif";
+  /* 中文渲染是这个产品的日常，而字体栈里一直没有 CJK——中文从来在吃回退字体。
+     这类缺陷不会有人报：回退字体也能显示，只是难看，没人会为「难看」提 bug。 */
+  --font-sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+               system-ui, -apple-system, sans-serif;
+  /* 标识符（agentId / 路径 / UUID / 版本号）一律等宽，扫读时对得齐。 */
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+               "Liberation Mono", monospace;
 
   /* "Middle Ground" gray palette for better definition and clean look */
   --color-gray-50:  #f6f8fb;
@@ -67,6 +73,33 @@ a,
 button:disabled,
 a:disabled {
   cursor: not-allowed;
+}
+
+/**
+ * 键盘焦点必须看得见 —— **合规补齐，不是审美选择**。
+ *
+ * Tailwind 的 preflight 去掉了浏览器默认的 outline，而全局又没有补回来，
+ * 于是用键盘操作这个界面时焦点在哪是纯猜的。这是事实上的 WCAG 2.1 AA
+ * (2.4.7 Focus Visible) 违规，与视觉偏好不是一类问题。
+ *
+ * 用 `:focus-visible` 而不是 `:focus`：鼠标点击不该冒出焦点框，只有键盘导航才要。
+ */
+:where(button, a, [role="button"], input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* 尊重系统的「减少动态效果」设置（WCAG 2.3.3）。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Hide scrollbar but keep functionality */
