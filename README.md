@@ -142,8 +142,7 @@ sudo apt update && sudo apt install libreoffice -y
 ├── presets/        角色预设库（内容层）
 ├── scripts/        构建、版本、品牌工具
 ├── branding.json   品牌单一真相源
-└── docs/
-    └── _upstream-archive/   上游历史归档（按原样保留，不改名）
+└── docs/           发布说明与设计文档
 ```
 
 ## 换品牌
@@ -164,5 +163,3 @@ node scripts/apply-branding.mjs         # 执行
 
 MIT，见 [`LICENSE`](LICENSE)。
 
-本项目基于 [OpenClaw-Chat-Gateway](https://github.com/liandu2024/OpenClaw-Chat-Gateway)（作者 liandu2024）的内核改造而来，已获原作者授权。
-上游未公开许可证，因此 MIT 覆盖的范围与授权链写在 [`NOTICE`](NOTICE) 里，再分发前请先读它。

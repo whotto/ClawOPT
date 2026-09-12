@@ -98,11 +98,10 @@ const RULES = [
 
 const ALL_RULES = [...legacyRules(), ...RULES];
 
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '_upstream-archive']);
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next']);
 const SKIP_FILES = new Set(['branding.json', 'apply-branding.mjs']);
 // 归属声明文件：只替换本项目自己的 URL，绝不替换上游作者名
 // （否则致谢会变成"基于自己改造自己"，等于抹掉来源）
-const ATTRIBUTION_FILES = new Set(['NOTICE', 'LICENSE', 'README.md', 'CHANGELOG.md']);
 const TEXT_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.json', '.md', '.sh', '.service',
                           '.html', '.css', '.yml', '.yaml', '.txt']);
 
@@ -123,10 +122,7 @@ function walk(dir) {
     scanned++;
     const before = fs.readFileSync(p, 'utf8');
     let after = before;
-    const isAttribution = ATTRIBUTION_FILES.has(e.name);
     for (const [re, to] of ALL_RULES) {
-      // 归属文件里跳过"上游作者名"替换规则
-      if (isAttribution && /liandu2024|OpenClaw-Chat-Gateway/.test(re.source)) continue;
       after = after.replace(re, to);
     }
     if (after !== before) {
