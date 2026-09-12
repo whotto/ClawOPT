@@ -1163,8 +1163,30 @@ export class GroupChatEngine extends EventEmitter {
     };
   }
 
+  /** 「群里还有事在跑吗」——给展示层与重新生成用，**包含**成员锁。 */
   isGroupProcessing(groupId: string) {
     return this.processingGroups.has(groupId) || this.hasBusyMember(groupId)
+      || this.pendingRuns.has(groupId) || this.activeRuns.has(groupId);
+  }
+
+  /**
+   * 「现在能不能接一条新消息」——**不包含**成员锁，这是它与上面那条的全部区别。
+   *
+   * 一个外部成员跑 10 分钟不该让整个群说不了话，那正是 per-member 锁的目的；
+   * 用 `isGroupProcessing()` 来挡新消息，会在 HTTP 层把那个目的整个抵消掉
+   * （这个错我犯过：锁改完了，路由没改，于是锁在生产上空转）。
+   *
+   * 但也不能全放开：`activeRuns` / `pendingRuns` 是**按 groupId 键**的，
+   * 网关那条路上整套会话对账都挂在「一个群同时只有一次运行」这个假设上。
+   * 放两轮网关运行并发进去，等于让它们并发写同一份从没为并发设计过的状态。
+   *
+   * 所以判据是：群级独占（重新生成）与网关运行仍然挡；**纯外部成员在忙不挡**
+   * ——外部路径不碰 activeRuns，对它开放是安全的。
+   *
+   * 等网关路径的运行跟踪也改成按成员键之后，这两条判据才能合并。
+   */
+  isGroupBlockingNewMessage(groupId: string) {
+    return this.processingGroups.has(groupId)
       || this.pendingRuns.has(groupId) || this.activeRuns.has(groupId);
   }
 

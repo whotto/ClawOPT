@@ -98,3 +98,53 @@ describe('外部成员必须真的被路由过去', () => {
   });
 });
 
+/**
+ * 路由层的接线 —— 上一版守卫漏掉的地方。
+ *
+ * 上一版只查了引擎（sendToAgent 取锁、sendUserMessage 不握群锁），于是漏了一个
+ * 事实：`POST /api/groups/:id/messages` 仍然用 `isGroupProcessing()` 挡，而那个
+ * 判据**包含成员锁**——「任何一个成员在忙 → 整个群 409」，per-member 锁在 HTTP 层
+ * 被整个抵消。用例全绿，因为路由替它挡住了，锁根本竞争不到。
+ *
+ * 教训：守卫要覆盖**判据实际被消费的地方**，不只是它被定义的地方。
+ */
+const INDEX_SRC = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src', 'index.ts'), 'utf-8',
+);
+
+/** 取某条路由声明之后的一段正文。 */
+function routeBody(declaration: string, span = 1200): string {
+  const start = INDEX_SRC.indexOf(declaration);
+  expect(start, `找不到路由 ${declaration}——它被改名或删掉了`).toBeGreaterThan(0);
+  return INDEX_SRC.slice(start, start + span);
+}
+
+describe('新消息与重新生成用的不是同一个判据', () => {
+  it('发新消息用 isGroupBlockingNewMessage（不含成员锁）', () => {
+    const body = routeBody("app.post('/api/groups/:id/messages', async (req, res) => {");
+    expect(body, '用了含成员锁的判据，per-member 锁在 HTTP 层被抵消')
+      .toContain('isGroupBlockingNewMessage');
+    expect(body).not.toContain('isGroupProcessing(');
+  });
+
+  it('重新生成**仍然**用 isGroupProcessing（含成员锁，严）', () => {
+    // 它重写已有消息的分支。v1.5.2 的原话：正在流式输出的那条被点「重新生成」，
+    // 旧 run 继续往已删除的消息 id 写 delta，前端据此复活一条幽灵消息。
+    const body = routeBody("app.post('/api/groups/:id/messages/regenerate', async (req, res) => {");
+    expect(body, '重新生成放松成了新消息的判据，幽灵消息会回来')
+      .toContain('isGroupProcessing(');
+  });
+
+  it('编辑后重跑也用严判据', () => {
+    const body = routeBody("app.put('/api/groups/:id/messages/:msgId', (req, res) => {", 2000);
+    expect(body).toContain('isGroupProcessing(');
+  });
+
+  it('两个判据的差别就是成员锁这一项', () => {
+    const src = SRC.slice(SRC.indexOf('isGroupBlockingNewMessage(groupId: string)'));
+    const body = src.slice(0, src.indexOf('\n  }') + 4);
+    expect(body, 'isGroupBlockingNewMessage 里含了成员锁，就和 isGroupProcessing 没区别了')
+      .not.toContain('hasBusyMember');
+  });
+});
+

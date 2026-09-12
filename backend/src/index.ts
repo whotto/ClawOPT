@@ -13912,7 +13912,9 @@ app.post('/api/groups/:id/messages', async (req, res) => {
       return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
     }
 
-    if (groupChatEngine.isGroupProcessing(req.params.id)) {
+    // 新消息用 isGroupBlockingNewMessage（**不含成员锁**）。用 isGroupProcessing
+    // 会把 per-member 锁在这一层整个抵消掉——一个外部成员跑 10 分钟，整个群 409。
+    if (groupChatEngine.isGroupBlockingNewMessage(req.params.id)) {
       return res.status(409).json({
         // 把「已经跑了多久」一并回去：用户看到「上一轮已经跑了 3 分钟」
         // 和看到一个裸 409，能做的判断完全不同。

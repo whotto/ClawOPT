@@ -168,3 +168,60 @@ describe('持锁快照（诊断用）', () => {
   });
 });
 
+/**
+ * 新消息的准入判据 —— 与「群忙不忙」不是同一件事。
+ *
+ * ## 发现经过
+ *
+ * per-member 锁落地之后我以为改完了，实际**在生产上是空转的**：
+ * `POST /api/groups/:id/messages` 仍然用 `isGroupProcessing()` 挡，而我把
+ * `hasBusyMember()` 加进了那个判据——于是「任何一个成员在忙 → 整个群 409」，
+ * 锁的粒度在 HTTP 层被整个抵消。昨天全绿是因为路由替它挡住了，用例里根本
+ * 竞争不到。
+ *
+ * ## 为什么不能简单地全放开
+ *
+ * `activeRuns` / `pendingRuns` 都是**按 groupId 键**的（一个群只跟得住一次运行）。
+ * 网关那条路上还有整套会话对账挂在这个假设上。全放开等于让两轮网关运行并发写
+ * 同一份状态，而那套状态从没为并发设计过。
+ *
+ * 外部成员那条路不碰 `activeRuns`，所以对它开放是安全的。这就是下面这条判据：
+ * **群级独占（重新生成）与网关运行仍然挡，纯外部成员在忙不挡。**
+ */
+describe('新消息准入（与「群忙不忙」不是一回事）', () => {
+  it('外部成员在忙时**不挡**新消息——这正是 per-member 锁的目的', () => {
+    const e = memberEngine();
+    e.acquireMemberLock('g1', 'ext-engineer');
+    expect(e.isGroupProcessing('g1'), '展示层仍应认为群里有事在跑').toBe(true);
+    expect(e.isGroupBlockingNewMessage('g1'), '一个成员在忙就把整个群挡住了').toBe(false);
+  });
+
+  it('重新生成持有群锁时挡住新消息', () => {
+    const e = memberEngine();
+    e.processingGroups.add('g1');
+    expect(e.isGroupBlockingNewMessage('g1')).toBe(true);
+  });
+
+  it('网关路径有活跃运行时挡住——activeRuns 按群键，并发会写坏对账状态', () => {
+    const e = memberEngine();
+    e.activeRuns.set('g1', {} as any);
+    expect(e.isGroupBlockingNewMessage('g1')).toBe(true);
+  });
+
+  it('有待处理运行时也挡', () => {
+    const e = memberEngine();
+    e.pendingRuns.set('g1', {} as any);
+    expect(e.isGroupBlockingNewMessage('g1')).toBe(true);
+  });
+
+  it('什么都没有时放行', () => {
+    expect(memberEngine().isGroupBlockingNewMessage('g1')).toBe(false);
+  });
+
+  it('不串群', () => {
+    const e = memberEngine();
+    e.processingGroups.add('g1');
+    expect(e.isGroupBlockingNewMessage('g2')).toBe(false);
+  });
+});
+
