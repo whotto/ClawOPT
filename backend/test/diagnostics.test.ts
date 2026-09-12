@@ -121,12 +121,24 @@ describe('运行时不变量并进报告', () => {
     expect(report.invariants[0].code).toBe('memberLockStale');
   });
 
-  it('不变量检查自己抛错时，报告其余部分照常产出', () => {
+  it('不变量检查自己抛错时，**报成「检查器崩了」而不是空数组**', () => {
+    // 这是不变量系统的经典失效模式：诊断本身有单点故障，且故障时静默降级为空。
+    // 空数组和「一切正常」在界面上无法区分——那正是 v1.5.0 冒名 DeepSeek 的同族形状：
+    // 状态看起来是对的，实际不能用。
     const report = buildDiagnosticsReport(deps({
       checkInvariants: () => { throw new Error('boom'); },
     }));
     expect(report.app.version, '一块失败把整份报告拖垮了').toBeTruthy();
-    expect(report.invariants).toEqual([]);
+    expect(report.invariants, '检查器崩了却显示成「没有问题」').toHaveLength(1);
+    expect(report.invariants[0].code).toBe('invariantsCheckerCrashed');
+    expect(report.invariants[0].severity).toBe('critical');
+  });
+
+  it('检查器崩溃的细节不带原始 message', () => {
+    const report = buildDiagnosticsReport(deps({
+      checkInvariants: () => { throw new SyntaxError('boom {"apiKey":"sk-LEAK"}'); },
+    }));
+    expect(JSON.stringify(report)).not.toContain('sk-LEAK');
   });
 
   it('告警里的绝对路径同样过脱敏', () => {

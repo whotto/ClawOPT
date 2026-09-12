@@ -109,7 +109,14 @@ export function buildDiagnosticsReport(deps: DiagnosticsDeps, logLimit = DIAGNOS
       ? { available: true, state: browser.value.state }
       : { available: false, state: null, detail: browser.detail },
     runtime: { node: process.version, platform: process.platform, arch: process.arch },
-    invariants: invariants.ok ? invariants.value : [],
+    // 检查器崩了要**说出来**，不能退化成空数组——空数组和「一切正常」在界面上
+    // 无法区分，那正是这一层要防的那类故障（状态看起来对、实际不能用）。
+    invariants: invariants.ok ? invariants.value : [{
+      code: 'invariantsCheckerCrashed',
+      severity: 'critical' as const,
+      message: '运行时不变量检查器自身失败，本次报告里的「无告警」不可信',
+      details: { detail: invariants.detail },
+    }],
     logs: recentLogEntries(logLimit),
   };
 
