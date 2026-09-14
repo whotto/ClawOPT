@@ -1,0 +1,3355 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ClawOPT backend",
+    "version": "1.0.0",
+    "description": "Generated from the backend route registry (npm run openapi:generate). Do not edit by hand."
+  },
+  "tags": [
+    {
+      "name": "bootstrap"
+    },
+    {
+      "name": "collab/rooms"
+    },
+    {
+      "name": "collab/sessions"
+    },
+    {
+      "name": "control/agents"
+    },
+    {
+      "name": "control/commands"
+    },
+    {
+      "name": "control/diagnostics"
+    },
+    {
+      "name": "control/gateway"
+    },
+    {
+      "name": "control/models"
+    },
+    {
+      "name": "control/packs"
+    },
+    {
+      "name": "control/presets"
+    },
+    {
+      "name": "control/settings"
+    },
+    {
+      "name": "control/update"
+    },
+    {
+      "name": "core/auth"
+    },
+    {
+      "name": "runtime"
+    },
+    {
+      "name": "workspace/files"
+    },
+    {
+      "name": "workspace/uploads"
+    }
+  ],
+  "paths": {
+    "/livez": {
+      "get": {
+        "operationId": "getLivez",
+        "tags": [
+          "bootstrap"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/livez",
+        "x-clawopt-order": 4
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "getReadyz",
+        "tags": [
+          "bootstrap"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/readyz",
+        "x-clawopt-order": 5
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "bootstrap"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/health",
+        "x-clawopt-order": 6
+      }
+    },
+    "/api/version": {
+      "get": {
+        "operationId": "getApiVersion",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/version",
+        "x-clawopt-order": 7
+      }
+    },
+    "/api/external-runtimes": {
+      "get": {
+        "operationId": "getApiExternalRuntimes",
+        "tags": [
+          "runtime"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/external-runtimes",
+        "x-clawopt-order": 8
+      }
+    },
+    "/api/diagnostics": {
+      "get": {
+        "operationId": "getApiDiagnostics",
+        "tags": [
+          "control/diagnostics"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/diagnostics",
+        "x-clawopt-order": 9
+      }
+    },
+    "/api/version/latest": {
+      "get": {
+        "operationId": "getApiVersionLatest",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/version/latest",
+        "x-clawopt-order": 10
+      }
+    },
+    "/api/openclaw/version/latest": {
+      "get": {
+        "operationId": "getApiOpenclawVersionLatest",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/openclaw/version/latest",
+        "x-clawopt-order": 11
+      }
+    },
+    "/api/openclaw/update/status": {
+      "get": {
+        "operationId": "getApiOpenclawUpdateStatus",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/openclaw/update/status",
+        "x-clawopt-order": 12
+      }
+    },
+    "/api/openclaw/update/start": {
+      "post": {
+        "operationId": "postApiOpenclawUpdateStart",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/openclaw/update/start",
+        "x-clawopt-order": 13
+      }
+    },
+    "/api/openclaw/update/cancel": {
+      "post": {
+        "operationId": "postApiOpenclawUpdateCancel",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/openclaw/update/cancel",
+        "x-clawopt-order": 14
+      }
+    },
+    "/api/openclaw/update/reset": {
+      "post": {
+        "operationId": "postApiOpenclawUpdateReset",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/openclaw/update/reset",
+        "x-clawopt-order": 15
+      }
+    },
+    "/api/update/status": {
+      "get": {
+        "operationId": "getApiUpdateStatus",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/update/status",
+        "x-clawopt-order": 16
+      }
+    },
+    "/api/update/start": {
+      "post": {
+        "operationId": "postApiUpdateStart",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/update/start",
+        "x-clawopt-order": 17
+      }
+    },
+    "/api/update/cancel": {
+      "post": {
+        "operationId": "postApiUpdateCancel",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/update/cancel",
+        "x-clawopt-order": 18
+      }
+    },
+    "/api/update/reset": {
+      "post": {
+        "operationId": "postApiUpdateReset",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/update/reset",
+        "x-clawopt-order": 19
+      }
+    },
+    "/api/update/restart-service": {
+      "post": {
+        "operationId": "postApiUpdateRestartService",
+        "tags": [
+          "control/update"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/update/restart-service",
+        "x-clawopt-order": 20
+      }
+    },
+    "/api/config": {
+      "get": {
+        "operationId": "getApiConfig",
+        "tags": [
+          "control/settings"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config",
+        "x-clawopt-order": 21
+      },
+      "post": {
+        "operationId": "postApiConfig",
+        "tags": [
+          "control/settings"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/config",
+        "x-clawopt-order": 22
+      }
+    },
+    "/api/sidebar/favorites": {
+      "get": {
+        "operationId": "getApiSidebarFavorites",
+        "tags": [
+          "control/settings"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sidebar/favorites",
+        "x-clawopt-order": 23
+      },
+      "post": {
+        "operationId": "postApiSidebarFavorites",
+        "tags": [
+          "control/settings"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sidebar/favorites",
+        "x-clawopt-order": 24
+      }
+    },
+    "/api/auth/check": {
+      "get": {
+        "operationId": "getApiAuthCheck",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/auth/check",
+        "x-clawopt-order": 28
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "postApiAuthLogout",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/auth/logout",
+        "x-clawopt-order": 29
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "postApiAuthLogin",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/auth/login",
+        "x-clawopt-order": 30
+      }
+    },
+    "/api/gateway/status": {
+      "get": {
+        "operationId": "getApiGatewayStatus",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/gateway/status",
+        "x-clawopt-order": 31
+      }
+    },
+    "/api/config/test": {
+      "post": {
+        "operationId": "postApiConfigTest",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/test",
+        "x-clawopt-order": 32
+      }
+    },
+    "/api/config/detect-all": {
+      "get": {
+        "operationId": "getApiConfigDetectAll",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/detect-all",
+        "x-clawopt-order": 33
+      }
+    },
+    "/api/config/browser-health/status": {
+      "get": {
+        "operationId": "getApiConfigBrowserHealthStatus",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/browser-health/status",
+        "x-clawopt-order": 34
+      }
+    },
+    "/api/config/browser-health": {
+      "get": {
+        "operationId": "getApiConfigBrowserHealth",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/browser-health",
+        "x-clawopt-order": 35
+      }
+    },
+    "/api/config/browser-headed-mode": {
+      "get": {
+        "operationId": "getApiConfigBrowserHeadedMode",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/browser-headed-mode",
+        "x-clawopt-order": 36
+      },
+      "post": {
+        "operationId": "postApiConfigBrowserHeadedMode",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/browser-headed-mode",
+        "x-clawopt-order": 39
+      }
+    },
+    "/api/config/restart/status": {
+      "get": {
+        "operationId": "getApiConfigRestartStatus",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/restart/status",
+        "x-clawopt-order": 37
+      }
+    },
+    "/api/config/restart/status/reset": {
+      "post": {
+        "operationId": "postApiConfigRestartStatusReset",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/restart/status/reset",
+        "x-clawopt-order": 38
+      }
+    },
+    "/api/config/browser-health/self-heal": {
+      "post": {
+        "operationId": "postApiConfigBrowserHealthSelfHeal",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/browser-health/self-heal",
+        "x-clawopt-order": 40
+      }
+    },
+    "/api/config/max-permissions": {
+      "get": {
+        "operationId": "getApiConfigMaxPermissions",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/max-permissions",
+        "x-clawopt-order": 41
+      },
+      "post": {
+        "operationId": "postApiConfigMaxPermissions",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/max-permissions",
+        "x-clawopt-order": 42
+      }
+    },
+    "/api/config/max-permissions/device-pairing/approve": {
+      "post": {
+        "operationId": "postApiConfigMaxPermissionsDevicePairingApprove",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/max-permissions/device-pairing/approve",
+        "x-clawopt-order": 43
+      }
+    },
+    "/api/config/restart": {
+      "post": {
+        "operationId": "postApiConfigRestart",
+        "tags": [
+          "control/gateway"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/config/restart",
+        "x-clawopt-order": 44
+      }
+    },
+    "/api/models": {
+      "get": {
+        "operationId": "getApiModels",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models",
+        "x-clawopt-order": 45
+      }
+    },
+    "/api/models/fallbacks": {
+      "get": {
+        "operationId": "getApiModelsFallbacks",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/fallbacks",
+        "x-clawopt-order": 46
+      },
+      "put": {
+        "operationId": "putApiModelsFallbacks",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/fallbacks",
+        "x-clawopt-order": 47
+      }
+    },
+    "/api/models/image-generation": {
+      "get": {
+        "operationId": "getApiModelsImageGeneration",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/image-generation",
+        "x-clawopt-order": 48
+      },
+      "put": {
+        "operationId": "putApiModelsImageGeneration",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/image-generation",
+        "x-clawopt-order": 50
+      }
+    },
+    "/api/models/image-generation/providers": {
+      "get": {
+        "operationId": "getApiModelsImageGenerationProviders",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/image-generation/providers",
+        "x-clawopt-order": 49
+      }
+    },
+    "/api/models/test-image-generation": {
+      "post": {
+        "operationId": "postApiModelsTestImageGeneration",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/test-image-generation",
+        "x-clawopt-order": 51
+      }
+    },
+    "/api/models/test": {
+      "post": {
+        "operationId": "postApiModelsTest",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/test",
+        "x-clawopt-order": 52
+      }
+    },
+    "/api/models/discover": {
+      "get": {
+        "operationId": "getApiModelsDiscover",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/discover",
+        "x-clawopt-order": 53
+      }
+    },
+    "/api/models/manage": {
+      "post": {
+        "operationId": "postApiModelsManage",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/manage",
+        "x-clawopt-order": 54
+      },
+      "delete": {
+        "operationId": "deleteApiModelsManage",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/manage",
+        "x-clawopt-order": 55
+      },
+      "put": {
+        "operationId": "putApiModelsManage",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/manage",
+        "x-clawopt-order": 57
+      }
+    },
+    "/api/models/manage/default": {
+      "put": {
+        "operationId": "putApiModelsManageDefault",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/manage/default",
+        "x-clawopt-order": 56
+      }
+    },
+    "/api/endpoints/manage": {
+      "delete": {
+        "operationId": "deleteApiEndpointsManage",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/endpoints/manage",
+        "x-clawopt-order": 58
+      }
+    },
+    "/api/endpoints": {
+      "get": {
+        "operationId": "getApiEndpoints",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/endpoints",
+        "x-clawopt-order": 59
+      },
+      "post": {
+        "operationId": "postApiEndpoints",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/endpoints",
+        "x-clawopt-order": 61
+      }
+    },
+    "/api/endpoints/test": {
+      "post": {
+        "operationId": "postApiEndpointsTest",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/endpoints/test",
+        "x-clawopt-order": 60
+      }
+    },
+    "/api/characters": {
+      "get": {
+        "operationId": "getApiCharacters",
+        "tags": [
+          "control/agents"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/characters",
+        "x-clawopt-order": 62
+      },
+      "post": {
+        "operationId": "postApiCharacters",
+        "tags": [
+          "control/agents"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/characters",
+        "x-clawopt-order": 63
+      }
+    },
+    "/api/characters/{id}": {
+      "delete": {
+        "operationId": "deleteApiCharactersId",
+        "tags": [
+          "control/agents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/characters/:id",
+        "x-clawopt-order": 64
+      }
+    },
+    "/api/characters/{agentId}/user-md": {
+      "get": {
+        "operationId": "getApiCharactersAgentIdUserMd",
+        "tags": [
+          "control/agents"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/characters/:agentId/user-md",
+        "x-clawopt-order": 65
+      },
+      "put": {
+        "operationId": "putApiCharactersAgentIdUserMd",
+        "tags": [
+          "control/agents"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/characters/:agentId/user-md",
+        "x-clawopt-order": 66
+      }
+    },
+    "/api/agents/orphans": {
+      "get": {
+        "operationId": "getApiAgentsOrphans",
+        "tags": [
+          "control/agents"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/agents/orphans",
+        "x-clawopt-order": 67
+      }
+    },
+    "/api/agents/import": {
+      "post": {
+        "operationId": "postApiAgentsImport",
+        "tags": [
+          "control/agents"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/agents/import",
+        "x-clawopt-order": 68
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "operationId": "getApiSessions",
+        "tags": [
+          "collab/sessions"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions",
+        "x-clawopt-order": 69
+      },
+      "post": {
+        "operationId": "postApiSessions",
+        "tags": [
+          "collab/sessions"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions",
+        "x-clawopt-order": 76
+      }
+    },
+    "/api/packs/export": {
+      "post": {
+        "operationId": "postApiPacksExport",
+        "tags": [
+          "control/packs"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/packs/export",
+        "x-clawopt-order": 70
+      }
+    },
+    "/api/packs/share": {
+      "post": {
+        "operationId": "postApiPacksShare",
+        "tags": [
+          "control/packs"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/packs/share",
+        "x-clawopt-order": 71
+      }
+    },
+    "/api/packs/inspect": {
+      "post": {
+        "operationId": "postApiPacksInspect",
+        "tags": [
+          "control/packs"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/packs/inspect",
+        "x-clawopt-order": 72
+      }
+    },
+    "/api/packs/install": {
+      "post": {
+        "operationId": "postApiPacksInstall",
+        "tags": [
+          "control/packs"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/packs/install",
+        "x-clawopt-order": 73
+      }
+    },
+    "/api/presets": {
+      "get": {
+        "operationId": "getApiPresets",
+        "tags": [
+          "control/presets"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/presets",
+        "x-clawopt-order": 74
+      }
+    },
+    "/api/presets/{presetId}/install": {
+      "post": {
+        "operationId": "postApiPresetsPresetIdInstall",
+        "tags": [
+          "control/presets"
+        ],
+        "parameters": [
+          {
+            "name": "presetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/presets/:presetId/install",
+        "x-clawopt-order": 75
+      }
+    },
+    "/api/sessions/{id}": {
+      "put": {
+        "operationId": "putApiSessionsId",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions/:id",
+        "x-clawopt-order": 77
+      },
+      "delete": {
+        "operationId": "deleteApiSessionsId",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions/:id",
+        "x-clawopt-order": 78
+      }
+    },
+    "/api/sessions/{id}/reset": {
+      "post": {
+        "operationId": "postApiSessionsIdReset",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions/:id/reset",
+        "x-clawopt-order": 79
+      }
+    },
+    "/api/sessions/{id}/configs": {
+      "get": {
+        "operationId": "getApiSessionsIdConfigs",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions/:id/configs",
+        "x-clawopt-order": 80
+      }
+    },
+    "/api/sessions/reorder": {
+      "post": {
+        "operationId": "postApiSessionsReorder",
+        "tags": [
+          "collab/sessions"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions/reorder",
+        "x-clawopt-order": 81
+      }
+    },
+    "/api/history/{sessionId}": {
+      "get": {
+        "operationId": "getApiHistorySessionId",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/history/:sessionId",
+        "x-clawopt-order": 82
+      }
+    },
+    "/api/history/{sessionId}/search": {
+      "get": {
+        "operationId": "getApiHistorySessionIdSearch",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/history/:sessionId/search",
+        "x-clawopt-order": 83
+      }
+    },
+    "/api/chat/{sessionId}/active-run": {
+      "get": {
+        "operationId": "getApiChatSessionIdActiveRun",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/chat/:sessionId/active-run",
+        "x-clawopt-order": 84
+      }
+    },
+    "/api/messages/{id}": {
+      "put": {
+        "operationId": "putApiMessagesId",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/messages/:id",
+        "x-clawopt-order": 85
+      },
+      "delete": {
+        "operationId": "deleteApiMessagesId",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/messages/:id",
+        "x-clawopt-order": 86
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "operationId": "postApiChat",
+        "tags": [
+          "collab/sessions"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/chat",
+        "x-clawopt-order": 87
+      }
+    },
+    "/api/chat/regenerate": {
+      "post": {
+        "operationId": "postApiChatRegenerate",
+        "tags": [
+          "collab/sessions"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/chat/regenerate",
+        "x-clawopt-order": 88
+      }
+    },
+    "/api/chat/attach/{sessionId}": {
+      "get": {
+        "operationId": "getApiChatAttachSessionId",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/chat/attach/:sessionId",
+        "x-clawopt-order": 89
+      }
+    },
+    "/api/chat/stop": {
+      "post": {
+        "operationId": "postApiChatStop",
+        "tags": [
+          "collab/sessions"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/chat/stop",
+        "x-clawopt-order": 90
+      }
+    },
+    "/api/chat/silent": {
+      "post": {
+        "operationId": "postApiChatSilent",
+        "tags": [
+          "collab/sessions"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/chat/silent",
+        "x-clawopt-order": 91
+      }
+    },
+    "/api/files/upload": {
+      "post": {
+        "operationId": "postApiFilesUpload",
+        "tags": [
+          "workspace/uploads"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files/upload",
+        "x-clawopt-order": 92
+      }
+    },
+    "/api/files": {
+      "get": {
+        "operationId": "getApiFiles",
+        "tags": [
+          "workspace/uploads"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files",
+        "x-clawopt-order": 93
+      }
+    },
+    "/api/commands": {
+      "get": {
+        "operationId": "getApiCommands",
+        "tags": [
+          "control/commands"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/commands",
+        "x-clawopt-order": 94
+      },
+      "post": {
+        "operationId": "postApiCommands",
+        "tags": [
+          "control/commands"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/commands",
+        "x-clawopt-order": 95
+      }
+    },
+    "/api/commands/{id}": {
+      "put": {
+        "operationId": "putApiCommandsId",
+        "tags": [
+          "control/commands"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/commands/:id",
+        "x-clawopt-order": 96
+      },
+      "delete": {
+        "operationId": "deleteApiCommandsId",
+        "tags": [
+          "control/commands"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/commands/:id",
+        "x-clawopt-order": 97
+      }
+    },
+    "/uploads/{filename}": {
+      "get": {
+        "operationId": "getUploadsFilename",
+        "tags": [
+          "workspace/files"
+        ],
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/uploads/:filename",
+        "x-clawopt-order": 98
+      }
+    },
+    "/openclaw/{path}": {
+      "get": {
+        "operationId": "getOpenclawPath",
+        "tags": [
+          "workspace/files"
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/^\\/openclaw\\/(.+)/",
+        "x-clawopt-order": 99
+      }
+    },
+    "/api/files/download": {
+      "get": {
+        "operationId": "getApiFilesDownload",
+        "tags": [
+          "workspace/files"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files/download",
+        "x-clawopt-order": 100
+      }
+    },
+    "/api/files/capabilities": {
+      "get": {
+        "operationId": "getApiFilesCapabilities",
+        "tags": [
+          "workspace/files"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files/capabilities",
+        "x-clawopt-order": 101
+      }
+    },
+    "/api/files/preview-data": {
+      "get": {
+        "operationId": "getApiFilesPreviewData",
+        "tags": [
+          "workspace/files"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files/preview-data",
+        "x-clawopt-order": 102
+      }
+    },
+    "/api/files/html-preview/path/{encodedPath}/{wildcard}": {
+      "get": {
+        "operationId": "getApiFilesHtmlPreviewPathEncodedPathWildcard",
+        "tags": [
+          "workspace/files"
+        ],
+        "parameters": [
+          {
+            "name": "encodedPath",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wildcard",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files/html-preview/path/:encodedPath/*",
+        "x-clawopt-order": 103
+      }
+    },
+    "/api/files/html-preview/upload/{filename}/{wildcard}": {
+      "get": {
+        "operationId": "getApiFilesHtmlPreviewUploadFilenameWildcard",
+        "tags": [
+          "workspace/files"
+        ],
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wildcard",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files/html-preview/upload/:filename/*",
+        "x-clawopt-order": 104
+      }
+    },
+    "/api/files/preview": {
+      "get": {
+        "operationId": "getApiFilesPreview",
+        "tags": [
+          "workspace/files"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/files/preview",
+        "x-clawopt-order": 105
+      }
+    },
+    "/api/groups": {
+      "get": {
+        "operationId": "getApiGroups",
+        "tags": [
+          "collab/rooms"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups",
+        "x-clawopt-order": 108
+      },
+      "post": {
+        "operationId": "postApiGroups",
+        "tags": [
+          "collab/rooms"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups",
+        "x-clawopt-order": 109
+      }
+    },
+    "/api/groups/{id}": {
+      "put": {
+        "operationId": "putApiGroupsId",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id",
+        "x-clawopt-order": 110
+      },
+      "delete": {
+        "operationId": "deleteApiGroupsId",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id",
+        "x-clawopt-order": 112
+      }
+    },
+    "/api/groups/reorder": {
+      "post": {
+        "operationId": "postApiGroupsReorder",
+        "tags": [
+          "collab/rooms"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/reorder",
+        "x-clawopt-order": 111
+      }
+    },
+    "/api/groups/{id}/reset": {
+      "post": {
+        "operationId": "postApiGroupsIdReset",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/reset",
+        "x-clawopt-order": 113
+      }
+    },
+    "/api/groups/{id}/messages": {
+      "get": {
+        "operationId": "getApiGroupsIdMessages",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/messages",
+        "x-clawopt-order": 114
+      },
+      "post": {
+        "operationId": "postApiGroupsIdMessages",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/messages",
+        "x-clawopt-order": 117
+      }
+    },
+    "/api/groups/{id}/active-run": {
+      "get": {
+        "operationId": "getApiGroupsIdActiveRun",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/active-run",
+        "x-clawopt-order": 115
+      }
+    },
+    "/api/groups/{id}/messages/search": {
+      "get": {
+        "operationId": "getApiGroupsIdMessagesSearch",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/messages/search",
+        "x-clawopt-order": 116
+      }
+    },
+    "/api/groups/{id}/stop": {
+      "post": {
+        "operationId": "postApiGroupsIdStop",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/stop",
+        "x-clawopt-order": 118
+      }
+    },
+    "/api/groups/{id}/messages/{msgId}": {
+      "put": {
+        "operationId": "putApiGroupsIdMessagesMsgId",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "msgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
+        "x-clawopt-order": 119
+      },
+      "delete": {
+        "operationId": "deleteApiGroupsIdMessagesMsgId",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "msgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
+        "x-clawopt-order": 120
+      }
+    },
+    "/api/groups/{id}/messages/regenerate": {
+      "post": {
+        "operationId": "postApiGroupsIdMessagesRegenerate",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/messages/regenerate",
+        "x-clawopt-order": 121
+      }
+    },
+    "/api/groups/{id}/events": {
+      "get": {
+        "operationId": "getApiGroupsIdEvents",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/events",
+        "x-clawopt-order": 122
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "clawopt_session",
+        "description": "httpOnly session cookie issued by POST /api/auth/login (web UI)."
+      },
+      "authTokenHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-ClawOPT-Auth-Token",
+        "description": "Session token for CLI and scripts."
+      },
+      "bearerToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Same session token sent as Authorization: Bearer."
+      }
+    }
+  }
+}

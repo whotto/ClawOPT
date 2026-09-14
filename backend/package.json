@@ -9,6 +9,7 @@
     "test": "tsc --noEmit && vitest run",
     "start": "node dist/index.js",
     "test:watch": "vitest",
+    "openapi:generate": "ts-node scripts/generate-openapi.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {

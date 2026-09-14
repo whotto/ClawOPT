@@ -74,6 +74,13 @@ export type {
   StructuredMessageParams,
 } from './errors';
 export {
+  buildOpenApiDocument,
+  toOpenApiPath,
+} from './openapi';
+export type {
+  OpenApiDocument,
+} from './openapi';
+export {
   REVISION_CONFLICT_ERROR_CODE,
   REVISION_REQUIRED_ERROR_CODE,
   canonicalJson,
