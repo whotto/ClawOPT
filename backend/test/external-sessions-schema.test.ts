@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 async function freshDb(): Promise<any> {
-  const mod = await import('../src/db');
+  const mod = await import('../src/core/db/db');
   return new (mod.default as any)();
 }
 
@@ -183,7 +183,7 @@ describe('迁移', () => {
     db.setExternalSession('g1', 'm1', 'a');
 
     // 模拟进程重启：同一个文件再打开一次
-    const mod = await import('../src/db');
+    const mod = await import('../src/core/db/db');
     const again = new (mod.default as any)();
     expect(again.getExternalSession('g1', 'm1'), '重启后会话丢了，等于每轮都按冷起计价').toBe('a');
   });

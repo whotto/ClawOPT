@@ -58,7 +58,7 @@ const writeConfig = (agents: Record<string, unknown>) =>
   }, null, 2));
 
 async function provisioner() {
-  const { AgentProvisioner } = await import('../src/agent-provisioner');
+  const { AgentProvisioner } = await import('../src/control/agents/agent-provisioner');
   return new AgentProvisioner() as any;
 }
 
@@ -109,7 +109,7 @@ describe('list 形状（2026.7）不能被这次修复弄坏', () => {
 describe('不许再用旧形状当开关', () => {
   it('源码里不得出现 `Array.isArray(config.agents.list)` 这类形状分支', () => {
     const raw = fs.readFileSync(
-      path.resolve(__dirname, '..', 'src', 'agent-provisioner.ts'), 'utf-8',
+      path.resolve(__dirname, '..', 'src', 'control', 'agents', 'agent-provisioner.ts'), 'utf-8',
     );
     // **先剥注释再扫。** 不剥的话，解释这个坑的注释本身会把守卫染红——
     // 一条会误报的守卫，下一个人会直接把它删掉，那就等于没有守卫。

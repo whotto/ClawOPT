@@ -19,7 +19,7 @@ import {
   readJsonConfigSafe,
   sanitizeErrorDetail,
   assertRegularFile,
-} from '../src/openclaw-config';
+} from '../src/openclaw/openclaw-config';
 
 let dir: string;
 let target: string;

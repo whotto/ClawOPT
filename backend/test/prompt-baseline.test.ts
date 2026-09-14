@@ -23,7 +23,7 @@ import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { GroupChatEngine } from '../src/group-chat-engine';
+import { GroupChatEngine } from '../src/collab/rooms/group-chat-engine';
 
 const BASELINE_DIR = path.join(__dirname, 'fixtures', 'prompt-baseline');
 
@@ -132,7 +132,8 @@ describe('S2-A8 · 红线 A 基线冻结（Sprint 2 出口闸门）', () => {
     const at = (p: string) => execFileSync('git', ['log', '-1', '--format=%ct', '--', p], { cwd: repo, encoding: 'utf-8' }).trim();
 
     const baselineAt = Number(at('backend/test/fixtures/prompt-baseline'));
-    const engineAt = Number(at('backend/src/group-chat-engine.ts'));
+    // P0 拆分把引擎搬进了 collab/rooms/；搬家本身算一次改动，REVIEWED.md 里有对应的复审记录。
+    const engineAt = Number(at('backend/src/collab/rooms/group-chat-engine.ts'));
 
     if (!baselineAt) return; // 尚未提交（首次生成的那一轮），下一次运行才有意义
     expect(

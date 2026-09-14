@@ -22,7 +22,7 @@
  * 最后一条尤其是这个仓库反复出现的形状：**状态看起来是对的，实际不能用**。
  */
 import { describe, it, expect } from 'vitest';
-import { checkRuntimeInvariants } from '../src/runtime-invariants';
+import { checkRuntimeInvariants } from '../src/runtime/runtime-invariants';
 
 const healthy = () => ({
   readConfig: () => ({ agents: { list: [{ id: 'main' }] } }) as Record<string, unknown>,

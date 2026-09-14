@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import crypto from 'crypto';
-import { AuthStore, hashPassword, isHashedPassword, readCookie, verifyPassword } from '../src/auth-store';
+import { AuthStore, hashPassword, isHashedPassword, readCookie, verifyPassword } from '../src/core/auth/auth-store';
 
 /** 内存版 DB 替身：只需要 getConfig/setConfig 两个方法。 */
 function makeDb() {

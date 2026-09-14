@@ -70,7 +70,7 @@ describe('名册接线守卫：src/ 里不得有裸的 agents.list / agents.entr
   });
 
   it('门面确实被 agent-provisioner 用上了（不是只导入不调用）', () => {
-    const src = fs.readFileSync(path.join(SRC, 'agent-provisioner.ts'), 'utf-8');
+    const src = fs.readFileSync(path.join(SRC, 'control', 'agents', 'agent-provisioner.ts'), 'utf-8');
     // 粗但有效：接线一旦整体消失，这几个计数会同时归零。
     expect(src, 'agent-provisioner 没有解析名册形状').toContain('rosterShapeOf');
     expect((src.match(/rosterShapeOf/g) ?? []).length, '接线点数量明显偏少').toBeGreaterThanOrEqual(8);
@@ -79,8 +79,8 @@ describe('名册接线守卫：src/ 里不得有裸的 agents.list / agents.entr
     expect(src).toContain('listRosterEntries');
   });
 
-  it('index.ts 的群运行时 agent 收集也走门面', () => {
-    const src = fs.readFileSync(path.join(SRC, 'index.ts'), 'utf-8');
+  it('群运行时 agent 收集也走门面（P0 拆分前在 index.ts，现在在 collab/rooms/room-runtime.ts）', () => {
+    const src = fs.readFileSync(path.join(SRC, 'collab', 'rooms', 'room-runtime.ts'), 'utf-8');
     expect(src, 'collectGroupRuntimeAgentIds 没走门面').toContain('listRosterEntries');
   });
 });

@@ -19,7 +19,7 @@ import {
   serializePack,
   writeAgentFiles,
   type PackAgent,
-} from '../src/agent-pack';
+} from '../src/control/packs/agent-pack';
 
 function makeAgent(files: PackAgent['files'] = []): PackAgent {
   return { id: 'demo', name: '演示', skills: [], files };

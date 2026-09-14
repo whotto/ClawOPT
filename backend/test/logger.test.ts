@@ -24,7 +24,7 @@ import {
   recentLogEntries,
   redactLogValue,
   resetLogBufferForTests,
-} from '../src/logger';
+} from '../src/core/logger/logger';
 
 beforeEach(() => resetLogBufferForTests());
 

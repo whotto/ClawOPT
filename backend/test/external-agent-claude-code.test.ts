@@ -21,7 +21,7 @@
  *   `rate_limit_event`，且**随本机 hook 配置而变**。解析器必须容忍未知类型。
  */
 import { describe, it, expect } from 'vitest';
-import { ClaudeCodeAdapter } from '../src/external-agents/claude-code';
+import { ClaudeCodeAdapter } from '../src/runtime/external-agents/claude-code';
 
 const adapter = new ClaudeCodeAdapter();
 

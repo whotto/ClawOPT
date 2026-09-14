@@ -11,9 +11,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { runExternalAgent } from '../src/external-agents/executor';
-import { ClaudeCodeAdapter } from '../src/external-agents/claude-code';
-import type { BuiltCommand, ExternalRunEvent } from '../src/external-agents/types';
+import { runExternalAgent } from '../src/runtime/external-agents/executor';
+import { ClaudeCodeAdapter } from '../src/runtime/external-agents/claude-code';
+import type { BuiltCommand, ExternalRunEvent } from '../src/runtime/external-agents/types';
 
 const adapter = new ClaudeCodeAdapter();
 let sandbox: string;

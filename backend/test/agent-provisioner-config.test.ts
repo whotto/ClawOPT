@@ -49,7 +49,7 @@ afterEach(() => {
 
 /** 每个用例都要一个干净的 AgentProvisioner 实例，构造时会读一次配置来修补模型能力表。 */
 async function freshProvisioner() {
-  const mod = await import('../src/agent-provisioner');
+  const mod = await import('../src/control/agents/agent-provisioner');
   return { AgentProvisioner: mod.AgentProvisioner, ConfigReadError: mod.ConfigReadError };
 }
 
@@ -297,7 +297,7 @@ describe('配置是合法 JSON 但不是对象时同样算「读不动」（对�
   for (const [label, content, expectedDetail] of notObjects) {
     it(`配置内容是 ${label} 时抛 notAnObject，而不是被当成一份可用的配置`, async () => {
       fs.writeFileSync(configPath, content);
-      const { AgentProvisioner, ConfigReadError } = await import('../src/agent-provisioner');
+      const { AgentProvisioner, ConfigReadError } = await import('../src/control/agents/agent-provisioner');
       const provisioner = new AgentProvisioner();
 
       let caught: unknown;
@@ -314,7 +314,7 @@ describe('配置是合法 JSON 但不是对象时同样算「读不动」（对�
   }
 
   it('五种非对象内容各自的 detail 互不相同，不塌成同一个值', async () => {
-    const { AgentProvisioner, ConfigReadError } = await import('../src/agent-provisioner');
+    const { AgentProvisioner, ConfigReadError } = await import('../src/control/agents/agent-provisioner');
     const details = new Set<string>();
 
     for (const [, content] of notObjects) {
@@ -358,7 +358,7 @@ describe('配置解析报错不得把配置原文带进 detail（凭据泄露面
 
   it('undefined 值触发的那类报错（V8 会嵌入原文片段）不把紧邻的密钥带出来', async () => {
     fs.writeFileSync(configPath, `{"apiKey":"${CANARY}","x":undefined}`);
-    const { AgentProvisioner, ConfigReadError } = await import('../src/agent-provisioner');
+    const { AgentProvisioner, ConfigReadError } = await import('../src/control/agents/agent-provisioner');
 
     let caught: unknown;
     try {
@@ -376,7 +376,7 @@ describe('配置解析报错不得把配置原文带进 detail（凭据泄露面
 
   it('detail 只保留错误类别与位置数字这一种形状', async () => {
     fs.writeFileSync(configPath, `{"apiKey":"${CANARY}", }`);
-    const { AgentProvisioner, ConfigReadError } = await import('../src/agent-provisioner');
+    const { AgentProvisioner, ConfigReadError } = await import('../src/control/agents/agent-provisioner');
 
     let caught: unknown;
     try {

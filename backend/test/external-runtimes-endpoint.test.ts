@@ -10,7 +10,7 @@
  * 结论当成事实摆着。
  */
 import { describe, it, expect } from 'vitest';
-import { buildExternalRuntimeList, EXTERNAL_RUNTIMES } from '../src/external-agents/registry';
+import { buildExternalRuntimeList, EXTERNAL_RUNTIMES } from '../src/runtime/external-agents/registry';
 
 describe('清单形状', () => {
   it('每个运行时都给出 id、二进制名与可用性', () => {

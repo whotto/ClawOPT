@@ -15,7 +15,7 @@
  *    证明上面创建的孤儿 session 行确实被回滚掉了。
  *
  * 这里选择整进程集成测试（而不是抽取路由逻辑单测）是因为本仓库里
- * `src/index.ts` 的路由处理器本身就是这个回滚要修的代码——单测一段复制出来的
+ * `src/collab/sessions/session-routes.ts`（P0 拆分前在 `src/index.ts`）的路由处理器本身就是这个回滚要修的代码——单测一段复制出来的
  * 逻辑不能证明真实路由确实这样做了。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

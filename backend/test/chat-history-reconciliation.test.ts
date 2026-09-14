@@ -12,7 +12,7 @@ import {
   getHistoryTailActivity,
   getUnknownHistorySnapshot,
   isNonTerminalAssistantMessage,
-} from '../src/chat-history-reconciliation';
+} from '../src/collab/sessions/chat-history-reconciliation';
 
 const assistant = (content: string, extra: Record<string, any> = {}) => ({ role: 'assistant', content, ...extra });
 const user = (content: string) => ({ role: 'user', content });

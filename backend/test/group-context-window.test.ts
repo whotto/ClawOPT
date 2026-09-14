@@ -5,7 +5,7 @@
  * 「最新任务」重复一遍，且「最新任务」不设上限——上一位成员 2 万字的回复整段转交。
  */
 import { describe, it, expect } from 'vitest';
-import { selectGroupContextWindow, truncateGroupTriggerMessage } from '../src/group-chat-engine';
+import { selectGroupContextWindow, truncateGroupTriggerMessage } from '../src/collab/rooms/group-chat-engine';
 
 const row = (id: number, content: string, sender: 'user' | 'agent' = 'agent', name = 'A') => ({
   id, group_id: 'g', parent_id: id - 1, sender_type: sender, sender_id: sender === 'user' ? null : name,

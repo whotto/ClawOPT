@@ -36,7 +36,7 @@ beforeAll(() => {
 afterAll(() => fs.rmSync(home, { recursive: true, force: true }));
 
 // 模块在导入时读 HOME，所以必须在设置环境变量之后再 import
-const { resolveServablePath } = await import('../src/served-paths');
+const { resolveServablePath } = await import('../src/core/files/served-paths');
 
 describe('放行', () => {
   it('工作区里的普通文件', () => {

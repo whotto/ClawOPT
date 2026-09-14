@@ -20,8 +20,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import os from 'os';
-import { buildDiagnosticsReport } from '../src/diagnostics';
-import { createLogger, resetLogBufferForTests } from '../src/logger';
+import { buildDiagnosticsReport } from '../src/control/diagnostics/diagnostics';
+import { createLogger, resetLogBufferForTests } from '../src/core/logger/logger';
 
 const deps = (over: Partial<Parameters<typeof buildDiagnosticsReport>[0]> = {}) => ({
   checkInvariants: () => [] as any[],

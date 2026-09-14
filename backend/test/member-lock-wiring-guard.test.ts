@@ -13,7 +13,7 @@ import fs from 'fs';
 import path from 'path';
 
 const SRC = fs.readFileSync(
-  path.resolve(__dirname, '..', 'src', 'group-chat-engine.ts'), 'utf-8',
+  path.resolve(__dirname, '..', 'src', 'collab', 'rooms', 'group-chat-engine.ts'), 'utf-8',
 );
 
 /** 取某个方法从声明到下一个同级方法之间的正文。 */
@@ -108,8 +108,9 @@ describe('外部成员必须真的被路由过去', () => {
  *
  * 教训：守卫要覆盖**判据实际被消费的地方**，不只是它被定义的地方。
  */
+// 群聊路由在 P0 拆分后住在 collab/rooms/room-routes.ts（拆分前在 index.ts）。
 const INDEX_SRC = fs.readFileSync(
-  path.resolve(__dirname, '..', 'src', 'index.ts'), 'utf-8',
+  path.resolve(__dirname, '..', 'src', 'collab', 'rooms', 'room-routes.ts'), 'utf-8',
 );
 
 /** 取某条路由声明之后的一段正文。 */

@@ -23,7 +23,7 @@ import {
   detectOpenClawVersion,
   unknownVersion,
   type OpenClawVersion,
-} from '../src/openclaw-version';
+} from '../src/openclaw/openclaw-version';
 
 const v = (raw: string): OpenClawVersion => {
   const r = parseOpenClawVersion(raw);

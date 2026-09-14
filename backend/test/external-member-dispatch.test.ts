@@ -18,8 +18,8 @@
  * 让下一轮重新开始，而不是一直撞同一堵墙。
  */
 import { describe, it, expect, vi } from 'vitest';
-import { GroupChatEngine } from '../src/group-chat-engine';
-import { NON_RESUMABLE_EXTERNAL_SESSION_STATUSES as NON_RESUMABLE } from '../src/db';
+import { GroupChatEngine } from '../src/collab/rooms/group-chat-engine';
+import { NON_RESUMABLE_EXTERNAL_SESSION_STATUSES as NON_RESUMABLE } from '../src/core/db/db';
 
 type Emitted = { event: string; payload: any };
 

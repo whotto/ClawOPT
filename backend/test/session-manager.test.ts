@@ -34,8 +34,8 @@ afterEach(() => {
 });
 
 async function freshManager() {
-  const dbMod = await import('../src/db');
-  const smMod = await import('../src/session-manager');
+  const dbMod = await import('../src/core/db/db');
+  const smMod = await import('../src/collab/sessions/session-manager');
   const db = new (dbMod.default as any)();
   const sessionManager = new smMod.SessionManager(db as any);
   return { db, sessionManager };

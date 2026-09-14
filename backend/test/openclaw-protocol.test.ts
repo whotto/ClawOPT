@@ -6,7 +6,7 @@
  * 而日志里什么都看不到。所以这些用例守的是「安静地错」这一类。
  */
 import { describe, expect, it } from 'vitest';
-import { normalizeOpenClawMessageRecord } from '../src/openclaw-client';
+import { normalizeOpenClawMessageRecord } from '../src/openclaw/openclaw-client';
 
 describe('消息解包', () => {
   it('已经是消息的记录原样返回', () => {

@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 async function seeded() {
-  const mod = await import('../src/db');
+  const mod = await import('../src/core/db/db');
   const db = new (mod.default as any)();
   db.saveGroupChat({ id: 'g1', name: '群', description: '', position: 0 });
   db.saveGroupMember({
@@ -112,7 +112,8 @@ describe('编辑群不能把外部成员打回原形', () => {
 });
 
 describe('路由确实这么做了（接线守卫）', () => {
-  const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'index.ts'), 'utf-8');
+  // 群聊路由在 P0 拆分后住在 collab/rooms/room-routes.ts（拆分前在 index.ts）。
+  const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'collab', 'rooms', 'room-routes.ts'), 'utf-8');
   const body = () => {
     const i = SRC.indexOf("app.put('/api/groups/:id', (req, res) => {");
     expect(i, "找不到 PUT /api/groups/:id").toBeGreaterThan(0);

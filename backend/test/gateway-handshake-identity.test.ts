@@ -32,7 +32,7 @@ import fs from 'fs';
 import path from 'path';
 
 const src = () => fs.readFileSync(
-  path.resolve(__dirname, '..', 'src', 'openclaw-client.ts'), 'utf-8',
+  path.resolve(__dirname, '..', 'src', 'openclaw', 'openclaw-client.ts'), 'utf-8',
 );
 
 /** 剥掉注释再断言：解释这个坑的注释里就写着那些错误值。 */

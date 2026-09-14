@@ -1,0 +1,502 @@
+import {
+  type AgentProvisioner,
+  type AgentSettings,
+  normalizeAgentRuntimeMode,
+  normalizeAgentSystemPromptMode,
+  normalizeAgentToolMode,
+  normalizeFallbackList,
+  normalizeFallbackMode,
+  RUNTIME_SETTINGS_CONFIG_READ_FALLBACK,
+  withConfigReadFallback,
+} from '../../control';
+import type { DB } from '../../core/db';
+import {
+  AGENT_CONFIG_READ_FAILED_ERROR_CODE,
+  AGENT_ID_ALREADY_EXISTS_ERROR_CODE,
+  AGENT_ID_CONTAINS_WHITESPACE_ERROR_CODE,
+  AGENT_ID_REQUIRED_ERROR_CODE,
+  buildStructuredApiError,
+  MODEL_UPDATE_FAILED_ERROR_CODE,
+  type RouteApp,
+} from '../../core/http';
+import type { GatewayConnections } from '../../openclaw';
+import { ConfigReadError } from '../../openclaw';
+import type { UploadService } from '../../workspace';
+import type { ChatRuns } from './active-run-manager';
+import { abortOpenClawSessionRuns, type ChatLifecycle } from './chat-lifecycle';
+import {
+  buildHistoryPageResponse,
+  buildHistorySearchResponse,
+  buildStructuredChatHttpError,
+  type ChatMessages,
+  getHistoryPageQueryParams,
+} from './chat-messages';
+import type { SessionManager } from './session-manager';
+import {
+  buildOpenClawChatSessionKey,
+  resetAgentWorkspaceToInitialState,
+  type SessionRuntime,
+} from './session-runtime';
+
+export type SessionListRoutesDeps = {
+  agentProvisioner: AgentProvisioner;
+  sessionManager: SessionManager;
+  agentSettings: AgentSettings;
+};
+
+export function registerSessionListRoutes(app: RouteApp, ctx: SessionListRoutesDeps): void {
+  const { agentProvisioner, sessionManager } = ctx;
+  const { readEffectiveAgentRuntimeSettings } = ctx.agentSettings;
+
+  app.get('/api/sessions', (_req, res) => {
+    const sessions = sessionManager.getAllSessions();
+    const sessionsWithModel = sessions.map(session => {
+      // 配置读不动时退回旧的降级行为（model 空字符串、运行时设置退回默认值），
+      // 不让整条列表 500——这里返回的是数组，没有顶层字段可挂标记位，所以
+      // configReadFailed 挂在每一行上。
+      const { value: runtimeSettingsValue, configReadFailed: runtimeFailed } = withConfigReadFallback(
+        { runtimeMode: normalizeAgentRuntimeMode(session.runtime_mode), ...RUNTIME_SETTINGS_CONFIG_READ_FALLBACK },
+        () => readEffectiveAgentRuntimeSettings(session, session.agentId),
+      );
+      const { value: model, configReadFailed: modelFailed } = withConfigReadFallback(
+        '',
+        () => agentProvisioner.readAgentModel(session.agentId) || '',
+      );
+      return {
+        ...session,
+        runtimeMode: runtimeSettingsValue.runtimeMode,
+        systemPromptMode: runtimeSettingsValue.systemPromptMode,
+        toolMode: runtimeSettingsValue.toolMode,
+        model,
+        configReadFailed: runtimeFailed || modelFailed,
+      };
+    });
+    res.json(sessionsWithModel);
+  });
+}
+
+export type SessionRoutesDeps = {
+  agentProvisioner: AgentProvisioner;
+  db: DB;
+  sessionManager: SessionManager;
+  chatRuns: ChatRuns;
+  chatLifecycle: ChatLifecycle;
+  chatMessages: ChatMessages;
+  sessionRuntime: SessionRuntime;
+  agentSettings: AgentSettings;
+  gatewayConnections: GatewayConnections;
+  uploads: UploadService;
+};
+
+export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): void {
+  const { agentProvisioner, db, sessionManager } = ctx;
+  const { activeRunManager, localChatOperationManager, pendingChatPreparationManager } = ctx.chatRuns;
+  const { reconcileInactiveChatLatestMessage } = ctx.chatLifecycle;
+  const { withStructuredChatMessage } = ctx.chatMessages;
+  const { bumpSessionInterruptionEpoch, getSessionInterruptionEpoch, resetAgentRuntimeStateToInitialState, sessionInterruptionEpochs } = ctx.sessionRuntime;
+  const { readEffectiveAgentRuntimeSettings } = ctx.agentSettings;
+  const { disconnectConnection, getConnection } = ctx.gatewayConnections;
+  const { clearStoredFilesBySessionKey } = ctx.uploads;
+
+  app.post('/api/sessions', async (req, res) => {
+    const { id, name, soulContent, userContent, agentsContent, toolsContent, heartbeatContent, identityContent, model, process_start_tag, process_end_tag } = req.body;
+    const fallbackMode = normalizeFallbackMode(req.body?.fallbackMode) ?? 'inherit';
+    const fallbacks = normalizeFallbackList(req.body?.fallbacks);
+    const runtimeMode = normalizeAgentRuntimeMode(req.body?.runtimeMode ?? req.body?.runtime_mode);
+    const systemPromptMode = normalizeAgentSystemPromptMode(req.body?.systemPromptMode ?? req.body?.system_prompt_mode);
+    const toolMode = normalizeAgentToolMode(req.body?.toolMode ?? req.body?.tool_mode);
+
+    const rawId = typeof id === 'string' ? id : '';
+    const normalizedId = rawId.trim();
+
+    if (!normalizedId) {
+      return res.status(400).json(buildStructuredApiError(AGENT_ID_REQUIRED_ERROR_CODE));
+    }
+
+    if (/\s/.test(rawId)) {
+      return res.status(400).json(buildStructuredApiError(AGENT_ID_CONTAINS_WHITESPACE_ERROR_CODE));
+    }
+
+    if (sessionManager.getSession(normalizedId)) {
+      return res.status(400).json(buildStructuredApiError(AGENT_ID_ALREADY_EXISTS_ERROR_CODE, null, { agentId: normalizedId }));
+    }
+
+    // Provide basic default for first session if it doesn't exist
+    //
+    // 这一步单独包一层 try：Express 4（backend/package.json 钉的 ^4.18.2）不会替
+    // async handler 接管同步/异步抛错——如果 createSession() 留在下面那个大 try
+    // 之外抛错，Express 4 既不会走 error middleware 也不会回一个响应，请求会一直
+    // 悬挂到客户端超时，而不是拿到结构化的 400/500。装配失败的回滚逻辑（依赖
+    // newSession 已经建好）留在下面第二层 try，不受影响。
+    let newSession;
+    try {
+      newSession = sessionManager.createSession({
+        id: normalizedId,
+        name,
+        process_start_tag,
+        process_end_tag,
+        runtime_mode: runtimeMode,
+        system_prompt_mode: systemPromptMode,
+        tool_mode: toolMode,
+      });
+    } catch (err: any) {
+      return res.status(500).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, err?.message));
+    }
+    const agentId = newSession.id;
+
+    try {
+      // Provision agent workspace
+      await agentProvisioner.provision({
+        agentId,
+        soulContent,
+        userContent,
+        agentsContent,
+        toolsContent,
+        heartbeatContent,
+        identityContent,
+        model,
+        fallbackMode,
+        fallbacks,
+        systemPromptMode,
+        toolMode,
+      });
+
+      // Update session record with the auto-generated agentId
+      sessionManager.updateSession(newSession.id, { agentId });
+      const finalSession = sessionManager.getSession(newSession.id);
+
+      res.json({ success: true, session: finalSession });
+    } catch (err: any) {
+      // provision() 失败要把上面刚建的 session 撤掉（同一个模式见 9989 行的角色包装配）。
+      // 留着就是个孤儿 session：这个 ID 已经"存在"，用户改完配置重试会被 10029 行
+      // 的 AGENT_ID_ALREADY_EXISTS 挡住，永远重试不了同一个 ID。
+      // 红线 C：回滚本身也可能失败——裸 catch {} 会让这条静默吞掉，用户看到的仍是
+      // "配置读不动"，真正卡住他的却是那条删不掉的孤儿行，日志里一点痕迹都没有。
+      // 这里必须出声：打日志，并把这件事写进错误响应，让用户知道该换个 ID 而不是
+      // 反复用同一个 ID 重试。
+      let rollbackFailed = false;
+      try {
+        sessionManager.deleteSession(newSession.id);
+      } catch (rollbackErr) {
+        rollbackFailed = true;
+        console.error('[POST /api/sessions] 回滚孤儿 session 失败，该 ID 已被锁死：', newSession.id, rollbackErr);
+      }
+
+      // ConfigReadError 是"配置读不动"，不是"装配失败"这一件笼统的事——给它自己的
+      // errorCode，而不是把它的中文 message 塞进 MODEL_UPDATE_FAILED 的 detail 里，
+      // 让前端和这里的测试都能在 errorCode 上分辨出这是哪一种失败。
+      if (err instanceof ConfigReadError) {
+        const detail = rollbackFailed
+          ? `${err.reason}: ${err.detail}（该 ID 未能撤销，请换一个 ID 或手动清理）`
+          : `${err.reason}: ${err.detail}`;
+        return res.status(500).json(
+          buildStructuredApiError(AGENT_CONFIG_READ_FAILED_ERROR_CODE, detail),
+        );
+      }
+      const detail = rollbackFailed
+        ? `${err?.message}（该 ID 未能撤销，请换一个 ID 或手动清理）`
+        : err?.message;
+      res.status(400).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, detail));
+    }
+  });
+
+  app.put('/api/sessions/:id', async (req, res) => {
+    const { name, soulContent, userContent, agentsContent, toolsContent, heartbeatContent, identityContent, model, process_start_tag, process_end_tag } = req.body;
+    const fallbackMode = normalizeFallbackMode(req.body?.fallbackMode) ?? 'inherit';
+    const fallbacks = normalizeFallbackList(req.body?.fallbacks);
+    const runtimeMode = normalizeAgentRuntimeMode(req.body?.runtimeMode ?? req.body?.runtime_mode);
+    const systemPromptMode = normalizeAgentSystemPromptMode(req.body?.systemPromptMode ?? req.body?.system_prompt_mode);
+    const toolMode = normalizeAgentToolMode(req.body?.toolMode ?? req.body?.tool_mode);
+    const session = sessionManager.getSession(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+
+    try {
+      const updated = sessionManager.updateSession(req.params.id, {
+        name,
+        process_start_tag,
+        process_end_tag,
+        runtime_mode: runtimeMode,
+        system_prompt_mode: systemPromptMode,
+        tool_mode: toolMode,
+      });
+      
+      if (session.agentId) {
+        await agentProvisioner.updateSoul(session.agentId, soulContent || '');
+        if (userContent !== undefined) agentProvisioner.writeAgentFile(session.agentId, 'USER.md', userContent);
+        if (agentsContent !== undefined) agentProvisioner.writeAgentFile(session.agentId, 'AGENTS.md', agentsContent);
+        if (toolsContent !== undefined) agentProvisioner.writeAgentFile(session.agentId, 'TOOLS.md', toolsContent);
+        if (heartbeatContent !== undefined) agentProvisioner.writeAgentFile(session.agentId, 'HEARTBEAT.md', heartbeatContent);
+        if (identityContent !== undefined) agentProvisioner.writeAgentFile(session.agentId, 'IDENTITY.md', identityContent);
+        
+        // Model update might require gateway restart
+        const modelChanged = await agentProvisioner.updateModel(session.agentId, model, { mode: fallbackMode, fallbacks });
+        agentProvisioner.updateAgentRuntimeConfig(session.agentId, { systemPromptMode, toolMode });
+        if (modelChanged) {
+          // Gateway auto-reloads config
+        }
+      }
+
+      res.json({ success: true, session: updated });
+    } catch (err: any) {
+      res.status(400).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, err?.message));
+    }
+  });
+
+  app.delete('/api/sessions/:id', async (req, res) => {
+    const session = sessionManager.getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+
+    if (session.id === 'main' || session.agentId === 'main') {
+      return res.status(400).json({ success: false, error: 'Cannot delete the main agent session' });
+    }
+
+    const agentId = session.agentId;
+    const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
+    bumpSessionInterruptionEpoch(req.params.id);
+    pendingChatPreparationManager.cancel(req.params.id, interruptedEpoch);
+    localChatOperationManager.abort(req.params.id, interruptedEpoch);
+    try {
+      await activeRunManager.abortRun(req.params.id);
+    } catch {}
+    try {
+      const client = await getConnection(req.params.id);
+      await abortOpenClawSessionRuns(
+        client,
+        buildOpenClawChatSessionKey(req.params.id, agentId || 'main'),
+        `session ${req.params.id} delete`,
+        { retryOnMiss: true },
+      );
+    } catch (error) {
+      console.warn(`[chat] Failed to abort orphan OpenClaw runs while deleting session ${req.params.id}:`, error);
+    }
+    disconnectConnection(req.params.id);
+    const success = sessionManager.deleteSession(req.params.id);
+    
+    if (success) {
+      sessionInterruptionEpochs.delete(req.params.id);
+      if (agentId && agentId !== 'main') {
+        // deprovision() 现在会对「配置读不动」抛 ConfigReadError（原来是静默
+        // `return false`，于是这条路由报 200 success 而配置条目、工作区、状态目录、
+        // 记忆库一个都没删）。这里必须接住：本路由此前**完全没有 try/catch**，
+        // 一个异步抛错会变成未处理的 Promise 拒绝，请求悬着、进程可能被带崩。
+        try {
+          const configChanged = await agentProvisioner.deprovision(agentId);
+          if (configChanged) {
+            // Gateway auto-reloads config
+          }
+        } catch (error) {
+          if (error instanceof ConfigReadError) {
+            // session 行已经删掉了，但 openclaw.json 里的条目还在——如实说出来，
+            // 不要报成完全成功。用户需要知道去修配置，否则那个 agentId 再也建不回来。
+            console.error(
+              `[DELETE /api/sessions/:id] session 已删除，但清理 openclaw.json 失败（${error.reason}）：`,
+              req.params.id,
+            );
+            return res.status(500).json(
+              buildStructuredApiError(AGENT_CONFIG_READ_FAILED_ERROR_CODE, error.detail, {
+                reason: error.reason,
+              }),
+            );
+          }
+          throw error;
+        }
+      }
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ success: false, error: 'Session not found' });
+    }
+  });
+
+  // Reset session back to its initialized runtime state while keeping the session entity.
+  app.post('/api/sessions/:id/reset', async (req, res) => {
+    const session = sessionManager.getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+
+    try {
+      const agentId = session.agentId;
+      const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
+      bumpSessionInterruptionEpoch(req.params.id);
+      pendingChatPreparationManager.cancel(req.params.id, interruptedEpoch);
+      localChatOperationManager.abort(req.params.id, interruptedEpoch);
+
+      try {
+        await activeRunManager.abortRun(req.params.id);
+      } catch {}
+      try {
+        const client = await getConnection(req.params.id);
+        await abortOpenClawSessionRuns(
+          client,
+          buildOpenClawChatSessionKey(req.params.id, agentId || 'main'),
+          `session ${req.params.id} reset`,
+          { retryOnMiss: true },
+        );
+      } catch (error) {
+        console.warn(`[chat] Failed to abort orphan OpenClaw runs while resetting session ${req.params.id}:`, error);
+      }
+      disconnectConnection(req.params.id);
+
+      // Clear database records
+      db.deleteMessagesBySession(req.params.id);
+      clearStoredFilesBySessionKey(req.params.id);
+
+      // Clear agent workspace uploads directory
+      if (agentId) {
+        const workspacePath = agentProvisioner.getWorkspacePath(agentId);
+        const modelConfig = agentProvisioner.readAgentModelConfig(agentId);
+        const runtimeConfig = agentProvisioner.readAgentRuntimeConfig(agentId);
+        resetAgentWorkspaceToInitialState(workspacePath);
+        resetAgentRuntimeStateToInitialState(agentId);
+        await agentProvisioner.provision({
+          agentId,
+          workspaceDir: workspacePath,
+          model: modelConfig.modelOverride || undefined,
+          fallbackMode: modelConfig.fallbackMode,
+          fallbacks: modelConfig.fallbacks,
+          systemPromptMode: runtimeConfig.systemPromptMode,
+          toolMode: runtimeConfig.toolMode,
+          // 重置要保住运行时选择。不带这一项的话，重置一个跑在 Claude Code 上的
+          // Agent 会把它悄悄变回引擎默认——用户看到的是「重置了一下就不工作了」，
+          // 而没有任何东西指向真实原因。
+        });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Failed to reset session:', err);
+      res.status(500).json({ success: false, error: 'Failed to reset session' });
+    }
+  });
+
+  // Endpoint to fetch all configuring MD files for a given session's agent
+  app.get('/api/sessions/:id/configs', async (req, res) => {
+    const session = sessionManager.getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    const agentId = session.agentId;
+    // 配置读不动时退回"没配模型"的旧降级形状，不让这条详情页整体 500——
+    // 界面上其余六份 markdown 内容依然是真实数据，不该因为模型标签读不到就全部拿不到。
+    const { value: modelConfig, configReadFailed: modelReadFailed } = withConfigReadFallback(
+      { model: null, modelOverride: null, fallbackMode: 'inherit' as const, fallbacks: [] as string[], resolvedModel: null },
+      () => agentProvisioner.readAgentModelConfig(agentId),
+    );
+    const { value: runtimeSettings, configReadFailed: runtimeReadFailed } = withConfigReadFallback(
+      { runtimeMode: normalizeAgentRuntimeMode(session.runtime_mode), ...RUNTIME_SETTINGS_CONFIG_READ_FALLBACK },
+      () => readEffectiveAgentRuntimeSettings(session, agentId),
+    );
+    const configReadFailed = modelReadFailed || runtimeReadFailed;
+    const runtimeMetrics = agentProvisioner.readAgentRuntimeMetrics(agentId);
+    res.json({
+      success: true,
+      configs: {
+        soulContent: agentProvisioner.readSoul(agentId) || '',
+        userContent: agentProvisioner.readAgentFile(agentId, 'USER.md', ''),
+        agentsContent: agentProvisioner.readAgentFile(agentId, 'AGENTS.md', ''),
+        toolsContent: agentProvisioner.readAgentFile(agentId, 'TOOLS.md', ''),
+        heartbeatContent: agentProvisioner.readAgentFile(agentId, 'HEARTBEAT.md', ''),
+        identityContent: agentProvisioner.readAgentFile(agentId, 'IDENTITY.md', ''),
+        model: modelConfig.model,
+        modelOverride: modelConfig.modelOverride,
+        resolvedModel: modelConfig.resolvedModel,
+        fallbackMode: modelConfig.fallbackMode,
+        fallbacks: modelConfig.fallbacks,
+        runtimeMode: runtimeSettings.runtimeMode,
+        systemPromptMode: runtimeSettings.systemPromptMode,
+        toolMode: runtimeSettings.toolMode,
+        runtimeMetrics,
+        configReadFailed,
+      }
+    });
+  });
+
+  app.post('/api/sessions/reorder', (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) {
+      return res.status(400).json({ success: false, error: 'Invalid ids format' });
+    }
+    sessionManager.reorderSessions(ids);
+    res.json({ success: true });
+  });
+
+  app.get('/api/history/:sessionId', async (req, res) => {
+    try {
+      const { beforeId, limit } = getHistoryPageQueryParams(req.query as Record<string, unknown>);
+      if (beforeId === null) {
+        await reconcileInactiveChatLatestMessage(req.params.sessionId);
+      }
+      const result = db.getMessagesPage(req.params.sessionId, { beforeId, limit });
+      res.json(buildHistoryPageResponse(
+        result.rows.map((row) => withStructuredChatMessage(row, { sessionId: req.params.sessionId })),
+        result.pageInfo,
+      ));
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get('/api/history/:sessionId/search', (req, res) => {
+    try {
+      const query = typeof req.query.q === 'string' ? req.query.q : '';
+      res.json(buildHistorySearchResponse(db.searchMessages(req.params.sessionId, query)));
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.get('/api/chat/:sessionId/active-run', async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const pendingPreparation = pendingChatPreparationManager.get(sessionId);
+      const run = activeRunManager.getRun(sessionId);
+      const localOperation = localChatOperationManager.get(sessionId);
+      if (!run && !pendingPreparation && !localOperation) {
+        await reconcileInactiveChatLatestMessage(sessionId);
+      }
+      const active = !!(run || pendingPreparation || localOperation);
+      res.json({
+        success: true,
+        active,
+        runState: {
+          active,
+          messageId: run?.messageId ?? pendingPreparation?.messageId ?? localOperation?.messageId ?? null,
+          runId: run?.runId ?? null,
+          agentId: run?.agentId ?? pendingPreparation?.agentId ?? localOperation?.agentId ?? null,
+          startedAt: run?.startedAt ?? pendingPreparation?.startedAt ?? localOperation?.startedAt ?? null,
+          kind: localOperation?.kind ?? (run ? 'openclaw-run' : (pendingPreparation ? 'openclaw-preparation' : null)),
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json(buildStructuredChatHttpError(error?.message || 'Failed to read chat run state.'));
+    }
+  });
+
+  app.put('/api/messages/:id', (req, res) => {
+    const { id } = req.params;
+    const { content } = req.body;
+    if (!content) return res.status(400).json({ success: false, error: 'Content is required' });
+    try {
+      db.updateMessageContent(Number(id), content);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.delete('/api/messages/:id', (req, res) => {
+    const { id } = req.params;
+    try {
+      const deletedIds = db.deleteMessage(Number(id));
+      res.json({ success: true, deletedIds });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+}

@@ -14,8 +14,8 @@ import {
   upsertRosterEntry,
   removeRosterEntry,
   describeRosterWarnings,
-} from '../src/agents-roster';
-import { parseOpenClawVersion, unknownVersion } from '../src/openclaw-version';
+} from '../src/openclaw/agents-roster';
+import { parseOpenClawVersion, unknownVersion } from '../src/openclaw/openclaw-version';
 
 const V17 = parseOpenClawVersion('2026.7.1-2'); // 生产机现状
 const V18 = parseOpenClawVersion('2026.8.2');   // 上游最新

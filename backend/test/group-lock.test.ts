@@ -6,7 +6,7 @@
  * 群就永久 409，用户只能 /stop。这里守的是「卡太久要能被接管」这条性质。
  */
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { GroupChatEngine } from '../src/group-chat-engine';
+import { GroupChatEngine } from '../src/collab/rooms/group-chat-engine';
 
 /** 直接操作私有状态：这个类的构造要一整套依赖，测锁的行为不必把它们都搭起来。 */
 function makeEngine(): any {

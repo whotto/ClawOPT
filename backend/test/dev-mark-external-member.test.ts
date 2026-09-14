@@ -27,7 +27,7 @@ async function seed() {
   const prev = process.env.HOME;
   process.env.HOME = tmpHome;
   process.env.CLAWOPT_DATA_DIR = '.clawopt-devtest';
-  const mod = await import('../src/db');
+  const mod = await import('../src/core/db/db');
   const db = new (mod.default as any)();
   db.saveGroupChat({ id: 'g1', name: '测试群', description: '', position: 0 });
   db.saveGroupMember({ id: 'm1', group_id: 'g1', agent_id: 'lead-engineer', display_name: 'Lead', role_description: '', position: 0 });

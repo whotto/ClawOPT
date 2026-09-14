@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { writeFileAtomicSync, writeJsonAtomicSync } from '../src/config-atomic-write';
+import { writeFileAtomicSync, writeJsonAtomicSync } from '../src/core/files/config-atomic-write';
 
 let dir: string;
 let target: string;

@@ -67,7 +67,7 @@ describe('遗留 runtime 键', () => {
       },
     }, null, 2));
 
-    const { AgentProvisioner } = await import('../src/agent-provisioner');
+    const { AgentProvisioner } = await import('../src/control/agents/agent-provisioner');
     const p: any = new AgentProvisioner();
     await p.provision({ agentId: 'legacy-agent' });
 
@@ -80,7 +80,7 @@ describe('遗留 runtime 键', () => {
 
   it('新建的 Agent 不会带 runtime 键', async () => {
     fs.writeFileSync(configPath, JSON.stringify({ agents: { entries: {} } }, null, 2));
-    const { AgentProvisioner } = await import('../src/agent-provisioner');
+    const { AgentProvisioner } = await import('../src/control/agents/agent-provisioner');
     const p: any = new AgentProvisioner();
     await p.provision({ agentId: 'fresh-agent' });
     expect(readEntry('fresh-agent')?.runtime).toBeUndefined();
@@ -88,7 +88,7 @@ describe('遗留 runtime 键', () => {
 
   it('外接 Agent 走 model 字段，不走 runtime', async () => {
     fs.writeFileSync(configPath, JSON.stringify({ agents: { entries: {} } }, null, 2));
-    const { AgentProvisioner } = await import('../src/agent-provisioner');
+    const { AgentProvisioner } = await import('../src/control/agents/agent-provisioner');
     const p: any = new AgentProvisioner();
     // 这是生产上验过的形状：模型 ref 指向 CLI 后端。
     await p.provision({ agentId: 'cc-agent', model: 'claude-cli/claude-sonnet-5' });
@@ -102,7 +102,7 @@ describe('遗留 runtime 键', () => {
 describe('源码里不该再有那个写入点', () => {
   it('provisioner 不再往 entry.runtime 赋值', () => {
     const src = fs.readFileSync(
-      path.resolve(__dirname, '..', 'src', 'agent-provisioner.ts'), 'utf-8',
+      path.resolve(__dirname, '..', 'src', 'control', 'agents', 'agent-provisioner.ts'), 'utf-8',
     );
     // 只允许 delete，不允许赋值。有人日后「把功能加回来」时这条会红，
     // 逼他先去读上面那段为什么。
@@ -125,7 +125,7 @@ describe('只清我们自己写的那种 runtime 形状', () => {
         },
       },
     }, null, 2));
-    const { AgentProvisioner } = await import('../src/agent-provisioner');
+    const { AgentProvisioner } = await import('../src/control/agents/agent-provisioner');
     const p: any = new AgentProvisioner();
     await p.provision({ agentId: 'acp-agent' });
     expect(readEntry('acp-agent').runtime).toEqual({
@@ -137,7 +137,7 @@ describe('只清我们自己写的那种 runtime 形状', () => {
     fs.writeFileSync(configPath, JSON.stringify({
       agents: { entries: { 'old-agent': { workspace: '/tmp/ws', agentRuntime: { id: 'claude-cli' } } } },
     }, null, 2));
-    const { AgentProvisioner } = await import('../src/agent-provisioner');
+    const { AgentProvisioner } = await import('../src/control/agents/agent-provisioner');
     const p: any = new AgentProvisioner();
     await p.provision({ agentId: 'old-agent' });
     expect(readEntry('old-agent').agentRuntime).toBeUndefined();
