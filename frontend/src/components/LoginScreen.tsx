@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { login } from '../api/auth';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -52,11 +53,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
+      const res = await login(password);
       const data = await res.json().catch(() => ({}));
       if (data.success) {
         // 令牌由后端以 httpOnly cookie 下发，前端不持有、也读不到。

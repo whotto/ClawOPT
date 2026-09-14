@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Boxes, Check, ChevronRight, Copy, Download, Link2, Loader2, RefreshCw, Share2, TriangleAlert, Upload } from 'lucide-react';
+import { type PackSource, exportPack, inspectPack, installPack, installPreset, listPresets, sharePack } from '../api/presets';
+import { listSessions } from '../api/sessions';
+import { listGroups } from '../api/groups';
 
 type PresetRole = {
   id: string;
@@ -98,13 +101,6 @@ interface PresetLibraryProps {
   onAgentsChanged?: () => void;
 }
 
-function buildHeaders(includeJson = false): HeadersInit {
-  // 鉴权走 httpOnly cookie，同源请求自动带上。
-  const headers: Record<string, string> = {};
-  if (includeJson) headers['Content-Type'] = 'application/json';
-  return headers;
-}
-
 export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
   const { t } = useTranslation();
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -153,7 +149,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
   const loadPresets = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/presets', { headers: buildHeaders() });
+      const res = await listPresets();
       const data = await res.json();
       const list: Preset[] = Array.isArray(data?.presets) ? data.presets : [];
       setPresets(list);
@@ -190,11 +186,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
     setBusy(dryRun ? 'preview' : 'install');
     setErrorText('');
     try {
-      const res = await fetch(`/api/presets/${activePreset.id}/install`, {
-        method: 'POST',
-        headers: buildHeaders(true),
-        body: JSON.stringify({ roleIds: selectedRoles, params: paramValues, dryRun, overwrite }),
-      });
+      const res = await installPreset(activePreset.id, { roleIds: selectedRoles, params: paramValues, dryRun, overwrite });
       const data = await res.json();
       if (!res.ok) {
         const localized = data?.errorCode ? t(data.errorCode, { ...(data.errorParams || {}) }) : t('settings.presets.installFailed');
@@ -219,8 +211,8 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
   const loadExportTargets = async () => {
     try {
       const [sessionsRes, groupsRes] = await Promise.all([
-        fetch('/api/sessions', { headers: buildHeaders() }),
-        fetch('/api/groups', { headers: buildHeaders() }),
+        listSessions(),
+        listGroups(),
       ]);
       const sessionsData = await sessionsRes.json();
       const groupsData = await groupsRes.json();
@@ -258,11 +250,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
     setExportDone('');
     setShareResult(null);
     try {
-      const res = await fetch('/api/packs/export', {
-        method: 'POST',
-        headers: buildHeaders(true),
-        body: JSON.stringify({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig }),
-      });
+      const res = await exportPack({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const localized = data?.errorCode ? t(data.errorCode, { ...(data.errorParams || {}) }) : t('settings.presets.exportFailed');
@@ -294,11 +282,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
     setExportDone('');
     setShareResult(null);
     try {
-      const res = await fetch('/api/packs/share', {
-        method: 'POST',
-        headers: buildHeaders(true),
-        body: JSON.stringify({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig }),
-      });
+      const res = await sharePack({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig });
       const data = await res.json();
       if (!res.ok || !data?.success) {
         const localized = data?.errorCode ? t(data.errorCode, { ...(data.errorParams || {}) }) : t('settings.presets.shareFailed');
@@ -325,16 +309,16 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
   };
 
   // ── 导入 ──────────────────────────────────────────────────────────────
-  const buildPackRequest = (extra?: Record<string, unknown>): RequestInit => {
+  const buildPackSource = (extra?: Record<string, unknown>): PackSource => {
     if (packFile) {
       const form = new FormData();
       form.append('file', packFile);
       for (const [key, value] of Object.entries(extra || {})) {
         form.append(key, typeof value === 'string' ? value : JSON.stringify(value));
       }
-      return { method: 'POST', headers: buildHeaders(), body: form };
+      return { kind: 'file', form };
     }
-    return { method: 'POST', headers: buildHeaders(true), body: JSON.stringify({ url: packUrl.trim(), ...(extra || {}) }) };
+    return { kind: 'json', body: { url: packUrl.trim(), ...(extra || {}) } };
   };
 
   const runInspect = async () => {
@@ -344,7 +328,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
     setImportResults(null);
     setImportTeamResult(null);
     try {
-      const res = await fetch('/api/packs/inspect', buildPackRequest());
+      const res = await inspectPack(buildPackSource());
       const data = await res.json();
       if (!res.ok || !data?.success) {
         const localized = data?.errorCode ? t(data.errorCode, { ...(data.errorParams || {}) }) : t('settings.presets.packUnreadable');
@@ -369,7 +353,7 @@ export default function PresetLibrary({ onAgentsChanged }: PresetLibraryProps) {
     setPackBusy('install');
     setPackError('');
     try {
-      const res = await fetch('/api/packs/install', buildPackRequest({
+      const res = await installPack(buildPackSource({
         rename: renameMap,
         renameNames,
         overwrite: packOverwrite,

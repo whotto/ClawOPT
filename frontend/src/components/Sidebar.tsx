@@ -6,6 +6,11 @@ import { ViewType, SettingsTab } from '../App';
 import { requestActiveContextRefresh } from '../utils/contextRefresh';
 import { getGroupIdValidationKey } from '../utils/groupId';
 import ModelFallbackEditor, { type ModelFallbackMode } from './ModelFallbackEditor';
+import { getVersion } from '../api/update';
+import { getSidebarFavorites, saveSidebarFavorites } from '../api/sidebar';
+import { createGroup, deleteGroup, listGroups, reorderGroups as saveGroupOrder, resetGroup, updateGroup } from '../api/groups';
+import { getModelFallbacks } from '../api/models';
+import { createSession, deleteSession, getSessionConfigs, listSessions, resetSession, updateSession } from '../api/sessions';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -252,7 +257,7 @@ export default function Sidebar({
   useEffect(() => {
     let cancelled = false;
 
-    fetch('/api/version')
+    getVersion()
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -430,7 +435,7 @@ export default function Sidebar({
       const localFavorites = readSidebarFavorites();
 
       try {
-        const response = await fetch('/api/sidebar/favorites');
+        const response = await getSidebarFavorites();
         const data = await response.json().catch(() => ({}));
         if (cancelled) return;
 
@@ -440,11 +445,7 @@ export default function Sidebar({
 
         if (!hasRemoteFavorites && hasLocalFavorites) {
           setSidebarFavorites(localFavorites);
-          await fetch('/api/sidebar/favorites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ favorites: localFavorites }),
-          }).catch(() => {});
+          await saveSidebarFavorites(localFavorites).catch(() => {});
         } else {
           setSidebarFavorites(remoteFavorites);
         }
@@ -469,11 +470,7 @@ export default function Sidebar({
   useEffect(() => {
     if (!sidebarFavoritesLoaded) return;
 
-    void fetch('/api/sidebar/favorites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ favorites: sidebarFavorites }),
-    }).catch(() => {});
+    void saveSidebarFavorites(sidebarFavorites).catch(() => {});
   }, [sidebarFavorites, sidebarFavoritesLoaded]);
 
 
@@ -550,7 +547,7 @@ export default function Sidebar({
   useEffect(() => {
     const loadGroups = async () => {
       try {
-        const res = await fetch('/api/groups');
+        const res = await listGroups();
         const data = await res.json();
         if (data.success) {
           setGroups(data.groups);
@@ -571,7 +568,7 @@ export default function Sidebar({
 
   const reloadGroups = async () => {
     try {
-      const res = await fetch('/api/groups');
+      const res = await listGroups();
       const data = await res.json();
       if (data.success) {
         setGroups(data.groups);
@@ -583,11 +580,7 @@ export default function Sidebar({
   const reorderGroups = async (newGroups: GroupSummary[]) => {
     setGroups(newGroups);
     try {
-      await fetch('/api/groups/reorder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: newGroups.map((group) => group.id) }),
-      });
+      await saveGroupOrder(newGroups.map((group) => group.id));
     } catch (err) {
       console.error('Failed to save group order:', err);
       reloadGroups();
@@ -601,22 +594,20 @@ export default function Sidebar({
       return;
     }
     try {
-      const url = groupModalMode === 'edit' && editingGroupId ? `/api/groups/${editingGroupId}` : '/api/groups';
-      const method = groupModalMode === 'edit' ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: newGroupId.trim(),
-          name: newGroupName.trim(),
-          description: newGroupDesc.trim(),
-          system_prompt: newGroupSystemPrompt.trim(),
-          process_start_tag: newProcessStartTag,
-          process_end_tag: newProcessEndTag,
-          max_chain_depth: newMaxChainDepth,
-          members: selectedGroupMembers,
-        }),
-      });
+      const groupBody = {
+        id: newGroupId.trim(),
+        name: newGroupName.trim(),
+        description: newGroupDesc.trim(),
+        system_prompt: newGroupSystemPrompt.trim(),
+        process_start_tag: newProcessStartTag,
+        process_end_tag: newProcessEndTag,
+        max_chain_depth: newMaxChainDepth,
+        members: selectedGroupMembers,
+      };
+      // 编辑走 PUT /groups/:id，新建走 POST /groups（进入编辑态时总会同时设置 editingGroupId）。
+      const res = await (groupModalMode === 'edit' && editingGroupId
+        ? updateGroup(editingGroupId, groupBody)
+        : createGroup(groupBody));
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setShowGroupDialog(false);
@@ -672,7 +663,7 @@ export default function Sidebar({
 
   const syncGlobalFallbackEnabled = async () => {
     try {
-      const res = await fetch('/api/models/fallbacks');
+      const res = await getModelFallbacks();
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.success) {
         const enabled = Array.isArray(data?.config?.fallbacks) && data.config.fallbacks.length > 0;
@@ -727,10 +718,7 @@ export default function Sidebar({
       }
       let res;
       if (modalMode === 'create') {
-        res = await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        res = await createSession({
             id: normalizedSessionData.id,
             name: normalizedSessionData.name,
             model: normalizedSessionData.model,
@@ -747,13 +735,9 @@ export default function Sidebar({
             toolsContent: normalizedSessionData.toolsContent,
             heartbeatContent: normalizedSessionData.heartbeatContent,
             identityContent: normalizedSessionData.identityContent,
-          })
-        });
+          });
       } else if (modalMode === 'edit' && editingSessionId) {
-        res = await fetch(`/api/sessions/${editingSessionId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        res = await updateSession(editingSessionId, {
             name: normalizedSessionData.name,
             model: normalizedSessionData.model,
             runtimeMode: normalizedSessionData.runtimeMode,
@@ -769,8 +753,7 @@ export default function Sidebar({
             toolsContent: normalizedSessionData.toolsContent,
             heartbeatContent: normalizedSessionData.heartbeatContent,
             identityContent: normalizedSessionData.identityContent,
-          })
-        });
+          });
       }
 
       if (res && res.ok) {
@@ -826,7 +809,7 @@ export default function Sidebar({
   const handleDeleteSession = async () => {
     if (deletingSessionId) {
       try {
-        const res = await fetch(`/api/sessions/${deletingSessionId}`, { method: 'DELETE' });
+        const res = await deleteSession(deletingSessionId);
         const data = await res.json();
         if (data.success) {
           setIsDeleteModalOpen(false);
@@ -850,7 +833,7 @@ export default function Sidebar({
   const handleResetSession = async () => {
     if (resettingSessionId) {
       try {
-        const res = await fetch(`/api/sessions/${resettingSessionId}/reset`, { method: 'POST' });
+        const res = await resetSession(resettingSessionId);
         const data = await res.json();
         if (data.success) {
           setIsResetModalOpen(false);
@@ -877,7 +860,7 @@ export default function Sidebar({
     
     try {
       const globalFallbackPromise = syncGlobalFallbackEnabled();
-      const res = await fetch('/api/sessions');
+      const res = await listSessions();
       if (res.ok) {
         const data = await res.json();
         const fullSession = data.find((s: any) => s.id === session.id);
@@ -899,7 +882,7 @@ export default function Sidebar({
           runtimeMetrics: null as AgentRuntimeMetrics | null,
         };
         if (fullSession) {
-          const configRes = await fetch(`/api/sessions/${session.id}/configs`);
+          const configRes = await getSessionConfigs(session.id);
           if (configRes.ok) {
             const configData = await configRes.json();
             if (configData.success) {
@@ -948,8 +931,8 @@ export default function Sidebar({
 
     try {
       const [sessRes, cfgRes] = await Promise.all([
-        fetch('/api/sessions'),
-        fetch(`/api/sessions/${session.id}/configs`)
+        listSessions(),
+        getSessionConfigs(session.id)
       ]);
       const sessData = sessRes.ok ? await sessRes.json() : [];
       const cfgData = cfgRes.ok ? await cfgRes.json() : null;
@@ -2562,7 +2545,7 @@ export default function Sidebar({
               <button
                 onClick={async () => {
                   try {
-                    await fetch(`/api/groups/${viewingGroup.id}`, { method: 'DELETE' });
+                    await deleteGroup(viewingGroup.id);
                     setIsDeleteGroupModalOpen(false);
                     setViewingGroup(null);
                     if (activeGroupId === viewingGroup.id) {
@@ -2603,7 +2586,7 @@ export default function Sidebar({
               <button
                 onClick={async () => {
                   try {
-                    await fetch(`/api/groups/${viewingGroup.id}/reset`, { method: 'POST' });
+                    await resetGroup(viewingGroup.id);
                     setIsResetGroupModalOpen(false);
                     await reloadGroups();
 

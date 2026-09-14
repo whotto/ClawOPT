@@ -18,6 +18,13 @@ import {
 } from '../utils/historyPagination';
 import { ACTIVE_CONTEXT_REFRESH_EVENT, type ActiveContextRefreshDetail } from '../utils/contextRefresh';
 import { getGroupIdValidationKey } from '../utils/groupId';
+import { getConfig } from '../api/config';
+import { listCharacters } from '../api/characters';
+import { listCommands } from '../api/commands';
+import { deleteMessage, getChatActiveRun, getChatHistory, searchChatHistory, stopChat, updateMessage } from '../api/chat';
+import { createGroup, deleteGroup, deleteGroupMessage, getGroupActiveRun, getGroupMessages, listGroups, postGroupMessage, regenerateGroupMessage, searchGroupMessages, stopGroupRun, updateGroupMessage } from '../api/groups';
+import { attachChatRun, openGroupEvents, postChatMessage, regenerateChatMessage } from '../api/stream';
+import { uploadFiles as uploadFilesRequest } from '../api/files';
 import { markdownRehypePlugins, markdownRemarkPlugins, normalizeMathMarkdown } from '../utils/markdownMath';
 import { type ChatMessage, mergeMessagePreservingContent, mergeMessagePatchPreservingContent, mergeMessageCollectionPreservingContent } from "../utils/message-merge";
 import { HISTORY_FETCH_BATCH_MIN_LIMIT, type HistoryPageInfo, type HistoryPageSnapshot, normalizeHistoryPageInfo, createEmptyHistoryPageInfo, buildLinearHistoryWindowSnapshot, areHistoryPageInfosEqual, areMessageListsEquivalent } from "../utils/history-window";
@@ -1151,7 +1158,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
 
   const syncSharedHistoryPageRounds = useCallback(async () => {
     try {
-      const response = await fetch('/api/config');
+      const response = await getConfig();
       const data = await response.json();
       if (data?.historyPageRounds === undefined) return;
 
@@ -1213,14 +1220,14 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
   // =============== CHAT-MODE EFFECTS ===============
   useEffect(() => {
     if (!isChat) return;
-    fetch('/api/config').then(r => r.json()).then(data => { if (data.aiName) setAiName(data.aiName); }).catch(() => {});
+    getConfig().then(r => r.json()).then(data => { if (data.aiName) setAiName(data.aiName); }).catch(() => {});
     fetchCommands();
-    fetch('/api/characters').then(res => res.json()).then(data => { if (data.success) setCharacters(data.characters); }).catch(() => {});
+    listCharacters().then(res => res.json()).then(data => { if (data.success) setCharacters(data.characters); }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isChat]);
 
   const fetchCommands = async () => {
-    try { const res = await fetch('/api/commands'); const data = await res.json(); if (data.success) setAllCommands(data.commands); } catch {}
+    try { const res = await listCommands(); const data = await res.json(); if (data.success) setAllCommands(data.commands); } catch {}
   };
 
   const mapChatHistoryPageMessages = useCallback((rawMessages: any[]) => {
@@ -1244,7 +1251,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
 
     if (isChat && beforeId === null) {
       try {
-        const configRes = await fetch('/api/config');
+        const configRes = await getConfig();
         const configData = await configRes.json();
         if (
           historyContextRef.current === contextKey &&
@@ -1260,8 +1267,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
     params.set('limit', String(limit));
     if (typeof beforeId === 'number') params.set('beforeId', String(beforeId));
 
-    const endpoint = isChat ? `/api/history/${activeKey}` : `/api/groups/${activeKey}/messages`;
-    const response = await fetch(`${endpoint}?${params.toString()}`);
+    const response = await (isChat ? getChatHistory(activeKey, params) : getGroupMessages(activeKey, params));
     const data = await response.json();
 
     if (!data?.success || !Array.isArray(data.messages)) return null;
@@ -1311,7 +1317,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
     if (!isChat || !activeKey) return { ok: false as const, active: false as const };
 
     try {
-      const response = await fetch(`/api/chat/${activeKey}/active-run`, { signal });
+      const response = await getChatActiveRun(activeKey, signal);
       const data = await response.json();
       if (!data?.success) {
         return { ok: false as const, active: false as const };
@@ -1484,10 +1490,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       try {
         const params = new URLSearchParams();
         params.set('q', normalizedQuery);
-        const endpoint = isChat
-          ? `/api/history/${activeKey}/search`
-          : `/api/groups/${activeKey}/messages/search`;
-        const response = await fetch(`${endpoint}?${params.toString()}`);
+        const response = await (isChat ? searchChatHistory(activeKey, params) : searchGroupMessages(activeKey, params));
         const data = await response.json();
 
         if (cancelled || searchRequestIdRef.current !== requestId || historyContextRef.current !== contextKey) {
@@ -1994,7 +1997,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
 
     const attachActiveRun = async () => {
       try {
-        const response = await fetch(`/api/chat/attach/${activeKey}`, { signal: controller.signal });
+        const response = await attachChatRun(activeKey, controller.signal);
         const contentType = response.headers.get('content-type') || '';
 
         if (contentType.includes('application/json')) {
@@ -2111,7 +2114,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
   // =============== GROUP-MODE EFFECTS ===============
   const loadGroups = useCallback(async () => {
     if (!isGroup) return;
-    try { const res = await fetch('/api/groups'); const data = await res.json(); if (data.success) setGroups(data.groups); } catch {}
+    try { const res = await listGroups(); const data = await res.json(); if (data.success) setGroups(data.groups); } catch {}
   }, [isGroup]);
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
@@ -2219,7 +2222,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
     if (!isGroup || !activeKey) return { ok: false as const, active: false as const, runState: null as GroupRunState | null };
 
     try {
-      const response = await fetch(`/api/groups/${activeKey}/active-run`, { signal });
+      const response = await getGroupActiveRun(activeKey, signal);
       const data = await response.json();
       if (!data?.success) {
         return { ok: false as const, active: false as const, runState: null as GroupRunState | null };
@@ -2296,7 +2299,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
     if (!isGroup || !activeKey) return;
     eventSourceRef.current?.close();
     setGroupRunState({ active: false, agentId: null, runId: null, startedAt: null });
-    const es = new EventSource(`/api/groups/${activeKey}/events`);
+    const es = openGroupEvents(activeKey);
     eventSourceRef.current = es;
     es.onmessage = (event) => {
       try {
@@ -2533,7 +2536,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
     try {
       clearNewerHistoryWindowTrail();
       if (isChat) {
-        const res = await fetch(`/api/messages/${messageToDelete}`, { method: 'DELETE' });
+        const res = await deleteMessage(messageToDelete);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(typeof data?.error === 'string' ? data.error : '');
@@ -2544,7 +2547,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         setMessages(prev => prev.filter(m => !deletedIds.has(m.id)));
         didDelete = true;
       } else if (isGroup && currentGroup) {
-        const res = await fetch(`/api/groups/${currentGroup.id}/messages/${messageToDelete}`, { method: 'DELETE' });
+        const res = await deleteGroupMessage(currentGroup.id, messageToDelete);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(typeof data?.error === 'string' ? data.error : '');
@@ -2618,9 +2621,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
 
     if (isChat) {
       try {
-        await fetch(`/api/messages/${targetMessageId}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: nextContent })
-        });
+        await updateMessage(targetMessageId, { content: nextContent });
         
         // Auto-regenerate if it's a user message
         if (editedMsg && editedMsg.role === 'user') {
@@ -2643,9 +2644,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       } catch {}
     } else if (isGroup && currentGroup) {
       try {
-        const response = await fetch(`/api/groups/${currentGroup.id}/messages/${targetMessageId}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: nextContent })
-        });
+        const response = await updateGroupMessage(currentGroup.id, targetMessageId, { content: nextContent });
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
           throw new Error(typeof data?.error === 'string' ? data.error : '');
@@ -2696,16 +2695,12 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
           { id: tempId, role: 'assistant', content: '', processStreaming: shouldShowProcessPlaceholder, timestamp: new Date(), model: currentSession?.model || msg.model, agentName: currentSession?.name || msg.agentName, parentId },
         ]);
         setActiveLeafId(tempId);
-        const response = await fetch('/api/chat/regenerate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const response = await regenerateChatMessage({
             message: contentStr,
             sessionId: activeKey,
             parentId,
             ...(isPersistedMessageId(requestTargetMessageId) ? { targetMessageId: requestTargetMessageId } : {}),
-          }),
-        });
+          });
         if (!response.ok || !response.body) {
           dropAssistantPatches();
           const fallbackContent = `❌ ${t('common.error')}: ${t('unifiedChat.requestFailed')}`;
@@ -2787,9 +2782,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       clearNewerHistoryWindowTrail();
       setIsLoading(true);
       try {
-        await fetch(`/api/groups/${currentGroup.id}/messages/regenerate`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId: Number(msg.id) })
-        });
+        await regenerateGroupMessage(currentGroup.id, { msgId: Number(msg.id) });
         // Wait a moment for the SSE stream to deliver the new message, then reload
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch {} finally { setIsLoading(false); }
@@ -2883,7 +2876,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       fd.append('groupId', activeKey);
     }
     filesToUpload.forEach(f => fd.append('files', f.file));
-    const upRes = await fetch('/api/files/upload', { method: 'POST', body: fd });
+    const upRes = await uploadFilesRequest(fd);
     const upData = await upRes.json().catch(() => null);
     if (upData?.success && upData.files) {
       return upData.files.map((f: any) => {
@@ -2949,10 +2942,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
           { id: assistantId, role: 'assistant', content: '', processStreaming: shouldShowProcessPlaceholder, timestamp: new Date(), model: snapshotModel, agentName: snapshotAgentName, parentId: userMessageId },
         ]);
         setActiveLeafId(assistantId);
-        const response = await fetch('/api/chat', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: activeKey, message: fullMessage }), signal: controller.signal,
-        });
+        const response = await postChatMessage({ sessionId: activeKey, message: fullMessage }, controller.signal);
         if (!response.ok || !response.body) {
           dropAssistantPatches();
           const fallbackContent = `❌ ${t('common.error')}: ${t('unifiedChat.requestFailed')}`;
@@ -3059,13 +3049,9 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
         }
         const fullMessage = [uploadedContent, finalContent].filter(Boolean).join('\n\n');
         if (!fullMessage) return;
-        const response = await fetch(`/api/groups/${activeKey}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const response = await postGroupMessage(activeKey, {
             content: fullMessage,
-          }),
-        });
+          });
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
           setInput(currentInput);
@@ -3094,11 +3080,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
   const handleStop = async () => {
     if (isChat && activeKey) {
       try {
-        const response = await fetch('/api/chat/stop', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: activeKey }),
-        });
+        const response = await stopChat(activeKey);
         if (response.ok) {
           await recoverLatestChatMessages(true);
         }
@@ -3109,7 +3091,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
 
     if (isGroup && activeKey) {
       try {
-        const response = await fetch(`/api/groups/${activeKey}/stop`, { method: 'POST' });
+        const response = await stopGroupRun(activeKey);
         if (response.ok) {
           setGroupRunState({ active: false, agentId: null, runId: null, startedAt: null });
           setTypingAgents(new Map());
@@ -3175,8 +3157,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
       return;
     }
     try {
-      const res = await fetch('/api/groups', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: newGroupId.trim(), name: newGroupName.trim(), description: newGroupDesc.trim(), members: selectedMembers }) });
+      const res = await createGroup({ id: newGroupId.trim(), name: newGroupName.trim(), description: newGroupDesc.trim(), members: selectedMembers });
       const data = await res.json().catch(() => ({}));
       if (data.success) {
         setShowCreateDialog(false);
@@ -3195,7 +3176,7 @@ export default function UnifiedChatView(props: UnifiedChatViewProps) {
     }
   };
   const handleDeleteGroup = async (id: string) => {
-    try { await fetch(`/api/groups/${id}`, { method: 'DELETE' }); await loadGroups(); if (activeKey === id) props.onSelectGroup?.(''); } catch {}
+    try { await deleteGroup(id); await loadGroups(); if (activeKey === id) props.onSelectGroup?.(''); } catch {}
   };
   const toggleMember = (agentId: string, name: string) => {
     setSelectedMembers(prev => prev.find(m => m.agentId === agentId) ? prev.filter(m => m.agentId !== agentId) : [...prev, { agentId, displayName: name, roleDescription: '' }]);

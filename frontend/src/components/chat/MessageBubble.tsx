@@ -8,6 +8,7 @@ import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { normalizeLanguage } from '../../i18n';
 import { getFileIconInfo } from '../../utils/fileUtils';
 import { markdownRehypePlugins, markdownRemarkPlugins, normalizeMathMarkdown } from '../../utils/markdownMath';
+import { fetchResource } from '../../api/files';
 
 const SEARCH_HIGHLIGHT_CLASS_NAME = 'rounded-[4px] bg-[#fff3b0] px-0.5 text-inherit';
 const EXTERNAL_LINK_CLASS_NAME = 'text-[#1a73e8] no-underline hover:underline decoration-1 underline-offset-2 break-all transition-colors hover:text-[#1557b0]';
@@ -552,7 +553,7 @@ function useLocalPathAvailability(localPath?: string, url?: string): boolean | n
     let retryTimer: number | null = null;
     setIsAvailable(null);
 
-    fetch(url, { method: 'HEAD' })
+    fetchResource(url, { method: 'HEAD' })
       .then((response) => {
         if (cancelled) return;
         setIsAvailable(response.ok);

@@ -11,6 +11,12 @@ import {
 import ModelFallbackEditor, { type ModelFallbackMode } from './ModelFallbackEditor';
 import ModelSinglePicker from './ModelSinglePicker';
 import PresetLibrary from './PresetLibrary';
+import { getDiagnostics } from '../api/diagnostics';
+import { approveLatestDevicePairing, checkBrowserHealth, detectAllConfig, getBrowserHeadedMode, getBrowserHealthTaskStatus, getConfig, getGatewayRestartStatus, getMaxPermissions, resetGatewayRestartStatus, restartGateway, saveConfig, selfHealBrowser, saveBrowserHeadedMode, saveMaxPermissions, testGatewayConfig } from '../api/config';
+import { cancelOpenClawUpdate, cancelUpdate, getLatestVersion, getOpenClawLatestVersion, getOpenClawUpdateStatus, getUpdateStatus, getVersion, resetOpenClawUpdate, resetUpdate, restartUpdatedService, startOpenClawUpdate, startUpdate } from '../api/update';
+import { addModel, deleteModel, discoverModels, getImageGenerationModel, getModelFallbacks, listModels, saveImageGenerationModel, saveModelFallbacks, setDefaultModel, testModel, updateModel } from '../api/models';
+import { deleteEndpoint, listEndpoints, saveEndpoint, testEndpoint } from '../api/endpoints';
+import { createCommand, deleteCommand, listCommands, updateCommand } from '../api/commands';
 
 interface SettingsViewProps {
   isConnected: boolean;
@@ -675,7 +681,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   const handleCopyDiagnostics = useCallback(async () => {
     setDiagnosticsState('working');
     try {
-      const res = await fetch('/api/diagnostics');
+      const res = await getDiagnostics();
       if (!res.ok) throw new Error(String(res.status));
       const text = JSON.stringify(await res.json(), null, 2);
 
@@ -873,7 +879,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   }, [url, token, password]);
 
   useEffect(() => {
-    fetch('/api/config')
+    getConfig()
       .then(r => r.json())
       .then(data => {
         setUrl(data.gatewayUrl || '');
@@ -912,7 +918,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
       setAppVersionError(EMPTY_INLINE_ERROR);
     }
     try {
-      const res = await fetch('/api/version');
+      const res = await getVersion();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (!options?.silent) {
@@ -942,20 +948,9 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     }
   };
 
-  const buildUpdateRequestHeaders = (includeJson = false): HeadersInit => {
-    // 鉴权走 httpOnly cookie，同源请求自动带上；这里只管 Content-Type。
-    const headers: Record<string, string> = {};
-    if (includeJson) {
-      headers['Content-Type'] = 'application/json';
-    }
-    return headers;
-  };
-
   const fetchUpdateStatus = async (options?: { quiet?: boolean }) => {
     try {
-      const res = await fetch('/api/update/status', {
-        headers: buildUpdateRequestHeaders(),
-      });
+      const res = await getUpdateStatus();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setHasLoadedUpdateStatusOnce(true);
@@ -984,9 +979,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchOpenClawUpdateStatus = async (options?: { quiet?: boolean }) => {
     try {
-      const res = await fetch('/api/openclaw/update/status', {
-        headers: buildUpdateRequestHeaders(),
-      });
+      const res = await getOpenClawUpdateStatus();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (!options?.quiet) {
@@ -1012,7 +1005,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchOpenClawLatestVersion = async (options?: { quiet?: boolean }) => {
     try {
-      const res = await fetch('/api/openclaw/version/latest');
+      const res = await getOpenClawLatestVersion();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (!options?.quiet) {
@@ -1067,11 +1060,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     }));
 
     try {
-      const res = await fetch('/api/openclaw/update/start', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: '{}',
-      });
+      const res = await startOpenClawUpdate();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if ((data as { errorCode?: string })?.errorCode === 'openclawUpdate.alreadyRunning') {
@@ -1100,11 +1089,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   const handleCancelOpenClawUpdate = async () => {
     setIsCancellingOpenClawUpdate(true);
     try {
-      const res = await fetch('/api/openclaw/update/cancel', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: '{}',
-      });
+      const res = await cancelOpenClawUpdate();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.openclawUpdate.updateCancelFailed');
@@ -1124,11 +1109,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const handleResetOpenClawUpdateState = async () => {
     try {
-      const res = await fetch('/api/openclaw/update/reset', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: '{}',
-      });
+      const res = await resetOpenClawUpdate();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.openclawUpdate.updateResetFailed');
@@ -1192,7 +1173,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setLatestVersionError(EMPTY_INLINE_ERROR);
     setLatestVersionInfo(null);
     try {
-      const res = await fetch('/api/version/latest');
+      const res = await getLatestVersion();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setLatestVersionError(resolveStructuredErrorDisplay(data, t, 'settings.about.latestVersionLoadFailed'));
@@ -1238,11 +1219,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const handleStartUpdate = async () => {
     try {
-      const res = await fetch('/api/update/start', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: '{}',
-      });
+      const res = await startUpdate();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.about.updateStartFailed');
@@ -1260,11 +1237,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   const handleCancelUpdate = async () => {
     setIsCancellingUpdate(true);
     try {
-      const res = await fetch('/api/update/cancel', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: '{}',
-      });
+      const res = await cancelUpdate();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.about.updateCancelFailed');
@@ -1284,11 +1257,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const handleResetUpdateState = async () => {
     try {
-      const res = await fetch('/api/update/reset', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: '{}',
-      });
+      const res = await resetUpdate();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.about.updateResetFailed');
@@ -1334,11 +1303,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
       startedAtMs,
     });
     try {
-      const res = await fetch('/api/update/restart-service', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: '{}',
-      });
+      const res = await restartUpdatedService();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.about.restartServiceFailed');
@@ -1777,7 +1742,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchModels = async () => {
     try {
-      const res = await fetch('/api/models');
+      const res = await listModels();
       const data = await res.json();
       if (data.success) {
         const nextModels = data.models || [];
@@ -1793,7 +1758,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchImageGenerationModelConfig = async () => {
     try {
-      const res = await fetch('/api/models/image-generation');
+      const res = await getImageGenerationModel();
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         const primary = typeof data?.config?.primary === 'string' ? data.config.primary : '';
@@ -1815,7 +1780,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchGlobalFallbacks = async () => {
     try {
-      const res = await fetch('/api/models/fallbacks');
+      const res = await getModelFallbacks();
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         const nextFallbacks = Array.isArray(data?.config?.fallbacks) ? data.config.fallbacks : [];
@@ -1843,7 +1808,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchEndpoints = async () => {
     try {
-      const res = await fetch('/api/endpoints');
+      const res = await listEndpoints();
       const data = await res.json();
       if (data.success) {
         setEndpoints(data.endpoints || []);
@@ -1855,7 +1820,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchCommands = async () => {
     try {
-      const res = await fetch('/api/commands');
+      const res = await listCommands();
       const data = await res.json();
       if (data.success) setCommands(data.commands);
     } catch (err) {
@@ -1868,13 +1833,9 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setGlobalFallbackError(EMPTY_INLINE_ERROR);
 
     try {
-      const res = await fetch('/api/models/fallbacks', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await saveModelFallbacks({
           fallbacks: globalFallbackMode === 'disabled' ? [] : globalFallbacks,
-        }),
-      });
+        });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
@@ -1910,14 +1871,10 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setIsSavingImageGenerationModel(true);
 
     try {
-      const res = await fetch('/api/models/image-generation', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await saveImageGenerationModel({
           primary: normalizedPrimary || null,
           fallbacks: normalizedPrimary ? normalizedFallbacks : [],
-        }),
-      });
+        });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
@@ -2016,9 +1973,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setAddModelErrorDetail('');
 
     try {
-      const res = await fetch(`/api/models/discover?endpoint=${encodeURIComponent(endpointId)}`, {
-        signal: controller.signal
-      });
+      const res = await discoverModels(endpointId, controller.signal);
       const data = await res.json().catch(() => ({}));
       if (data.success) {
         setDiscoveredModels(data.models || []);
@@ -2060,12 +2015,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     const shouldUseImageGenerationTest = guessCapabilities(modelId).includes('image_generation');
     setIndividualTestStatus(prev => ({...prev, [modelId]: { status: 'testing', message: '' }}));
     try {
-      const res = await fetch(shouldUseImageGenerationTest ? '/api/models/test-image-generation' : '/api/models/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: newModelEndpoint.trim(), modelName: modelId }),
-        signal
-      });
+      const res = await testModel({ endpoint: newModelEndpoint.trim(), modelName: modelId }, { imageGeneration: shouldUseImageGenerationTest, signal });
       const data = await res.json().catch(() => ({}));
       if (data.success) {
         setIndividualTestStatus(prev => ({
@@ -2100,11 +2050,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     const shouldUseImageGenerationTest = modelSupportsImageGeneration(models.find((model) => model.id === fullModelId) || {});
     setExistingModelTestStatus(prev => ({ ...prev, [fullModelId]: { status: 'testing' } }));
     try {
-      const res = await fetch(shouldUseImageGenerationTest ? '/api/models/test-image-generation' : '/api/models/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint, modelName })
-      });
+      const res = await testModel({ endpoint, modelName }, { imageGeneration: shouldUseImageGenerationTest });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
@@ -2177,11 +2123,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     }
 
     try {
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: JSON.stringify({ gatewayUrl: url, token, password }),
-      });
+      const res = await saveConfig({ gatewayUrl: url, token, password });
       if (res.ok) {
         setGatewaySaved(true);
         setTimeout(() => setGatewaySaved(false), 2000);
@@ -2200,7 +2142,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
       setDetectError('');
     }
     try {
-      const res = await fetch('/api/config/detect-all', { headers: buildUpdateRequestHeaders() });
+      const res = await detectAllConfig();
       const data = await res.json();
       if (data.success && data.data) {
         if (data.data.gatewayUrl) setUrl(data.data.gatewayUrl);
@@ -2281,7 +2223,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   };
 
   const fetchGatewayRestartTaskStatus = async () => {
-    const res = await fetch('/api/config/restart/status');
+    const res = await getGatewayRestartStatus();
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(typeof data?.errorDetail === 'string' && data.errorDetail.trim()
@@ -2292,7 +2234,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   };
 
   const resetGatewayRestartTaskStatus = async () => {
-    const res = await fetch('/api/config/restart/status/reset', { method: 'POST' });
+    const res = await resetGatewayRestartStatus();
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(typeof data?.errorDetail === 'string' && data.errorDetail.trim()
@@ -2339,7 +2281,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
       targetHeadedModeEnabled: null,
     });
     try {
-      const res = await fetch('/api/config/restart', { method: 'POST' });
+      const res = await restartGateway();
       const data = await res.json().catch(() => ({}));
       applyGatewayRestartTaskState(data);
       if (res.ok) {
@@ -2424,7 +2366,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   const fetchBrowserHeadedModeState = async () => {
     setIsLoadingBrowserHeadedMode(true);
     try {
-      const res = await fetch('/api/config/browser-headed-mode');
+      const res = await getBrowserHeadedMode();
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success && data.config) {
         applyBrowserHeadedModeConfig(data.config as BrowserHeadedModeConfig);
@@ -2443,7 +2385,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchMaxPermissionsState = async () => {
     try {
-      const res = await fetch('/api/config/max-permissions');
+      const res = await getMaxPermissions();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.gateway.maxPermissionsLoadFailed');
@@ -2464,9 +2406,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setPermissionsNotice(null);
 
     try {
-      const res = await fetch('/api/config/max-permissions/device-pairing/approve', {
-        method: 'POST',
-      });
+      const res = await approveLatestDevicePairing();
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
@@ -2507,14 +2447,10 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
   };
 
   const requestMaxPermissionsChange = async (nextEnabled: boolean, systemPassword?: string) => {
-    const res = await fetch('/api/config/max-permissions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const res = await saveMaxPermissions({
         enabled: nextEnabled,
         ...(systemPassword ? { systemPassword } : {}),
-      }),
-    });
+      });
     const data = await res.json().catch(() => ({}));
     return { res, data };
   };
@@ -2652,7 +2588,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
   const fetchBrowserTaskStatus = async (options?: { quiet?: boolean }) => {
     try {
-      const res = await fetch('/api/config/browser-health/status');
+      const res = await getBrowserHealthTaskStatus();
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success || !data.task) {
         if (!options?.quiet) {
@@ -2686,7 +2622,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setBrowserHealthError(EMPTY_INLINE_ERROR);
     setBrowserHealthNotice(null);
     try {
-      const res = await fetch('/api/config/browser-health');
+      const res = await checkBrowserHealth();
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success && data.health) {
         const snapshot = data.health as BrowserHealthSnapshot;
@@ -2764,11 +2700,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setBrowserHealth(null);
 
     try {
-      const res = await fetch('/api/config/browser-headed-mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headedModeEnabled: browserHeadedModePendingEnabled }),
-      });
+      const res = await saveBrowserHeadedMode({ headedModeEnabled: browserHeadedModePendingEnabled });
       const data = await res.json().catch(() => ({}));
       applyGatewayRestartTaskState(data);
       if (res.ok && data.success && data.config) {
@@ -2813,13 +2745,9 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setBrowserHealthError(EMPTY_INLINE_ERROR);
     setBrowserHealthNotice(null);
     try {
-      const res = await fetch('/api/config/browser-health/self-heal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await selfHealBrowser({
           lastKnownIssue: browserHealth?.issue || null,
-        }),
-      });
+        });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         const snapshot = data.health as BrowserHealthSnapshot | undefined;
@@ -2862,11 +2790,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     if (!newHost.trim()) return;
     const updated = [...allowedHosts, newHost.trim()];
     try {
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: JSON.stringify({ allowedHosts: updated }),
-      });
+      const res = await saveConfig({ allowedHosts: updated });
       if (res.ok) {
         setAllowedHosts(updated);
         setNewHost('');
@@ -2880,11 +2804,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     if (!editHostValue.trim() || !editingHost) return;
     const updated = allowedHosts.map(h => h === editingHost ? editHostValue.trim() : h);
     try {
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: JSON.stringify({ allowedHosts: updated }),
-      });
+      const res = await saveConfig({ allowedHosts: updated });
       if (res.ok) {
         setAllowedHosts(updated);
         setEditingHost(null);
@@ -2910,11 +2830,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setIsLoading(true);
     setTestResult(null);
     try {
-      const res = await fetch('/api/config/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gatewayUrl: url, token, password }),
-      });
+      const res = await testGatewayConfig({ gatewayUrl: url, token, password });
       const data = await res.json().catch(() => ({}));
       if (data.success) {
         setGatewayErrorModalOpen(false);
@@ -2960,17 +2876,13 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setPreviewTimeoutError(false);
 
     try {
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: JSON.stringify({
+      const res = await saveConfig({
           aiName,
           loginEnabled,
           loginPassword,
           historyPageRounds: nextHistoryPageRounds,
           previewConversionTimeoutSeconds: nextPreviewTimeoutSeconds,
-        }),
-      });
+        });
       if (res.ok) {
         setPreviewTimeoutSecondsInput(String(nextPreviewTimeoutSeconds));
         setGeneralSaved(true);
@@ -2992,11 +2904,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     }
 
     try {
-      const response = await fetch('/api/config', {
-        method: 'POST',
-        headers: buildUpdateRequestHeaders(true),
-        body: JSON.stringify({ language: nextLanguage }),
-      });
+      const response = await saveConfig({ language: nextLanguage });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok || data?.success === false) {
@@ -3030,11 +2938,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     if (!newCommand || !newDescription) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/commands', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: newCommand, description: newDescription }),
-      });
+      const res = await createCommand({ command: newCommand, description: newDescription });
       if (res.ok) {
         setNewCommand('');
         setNewDescription('');
@@ -3051,11 +2955,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     if (!editingId || !newCommand || !newDescription) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/commands/${editingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: newCommand, description: newDescription }),
-      });
+      const res = await updateCommand(editingId, { command: newCommand, description: newDescription });
       if (res.ok) {
         setEditingId(null);
         setNewCommand('');
@@ -3080,21 +2980,13 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     try {
       if (deleteTarget.type === 'host') {
         const updated = allowedHosts.filter(h => h !== deleteTarget.value);
-        const res = await fetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ allowedHosts: updated }),
-        });
+        const res = await saveConfig({ allowedHosts: updated });
         if (res.ok) setAllowedHosts(updated);
       } else if (deleteTarget.type === 'command') {
-        const res = await fetch(`/api/commands/${deleteTarget.id}`, { method: 'DELETE' });
+        const res = await deleteCommand(deleteTarget.id);
         if (res.ok) fetchCommands();
       } else if (deleteTarget.type === 'model') {
-        const res = await fetch('/api/models/manage', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: deleteTarget.id }),
-        });
+        const res = await deleteModel({ id: deleteTarget.id });
         if (res.ok) {
           setModelActionError(EMPTY_INLINE_ERROR);
           fetchModels();
@@ -3106,11 +2998,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
           setModelActionError(resolveStructuredErrorDisplay(data, t, 'settings.models.deleteModelFailed'));
         }
       } else if (deleteTarget.type === 'endpoint') {
-        const res = await fetch('/api/endpoints/manage', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: deleteTarget.name }),
-        });
+        const res = await deleteEndpoint({ endpoint: deleteTarget.name });
         if (res.ok) {
           setModelActionError(EMPTY_INLINE_ERROR);
           fetchModels();
@@ -3160,14 +3048,10 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     const shouldUseImageGenerationTest = modelSupportsImageGeneration({ input: newModelInput });
     setAddModelTestMessage(shouldUseImageGenerationTest ? t('settings.models.imageGenerationLightChecking') : t('settings.models.testingConnectivity'));
     try {
-      const res = await fetch(shouldUseImageGenerationTest ? '/api/models/test-image-generation' : '/api/models/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await testModel({
           endpoint: newModelEndpoint.trim(),
           modelName: newModelName.trim()
-        })
-      });
+        }, { imageGeneration: shouldUseImageGenerationTest });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
@@ -3205,16 +3089,12 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
 
     setIsLoading(true);
     try {
-      const res = await fetch('/api/models/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await addModel({
           endpoint: newModelEndpoint.trim(),
           modelName: newModelName.trim(),
           alias: newModelAlias.trim() || undefined,
           input: newModelInput.length > 0 ? newModelInput : undefined,
-        }),
-      });
+        });
       
       if (res.ok) {
         setNewModelEndpoint('');
@@ -3265,11 +3145,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setIsSavingDefaultModel(true);
 
     try {
-      const res = await fetch('/api/models/manage/default', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: nextId }),
-      });
+      const res = await setDefaultModel({ id: nextId });
 
       if (res.ok) {
         await fetchModels();
@@ -3323,11 +3199,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     if (!editingModelId) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/models/manage', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingModelId, alias: editingAlias, input: editingInput }),
-      });
+      const res = await updateModel({ id: editingModelId, alias: editingAlias, input: editingInput });
       if (res.ok) {
         setModelActionError(EMPTY_INLINE_ERROR);
         setEditingModelId(null);
@@ -3376,11 +3248,7 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     }
     setIsLoading(true);
     try {
-      const res = await fetch('/api/endpoints', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newEndpointData),
-      });
+      const res = await saveEndpoint(newEndpointData);
       if (res.ok) {
         setEndpointModalError(EMPTY_INLINE_ERROR);
         setIsEndpointModalOpen(false);
@@ -3412,15 +3280,11 @@ export default function SettingsView({ isConnected, settingsTab, onMenuClick, on
     setEndpointTestMessage(t('settings.models.testing'));
     
     try {
-      const res = await fetch('/api/endpoints/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await testEndpoint({
           baseUrl: newEndpointData.baseUrl,
           apiKey: newEndpointData.apiKey,
           api: newEndpointData.api
-        })
-      });
+        });
       const data = await res.json();
       if (data.success) {
         setEndpointTestStatus('success');

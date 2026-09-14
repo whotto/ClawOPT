@@ -12,6 +12,7 @@ import type { Book, Rendition } from 'epubjs';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import DOMPurify from 'dompurify';
 import { getFileIconInfo } from '../utils/fileUtils';
+import { fetchResource, getFileCapabilities } from '../api/files';
 
 // Configure pdf.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -148,7 +149,7 @@ function resolvePreviewErrorMessage(
 async function getCapabilities(): Promise<{ libreoffice: boolean }> {
   if (cachedCapabilities) return cachedCapabilities;
   try {
-    const res = await fetch('/api/files/capabilities');
+    const res = await getFileCapabilities();
     cachedCapabilities = await res.json();
     return cachedCapabilities!;
   } catch {
@@ -660,7 +661,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
   async function loadPreview() {
     try {
       // Proactive check to ensure file exists before attempting any rendering logic
-      const headResponse = await fetch(previewUrl, { method: 'HEAD' });
+      const headResponse = await fetchResource(previewUrl, { method: 'HEAD' });
        if (!headResponse.ok) {
         if (headResponse.status === 404) {
           setPreview({ status: 'error', message: t('filePreview.fileNotFound') });
@@ -734,7 +735,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
 
   async function loadDocxFallback() {
      try {
-      const response = await fetch(previewUrl);
+      const response = await fetchResource(previewUrl);
       if (!response.ok) throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
       const arrayBuffer = await response.arrayBuffer();
 
@@ -753,7 +754,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
         throw new Error(t('filePreview.loadPdfFail'));
       }
 
-      const response = await fetch(dataUrl);
+      const response = await fetchResource(dataUrl);
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
         const message = resolvePreviewErrorMessage(payload, t, 'filePreview.loadPdfFail');
@@ -776,7 +777,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
 
   async function loadXlsxFallback() {
      try {
-      const response = await fetch(previewUrl);
+      const response = await fetchResource(previewUrl);
       if (!response.ok) throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
       const arrayBuffer = await response.arrayBuffer();
 
@@ -800,7 +801,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
 
   async function loadText(type: 'text' | 'code') {
      try {
-      const response = await fetch(previewUrl);
+      const response = await fetchResource(previewUrl);
       if (!response.ok) throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
       const buffer = await response.arrayBuffer();
 
@@ -823,7 +824,7 @@ function HtmlFrameViewer({ src }: { src: string }) {
 
   async function loadEpub() {
     try {
-      const response = await fetch(previewUrl);
+      const response = await fetchResource(previewUrl);
       if (!response.ok) {
         throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
       }
