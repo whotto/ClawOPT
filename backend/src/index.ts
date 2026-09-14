@@ -7,4 +7,7 @@
  */
 import { startServer } from './bootstrap';
 
-startServer();
+startServer().catch((error: unknown) => {
+  console.error('[Startup] ClawOPT backend failed to start:', error);
+  process.exit(1);
+});

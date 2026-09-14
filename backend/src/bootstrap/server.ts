@@ -2,18 +2,20 @@
  * 进程入口的全部动作：建上下文 → 跑拆分前就有的启动步骤 → 组装应用 → 监听。
  * 顺序与拆分前 index.ts 自上而下执行的副作用顺序一致。
  *
- * P0 新增的只有两件：就绪状态（`/readyz`）与优雅停机注册表。
+ * P0 新增的只有三件：就绪状态（`/readyz`）、优雅停机注册表、启动一次性任务（目前零个）。
  */
 import { createServer } from 'http';
 
 import { consumeBrowserWarmupRequest } from '../control';
+import { startupTasksStatePath } from '../core/paths';
 import { buildApp } from './app';
 import { createAppContext } from './context';
 import { createReadiness } from './health';
 import { createShutdownRegistry } from './shutdown';
 import { runStartupSteps } from './startup-steps';
+import { runStartupTasks, STARTUP_TASKS } from './startup-tasks';
 
-export function startServer() {
+export async function startServer() {
   const readiness = createReadiness();
   const shutdown = createShutdownRegistry();
   shutdown.installSignalHandlers();
@@ -22,6 +24,8 @@ export function startServer() {
   readiness.markDbReady();
   runStartupSteps(ctx);
   ctx.preview.detectLibreOffice();
+  // 拒跑或失败只记日志（任务 id + errorCode），不阻止服务起来：没跑的任务下次启动再试。
+  await runStartupTasks({ tasks: STARTUP_TASKS, statePath: startupTasksStatePath });
 
   const { app, routes } = buildApp(ctx, { readiness });
   const server = createServer(app);
