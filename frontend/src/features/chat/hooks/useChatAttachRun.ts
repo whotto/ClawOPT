@@ -1,0 +1,182 @@
+// 单聊进入时接回仍在运行的 run 并继续读流。
+import { useEffect } from 'react';
+import { attachChatRun } from '../../../api/stream';
+import type { ChatMessage } from '../../../utils/message-merge';
+import { mapStreamingErrorUpdate, createClientStructuredChatError } from '../lib/messageMapping';
+import type { ChatViewState } from './useChatViewState';
+import type { MessagePatchQueue } from './useMessagePatchQueue';
+import type { ChatHistoryFetch } from './useChatHistoryFetch';
+
+/** 本段读取的、由前面各段产出的值。 */
+type ChatAttachRunContext = Pick<
+  ChatViewState & MessagePatchQueue & ChatHistoryFetch,
+  't' | 'isChat' | 'activeKey' | 'setMessages' | 'setIsLoading' | 'setSubmitError' |
+  'isInitialLoading' | 'attachedRunControllerRef' | 'messagesRef' | 'activeLeafIdRef' |
+  'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
+  'recoverLatestChatMessages'
+>;
+
+export function useChatAttachRun(c: ChatAttachRunContext) {
+  const {
+    t, isChat, activeKey, setMessages, setIsLoading, setSubmitError, isInitialLoading,
+    attachedRunControllerRef, messagesRef, activeLeafIdRef, flushQueuedMessagePatches,
+    queueMessagePatch, dropQueuedMessagePatch, recoverLatestChatMessages,
+  } = c;
+  useEffect(() => {
+    if (!isChat || !activeKey || isInitialLoading) return;
+
+    attachedRunControllerRef.current?.abort();
+    const controller = new AbortController();
+    attachedRunControllerRef.current = controller;
+
+    let attachedMessageId: string | null = null;
+
+    const resolveAttachedMessageId = (rawMessageId: unknown): string | null => {
+      if (rawMessageId !== null && rawMessageId !== undefined) {
+        return String(rawMessageId);
+      }
+
+      const activeLeafId = activeLeafIdRef.current;
+      if (activeLeafId) {
+        const activeLeafMessage = messagesRef.current.find((message) => message.id === activeLeafId);
+        if (activeLeafMessage && activeLeafMessage.role !== 'user') {
+          return activeLeafId;
+        }
+      }
+
+      const latestAssistantMessage = [...messagesRef.current]
+        .reverse()
+        .find((message) => message.role !== 'user');
+
+      return latestAssistantMessage?.id || null;
+    };
+
+    const queueAttachedPatch = (patch: Partial<ChatMessage>, flush = false) => {
+      if (!attachedMessageId) return;
+      queueMessagePatch(attachedMessageId, patch);
+      if (flush) flushQueuedMessagePatches();
+    };
+
+    const updateAttachedMessage = (updater: (message: ChatMessage) => ChatMessage) => {
+      if (!attachedMessageId) return;
+      setMessages((prev) => prev.map((message) => (
+        message.id === attachedMessageId ? updater(message) : message
+      )));
+    };
+
+    const attachActiveRun = async () => {
+      try {
+        const response = await attachChatRun(activeKey, controller.signal);
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+          const latestAssistantMessage = [...messagesRef.current]
+            .reverse()
+            .find((message) => message.role !== 'user');
+          if (latestAssistantMessage && !String(latestAssistantMessage.content || '').trim()) {
+            await recoverLatestChatMessages(true);
+          }
+          setIsLoading(false);
+          return;
+        }
+
+        if (!response.ok || !response.body) {
+          return;
+        }
+
+        setIsLoading(true);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let receivedFinal = false;
+        let receivedError = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+
+            try {
+              const evt = JSON.parse(line.slice(6));
+              if (evt.type === 'attached') {
+                attachedMessageId = resolveAttachedMessageId(evt.messageId);
+                if (attachedMessageId) {
+                  queueAttachedPatch({
+                    agentId: typeof evt.agentId === 'string' ? evt.agentId : undefined,
+                    agentName: typeof evt.agentName === 'string' ? evt.agentName : undefined,
+                    model: typeof evt.modelUsed === 'string' ? evt.modelUsed : undefined,
+                  }, true);
+                }
+              } else if (evt.type === 'delta' || evt.type === 'final') {
+                if (evt.type === 'final') {
+                  receivedFinal = true;
+                }
+                const patch: Partial<ChatMessage> = {
+                  content: typeof evt.text === 'string' ? evt.text : '',
+                };
+                if (typeof evt.process_content === 'string') {
+                  patch.processContent = evt.process_content;
+                }
+                if (typeof evt.process_streaming === 'boolean') {
+                  patch.processStreaming = evt.process_streaming;
+                } else if (evt.type === 'final') {
+                  patch.processStreaming = false;
+                }
+                if (typeof evt.modelUsed === 'string') {
+                  patch.model = evt.modelUsed;
+                } else if (typeof evt.model_used === 'string') {
+                  patch.model = evt.model_used;
+                }
+                queueAttachedPatch(patch, evt.type === 'final');
+              } else if (evt.type === 'error') {
+                receivedError = true;
+                if (!attachedMessageId) continue;
+                dropQueuedMessagePatch(attachedMessageId);
+                const errorUpdate = mapStreamingErrorUpdate(evt, `❌ ${t('common.error')}: ${t('common.unknownError')}`);
+                updateAttachedMessage((message) => ({ ...message, ...errorUpdate }));
+              }
+            } catch {}
+          }
+        }
+
+        flushQueuedMessagePatches();
+        if (!controller.signal.aborted && !receivedFinal && !receivedError) {
+          const recovered = await recoverLatestChatMessages(true);
+          if (!recovered) setSubmitError(t('unifiedChat.replyMayBeIncomplete'));
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError' && attachedMessageId) {
+          dropQueuedMessagePatch(attachedMessageId);
+          const detail = typeof error?.message === 'string' && error.message.trim()
+            ? error.message
+            : t('common.unknownError');
+          const structuredError = createClientStructuredChatError(detail);
+          updateAttachedMessage((message) => ({ ...message, ...structuredError }));
+        }
+      } finally {
+        flushQueuedMessagePatches();
+        if (attachedRunControllerRef.current === controller) {
+          attachedRunControllerRef.current = null;
+        }
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void attachActiveRun();
+
+    return () => {
+      controller.abort();
+      if (attachedRunControllerRef.current === controller) {
+        attachedRunControllerRef.current = null;
+      }
+    };
+  }, [activeKey, dropQueuedMessagePatch, flushQueuedMessagePatches, isChat, isInitialLoading, queueMessagePatch, recoverLatestChatMessages, t]);
+}

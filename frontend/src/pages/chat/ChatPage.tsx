@@ -1,4 +1,4 @@
-import UnifiedChatView from '../../components/UnifiedChatView';
+import ChatView from './ChatView';
 import { useShellContext } from '../../app/shellContext';
 
 /**
@@ -10,7 +10,7 @@ export default function ChatPage({ mode }: { mode: 'chat' | 'group' }) {
 
   if (mode === 'chat') {
     return (
-      <UnifiedChatView
+      <ChatView
         mode="chat"
         isConnected={shell.isConnected}
         activeSessionId={shell.activeSessionId}
@@ -22,7 +22,7 @@ export default function ChatPage({ mode }: { mode: 'chat' | 'group' }) {
   }
 
   return (
-    <UnifiedChatView
+    <ChatView
       mode="group"
       isConnected={shell.isConnected}
       onMenuClick={shell.openMobileMenu}
