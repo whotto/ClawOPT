@@ -74,6 +74,17 @@ export type {
   StructuredMessageParams,
 } from './errors';
 export {
+  REVISION_CONFLICT_ERROR_CODE,
+  REVISION_REQUIRED_ERROR_CODE,
+  canonicalJson,
+  computeRevision,
+  enforceRevision,
+  readRequestedRevision,
+} from './revision';
+export type {
+  RevisionCheckInput,
+} from './revision';
+export {
   RouteRegistry,
   describeRoute,
   extractPathParams,
