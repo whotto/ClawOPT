@@ -9,7 +9,14 @@
 
 ## 仓库结构
 - `backend/`: 后端服务、OpenClaw gateway 客户端、SQLite、agent/session/group/file 管理。
-- `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。
+- `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。`frontend/src/` 下：
+  - `app/`: 应用壳。`App.tsx`（BrowserRouter + 鉴权）、`routes.tsx` 路由表、`routeState.ts` URL ↔ 视图状态纯函数（带单测，改路径形状两边一起改）、`AppShell.tsx`（侧栏 + Outlet）、`auth.tsx`（登录守卫）、壳层轮询 hooks，以及 `sidebar/` 侧栏（设置导航由 `sidebarNav.ts` 数据驱动，条目带 工作台/团队/自动化/系统 zone）。
+  - 路由：`/login`、`/chat/:sessionId`、`/groups/:groupId`（无 id 为团队列表）、`/settings/:tab`（gateway / general / models / presets / commands / about）。用 history 路由，依赖后端 `app.get('*')` 回退 index.html；旧 `#settings/...` 书签挂载前自动换成新路径。缺段按 localStorage 记忆补齐，地址栏优先。
+  - `pages/`: 路由页面容器。`chat/`（单聊与群聊共用同一组件实例）、`settings/`（所有页签共用一个挂载实例；状态在 `hooks/`，页签在 `tabs/`，弹窗在 `modals/`，预设库在 `presets/`）、`login/`。
+  - `features/`: 页面内功能块。`chat/`（`hooks/` 状态与副作用、`components/` 展示层、`lib/` 纯函数、`message/` 消息气泡与过程块）、`files/`（文件预览，按格式分查看器）。
+  - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`。组件里不要再直接写 `fetch`。
+  - `components/`: 跨页面复用的小组件；`utils/`: 与页面无关的纯逻辑（`message-merge`、`history-window` 等）；`locales/`: 三语文案。
+  - 单个组件文件不超过 800 行；确需超过的在文件头写一行原因（目前只有 `features/chat/message/MessageBubble.tsx`）。
 - `docs/`: 项目截图和文档资源。
 - `install.sh`, `deploy-release.sh`, `clawopt.service`: 安装与部署脚本。
 
