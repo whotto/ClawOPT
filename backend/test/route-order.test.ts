@@ -9,6 +9,7 @@
  * 新代码组装出来的顺序必须与它**逐行相同**。
  *
  * 要新增路由：改清单，这一刻就有人看见了顺序与公开性的变化。
+ * 相对拆分前的清单，唯一的新增是 P0 加的 `GET /livez`、`GET /readyz`（紧挨 `/health` 之前）。
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';

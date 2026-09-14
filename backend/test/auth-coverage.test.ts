@@ -45,6 +45,8 @@ function concretePath(record: RouteRecord): string {
 
 /** 当前的公开面（登录开启时匿名可达）。改这份清单 = 改公开面。 */
 const EXPECTED_PUBLIC_ROUTES = [
+  'GET /livez',
+  'GET /readyz',
   'GET /health',
   'GET /api/version',
   'GET /api/external-runtimes',
@@ -100,6 +102,6 @@ describe('鉴权覆盖（登录开启、匿名请求）', () => {
   });
 
   it('白名单只放行显式列出的路径', () => {
-    expect([...AUTH_PUBLIC_PATHS].sort()).toEqual(['/api/auth/check', '/api/auth/login', '/api/version']);
+    expect([...AUTH_PUBLIC_PATHS].sort()).toEqual(['/api/auth/check', '/api/auth/login', '/api/version', '/livez', '/readyz']);
   });
 });

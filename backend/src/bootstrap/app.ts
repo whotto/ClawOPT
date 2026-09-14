@@ -35,12 +35,18 @@ import { registerFileRoutes, registerUploadRoutes } from '../workspace';
 import { registerChatRoutes, registerSessionListRoutes, registerSessionRoutes } from '../collab/sessions';
 import { registerRoomRoutes } from '../collab/rooms';
 import type { AppContext } from './context';
-import { registerHealthRoutes } from './health';
+import { createReadiness, registerHealthRoutes, type Readiness } from './health';
 
 /** 前端产物目录。相对 `backend/src/bootstrap`（ts-node）与 `backend/dist/bootstrap`（编译后）同为三级。 */
 const FRONTEND_DIST_DIR = path.join(__dirname, '../../../frontend/dist');
 
-export function buildApp(ctx: AppContext) {
+export type BuildAppOptions = {
+  /** 就绪状态；不给则新建一个（永远未就绪，供 OpenAPI 生成与测试组装用）。 */
+  readiness?: Readiness;
+};
+
+export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
+  const readiness = options.readiness ?? createReadiness();
   const app = express();
   const routes = new RouteRegistry(app);
   routes.markAdminGuard(ctx.auth.requireAdminAuth);
@@ -84,7 +90,7 @@ export function buildApp(ctx: AppContext) {
     next();
   });
 
-  registerHealthRoutes(bootstrapApp, ctx);
+  registerHealthRoutes(bootstrapApp, { readiness, connections: ctx.connections });
   registerVersionRoutes(routes.forModule('control/update'));
   registerExternalRuntimeRoutes(routes.forModule('runtime'));
   registerDiagnosticsRoutes(routes.forModule('control/diagnostics'), ctx);

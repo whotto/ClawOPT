@@ -44,6 +44,10 @@ export const AUTH_PUBLIC_PATHS = new Set([
   '/api/auth/check',
   '/api/auth/login',
   '/api/version',
+  // 存活 / 就绪探针（bootstrap/health.ts）。它们不在 /api 前缀下、本就不经过闸门，
+  // 登记在这里是为了让「有意公开」在白名单里看得见。
+  '/livez',
+  '/readyz',
 ]);
 
 export type AuthMiddlewareDeps = {
