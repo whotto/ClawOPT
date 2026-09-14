@@ -4,7 +4,7 @@
 
 ## API 覆盖的（6 份）
 
-`POST /api/sessions` 建 Agent 时接受这些字段（见 `backend/src/index.ts`）：
+`POST /api/sessions` 建 Agent 时接受这些字段（见 `backend/src/collab/sessions/session-routes.ts`）：
 
 ```ts
 { id, name, identityContent, soulContent, agentsContent,

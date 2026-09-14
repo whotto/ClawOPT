@@ -8,7 +8,15 @@
 - 运行数据保存在 `$HOME/$CLAWOPT_DATA_DIR`；后端还会直接读写 `$HOME/.openclaw`。
 
 ## 仓库结构
-- `backend/`: 后端服务、OpenClaw gateway 客户端、SQLite、agent/session/group/file 管理。
+- `backend/`: 后端服务、OpenClaw gateway 客户端、SQLite、agent/session/group/file 管理。按模块组织（P0 起），`backend/src/index.ts` 只负责启动：
+  - `bootstrap/`: 组装与生命周期。`context.ts` 构造单例与服务（经 `ctx` 注入）；`app.ts` 按固定顺序注册中间件与路由（顺序即行为，由 `test/route-order.test.ts` 对照清单校验）；`server.ts` 监听、就绪状态、优雅停机；`startup-steps.ts` 拆分前就有的启动修复；`startup-tasks.ts` 启动一次性任务登记表；`health.ts` 的 `/livez` `/readyz` `/health`。
+  - `core/`: 与业务无关的底座，**不得依赖其他模块**。`db/`、`auth/`（会话令牌、鉴权中间件与 `AUTH_PUBLIC_PATHS`）、`files/`（可服务路径闸门、原子写、`SafeFileStore`）、`config/`（ClawOPT 自身配置）、`http/`（结构化错误与错误码、路由登记表与 OpenAPI、配置版本号）、`events/`（业务事件总线）、`logger/`、`paths/`、`process/`、`util/`。
+  - `openclaw/`: gateway 客户端与连接、`openclaw.json` 读写与名册门面、版本探测、CLI 定位、网关探测与重启、运行时补丁、设备配对。
+  - `runtime/`: 外部 Agent 运行时（`external-agents/`）与运行时不变量。
+  - `control/`: 控制面。agents / characters / models（含生图）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics 的路由与服务。
+  - `workspace/`: 上传、文件下载与预览、链接改写、文档与音频工具链。
+  - `collab/sessions/`: 单聊（会话、历史、消息、聊天运行管理）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账）。
+  - 模块之间只经各自的 `index.ts`（barrel）互相导入；`*-routes.ts` 只由 bootstrap 注册，服务不得引用。由 `npm run boundaries:check` 机械校验。
 - `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。
 - `docs/`: 项目截图和文档资源。
 - `install.sh`, `deploy-release.sh`, `clawopt.service`: 安装与部署脚本。
@@ -25,6 +33,9 @@
 - `npm run locales:check`: 校验 `zh-CN` / `zh-TW` / `en` 三份 locale 的键集完全一致；缺一个语言不会报错、只会显示原始 key，所以这道门是硬性的（已并入 `npm run test`）。
 - `npm run presets:check`: 比对 `presets/opt-team/` 与角色配置包源（默认 `../openclaw-agents`）；不一致退出码 1，发布前卡口。
 - `npm run presets:sync`: 把角色配置包同步进预设，并按 `PARAM_RULES` 把具体值换回 `{{...}}` 占位符。
+- `npm run boundaries:check`: 校验 `backend/src` 的模块边界（跨模块只经 barrel、`core` 不依赖业务模块、服务不引用路由文件、只有入口导入 `bootstrap`）；违规退出码 1。
+- `npm run harness:check`: 仓库不变量总入口，依次跑 `locales:check`、`boundaries:check`、`presets:check`；找不到角色配置包源目录时明确跳过 `presets:check` 并说明原因（可用 `CLAWOPT_PRESETS_SRC` 指定源目录），发布前的卡口仍是 `npm run presets:check` 本身。
+- `cd backend && npm run openapi:generate`: 从路由登记表重新生成 `backend/openapi.json`（`-- --check` 只比对）。新增或改动路由后要重新生成，`test/openapi.test.ts` 会校验签入的文档是否过期。
 - `./deploy-release.sh [port]`: 安装依赖、构建并部署 user-level systemd 服务。
 - `npm run test`: 运行仓库级最小自动检查；当前仅覆盖前后端 TypeScript 类型检查，不等于完整业务测试。
 - `cd backend && npm run test`: 后端 TypeScript 类型检查。
@@ -45,14 +56,14 @@
 - 新增模块的风格和样式必须参考现有模块；颜色、字号、按钮尺寸、边框、间距、交互反馈等保持一致，不要单独做一套新视觉。
 - 全局不要使用阴影；需要层级或分隔时，优先使用浅灰色边框。
 - 不要保留死代码。发现无调用点的脚本要么接回调用链、要么删掉，不能留着让文档描述一段不跑的契约（`reconcile-openclaw-runtime.mjs` 曾以 692 行的规模无人调用，而 AGENTS.md 一直在描述它的判据）。
-- API 鉴权是**默认全保护 + 白名单放行**（`app.use('/api', ...)`），不是逐路由手挂。手挂的名单必漏——审计时 108 个路由只挂了 15 个，数据面（建会话、发消息、删会话、建群、传文件）全部裸奔。新增路由默认受保护，要公开必须显式加进 `AUTH_PUBLIC_PATHS`。
-- 登录令牌是**服务端存储的随机会话令牌**（`backend/src/auth-store.ts`），带 30 天过期、可吊销、改口令即全部作废；口令用 scrypt 加随机盐存储。不要再回到「令牌 = 口令的哈希」——那样的令牌泄露一次永久有效，且默认口令能被离线算出。
+- API 鉴权是**默认全保护 + 白名单放行**（`app.use('/api', ...)`），不是逐路由手挂。手挂的名单必漏——审计时 108 个路由只挂了 15 个，数据面（建会话、发消息、删会话、建群、传文件）全部裸奔。新增路由默认受保护，要公开必须显式加进 `AUTH_PUBLIC_PATHS`。**注意注册顺序同样决定公开性**：注册在 `registerAuthGate` 之前的路由闸门跑不到（`bootstrap/app.ts`），公开面清单由 `test/auth-coverage.test.ts` 逐条匿名请求校验。
+- 登录令牌是**服务端存储的随机会话令牌**（`backend/src/core/auth/auth-store.ts`），带 30 天过期、可吊销、改口令即全部作废；口令用 scrypt 加随机盐存储。不要再回到「令牌 = 口令的哈希」——那样的令牌泄露一次永久有效，且默认口令能被离线算出。
 - Web 端鉴权走 **httpOnly cookie**，不进 localStorage（XSS 能偷）、不进查询串（会进访问日志与浏览器历史）。请求头 `X-ClawOPT-Auth-Token` 保留给 CLI。SSE 的 `EventSource` 设不了自定义头，这也是必须用 cookie 的原因。
 - 凭据只出不进：任何配置接口都不得把 `token` / `password` / `loginPassword` 的**值**回给前端，只报 `hasXxx` 布尔位；写入时空串一律视为「不修改」而不是「清空」。这条来自一次真实泄露——未鉴权的 `GET /api/config` 曾把登录密码明文吐出来。
-- 一切按路径出文件的接口都必须过 `backend/src/served-paths.ts` 的白名单闸门（统一入口是 `assertServablePath()`，新增出文件的路由复用它，不要各写各的判定）（先 realpath 再判归属，再判文件名），不得只检查「是不是绝对路径」。允许的根只有工作区与上传目录；`~/.openclaw` 根、`agents/**`、凭据与密钥类文件永远拒绝。**修这类洞时必须把同类入口一起过一遍**：上一轮只堵了 `download` 与 `/openclaw`，紧挨着的 `preview` / `preview-data` / `html-preview` 漏了三个月，实测可读 `~/.ssh/id_rsa` 与 `openclaw.json` 里的模型 apiKey。堵一个不堵其余等于没堵。
+- 一切按路径出文件的接口都必须过 `backend/src/core/files/served-paths.ts` 的白名单闸门（统一入口是 `backend/src/core/files/assert-servable-path.ts` 的 `assertServablePath()`，新增出文件的路由复用它，不要各写各的判定）（先 realpath 再判归属，再判文件名），不得只检查「是不是绝对路径」。允许的根只有工作区与上传目录；`~/.openclaw` 根、`agents/**`、凭据与密钥类文件永远拒绝。**修这类洞时必须把同类入口一起过一遍**：上一轮只堵了 `download` 与 `/openclaw`，紧挨着的 `preview` / `preview-data` / `html-preview` 漏了三个月，实测可读 `~/.ssh/id_rsa` 与 `openclaw.json` 里的模型 apiKey。堵一个不堵其余等于没堵。
 - 服务端按用户给的 URL 去拉东西时（导入包等），三道检查缺一不可：协议只允许 http/https、**主机名解析后的地址**不得落在内网段、**重定向后的最终地址**要再查一遍。只查字面量挡不住 `localtest.me` 这类解析到回环的域名，只查首个地址挡不住 302 跳内网。
-- `.clawpack` 是智能体/团队的可移植包（gzip JSON，实现在 `backend/src/agent-pack.ts`）。改这块时三道闸门一个都不能松：导入侧的路径白名单（`assertSafeRelPath`，防目录穿越）、远端拉取的内网地址拦截（防 SSRF）、以及「导入只写文件不执行」。包里永远不得出现凭据、`memory/` 每日记录与对话历史。
-- 预设装配有两个入口且共用同一条链路：Web UI（`GET /api/presets` + `POST /api/presets/:id/install`，实现在 `backend/src/preset-installer.ts`）和 CLI（`scripts/install-preset.mjs`）。改装配行为时两边都要跟着改，否则界面装出来的团队和命令行装出来的会不一致。
+- `.clawpack` 是智能体/团队的可移植包（gzip JSON，实现在 `backend/src/control/packs/agent-pack.ts`）。改这块时三道闸门一个都不能松：导入侧的路径白名单（`assertSafeRelPath`，防目录穿越）、远端拉取的内网地址拦截（防 SSRF）、以及「导入只写文件不执行」。包里永远不得出现凭据、`memory/` 每日记录与对话历史。
+- 预设装配有两个入口且共用同一条链路：Web UI（`GET /api/presets` + `POST /api/presets/:id/install`，实现在 `backend/src/control/presets/preset-installer.ts`）和 CLI（`scripts/install-preset.mjs`）。改装配行为时两边都要跟着改，否则界面装出来的团队和命令行装出来的会不一致。
 - `presets/opt-team/` 是角色配置包（`../openclaw-agents`）的**参数化副本**，唯一真值源在配置包一侧；改预设内容要改源再跑 `npm run presets:sync`，不要直接手改副本。副本里的 `{{USER_TITLE}}` / `{{USER_ROLE}}` / `{{USER_STRENGTH}}` / `{{USER_BLINDSPOT}}` / `{{AGENT_AVATAR}}` 由同步脚本按规则生成，手工拷贝会把占位符写死成具体值，装配器的参数填充随之失效。
 - 新增预设占位符时，必须同时改三处：`scripts/sync-presets.mjs` 的 `PARAM_RULES`、`presets/opt-team/preset.json` 的 `params`、以及装配器的 `fillPlaceholders` 覆盖范围。
 - 不要把对用户有意义的参数、阈值、开关、配置做成隐藏实现；应优先提供界面入口让用户配置。

@@ -6,8 +6,8 @@
  * **判断不出来时输出 unknown，不猜**——猜「no」会让一次真正需要的迁移被跳过，
  * 而 gateway 会带着半旧的配置起来。
  *
- * 版本判据与形状判据都与后端共用同一套语义（`backend/src/openclaw-version.ts`、
- * `backend/src/agents-roster.ts`），但这个脚本要能在 **dist 没构建、后端没起**
+ * 版本判据与形状判据都与后端共用同一套语义（`backend/src/openclaw/openclaw-version.ts`、
+ * `backend/src/openclaw/agents-roster.ts`），但这个脚本要能在 **dist 没构建、后端没起**
  * 的机器上单独跑，所以重述而不 import——与 `install-preset.mjs` 对注入预算的
  * 处理方式一致。
  */

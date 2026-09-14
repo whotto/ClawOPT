@@ -9,5 +9,5 @@
       "recommended": true
     }
   ],
-  "_comment": "角色数与技能数由 backend/src/preset-installer.ts 扫目录得出，不在这里手写——第二份清单迟早过期。"
+  "_comment": "角色数与技能数由 backend/src/control/presets/preset-installer.ts 扫目录得出，不在这里手写——第二份清单迟早过期。"
 }
