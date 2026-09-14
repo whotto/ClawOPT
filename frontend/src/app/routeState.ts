@@ -8,17 +8,17 @@
 export type ViewType = 'chat' | 'settings' | 'groups';
 export type SettingsTab = 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about';
 
-export const SETTINGS_TABS: readonly SettingsTab[] = ['gateway', 'general', 'models', 'presets', 'commands', 'about'];
-export const DEFAULT_SETTINGS_TAB: SettingsTab = 'gateway';
+const SETTINGS_TABS: readonly SettingsTab[] = ['gateway', 'general', 'models', 'presets', 'commands', 'about'];
+const DEFAULT_SETTINGS_TAB: SettingsTab = 'gateway';
 
 export const LOGIN_PATH = '/login';
 
-export function isSettingsTab(value: unknown): value is SettingsTab {
+function isSettingsTab(value: unknown): value is SettingsTab {
   return typeof value === 'string' && (SETTINGS_TABS as readonly string[]).includes(value);
 }
 
 /** 从地址栏读出的原始意图；缺省段为 null，由 resolveRouteState 用当前或记忆状态补齐。 */
-export type ParsedAppPath =
+type ParsedAppPath =
   | { view: 'chat'; sessionId: string | null }
   | { view: 'groups'; groupId: string | null }
   | { view: 'settings'; tab: SettingsTab | null };
@@ -119,7 +119,7 @@ export const NAV_STORAGE_KEYS = {
   lastConversationView: 'clawopt_last_conversation_view',
 } as const;
 
-export type StoredNavSelection = {
+type StoredNavSelection = {
   view: string | null;
   settingsTab: string | null;
   sessionId: string | null;

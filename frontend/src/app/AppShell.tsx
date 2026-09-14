@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import Sidebar from '../components/Sidebar';
+import Sidebar from './sidebar/Sidebar';
 import type { ShellContext } from './shellContext';
 import { useAppNavigation } from './useAppNavigation';
 import { useConnectionStatus } from './useConnectionStatus';
