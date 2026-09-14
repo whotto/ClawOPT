@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment, type ChangeEvent } from 'react';
 import { Eye, EyeOff, Check, X, Loader2, Edit2, Trash2, Plus, Menu, Activity, Globe, Zap, Wrench, ArrowUpDown, Link2, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { SettingsTab } from '../App';
+import type { SettingsTab } from '../app/routeState';
 import { applyLanguagePreference, normalizeLanguage, type SupportedLanguage } from '../i18n';
 import {
   normalizeChatHistoryPageRounds,

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Settings, Boxes, Share2, ArrowLeft, X, Network, Terminal, Edit2, Trash2, Info, Cpu, Check, Search, ChevronDown, RefreshCw, GripVertical, Star } from 'lucide-react';
 import { Reorder } from 'motion/react';
-import { ViewType, SettingsTab } from '../App';
+import type { SettingsTab, ViewType } from '../app/routeState';
 import { requestActiveContextRefresh } from '../utils/contextRefresh';
 import { getGroupIdValidationKey } from '../utils/groupId';
 import ModelFallbackEditor, { type ModelFallbackMode } from './ModelFallbackEditor';
