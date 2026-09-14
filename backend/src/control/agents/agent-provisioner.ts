@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { writeJsonAtomicSync } from '../../core/files';
+import { sharedFileStore, writeJsonAtomicSync } from '../../core/files';
 import {
   describeRosterWarnings,
   findRosterEntry,
@@ -213,7 +213,7 @@ export class AgentProvisioner {
 
   private writeConfigFile(config: any): void {
     const configPath = path.join(this.openclawDir, 'openclaw.json');
-    writeJsonAtomicSync(configPath, config);
+    sharedFileStore.writeJsonSync(configPath, config);
   }
 
   private readUiModelsFile(): Record<string, any> {
@@ -1083,7 +1083,7 @@ export class AgentProvisioner {
     // Ensure the workspace directory exists
     fs.mkdirSync(workspaceDir, { recursive: true });
 
-    writeJsonAtomicSync(configPath, config);
+    sharedFileStore.writeJsonSync(configPath, config);
     console.log(`[AgentProvisioner] Registered main agent workspace: ${workspaceDir}`);
     return true;
   }
@@ -1210,7 +1210,7 @@ export class AgentProvisioner {
         // 原块里这一句在 if 内部——删掉一条之后必须落盘，
         // 替换时差点把它一起丢掉。丢了的话：内存里删了、文件里还在，
         // 而返回值说「删成功」——正是本项目反复修的那类失败。
-        writeJsonAtomicSync(configPath, config);
+        sharedFileStore.writeJsonSync(configPath, config);
       }
 
       // Clean up workspace directory
@@ -1263,7 +1263,7 @@ export class AgentProvisioner {
       return false;
     }
 
-    writeJsonAtomicSync(configPath, config);
+    sharedFileStore.writeJsonSync(configPath, config);
     return true;
   }
 

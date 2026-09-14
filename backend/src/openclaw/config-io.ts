@@ -2,7 +2,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 
-import { writeJsonAtomicSync } from '../core/files';
+import { sharedFileStore } from '../core/files';
 import { getOpenClawConfigPath, readOpenClawConfigSafe } from './openclaw-config';
 
 export function getExecApprovalsPath() {
@@ -24,5 +24,5 @@ export function readOpenClawConfig(): any | null {
 export function writeOpenClawConfig(config: any) {
   const configPath = getOpenClawConfigPath();
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  writeJsonAtomicSync(configPath, config);
+  sharedFileStore.writeJsonSync(configPath, config);
 }

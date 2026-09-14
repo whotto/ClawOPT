@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { writeJsonAtomicSync } from '../../core/files';
+import { sharedFileStore, writeJsonAtomicSync } from '../../core/files';
 import {
   applyOpenClawExecPreflightBypass,
   getExecApprovalsPath,
@@ -108,7 +108,7 @@ function setMaxPermissionsEnabled(enabled: boolean) {
   const config = readOpenClawConfigSafe() ?? {};
   applyMaxPermissionsConfig(config, enabled);
 
-  writeJsonAtomicSync(configPath, config);
+  sharedFileStore.writeJsonSync(configPath, config);
   patchExecApprovals(enabled);
 
   return { enabled };

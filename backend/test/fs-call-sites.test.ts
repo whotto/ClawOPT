@@ -50,8 +50,11 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
 /** 建立基线当天的实际数量。改大它需要显式修改本文件——那一刻就有人看见了。 */
 const CURRENT_SITE_BUDGET = 57;
 
-/** 网关自己就是那唯一一处实现，不计入。 */
-const GATEWAY_FILES = new Set(['openclaw-config.ts', 'config-atomic-write.ts']);
+/**
+ * 网关自己就是那唯一一处实现，不计入。
+ * `safe-file-store.ts`（P0）是写入侧的网关：按路径排队 + 跨进程锁，落盘仍委托 `config-atomic-write.ts`。
+ */
+const GATEWAY_FILES = new Set(['openclaw-config.ts', 'config-atomic-write.ts', 'safe-file-store.ts']);
 
 /** 上一版只扫 `.ts`，于是一个 `src/x.js` 就完全隐形。 */
 const SCANNED_EXT = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs'];

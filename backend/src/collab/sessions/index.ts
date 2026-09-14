@@ -1,4 +1,5 @@
 export {
+  ActiveRunManager,
   createChatRuns,
 } from './active-run-manager';
 export type {
