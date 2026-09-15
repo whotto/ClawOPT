@@ -26,7 +26,7 @@ export default function AddModelModal({ ctx }: { ctx: SettingsController }) {
     isAddModelModalOpen,
     isDiscovering,
     isEndpointDropdownOpen,
-    isLoading,
+    isModelsLoading,
     isModelDropdownOpen,
     knownEndpoints,
     modelDropdownMaxHeight,
@@ -444,10 +444,10 @@ export default function AddModelModal({ ctx }: { ctx: SettingsController }) {
               <button
                 type="button"
                 onClick={() => handleAddModel()}
-                disabled={isLoading || addModelTestStatus === 'testing' || !newModelEndpoint.trim() || !newModelName.trim()}
+                disabled={isModelsLoading || addModelTestStatus === 'testing' || !newModelEndpoint.trim() || !newModelName.trim()}
                 className="flex-[0.8] px-3 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-xl font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
               >
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {isModelsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {t('settings.models.add')}
               </button>
             </div>

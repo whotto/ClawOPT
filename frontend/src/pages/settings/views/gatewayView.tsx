@@ -7,8 +7,8 @@ import type { useSettingsShared } from '../hooks/useSettingsShared';
 import type { deriveUpdateView } from './updateView';
 import type { useUpdateSettings } from '../hooks/useUpdateSettings';
 
-export function deriveGatewayView(deps: Pick<ReturnType<typeof useGatewaySettings> & ReturnType<typeof useHostAccessSettings> & ReturnType<typeof useSettingsShared> & ReturnType<typeof deriveUpdateView> & ReturnType<typeof useUpdateSettings>, 'browserHeadedModeModalStage' | 'browserHeadedModePendingEnabled' | 'browserHealth' | 'browserHealthError' | 'browserTaskInfo' | 'devicePairingStatus' | 'gatewayRestartModalStage' | 'hasLoadedMaxPermissionsState' | 'hostTakeoverStatus' | 'isCheckingBrowserHealth' | 'isLoading' | 'isRestarting' | 'isSelfHealingBrowser' | 'maxPermissions' | 'secondaryActionButtonClass' | 't' | 'updateRestartModalStage' | 'url'>) {
-  const { browserHeadedModeModalStage, browserHeadedModePendingEnabled, browserHealth, browserHealthError, browserTaskInfo, devicePairingStatus, gatewayRestartModalStage, hasLoadedMaxPermissionsState, hostTakeoverStatus, isCheckingBrowserHealth, isLoading, isRestarting, isSelfHealingBrowser, maxPermissions, secondaryActionButtonClass, t, updateRestartModalStage, url } = deps;
+export function deriveGatewayView(deps: Pick<ReturnType<typeof useGatewaySettings> & ReturnType<typeof useHostAccessSettings> & ReturnType<typeof useSettingsShared> & ReturnType<typeof deriveUpdateView> & ReturnType<typeof useUpdateSettings>, 'browserHeadedModeModalStage' | 'browserHeadedModePendingEnabled' | 'browserHealth' | 'browserHealthError' | 'browserTaskInfo' | 'devicePairingStatus' | 'gatewayRestartModalStage' | 'hasLoadedMaxPermissionsState' | 'hostTakeoverStatus' | 'isCheckingBrowserHealth' | 'isGatewayLoading' | 'isRestarting' | 'isSelfHealingBrowser' | 'maxPermissions' | 'secondaryActionButtonClass' | 't' | 'updateRestartModalStage' | 'url'>) {
+  const { browserHeadedModeModalStage, browserHeadedModePendingEnabled, browserHealth, browserHealthError, browserTaskInfo, devicePairingStatus, gatewayRestartModalStage, hasLoadedMaxPermissionsState, hostTakeoverStatus, isCheckingBrowserHealth, isGatewayLoading, isRestarting, isSelfHealingBrowser, maxPermissions, secondaryActionButtonClass, t, updateRestartModalStage, url } = deps;
 
   const browserHeadedModeConfirmingEnable = browserHeadedModePendingEnabled === true;
   const browserHeadedModeModalTitle = browserHeadedModeModalStage === 'confirm'
@@ -59,7 +59,7 @@ export function deriveGatewayView(deps: Pick<ReturnType<typeof useGatewaySetting
     && gatewayRestartModalStage === null
     && browserHeadedModeModalStage !== 'restarting'
     && updateRestartModalStage !== 'restarting';
-  const canSaveGateway = !isLoading && !!url.trim();
+  const canSaveGateway = !isGatewayLoading && !!url.trim();
   const browserProgressToneClasses = {
     container: 'border-blue-200 bg-blue-50',
     text: 'text-[#2563eb]',
@@ -80,7 +80,7 @@ export function deriveGatewayView(deps: Pick<ReturnType<typeof useGatewaySetting
   const canSelfHealBrowser = browserHealth?.healthy === false
     && !isCheckingBrowserHealth
     && !isSelfHealingBrowser
-    && !isLoading
+    && !isGatewayLoading
     && !activeBrowserTaskInfo;
   const browserHealthNotCheckedText = t('settings.gateway.browserHealthStates.notChecked');
   const browserHealthValueFallback = browserHealth ? t('common.unknown') : browserHealthNotCheckedText;
@@ -159,7 +159,7 @@ export function deriveGatewayView(deps: Pick<ReturnType<typeof useGatewaySetting
     if (!isActive || !activeBrowserTaskPhaseVisual) {
       const disabled = mode === 'repairing'
         ? !canSelfHealBrowser
-        : isCheckingBrowserHealth || isSelfHealingBrowser || isLoading || !!activeBrowserTaskInfo;
+        : isCheckingBrowserHealth || isSelfHealingBrowser || isGatewayLoading || !!activeBrowserTaskInfo;
       return (
         <button
           type="button"

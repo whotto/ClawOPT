@@ -8,8 +8,9 @@ import { createFallbackAutosave, fallbackSaveBody, type FallbackDraft } from '..
 import { listEndpoints, saveEndpoint, testEndpoint } from '../../../api/endpoints';
 import type { useSettingsShared } from './useSettingsShared';
 
-export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof useSettingsShared>, 'onModelsChanged' | 'openSettingsErrorModal' | 'setDeleteModalMessage' | 'setDeleteTarget' | 'setIsDeleteModalOpen' | 'setIsLoading' | 't'>) {
-  const { onModelsChanged, openSettingsErrorModal, setDeleteModalMessage, setDeleteTarget, setIsDeleteModalOpen, setIsLoading, t } = deps;
+export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof useSettingsShared>, 'onModelsChanged' | 'openSettingsErrorModal' | 'setDeleteModalMessage' | 'setDeleteTarget' | 'setIsDeleteModalOpen' | 'setAreaLoading' | 't'>) {
+  const { onModelsChanged, openSettingsErrorModal, setDeleteModalMessage, setDeleteTarget, setIsDeleteModalOpen, setAreaLoading, t } = deps;
+  const setIsLoading = (loading: boolean) => setAreaLoading('models', loading);
 
   // --- Model Management State ---
   const [expandedEndpoints, setExpandedEndpoints] = useState<Set<string>>(() => {
