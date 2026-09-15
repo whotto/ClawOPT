@@ -1,3 +1,4 @@
+import type express from 'express';
 import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
@@ -5,6 +6,7 @@ import path from 'path';
 import { ensureGroupWorkspace, validateGroupId } from '../../collab/rooms';
 import type { SessionManager } from '../../collab/sessions';
 import type { AgentProvisioner } from '../../control';
+import { getRequestIdentity, resourceForbiddenError, type ResourceAccess } from '../../core/auth';
 import type { DB, StoredFileRow } from '../../core/db';
 import {
   GROUP_ID_CONTAINS_WHITESPACE_ERROR_CODE,
@@ -55,15 +57,18 @@ export type UploadServiceDeps = {
   agentProvisioner: AgentProvisioner;
   db: DB;
   sessionManager: SessionManager;
+  access: Pick<ResourceAccess, 'canUploadTo'>;
 };
 
 export function createUploadService(ctx: UploadServiceDeps) {
-  const { agentProvisioner, db, sessionManager } = ctx;
+  const { agentProvisioner, db, sessionManager, access } = ctx;
 
   const storage = multer.diskStorage({
     destination: (req, _file, cb) => {
       try {
         const target = resolveUploadTargetFromBody((req.body || {}) as Record<string, unknown>);
+        // 数据面授权在落盘之前：目标会话 / 群看不见就不写任何字节（multipart 字段须在文件之前，前端就是这么发的）。
+        if (!access.canUploadTo(getRequestIdentity(req as express.Request), target)) throw resourceForbiddenError();
         fs.mkdirSync(target.uploadsPath, { recursive: true });
         console.log(`[Upload] Context: ${target.contextType}, SessionKey: ${target.sessionKey}, Path: ${target.uploadsPath}`);
         cb(null, target.uploadsPath);

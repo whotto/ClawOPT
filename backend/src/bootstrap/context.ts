@@ -124,7 +124,6 @@ export function createAppContext() {
     openclawAdapter,
   };
 
-  const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);
   const browser = createBrowserService({ gatewayService });
   const appUpdate = createAppUpdateService({ browser, gatewayService });
@@ -149,8 +148,10 @@ export function createAppContext() {
       chatSessionAgentId: (sessionId) => db.getSession(sessionId)?.agentId ?? null,
       roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map((member) => member.agent_id) : null),
       runSessionAgentId: (sessionKey) => db.getRunSession(sessionKey)?.agent_id ?? null,
+      uploadSessionKey: (storedName) => (db.getFileByStoredName(storedName)?.session_key as string | undefined) || null,
     },
   });
+  const uploads = createUploadService({ ...base, access });
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
   const chatRuns = createChatRuns();
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });

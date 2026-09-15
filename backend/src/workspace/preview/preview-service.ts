@@ -201,7 +201,12 @@ export function createPreviewService(ctx: PreviewServiceDeps) {
     return '';
   }
 
-  function serveHtmlPreviewRequest(req: express.Request, res: express.Response) {
+  /**
+   * `authorize` 是第二道门（数据面授权），在可服务路径闸门之后对实际要发的文件判（没有相对段时就是入口本身；
+   * 子资源按 realpath 判，入口目录里指向别人工作区的软链挡得住）；看不见就抛。
+   * 必填：HTML 预览没有「不判授权」的调用方式。
+   */
+  function serveHtmlPreviewRequest(req: express.Request, res: express.Response, authorize: (realPath: string) => void) {
     try {
       const entryAbsolutePath = resolveHtmlPreviewEntryAbsolutePath(req);
       if (!entryAbsolutePath || !fs.existsSync(entryAbsolutePath)) {
@@ -209,6 +214,7 @@ export function createPreviewService(ctx: PreviewServiceDeps) {
       }
 
       const requestedPath = assertServablePath(resolveHtmlPreviewRequestedPath(entryAbsolutePath, req.params[0]));
+      authorize(requestedPath);
       if (!fs.existsSync(requestedPath)) {
         return res.status(404).send('File not found');
       }

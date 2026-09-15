@@ -57,6 +57,7 @@ export type {
 export {
   createResourceAccess,
   MEMBER_KANBAN_ACTIONS,
+  resourceForbiddenError,
   sendResourceForbidden,
 } from './resource-access';
 export type {

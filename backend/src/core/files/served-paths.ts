@@ -121,6 +121,47 @@ export function resolveServablePath(absolutePath: string): ServedPathVerdict {
   return { ok: true, realPath };
 }
 
+/**
+ * 一个已过闸门的文件归谁（数据面授权用，判据在 `core/auth/resource-access.ts`）：
+ * - `~/.openclaw/workspace-group-<群>/…` → 群；
+ * - `~/.openclaw/workspace-<Agent>/…` → Agent（`getWorkspacePath` 的命名就是这个）；
+ * - 上传目录 → 看 `files` 表里登记的会话 / 群；
+ * - 其余（`~/.openclaw/workspace` 这类不带 id 的目录）→ 无主，只给管理员。
+ *
+ * 入参必须是 `resolveServablePath` 给出的 realPath：先过闸门、再判归属，顺序不能反。
+ */
+export type ServedPathOwner =
+  | { kind: 'agent'; agentId: string }
+  | { kind: 'group'; groupId: string }
+  | { kind: 'upload'; storedName: string }
+  | { kind: 'unowned' };
+
+const GROUP_WORKSPACE_DIR_PREFIX = 'workspace-group-';
+const AGENT_WORKSPACE_DIR_PREFIX = 'workspace-';
+
+function realpathOrSelf(candidate: string): string {
+  try {
+    return fs.realpathSync(candidate);
+  } catch {
+    return candidate;
+  }
+}
+
+export function servedPathOwner(realPath: string): ServedPathOwner {
+  const uploadsRoot = realpathOrSelf(dataUploadsRoot());
+  if (isInside(realPath, uploadsRoot)) return { kind: 'upload', storedName: path.basename(realPath) };
+  const root = realpathOrSelf(openclawRoot());
+  if (!isInside(realPath, root)) return { kind: 'unowned' };
+  const [top] = path.relative(root, realPath).split(path.sep);
+  if (top?.startsWith(GROUP_WORKSPACE_DIR_PREFIX) && top.length > GROUP_WORKSPACE_DIR_PREFIX.length) {
+    return { kind: 'group', groupId: top.slice(GROUP_WORKSPACE_DIR_PREFIX.length) };
+  }
+  if (top?.startsWith(AGENT_WORKSPACE_DIR_PREFIX) && top.length > AGENT_WORKSPACE_DIR_PREFIX.length) {
+    return { kind: 'agent', agentId: top.slice(AGENT_WORKSPACE_DIR_PREFIX.length) };
+  }
+  return { kind: 'unowned' };
+}
+
 /** 供诊断与测试使用：当前允许的根。 */
 export function servableRoots(): string[] {
   return allowedRoots();

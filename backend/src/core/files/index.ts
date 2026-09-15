@@ -23,7 +23,9 @@ export type {
 export {
   resolveServablePath,
   servableRoots,
+  servedPathOwner,
 } from './served-paths';
 export type {
+  ServedPathOwner,
   ServedPathVerdict,
 } from './served-paths';

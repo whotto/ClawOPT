@@ -3,6 +3,7 @@ import fs from 'fs';
 import sharp from 'sharp';
 import path from 'path';
 
+import { getRequestIdentity, type ResourceAccess } from '../../core/auth';
 import type { DB } from '../../core/db';
 import { isStructuredRequestError, type RouteApp } from '../../core/http';
 import type { UploadService } from './upload-service';
@@ -10,6 +11,7 @@ import type { UploadService } from './upload-service';
 export type UploadRoutesDeps = {
   db: DB;
   uploads: UploadService;
+  access: Pick<ResourceAccess, 'canAccessSessionOrRoom'>;
 };
 
 export function registerUploadRoutes(app: RouteApp, ctx: UploadRoutesDeps): void {
@@ -100,7 +102,11 @@ export function registerUploadRoutes(app: RouteApp, ctx: UploadRoutesDeps): void
     });
   });
 
-  app.get('/api/files', (_req, res) => {
-    res.json({ success: true, files: db.getFiles(300) });
+  // 上传记录：member 只列看得见的会话 / 群里的（admin 在 canAccessSessionOrRoom 里全放行）。
+  app.get('/api/files', (req, res) => {
+    const identity = getRequestIdentity(req);
+    const files = (db.getFiles(300) as Array<{ session_key?: string | null }>)
+      .filter((row) => ctx.access.canAccessSessionOrRoom(identity, row.session_key ?? ''));
+    res.json({ success: true, files });
   });
 }

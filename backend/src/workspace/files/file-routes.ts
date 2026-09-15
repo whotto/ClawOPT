@@ -1,8 +1,10 @@
+import type express from 'express';
 import fs from 'fs';
 import path from 'path';
 
+import { getRequestIdentity, resourceForbiddenError, type ResourceAccess } from '../../core/auth';
 import type { DB } from '../../core/db';
-import { resolveServablePath } from '../../core/files';
+import { resolveServablePath, servedPathOwner } from '../../core/files';
 import { isStructuredRequestError, type RouteApp } from '../../core/http';
 import { uploadDir } from '../../core/paths';
 import type { PreviewService } from '../preview/preview-service';
@@ -10,25 +12,46 @@ import type { PreviewService } from '../preview/preview-service';
 export type FileRoutesDeps = {
   db: DB;
   preview: PreviewService;
+  access: Pick<ResourceAccess, 'canAccessServedFile'>;
 };
 
+/**
+ * 按路径出文件的入口一律两道门，顺序固定：
+ * 1. 可服务路径闸门（`resolveServablePath` / `assertServablePath`，先 realpath 再判归属与文件名）；
+ * 2. 数据面授权（`servedPathOwner` 推出文件归哪个 Agent / 群 / 上传记录，再按用户判，见 `core/auth/resource-access.ts`）。
+ * 第二道门只接受第一道门给出的 realPath。
+ */
 export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
   const { db } = ctx;
   const { ensureConvertedPreviewPdf, isLibreOfficeAvailable, resolvePreviewAbsolutePath, serveHtmlPreviewRequest } = ctx.preview;
 
+  /** 第二道门：看不见就抛 403 `auth.agentForbidden`。 */
+  const authorizeServedFile = (req: express.Request, realPath: string): void => {
+    if (!ctx.access.canAccessServedFile(getRequestIdentity(req), servedPathOwner(realPath))) throw resourceForbiddenError();
+  };
+  const sendForbidden = (res: express.Response) => {
+    const error = resourceForbiddenError();
+    res.status(error.status).json(error.payload);
+  };
+
   app.get('/uploads/:filename', (req, res) => {
     const filename = req.params.filename;
-    
-    // 1. Try to find in database (to support agent workspaces)
-    const fileInfo = db.getFileByStoredName(filename);
-    if (fileInfo && fs.existsSync(fileInfo.stored_path)) {
-      return res.sendFile(fileInfo.stored_path);
-    }
 
-    // 2. Fallback to global upload dir
-    const globalPath = path.join(uploadDir, filename);
-    if (fs.existsSync(globalPath)) {
-      return res.sendFile(globalPath);
+    // 1. 先查登记（Agent / 群工作区里的上传），2. 再回落全局上传目录。两者都过可服务路径闸门与授权。
+    const fileInfo = db.getFileByStoredName(filename);
+    const candidates = [fileInfo?.stored_path, path.join(uploadDir, filename)].filter((value): value is string => typeof value === 'string' && value.length > 0);
+    for (const candidate of candidates) {
+      const verdict = resolveServablePath(candidate);
+      if (!verdict.ok) {
+        if (verdict.reason === 'notFound') continue;
+        return res.status(403).send('Not available');
+      }
+      try {
+        authorizeServedFile(req, verdict.realPath);
+      } catch {
+        return sendForbidden(res);
+      }
+      return res.sendFile(verdict.realPath);
     }
 
     res.status(404).send('File not found');
@@ -46,6 +69,11 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
     const verdict = resolveServablePath(path.join(process.env.HOME || '', '.openclaw', relative));
     if (!verdict.ok) {
       return res.status(verdict.reason === 'notFound' ? 404 : 403).send('Not available');
+    }
+    try {
+      authorizeServedFile(req, verdict.realPath);
+    } catch {
+      return sendForbidden(res);
     }
     res.sendFile(verdict.realPath);
   });
@@ -72,6 +100,12 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
         return res.status(403).send('This file is not available for download');
       }
 
+      try {
+        authorizeServedFile(req, verdict.realPath);
+      } catch {
+        return sendForbidden(res);
+      }
+
       const filename = path.basename(verdict.realPath);
       // Allow inline responses for preview while keeping attachment as the default download behavior.
       res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(filename)}`);
@@ -95,6 +129,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
       if (!absolutePath || !fs.existsSync(absolutePath)) {
         return res.status(404).json({ error: 'File not found' });
       }
+      authorizeServedFile(req, absolutePath);
 
       const servedPath = mode === 'converted'
         ? await ensureConvertedPreviewPdf(absolutePath)
@@ -122,11 +157,11 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
   });
 
   app.get('/api/files/html-preview/path/:encodedPath/*', (req, res) => {
-    serveHtmlPreviewRequest(req, res);
+    serveHtmlPreviewRequest(req, res, (realPath) => authorizeServedFile(req, realPath));
   });
 
   app.get('/api/files/html-preview/upload/:filename/*', (req, res) => {
-    serveHtmlPreviewRequest(req, res);
+    serveHtmlPreviewRequest(req, res, (realPath) => authorizeServedFile(req, realPath));
   });
 
   app.get('/api/files/preview', async (req, res) => {
@@ -141,6 +176,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
       if (!fs.existsSync(absolutePath)) {
         return res.status(404).send('File not found');
       }
+      authorizeServedFile(req, absolutePath);
 
       const filename = path.basename(absolutePath);
 
