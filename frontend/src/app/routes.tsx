@@ -1,4 +1,7 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+
+const GuestRoomPage = lazy(() => import('../features/rooms/guest/GuestRoomPage'));
 import ChatPage from '../pages/chat/ChatPage';
 import LoginPage from '../pages/login/LoginPage';
 import AutomationPage from '../pages/automation/AutomationPage';
@@ -20,6 +23,8 @@ export default function AppRoutes() {
   return (
     <Routes>
       <Route path={LOGIN_PATH} element={<LoginPage />} />
+      {/* P3 访客页：邀请码 + 访客令牌，不经登录壳层。 */}
+      <Route path="share/rooms/:code" element={<Suspense fallback={null}><GuestRoomPage /></Suspense>} />
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={null} />
         <Route path="chat/:sessionId?" element={<ChatPage mode="chat" />} />
