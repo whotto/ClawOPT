@@ -30,6 +30,14 @@ describe('按能力清单显示入口', () => {
     expect(visibleAutomationNav(member).map((item) => item.section)).toEqual(['workflows', 'kanban']);
   });
 
+  it('Agent 运行时管理（/settings/runtimes）在团队区、紧跟 MCP；只有带 settings.runtimes 能力（admin 及以上）才画，member 不画', () => {
+    const admin = new Set([...member, 'settings.presets', 'settings.skills', 'settings.mcp', 'settings.runtimes']);
+    expect(visibleSettingsNav(admin)[0]).toMatchObject({ zone: 'team' });
+    expect(visibleSettingsNav(admin)[0].items.map((item) => item.tab)).toEqual(['agents', 'presets', 'skills', 'mcp', 'runtimes']);
+    expect(visibleSettingsNav(member).flatMap((group) => group.items).some((item) => item.tab === 'runtimes')).toBe(false);
+    expect(visibleSettingsNav(new Set([...admin].filter((id) => id !== 'settings.runtimes')))[0].items.map((item) => item.tab)).not.toContain('runtimes');
+  });
+
   it('全部能力：与完整导航一致；能力未加载：什么都不画', () => {
     const all = new Set([...SETTINGS_TABS.map((tab) => `settings.${tab}`), 'automation.workflows', 'automation.kanban', 'automation.webhooks']);
     expect(visibleSettingsNav(all).flatMap((group) => group.items)).toEqual(SETTINGS_NAV_ITEMS);

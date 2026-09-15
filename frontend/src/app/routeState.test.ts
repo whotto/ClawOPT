@@ -197,6 +197,12 @@ describe('enforceRouteCapabilities', () => {
     expect(enforceRouteCapabilities({ ...base, view: 'settings', settingsTab: 'gateway' }, new Set(['settings.about']), navOrder)).toMatchObject({ view: 'settings', settingsTab: 'about' });
   });
 
+  it('member 深链到 Agent 运行时管理页：换到第一个有入口的页签（能力清单里没有 settings.runtimes）', () => {
+    expect(enforceRouteCapabilities({ ...base, view: 'settings', settingsTab: 'runtimes' }, member, ['agents', 'presets', 'runtimes', 'about'])).toMatchObject({ view: 'settings', settingsTab: 'agents' });
+    const admin: AppRouteState = { ...base, view: 'settings', settingsTab: 'runtimes' };
+    expect(enforceRouteCapabilities(admin, new Set([...member, 'settings.runtimes']), ['agents', 'runtimes'])).toBe(admin);
+  });
+
   it('有入口的页签原样；设置区一个入口都没有就回对话', () => {
     const allowed: AppRouteState = { ...base, view: 'settings', settingsTab: 'about' };
     expect(enforceRouteCapabilities(allowed, member, navOrder)).toBe(allowed);
