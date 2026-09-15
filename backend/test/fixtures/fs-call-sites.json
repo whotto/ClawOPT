@@ -5,6 +5,11 @@
     "context": "block.path"
   },
   {
+    "file": "collab/sessions/chat-attachments.ts",
+    "call": "readFileSync",
+    "context": "attachment.path"
+  },
+  {
     "file": "collab/sessions/session-runtime.ts",
     "call": "readFileSync",
     "context": "absolutePath"
@@ -21,38 +26,13 @@
   },
   {
     "file": "control/agents/agent-provisioner.ts",
-    "call": "readFileSync",
-    "context": "filePath"
-  },
-  {
-    "file": "control/agents/agent-provisioner.ts",
-    "call": "readFileSync",
-    "context": "filePath"
-  },
-  {
-    "file": "control/agents/agent-provisioner.ts",
-    "call": "writeFileSync",
-    "context": "filePath"
-  },
-  {
-    "file": "control/agents/agent-provisioner.ts",
-    "call": "writeFileSync",
-    "context": "filePath"
-  },
-  {
-    "file": "control/agents/agent-provisioner.ts",
     "call": "copyFileSync",
     "context": "mainAuthPath"
   },
   {
     "file": "control/agents/agent-provisioner.ts",
-    "call": "writeFileSync",
-    "context": "soulPath"
-  },
-  {
-    "file": "control/agents/agent-provisioner.ts",
     "call": "readFileSync",
-    "context": "soulPath"
+    "context": "filePath"
   },
   {
     "file": "control/agents/agent-provisioner.ts",
@@ -61,8 +41,33 @@
   },
   {
     "file": "control/agents/agent-provisioner.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "control/agents/agent-provisioner.ts",
+    "call": "readFileSync",
+    "context": "soulPath"
+  },
+  {
+    "file": "control/agents/agent-provisioner.ts",
     "call": "writeFileSync",
     "context": "filePath"
+  },
+  {
+    "file": "control/agents/agent-provisioner.ts",
+    "call": "writeFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "control/agents/agent-provisioner.ts",
+    "call": "writeFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "control/agents/agent-provisioner.ts",
+    "call": "writeFileSync",
+    "context": "soulPath"
   },
   {
     "file": "control/gateway/browser-service.ts",
@@ -76,13 +81,8 @@
   },
   {
     "file": "control/gateway/host-takeover.ts",
-    "call": "writeFileSync",
+    "call": "readFileSync",
     "context": "HOST_TAKEOVER_SYSTEMD_OVERRIDE_PATH"
-  },
-  {
-    "file": "control/gateway/host-takeover.ts",
-    "call": "writeFileSync",
-    "context": "filePath"
   },
   {
     "file": "control/gateway/host-takeover.ts",
@@ -91,8 +91,13 @@
   },
   {
     "file": "control/gateway/host-takeover.ts",
-    "call": "readFileSync",
+    "call": "writeFileSync",
     "context": "HOST_TAKEOVER_SYSTEMD_OVERRIDE_PATH"
+  },
+  {
+    "file": "control/gateway/host-takeover.ts",
+    "call": "writeFileSync",
+    "context": "filePath"
   },
   {
     "file": "control/models/image-generation-service.ts",
@@ -131,13 +136,18 @@
   },
   {
     "file": "control/presets/preset-installer.ts",
-    "call": "readFileSync",
-    "context": "filePath"
+    "call": "copyFileSync",
+    "context": "from"
   },
   {
     "file": "control/presets/preset-installer.ts",
-    "call": "writeFileSync",
-    "context": "to"
+    "call": "readFileSync",
+    "context": "file"
+  },
+  {
+    "file": "control/presets/preset-installer.ts",
+    "call": "readFileSync",
+    "context": "filePath"
   },
   {
     "file": "control/presets/preset-installer.ts",
@@ -146,7 +156,12 @@
   },
   {
     "file": "control/presets/preset-installer.ts",
-    "call": "copyFileSync",
+    "call": "readFileSync",
+    "context": "from"
+  },
+  {
+    "file": "control/presets/preset-installer.ts",
+    "call": "readFileSync",
     "context": "from"
   },
   {
@@ -156,18 +171,8 @@
   },
   {
     "file": "control/presets/preset-installer.ts",
-    "call": "readFileSync",
-    "context": "file"
-  },
-  {
-    "file": "control/presets/preset-installer.ts",
     "call": "writeFileSync",
     "context": "path.join"
-  },
-  {
-    "file": "control/presets/preset-installer.ts",
-    "call": "readFileSync",
-    "context": "from"
   },
   {
     "file": "control/presets/preset-installer.ts",
@@ -176,8 +181,8 @@
   },
   {
     "file": "control/presets/preset-installer.ts",
-    "call": "readFileSync",
-    "context": "from"
+    "call": "writeFileSync",
+    "context": "to"
   },
   {
     "file": "control/update/app-update-service.ts",
@@ -192,12 +197,12 @@
   {
     "file": "control/update/app-version.ts",
     "call": "readFileSync",
-    "context": "rootPackageJsonPath"
+    "context": "buildMetaPath"
   },
   {
     "file": "control/update/app-version.ts",
     "call": "readFileSync",
-    "context": "buildMetaPath"
+    "context": "rootPackageJsonPath"
   },
   {
     "file": "core/db/native-build-check.ts",
@@ -232,32 +237,12 @@
   {
     "file": "openclaw/runtime-patches.ts",
     "call": "readFileSync",
-    "context": "targetPath"
-  },
-  {
-    "file": "openclaw/runtime-patches.ts",
-    "call": "writeFileSync",
     "context": "target.backupPath"
-  },
-  {
-    "file": "openclaw/runtime-patches.ts",
-    "call": "writeFileSync",
-    "context": "target.targetPath"
-  },
-  {
-    "file": "openclaw/runtime-patches.ts",
-    "call": "writeFileSync",
-    "context": "target.targetPath"
   },
   {
     "file": "openclaw/runtime-patches.ts",
     "call": "readFileSync",
-    "context": "target.backupPath"
-  },
-  {
-    "file": "openclaw/runtime-patches.ts",
-    "call": "writeFileSync",
-    "context": "target.targetPath"
+    "context": "targetPath"
   },
   {
     "file": "openclaw/runtime-patches.ts",
@@ -268,6 +253,26 @@
     "file": "openclaw/runtime-patches.ts",
     "call": "writeFileSync",
     "context": "target.backupPath"
+  },
+  {
+    "file": "openclaw/runtime-patches.ts",
+    "call": "writeFileSync",
+    "context": "target.backupPath"
+  },
+  {
+    "file": "openclaw/runtime-patches.ts",
+    "call": "writeFileSync",
+    "context": "target.targetPath"
+  },
+  {
+    "file": "openclaw/runtime-patches.ts",
+    "call": "writeFileSync",
+    "context": "target.targetPath"
+  },
+  {
+    "file": "openclaw/runtime-patches.ts",
+    "call": "writeFileSync",
+    "context": "target.targetPath"
   },
   {
     "file": "openclaw/runtime-patches.ts",

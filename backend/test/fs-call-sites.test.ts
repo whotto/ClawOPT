@@ -66,8 +66,12 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
  * 路径是运行时在工作区里改出来的文件名（数据给的），所以读之前：凭据类文件名不读（与出文件闸门同一份判据）、
  * realpath 必须等于「工作区真实根 + 相对路径」（中间任何一段是符号链接就不读）、O_NOFOLLOW | O_NONBLOCK 打开后 fstat 判普通文件、
  * 只读到上限 + 1 字节。
+ *
+ * 62 → 63（P1b 附件重绑）：`collab/sessions/chat-attachments.ts` 读外部运行时单聊的图片附件做原生图片输入。
+ * 路径来自 `files` 表里这个会话登记过的上传（数据给的）：realpath 必须在上传目录下、`assertRegularFile` 判普通文件、
+ * 先 stat 超过 5 MB 不读。
  */
-const CURRENT_SITE_BUDGET = 62;
+const CURRENT_SITE_BUDGET = 63;
 
 /**
  * 网关自己就是那唯一一处实现，不计入。

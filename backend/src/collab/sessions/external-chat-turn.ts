@@ -22,6 +22,7 @@ import { chatSessionTopic, type ChatStreamSink, streamNewChatRunToSse } from './
 import { ChatTurnRows } from './chat-turn-rows';
 import { createExternalChatProjection } from './external-chat-projection';
 import { type TaskPlanStore, withTaskPlans } from './task-plans';
+import { bindUploadedAttachments } from './chat-attachments';
 
 export type ExternalSessionMode = 'global' | 'scoped';
 
@@ -85,7 +86,9 @@ export function externalModelTag(session: SessionRow): string {
 }
 
 export type ExternalChatTurnDeps = {
-  db: Pick<DB, 'updateMessage' | 'updateMessageEnvelope' | 'deleteMessage' | 'setChatMessagesRunMarker' | 'getSession' | 'saveSession'>;
+  db: Pick<DB, 'updateMessage' | 'updateMessageEnvelope' | 'deleteMessage' | 'setChatMessagesRunMarker' | 'getSession' | 'saveSession'> & Partial<Pick<DB, 'getFilesBySession'>>;
+  /** 上传目录（附件重绑时校验真实路径在它下面）；不给就不重绑附件。 */
+  uploadsRoot?: string;
   configManager: Pick<ConfigManager, 'getConfig'>;
   realtime: RealtimeHub;
   runCoordinator: RunCoordinator;
@@ -131,6 +134,15 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
 
   // 分叉出来的会话：第一轮从父会话的原生会话分叉（适配器按能力决定怎么做）。
   const forkParent = deps.forkSource?.(session.id) ?? null;
+  // 附件：只认这个会话登记过的上传，换成真实本地路径（图片按运行时能力内联），见 chat-attachments.ts。
+  const binding = deps.uploadsRoot && deps.db.getFilesBySession
+    ? bindUploadedAttachments({
+      prompt: turn.prompt,
+      sessionFiles: deps.db.getFilesBySession(session.id),
+      uploadsRoot: deps.uploadsRoot,
+      imagesSupported: adapter.capabilities.images,
+    })
+    : { prompt: turn.prompt, images: [], attachments: [] };
   const buildRequest = (): RuntimeRunRequest => {
     const latest = deps.db.getSession(session.id) ?? session;
     // 句柄缺了（老会话、手工改库）就补一个；续不续由「上一轮成功」决定，适配器还会再过一遍兼容性判定。
@@ -141,7 +153,8 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
     }
     return {
       mode: config.mode,
-      prompt: turn.prompt,
+      prompt: command ? turn.prompt : binding.prompt,
+      ...(command || binding.images.length === 0 ? {} : { images: binding.images }),
       workspace,
       owner: { kind: 'session', sessionId: session.id },
       sessionId: handle,
