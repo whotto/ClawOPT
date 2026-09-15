@@ -132,6 +132,8 @@ DELETE /api/chat/:sessionId/queue/:queueId
 POST /api/chat/:sessionId/queue/:queueId/insert
 GET /api/chat/:sessionId/events
 GET /api/search/chat
+GET /api/sessions/:sessionId/workspace-changes
+GET /api/sessions/:sessionId/workspace-changes/:changeId/files/:fileId
 GET /api/run-approvals
 POST /api/run-approvals/:id/respond
 POST /api/files/upload

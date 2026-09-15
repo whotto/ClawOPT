@@ -77,7 +77,7 @@ export interface WorkspaceCheckpoint {
  * begin 在交给运行时之前调用；complete 在投影器落完最终消息（知道 message id）之后调用。
  */
 export interface WorkspaceCheckpointer {
-  begin(input: { sessionKey: string; runId: string; runMarker: string; workspacePath?: string }): Promise<WorkspaceCheckpoint | null>;
+  begin(input: { sessionKey: string; runId: string; runMarker: string; workspacePath?: string; surface?: RunSurface }): Promise<WorkspaceCheckpoint | null>;
   complete(checkpoint: WorkspaceCheckpoint, input: { messageId: string | number | null; outcome: AdapterRunOutcome }): Promise<WorkspaceRunChangeSummary | null>;
 }
 

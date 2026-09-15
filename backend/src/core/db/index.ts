@@ -23,3 +23,15 @@ export type {
   SessionRow,
   StoredFileRow,
 } from './db';
+export {
+  WORKSPACE_CHANGE_QUERY_MAX_MESSAGES,
+  WorkspaceRunChangeRepository,
+} from './workspace-run-changes';
+export type {
+  WorkspaceChangeType,
+  WorkspaceRunChangeFileInput,
+  WorkspaceRunChangeFilePatch,
+  WorkspaceRunChangeFileView,
+  WorkspaceRunChangeInput,
+  WorkspaceRunChangeView,
+} from './workspace-run-changes';

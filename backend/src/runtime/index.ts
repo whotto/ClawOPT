@@ -62,6 +62,7 @@ export {
   QUEUE_INSERTION_EVENT,
   RUN_APPROVALS_TOPIC,
   RunCoordinator,
+  createWorkspaceDiffCheckpointer,
 } from './coordinator';
 export type {
   AbortResult,

@@ -107,3 +107,9 @@ export type {
   SessionRuntime,
   SessionRuntimeDeps,
 } from './session-runtime';
+export {
+  registerWorkspaceChangeRoutes,
+} from './workspace-change-routes';
+export type {
+  WorkspaceChangeRoutesDeps,
+} from './workspace-change-routes';
