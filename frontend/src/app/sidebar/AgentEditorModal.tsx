@@ -1,4 +1,3 @@
-import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import ModelFallbackEditor from '../../components/ModelFallbackEditor';
@@ -18,11 +17,9 @@ import type { AgentEditorState } from './useAgentEditor';
 export default function AgentEditorModal({
   editor,
   availableModels,
-  memberDropdownRef,
 }: {
   editor: AgentEditorState;
   availableModels: any[];
-  memberDropdownRef: RefObject<HTMLDivElement | null>;
 }) {
   const { t } = useTranslation();
   const {
@@ -88,7 +85,7 @@ export default function AgentEditorModal({
 
             <div className="relative">
               <label className={MODAL_FIELD_LABEL_CLASS}>{t('sidebar.independentModel')}</label>
-              <div className="relative" ref={memberDropdownRef}>
+              <div className="relative">
                 <input 
                   type="text" 
                   value={isModelDropdownOpen ? modelSearchQuery : (newSessionData.model ? (availableModels.find(m => m.id === newSessionData.model)?.alias || newSessionData.model) : '')}
