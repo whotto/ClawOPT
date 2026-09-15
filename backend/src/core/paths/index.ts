@@ -1,6 +1,7 @@
 export {
   appRepoRoot,
   browserWarmupMarkerPath,
+  clawoptDataDir,
   gatewayRestartStatePath,
   previewCacheDir,
   startupTasksStatePath,

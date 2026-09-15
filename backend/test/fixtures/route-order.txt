@@ -1,5 +1,6 @@
 USE *
 USE *
+USE /api/runtime-proxy
 USE *
 USE *
 GET /livez
@@ -29,6 +30,10 @@ USE /uploads
 GET /api/auth/check
 POST /api/auth/logout
 POST /api/auth/login
+GET /api/runtime-proxy/anthropic/:key/v1/models
+POST /api/runtime-proxy/anthropic/:key/v1/messages
+GET /api/runtime-proxy/responses/:key/v1/models
+POST /api/runtime-proxy/responses/:key/v1/responses
 GET /api/gateway/status
 POST /api/config/test
 GET /api/config/detect-all

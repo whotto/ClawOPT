@@ -270,6 +270,11 @@
     "context": "target.targetPath"
   },
   {
+    "file": "runtime/platform-store.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
     "file": "workspace/files/file-routes.ts",
     "call": "readFileSync",
     "context": "servedPath"

@@ -78,6 +78,43 @@ export {
 export {
   checkRuntimeInvariants,
 } from './runtime-invariants';
+// ---- P2-platform：本地模型代理 ----
+export {
+  API_MODES,
+  ENCRYPTED_THINKING_PROBE_BYTES,
+  LocalProviderProxy,
+  PROXY_TARGET_RESTORE_MAX_AGE_MS,
+  RUNTIME_PROXY_PREFIX,
+  createProviderProxy,
+  isApiMode,
+  isOfficialAnthropicUpstream,
+  requiresReasoningContentRoundTrip,
+  resolveUpstreamEndpoint,
+} from './proxy';
+export type {
+  ApiMode,
+  CanonicalRuntimeEvent,
+  LocalProviderProxyOptions,
+  ProviderProxy,
+  ProxyTarget,
+  RegisteredProxyTarget,
+} from './proxy';
+export {
+  RUNTIME_PROXY_BODY_LIMIT,
+  registerRuntimeProxyBodyParser,
+  registerRuntimeProxyRoutes,
+} from './proxy/proxy-routes';
+export {
+  LocalSecretBox,
+  constantTimeEquals,
+  defaultRuntimeDataDir,
+} from './platform-store';
+export {
+  NetPolicyError,
+  assertOutboundUrlAllowed,
+  isLocalProvider,
+  isPrivateAddress,
+} from './net-policy';
 export type {
   InvariantMemberRow,
   InvariantSessionRow,

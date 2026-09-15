@@ -16,7 +16,7 @@ import path from 'path';
 
 import { registerAuthGate, registerAuthRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
-import { registerExternalRuntimeRoutes } from '../runtime';
+import { registerExternalRuntimeRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
 import {
   registerAgentRoutes,
   registerCharacterRoutes,
@@ -68,6 +68,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
       return compression.filter(req, res);
     },
   }));
+  // 本地模型代理的请求体（64 MB）：必须在全局 100 KB 的 json 之前，body-parser 看到已解析就跳过。
+  registerRuntimeProxyBodyParser(routes.forModule('runtime'));
   bootstrapApp.use(express.json());
 
   // Host checking middleware for reverse proxies
@@ -92,6 +94,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   routes.markProtectedPrefix('/uploads');
 
   registerAuthRoutes(routes.forModule('core/auth'), ctx);
+  // 公开（按 AUTH_PUBLIC_PATHS 的模式放行），令牌在处理器里常数时间校验。
+  registerRuntimeProxyRoutes(routes.forModule('runtime'), ctx);
   registerGatewayRoutes(routes.forModule('control/gateway'), ctx);
   registerModelRoutes(routes.forModule('control/models'), ctx);
   registerCharacterRoutes(routes.forModule('control/agents'), ctx);

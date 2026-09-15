@@ -22,6 +22,9 @@ export async function startServer() {
   shutdown.installSignalHandlers();
 
   const ctx = createAppContext();
+  // 代理目标的加密恢复文件：重启前登记过、还在用的 CLI 配置里的令牌继续有效。
+  const restoredProxyTargets = ctx.providerProxy.restore();
+  if (restoredProxyTargets > 0) console.log(`[RuntimeProxy] restored ${restoredProxyTargets} proxy target(s)`);
   readiness.markDbReady();
   runStartupSteps(ctx);
   ctx.preview.detectLibreOffice();

@@ -1,0 +1,6 @@
+event: ping
+data: {"type":"ping"}
+
+event: error
+data: {"type":"error","error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"The encrypted content for thinking block 0 could not be verified."}}
+

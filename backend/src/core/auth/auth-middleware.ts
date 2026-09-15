@@ -58,7 +58,31 @@ export const AUTH_PUBLIC_PATHS = new Set([
   // 登记在这里是为了让「有意公开」在白名单里看得见。
   '/livez',
   '/readyz',
+  // 本地模型代理（P2，runtime/proxy）：调用方是 ClawOPT 自己拉起的外部 CLI（Claude Code、Codex……），
+  // 它们带不了登录 cookie，只拿得到代理签发的**每目标令牌**。安全性在处理器里：
+  // 未知 key 404、令牌（x-api-key 或 Bearer）常数时间比较不符 401；上游 key 只在服务端内存与加密恢复文件里。
+  '/api/runtime-proxy/anthropic/:key/v1/models',
+  '/api/runtime-proxy/anthropic/:key/v1/messages',
+  '/api/runtime-proxy/responses/:key/v1/models',
+  '/api/runtime-proxy/responses/:key/v1/responses',
 ]);
+
+/**
+ * 请求路径是否命中公开白名单。条目里的 `:param` 只匹配**恰好一个非空段**——
+ * `/api/runtime-proxy/anthropic/x/extra/v1/messages` 与 `/api/runtime-proxy/anthropicX/...` 都不算公开。
+ * 登记表（RouteRegistry）按路由模式原文比对同一个集合，所以条目必须与注册的路由模式逐字相同。
+ */
+export function isAuthPublicPath(requestPath: string): boolean {
+  if (AUTH_PUBLIC_PATHS.has(requestPath)) return true;
+  const segments = requestPath.split('/');
+  for (const entry of AUTH_PUBLIC_PATHS) {
+    if (!entry.includes('/:')) continue;
+    const pattern = entry.split('/');
+    if (pattern.length !== segments.length) continue;
+    if (pattern.every((part, index) => (part.startsWith(':') ? segments[index].length > 0 : part === segments[index]))) return true;
+  }
+  return false;
+}
 
 export type AuthMiddlewareDeps = {
   authStore: AuthStore;

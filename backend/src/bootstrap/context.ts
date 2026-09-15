@@ -30,7 +30,7 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
-import { createOpenClawRuntimeAdapter, RunCoordinator } from '../runtime';
+import { createOpenClawRuntimeAdapter, createProviderProxy, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import {
   createChatCommands,
@@ -82,7 +82,13 @@ export function createAppContext() {
   /** OpenClaw 网关运行时适配器（单聊）。无状态，整个进程一个。 */
   const openclawAdapter = createOpenClawRuntimeAdapter();
 
-  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator, openclawAdapter };
+  /** 本地模型代理（P2）：scoped 模式下外部 CLI 只拿代理令牌，上游 key 留在服务端。 */
+  const providerProxy = createProviderProxy({
+    publicBaseUrl: () => `http://127.0.0.1:${Number(process.env.PORT) || 3100}`,
+    dataDir: defaultRuntimeDataDir(),
+  });
+
+  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator, openclawAdapter, providerProxy };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);

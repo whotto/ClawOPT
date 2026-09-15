@@ -14,6 +14,7 @@ import { buildApp } from '../src/bootstrap';
 import { attachRealtimeServer } from '../src/bootstrap/realtime';
 import { RealtimeHub } from '../src/core/realtime';
 import { AUTH_PUBLIC_PATHS, createAuthMiddleware } from '../src/core/auth';
+import { LocalProviderProxy } from '../src/runtime';
 import type { RouteRecord } from '../src/core/http';
 import { createStubContext } from './helpers/stub-context';
 
@@ -25,12 +26,13 @@ let server: http.Server;
 let baseUrl = '';
 let records: RouteRecord[] = [];
 let realtime: ReturnType<typeof attachRealtimeServer>;
+const providerProxy = new LocalProviderProxy({ publicBaseUrl: () => 'http://127.0.0.1:9', log: () => {} });
 
 beforeAll(async () => {
   // 401 走的是原有错误处理中间件，它会 console.error 每一次——这里只关心状态码。
   vi.spyOn(console, 'error').mockImplementation(() => {});
   const auth = createAuthMiddleware({ configManager, authStore } as any);
-  const ctx = createStubContext({ configManager, authStore, auth, realtime: new RealtimeHub() });
+  const ctx = createStubContext({ configManager, authStore, auth, realtime: new RealtimeHub(), providerProxy });
   const built = buildApp(ctx);
   records = built.routes.list();
   server = http.createServer(built.app);
@@ -95,6 +97,11 @@ const EXPECTED_PUBLIC_ROUTES = [
   'POST /api/sidebar/favorites',
   'GET /api/auth/check',
   'POST /api/auth/login',
+  // 本地模型代理（P2）：外部 CLI 带不了登录 cookie，靠处理器里的每目标令牌。见下方专门的用例。
+  'GET /api/runtime-proxy/anthropic/:key/v1/models',
+  'POST /api/runtime-proxy/anthropic/:key/v1/messages',
+  'GET /api/runtime-proxy/responses/:key/v1/models',
+  'POST /api/runtime-proxy/responses/:key/v1/responses',
   'GET *',
 ];
 
@@ -143,6 +150,40 @@ describe('鉴权覆盖（登录开启、匿名请求）', () => {
   });
 
   it('白名单只放行显式列出的路径', () => {
-    expect([...AUTH_PUBLIC_PATHS].sort()).toEqual(['/api/auth/check', '/api/auth/login', '/api/version', '/livez', '/readyz']);
+    expect([...AUTH_PUBLIC_PATHS].sort()).toEqual([
+      '/api/auth/check',
+      '/api/auth/login',
+      '/api/runtime-proxy/anthropic/:key/v1/messages',
+      '/api/runtime-proxy/anthropic/:key/v1/models',
+      '/api/runtime-proxy/responses/:key/v1/models',
+      '/api/runtime-proxy/responses/:key/v1/responses',
+      '/api/version',
+      '/livez',
+      '/readyz',
+    ]);
+  });
+
+  it('代理路由越过登录闸门但过不了令牌：匿名打到的是代理自己的 404/401；多一段、空一段仍被闸门拦', async () => {
+    const registered = providerProxy.register({
+      provider: 'openai', model: 'm', baseUrl: 'https://upstream.test/v1', apiKey: 'k', apiMode: 'chat_completions', runtime: 'codex', runId: 'r', sessionId: 's',
+    });
+    const unknown = await fetch(`${baseUrl}/api/runtime-proxy/anthropic/unknown-key/v1/models`);
+    expect(unknown.status).toBe(404);
+    expect((await unknown.json()).error.type).toBe('not_found_error');
+    const noToken = await fetch(`${baseUrl}/api/runtime-proxy/responses/${registered.routeKey}/v1/models`);
+    expect(noToken.status).toBe(401);
+    expect((await noToken.json()).error.type).toBe('authentication_error');
+    const withToken = await fetch(`${baseUrl}/api/runtime-proxy/responses/${registered.routeKey}/v1/models`, { headers: { authorization: `Bearer ${registered.token}` } });
+    expect(withToken.status).toBe(200);
+
+    for (const sneaky of [
+      `/api/runtime-proxy/anthropic/${registered.routeKey}/extra/v1/models`,
+      '/api/runtime-proxy/anthropic//v1/models',
+      `/api/runtime-proxy/responses/${registered.routeKey}/v1/models/extra`,
+    ]) {
+      const res = await fetch(`${baseUrl}${sneaky}`);
+      expect(res.status, sneaky).toBe(401);
+      expect((await res.json()).errorCode, sneaky).toBe('auth.loginRequired');
+    }
   });
 });

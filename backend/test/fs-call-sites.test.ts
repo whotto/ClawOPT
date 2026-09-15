@@ -53,7 +53,10 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
  * 57 → 58（P1a）：`core/db/native-build-check.ts` 读 better-sqlite3 的原生插件二进制做构建隐患检测。
  * 路径来自 `require.resolve('better-sqlite3/package.json')`，不是数据给的；只读、不解析内容，只查一个符号串。
  */
-const CURRENT_SITE_BUDGET = 58;
+const CURRENT_SITE_BUDGET = 59;
+// 58 → 59（P2-platform）：`runtime/platform-store.ts::readPrivateText` 是运行时平面（代理恢复文件、本机密钥、
+// 更新策略、成员密钥、原生配置文件编辑器）唯一的读入口。路径要么是 ClawOPT 自己数据目录下的固定文件，
+// 要么来自运行时描述符里写死的原生配置路径表，不来自请求数据；读之前 stat 判普通文件（不跟命名管道较劲）。
 
 /**
  * 网关自己就是那唯一一处实现，不计入。
