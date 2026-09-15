@@ -8705,6 +8705,294 @@
         "x-clawopt-order": 278
       }
     },
+    "/api/groups/{id}/queue": {
+      "get": {
+        "operationId": "getApiGroupsIdQueue",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/queue",
+        "x-clawopt-order": 280
+      }
+    },
+    "/api/groups/{id}/messages/{msgId}/retract": {
+      "post": {
+        "operationId": "postApiGroupsIdMessagesMsgIdRetract",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "msgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/messages/:msgId/retract",
+        "x-clawopt-order": 281
+      }
+    },
+    "/api/groups/{id}/handoffs": {
+      "get": {
+        "operationId": "getApiGroupsIdHandoffs",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/handoffs",
+        "x-clawopt-order": 282
+      }
+    },
+    "/api/groups/{id}/handoffs/{chainId}/continue": {
+      "post": {
+        "operationId": "postApiGroupsIdHandoffsChainIdContinue",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/handoffs/:chainId/continue",
+        "x-clawopt-order": 283
+      }
+    },
+    "/api/groups/{id}/policy": {
+      "get": {
+        "operationId": "getApiGroupsIdPolicy",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/policy",
+        "x-clawopt-order": 284
+      },
+      "put": {
+        "operationId": "putApiGroupsIdPolicy",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/policy",
+        "x-clawopt-order": 285
+      }
+    },
+    "/api/groups/{id}/members/{memberId}/interrupt": {
+      "post": {
+        "operationId": "postApiGroupsIdMembersMemberIdInterrupt",
+        "tags": [
+          "collab/rooms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/members/:memberId/interrupt",
+        "x-clawopt-order": 286
+      }
+    },
     "/api/groups/{id}/stop": {
       "post": {
         "operationId": "postApiGroupsIdStop",
@@ -8740,7 +9028,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/stop",
-        "x-clawopt-order": 280
+        "x-clawopt-order": 287
       }
     },
     "/api/groups/{id}/messages/{msgId}": {
@@ -8786,7 +9074,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 281
+        "x-clawopt-order": 288
       },
       "delete": {
         "operationId": "deleteApiGroupsIdMessagesMsgId",
@@ -8830,7 +9118,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 282
+        "x-clawopt-order": 289
       }
     },
     "/api/groups/{id}/messages/regenerate": {
@@ -8868,7 +9156,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/regenerate",
-        "x-clawopt-order": 283
+        "x-clawopt-order": 290
       }
     },
     "/api/groups/{id}/events": {
@@ -8906,7 +9194,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/events",
-        "x-clawopt-order": 284
+        "x-clawopt-order": 291
       }
     }
   },

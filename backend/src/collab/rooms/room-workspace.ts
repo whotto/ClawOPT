@@ -51,6 +51,22 @@ export function sha256(buffer: Buffer | string): string {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+/**
+ * 群工作区里**唯一**的读入口：路径来自请求（相对路径已过 normalizeRelativePath + resolveInsideRoot），
+ * 读之前 lstat 判普通文件、拒绝软链接与命名管道（不跟 FIFO 较劲挂住读取）。
+ */
+export function readRegularFile(abs: string): Buffer {
+  const stat = fs.lstatSync(abs);
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new WorkspacePathError('workspace.notAFile');
+  return fs.readFileSync(abs);
+}
+
+/** 群工作区里**唯一**的写入口：同目录临时文件 + rename（0644），调用方已按路径加锁并做完 SHA-256 并发检查。 */
+function writeFileAtomic(abs: string, temp: string, content: Buffer): void {
+  fs.writeFileSync(temp, content, { mode: 0o644 });
+  fs.renameSync(temp, abs);
+}
+
 /** 规范化相对路径；不合法抛错。空串 = 根。 */
 export function normalizeRelativePath(input: unknown): string {
   if (typeof input !== 'string') throw new WorkspacePathError('workspace.invalidPath');
@@ -144,14 +160,14 @@ export class WorkspaceFiles {
   readText(relativePath: string, limit = WORKSPACE_TEXT_READ_LIMIT): { path: string; content: string; sha256: string; size: number } {
     const { abs, rel, size } = this.statFile(relativePath);
     if (size > limit) throw new WorkspacePathError('workspace.tooLarge');
-    const buffer = fs.readFileSync(abs);
+    const buffer = readRegularFile(abs);
     return { path: rel, content: buffer.toString('utf8'), sha256: sha256(buffer), size };
   }
 
   readBinary(relativePath: string, limit = WORKSPACE_BINARY_LIMIT): { path: string; buffer: Buffer; sha256: string } {
     const { abs, rel, size } = this.statFile(relativePath);
     if (size > limit) throw new WorkspacePathError('workspace.tooLarge');
-    const buffer = fs.readFileSync(abs);
+    const buffer = readRegularFile(abs);
     return { path: rel, buffer, sha256: sha256(buffer) };
   }
 
@@ -169,7 +185,7 @@ export class WorkspaceFiles {
       if (exists) {
         const lst = fs.lstatSync(abs);
         if (lst.isSymbolicLink() || !lst.isFile()) throw new WorkspacePathError('workspace.notAFile');
-        const current = sha256(fs.readFileSync(abs));
+        const current = sha256(readRegularFile(abs));
         if (!expectedSha256 || expectedSha256 !== current) throw new WorkspacePathError('workspace.conflict', 'file changed or expectedSha256 missing');
       } else if (expectedSha256) {
         throw new WorkspacePathError('workspace.conflict', 'file does not exist');
@@ -177,9 +193,8 @@ export class WorkspaceFiles {
       fs.mkdirSync(path.dirname(abs), { recursive: true });
       resolveInsideRoot(this.root(), rel);
       const temp = `${abs}.clawopt-tmp-${crypto.randomBytes(6).toString('hex')}`;
-      fs.writeFileSync(temp, content, { mode: 0o644 });
-      fs.renameSync(temp, abs);
-      const written = sha256(fs.readFileSync(abs));
+      writeFileAtomic(abs, temp, content);
+      const written = sha256(readRegularFile(abs));
       const expected = sha256(content);
       if (written !== expected) throw new WorkspacePathError('workspace.conflict', 'file changed while writing');
       return { path: rel, sha256: written, created: !exists };
@@ -209,7 +224,7 @@ export class WorkspaceFiles {
         fs.rmdirSync(abs);
         return { path: rel };
       }
-      const current = sha256(fs.readFileSync(abs));
+      const current = sha256(readRegularFile(abs));
       if (!expectedSha256 || expectedSha256 !== current) throw new WorkspacePathError('workspace.conflict');
       fs.rmSync(abs);
       return { path: rel };
@@ -318,7 +333,7 @@ export function takeWorkspaceSnapshot(root: string, now: () => number = Date.now
       let binary = binaryExt;
       if (!binaryExt && stat.size <= SNAPSHOT_TEXT_FILE_LIMIT && textBytes + stat.size <= SNAPSHOT_MAX_TEXT_BYTES) {
         try {
-          const buffer = fs.readFileSync(abs);
+          const buffer = readRegularFile(abs);
           hash = sha256(buffer);
           if (looksBinary(buffer)) binary = true;
           else { text = buffer.toString('utf8'); textBytes += buffer.length; }
@@ -326,7 +341,7 @@ export function takeWorkspaceSnapshot(root: string, now: () => number = Date.now
           continue;
         }
       } else if (binaryExt && stat.size <= WORKSPACE_BINARY_LIMIT) {
-        try { hash = sha256(fs.readFileSync(abs)); } catch { continue; }
+        try { hash = sha256(readRegularFile(abs)); } catch { continue; }
       }
       files.set(rel, { size: stat.size, mtimeMs: stat.mtimeMs, hash, text, binary });
       if (files.size >= SNAPSHOT_MAX_FILES) { truncated = true; break; }

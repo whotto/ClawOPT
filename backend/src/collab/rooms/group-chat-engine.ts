@@ -1211,8 +1211,7 @@ export class GroupChatEngine extends EventEmitter implements MemberTurnExecutor 
       this.gatewayTurnChains.set(groupId, chain);
       await previous.catch(() => undefined);
       try {
-        // 排队期间房间可能被清空：开跑前再看一眼。
-        turn.fence = this.fence.token(groupId, member.id);
+        // 排队期间房间可能被清空：令牌是进来时取的，开跑前再比一次。
         if (!this.isTurnCurrent(turn)) return { status: 'reset', messageId: null, text: '' };
         return await this.runGatewayMemberWithScope(turn);
       } finally {

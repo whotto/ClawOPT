@@ -277,7 +277,8 @@ export function createRoomOrchestrator(deps: RoomOrchestratorDeps) {
     let candidates: GroupMemberRow[];
     let triggerKind: RoomPromptTrigger['kind'];
     if (isReset) {
-      candidates = members;
+      // `/new` 是「重置我能叫起的成员的会话」，不是点名：只发给发起人叫得起的，不回被挡提示。
+      candidates = members.filter((member) => deps.access.originatorCanWake(originator, member));
       triggerKind = 'all';
     } else if (validated.all) {
       candidates = members;

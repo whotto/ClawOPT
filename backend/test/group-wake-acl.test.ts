@@ -2,8 +2,8 @@
  * 群聊叫起按发消息的人授权（真组装应用、登录开启）：member 在群里只能**直接**叫起授权给自己的 Agent。
  *
  * 群 g-mix 成员：main（「主程」，授权给 member）、other（「产品」，未授权）。
- * 这里只验「用户发起的第一跳」叫起谁：把引擎的 `sendToAgent` 换成记录调用的替身（不连网关）。
- * Agent 回复里的 @ 转交在 `sendToAgent` 内部按既有链深规则继续，不按发起人过滤（AGENTS.md「群聊叫起」）。
+ * 这里只验「用户发起的第一跳」叫起谁：把引擎的 `executeTurn`（编排器的每 Agent 队列调用它）换成记录调用的替身（不连网关）。
+ * P3 起 Agent 回复里的 @ 转交同样按发起人授权逐跳判（编排器用例 `room-orchestrator.test.ts` 守着），`@all` 只给 admin 与房间归属人。
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,7 +14,14 @@ let h: AppHarness;
 let engine: any;
 const tokens: Record<'admin' | 'member', string> = { admin: '', member: '' };
 const woken: string[] = [];
-const pending: Array<Promise<unknown>> = [];
+
+/** 队列是异步排空的：等这个群里没有排队 / 在跑的项。 */
+async function settle() {
+  for (let i = 0; i < 50; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (h.ctx.roomCollab.orchestrator.busyMembers('g-mix').length === 0) return;
+  }
+}
 
 beforeAll(async () => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -36,16 +43,7 @@ beforeAll(async () => {
   if (linked) ctx.sessionManager.updateSession(linked.id, { name: '主程' });
 
   engine = ctx.rooms.groupChatEngine;
-  engine.sendToAgent = async (_groupId: string, _groupName: string, agentId: string) => { woken.push(agentId); return undefined; };
-  // 路由先回 200 再后台派发：收集派发的 promise，断言前等它们跑完。
-  for (const method of ['sendUserMessage', 'rerunUserMessage']) {
-    const original = engine[method].bind(engine);
-    engine[method] = (...args: unknown[]) => {
-      const promise = original(...args);
-      pending.push(promise.catch(() => undefined));
-      return promise;
-    };
-  }
+  engine.executeTurn = async (input: any) => { woken.push(input.member.agent_id); return { status: 'completed', messageId: null, text: '' }; };
 });
 
 afterAll(async () => {
@@ -54,7 +52,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await Promise.all(pending.splice(0));
+  await settle();
   woken.length = 0;
 });
 
@@ -65,7 +63,7 @@ async function call(token: string, method: string, path: string, body?: unknown)
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const json = await response.json() as any;
-  await Promise.all(pending.splice(0));
+  await settle();
   return { code: response.status, body: json };
 }
 const post = (token: string, content: string) => call(token, 'POST', '/api/groups/g-mix/messages', { content });
@@ -87,10 +85,14 @@ describe('member 在群里发消息：只叫起授权给自己的 Agent', () => 
     expect(woken).toEqual(['main']);
   });
 
-  it('@all：只叫起授权的成员', async () => {
+  it('@all：member 不是房间归属人 → 403 且不落库；admin 叫起全部', async () => {
+    const before = lastMessage()?.id;
     const result = await post(tokens.member, '@all 开会');
-    expect(result.body.notice).toEqual(notice(['产品']));
-    expect(woken).toEqual(['main']);
+    expect(result).toMatchObject({ code: 403, body: { errorCode: 'groups.allMentionForbidden' } });
+    expect(lastMessage()?.id).toBe(before);
+    expect(woken).toEqual([]);
+    expect((await post(tokens.admin, '@all 开会')).code).toBe(200);
+    expect([...woken].sort()).toEqual(['main', 'other']);
   });
 
   it('/new：只发给授权的成员', async () => {
@@ -122,12 +124,12 @@ describe('member 在群里发消息：只叫起授权给自己的 Agent', () => 
     const denied = await call(tokens.member, 'POST', '/api/groups/g-mix/messages/regenerate', { msgId: otherReply });
     expect(denied).toMatchObject({ code: 403, body: { errorCode: 'auth.agentForbidden' } });
     expect(h.ctx.db.getGroupMessageById(otherReply, 'g-mix')).toBeTruthy();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await settle();
     expect(woken).toEqual([]);
 
     const mainReply = h.ctx.db.saveGroupMessage({ group_id: 'g-mix', parent_id: trigger, sender_type: 'agent', sender_id: 'main', sender_name: '主程', content: '主程的回答' });
     expect((await call(tokens.member, 'POST', '/api/groups/g-mix/messages/regenerate', { msgId: mainReply })).code).toBe(200);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await settle();
     expect(woken).toEqual(['main']);
   });
 
@@ -135,7 +137,7 @@ describe('member 在群里发消息：只叫起授权给自己的 Agent', () => 
     const mine = h.ctx.db.saveGroupMessage({ group_id: 'g-mix', parent_id: h.ctx.db.getLatestGroupMessageId('g-mix'), sender_type: 'user', sender_name: '用户', content: '原话' });
     const edited = await call(tokens.member, 'PUT', `/api/groups/g-mix/messages/${mine}`, { content: '@产品 @主程 改过的' });
     expect(edited.body.rerunStarted).toBe(true);
-    await Promise.all(pending.splice(0));
+    await settle();
     expect(woken).toEqual(['main']);
   });
 });

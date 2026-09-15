@@ -61,8 +61,12 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
  * 60 → 61（P2-platform）：`runtime/platform-store.ts::readPrivateText` 是运行时平面
  * （代理恢复文件、本机密钥、更新策略、成员密钥、原生配置文件编辑器）唯一的读入口。路径要么是 ClawOPT 自己数据目录下的
  * 固定文件，要么来自运行时描述符里写死的原生配置路径表，不来自请求数据；读之前 stat 判普通文件（不跟命名管道较劲）。
+ *
+ * 61 → 63（P3）：`collab/rooms/room-workspace.ts` 的 `readRegularFile` 与 `writeFileAtomic` 是群工作区（文件编辑器、远程工作区令牌接口、
+ * 每次运行的 diff 快照）唯一的读写入口。路径来自请求，但先过 `normalizeRelativePath`（不收绝对路径与 `..`、敏感名字拒绝）
+ * 与 `resolveInsideRoot`（realpath 必须仍在工作区根里）；读之前 lstat 拒绝软链接与非普通文件，写走同目录临时文件 + rename。
  */
-const CURRENT_SITE_BUDGET = 61;
+const CURRENT_SITE_BUDGET = 63;
 
 /**
  * 网关自己就是那唯一一处实现，不计入。

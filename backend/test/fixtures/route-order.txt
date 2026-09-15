@@ -278,6 +278,13 @@ GET /api/groups/:id/messages
 GET /api/groups/:id/active-run
 GET /api/groups/:id/messages/search
 POST /api/groups/:id/messages
+GET /api/groups/:id/queue
+POST /api/groups/:id/messages/:msgId/retract
+GET /api/groups/:id/handoffs
+POST /api/groups/:id/handoffs/:chainId/continue
+GET /api/groups/:id/policy
+PUT /api/groups/:id/policy
+POST /api/groups/:id/members/:memberId/interrupt
 POST /api/groups/:id/stop
 PUT /api/groups/:id/messages/:msgId
 DELETE /api/groups/:id/messages/:msgId

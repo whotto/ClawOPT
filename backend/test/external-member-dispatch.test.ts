@@ -19,6 +19,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { GroupChatEngine } from '../src/collab/rooms/group-chat-engine';
+import { RoomFence } from '../src/collab/rooms/room-fence';
 import { NON_RESUMABLE_EXTERNAL_SESSION_STATUSES as NON_RESUMABLE } from '../src/core/db/db';
 import { RealtimeHub } from '../src/core/realtime';
 import { RunCoordinator } from '../src/runtime/coordinator';
@@ -42,6 +43,8 @@ function makeEngine(overrides: Record<string, any> = {}) {
 
   engine.processingMembers = new Map();
   engine.emitted = emitted;
+  Object.defineProperty(engine, 'fence', { value: new RoomFence() });
+  engine.turnHooks = null;
   engine.sessions = sessions;
   engine.saved = saved;
 
@@ -77,12 +80,23 @@ function makeEngine(overrides: Record<string, any> = {}) {
   return engine;
 }
 
-/** 调用助手：把选项对象的样板收在一处，用例里只写关心的那几项。 */
+/**
+ * 调用助手：把一跳的上下文样板收在一处，用例里只写关心的那几项。
+ * 没接协作钩子时 prompt 就是触发正文（v2 上下文构建由 room-collab / room-prompt 的用例守着）。
+ */
 const runExternal = (engine: any, m: any, runner: any, over: Record<string, any> = {}) =>
   engine.runExternalMember({
-    groupId: 'g1', groupName: '测试群', member: m, allMembers: [m],
-    triggerMsg: '任务', triggerSenderName: '用户', depth: 0, parentId: undefined,
-    ...over,
+    input: {
+      groupId: 'g1', member: m,
+      payload: { kind: 'human', triggerKind: 'mention', triggerMessageId: 1, triggerText: over.triggerMsg ?? '任务', triggerSenderName: '用户', depth: 0, chainId: '1', originator: { kind: 'system' } },
+      policy: { runIdleTimeoutSec: over.idleSec ?? 600, runTotalBudgetSec: over.totalSec ?? 3600 },
+      onReplyCreated: over.onReplyCreated ?? (() => {}),
+    },
+    parentId: undefined,
+    fence: engine.fence.token('g1', m.id),
+    idleMs: (over.idleSec ?? 600) * 1000,
+    totalMs: (over.totalSec ?? 3600) * 1000,
+    scope: { remoteWorkspaceApi: null, runtimeConfig: {}, finish: async () => {} },
   }, runner);
 
 const member = (over: Record<string, any> = {}) => ({
@@ -363,136 +377,6 @@ describe('成员引用的两种写法都要认', () => {
     const { engine, members } = engineWithMember();
     expect(engine.resolveMemberByAgentRef(members, '不存在')).toBeUndefined();
     expect(engine.resolveMemberByAgentRef(members, 'ext:claude-code:不存在')).toBeUndefined();
-  });
-});
-
-/**
- * 外部成员也要拿到群上下文，并且要能把话转回去。
- *
- * 这两条是「同群协作」成立与否的分水岭。此前：
- *
- * - 外部成员拿到的 prompt 只有一行 `${发言人}：${内容}`。它既不知道群里有谁，
- *   也看不见上文——**就算它想 @ 别人，也不知道该 @ 谁**。
- * - `runExternalMember` 是个叶子节点：存完消息就 return，全文没有 `parseMentions`、
- *   没有递归。外部 Agent 说「@情报调研 帮我查一下」，那句话只会作为文本停在群里，
- *   没有任何人被叫起来。
- *
- * 结果是协作**单向**：OpenClaw 能把活转给外部，外部转不回来。
- *
- * 两条都复用网关那条路已有的东西（`buildAgentPrompt` / `parseMentions` /
- * `sendToAgent`），不另起一套——两套 prompt 组装迟早分家。
- */
-describe('群上下文', () => {
-  const roster = () => [
-    { id: 'm1', group_id: 'g1', agent_id: 'eng', display_name: 'Lead Engineer', runtime: 'claude-code', external_config: JSON.stringify({ workingDir: '/srv/app' }), role_description: '负责实现', position: 0 },
-    { id: 'm2', group_id: 'g1', agent_id: 'intel', display_name: '情报调研', runtime: 'openclaw', external_config: null, role_description: '负责查证', position: 1 },
-  ];
-
-  it('**prompt 里带上团队名册**——不知道群里有谁就无从协作', async () => {
-    const engine = makeEngine();
-    engine.db.getGroupMessages = () => [];
-    // 群设定（system_prompt）也要流过去——它是这个群的共同约定。
-    engine.db.getGroupChat = () => ({ id: 'g1', max_chain_depth: 6, system_prompt: '本群只讨论后端' });
-    const { runner, calls } = fakeRunner({ ok: true, finalText: 'ok' });
-    const members = roster();
-
-    await runExternal(engine, members[0], runner, { allMembers: members, remainingDepth: 2 });
-
-    const prompt = calls[0].stdinData ?? calls[0].args[calls[0].args.length - 1];
-    expect(prompt, '名册没进 prompt，外部成员不知道能 @ 谁').toContain('情报调研');
-    expect(prompt, '群设定没流过去').toContain('本群只讨论后端');
-  });
-
-  it('prompt 里带上最近历史', async () => {
-    const engine = makeEngine();
-    engine.db.getGroupMessages = () => [
-      { id: 1, group_id: 'g1', parent_id: null, sender_type: 'user', sender_id: null, sender_name: '用户', content: '上一条历史消息', process_content: '', model_used: '', created_at: '' },
-    ];
-    const { runner, calls } = fakeRunner({ ok: true, finalText: 'ok' });
-    const members = roster();
-
-    await runExternal(engine, members[0], runner, { allMembers: members, remainingDepth: 2 });
-
-    const prompt = calls[0].stdinData ?? calls[0].args[calls[0].args.length - 1];
-    expect(prompt, '看不见上文，每一轮都像第一轮').toContain('上一条历史消息');
-  });
-
-  it('**剩余深度为 0 时省掉名册并禁止 @**——复用 buildAgentPrompt 白得的正确行为', async () => {
-    // 转发额度用完了还把名册给它、还允许它 @，只会让它发出一堆没人接的 @。
-    // 这个判断本来就在 buildAgentPrompt 里，复用它就自动继承了。
-    const engine = makeEngine();
-    engine.db.getGroupMessages = () => [];
-    const { runner, calls } = fakeRunner({ ok: true, finalText: 'ok' });
-    const members = roster();
-
-    await runExternal(engine, members[0], runner, { allMembers: members, remainingDepth: 0 });
-
-    const prompt = calls[0].stdinData ?? calls[0].args[calls[0].args.length - 1];
-    expect(prompt).toContain('禁止@他人');
-    expect(prompt).not.toContain('情报调研');
-  });
-
-  it('触发消息本身仍在', async () => {
-    const engine = makeEngine();
-    engine.db.getGroupMessages = () => [];
-    const { runner, calls } = fakeRunner({ ok: true, finalText: 'ok' });
-    const members = roster();
-    await runExternal(engine, members[0], runner, { allMembers: members, triggerMsg: '把这件事查清楚' });
-    const prompt = calls[0].stdinData ?? calls[0].args[calls[0].args.length - 1];
-    expect(prompt).toContain('把这件事查清楚');
-  });
-});
-
-describe('链式转发：外部 → 其他成员', () => {
-  const roster = () => [
-    { id: 'm1', group_id: 'g1', agent_id: 'eng', display_name: 'Lead Engineer', runtime: 'claude-code', external_config: JSON.stringify({ workingDir: '/srv/app' }), role_description: '', position: 0 },
-    { id: 'm2', group_id: 'g1', agent_id: 'intel', display_name: '情报调研', runtime: 'openclaw', external_config: null, role_description: '', position: 1 },
-  ];
-
-  function forwardingEngine() {
-    const engine = makeEngine();
-    engine.db.getGroupMessages = () => [];
-    engine.sendToAgent = vi.fn(async () => 777);
-    return engine;
-  }
-
-  it('**外部成员 @ 别人时，那个人真的被叫起来**', async () => {
-    const engine = forwardingEngine();
-    const members = roster();
-    const { runner } = fakeRunner({ ok: true, finalText: '@情报调研 帮我查一下这个库的许可证' });
-
-    await runExternal(engine, members[0], runner, { allMembers: members });
-
-    expect(engine.sendToAgent, '外部成员的 @ 只是文本，没有人被叫起来').toHaveBeenCalled();
-    const [, , nextAgentId, forwarded, senderName, nextDepth] = engine.sendToAgent.mock.calls[0];
-    expect(nextAgentId).toBe('intel');
-    expect(forwarded).toContain('许可证');
-    expect(senderName).toBe('Lead Engineer');
-    expect(nextDepth, '深度没加一，链式转发的上限就失效了').toBe(1);
-  });
-
-  it('不转给自己', async () => {
-    const engine = forwardingEngine();
-    const members = roster();
-    const { runner } = fakeRunner({ ok: true, finalText: '@Lead Engineer 自言自语' });
-    await runExternal(engine, members[0], runner, { allMembers: members });
-    expect(engine.sendToAgent).not.toHaveBeenCalled();
-  });
-
-  it('没有 @ 就不转发', async () => {
-    const engine = forwardingEngine();
-    const members = roster();
-    const { runner } = fakeRunner({ ok: true, finalText: '做完了，没什么要问的' });
-    await runExternal(engine, members[0], runner, { allMembers: members });
-    expect(engine.sendToAgent).not.toHaveBeenCalled();
-  });
-
-  it('失败的那一轮不转发——半截结果不该继续往下传', async () => {
-    const engine = forwardingEngine();
-    const members = roster();
-    const { runner } = fakeRunner({ ok: false, errorDetail: 'timeout' });
-    await runExternal(engine, members[0], runner, { allMembers: members });
-    expect(engine.sendToAgent).not.toHaveBeenCalled();
   });
 });
 
