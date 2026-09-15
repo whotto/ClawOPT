@@ -104,7 +104,8 @@ describe('子进程环境：白名单 + 扩充 PATH', () => {
     expect(entries).toContain('/opt/fake-npm-prefix/bin');
     expect(entries.filter((entry) => entry === '/opt/fake-npm-prefix/bin')).toHaveLength(1);
     expect(entries).toContain(path.dirname(process.execPath));
-    expect(entries.indexOf('/opt/fake-npm-prefix/bin')).toBeLessThan(entries.indexOf(binDir));
+    // 原 PATH 在最前：检测到的可执行文件就是 ClawOPT 起子进程时会跑的那一个。
+    expect(entries[0]).toBe(binDir);
     const allowed = new Set(['PATH', 'HOME', 'LC_ALL', 'HTTPS_PROXY', 'CODEX_HOME']);
     expect(Object.keys(env).filter((key) => !allowed.has(key))).toEqual([]);
   });

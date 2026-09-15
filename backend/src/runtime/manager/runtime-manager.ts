@@ -196,13 +196,13 @@ export class LocalRuntimeManager implements RuntimeManager {
   /** 还没预热时的同步兜底：不起子进程，只拼 node 目录、常见 bin 与原 PATH。 */
   private syncFallbackPath(): string {
     const entries = [
+      ...(this.env.PATH ?? '').split(path.delimiter),
       ...this.descriptors().filter((d) => d.installKind === 'pip').map((d) => this.venvBinDir(d.id)),
       path.dirname(process.execPath),
       path.join(this.home, '.npm-global', 'bin'),
       path.join(this.home, '.local', 'bin'),
       '/opt/homebrew/bin',
       '/usr/local/bin',
-      ...(this.env.PATH ?? '').split(path.delimiter),
     ];
     return [...new Set(entries.filter((entry) => entry && path.isAbsolute(entry)))].join(path.delimiter);
   }

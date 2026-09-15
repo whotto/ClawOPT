@@ -10,8 +10,8 @@
  * ## PATH 扩充
  *
  * 服务以 systemd / launchd 起时 PATH 很短，`npm i -g` 装的 CLI 找不到。按顺序去重拼接：
- * ClawOPT 管理的 venv bin → 运行 ClawOPT 的 node 所在目录 → `npm prefix -g`/bin → macOS 登录 shell 的 PATH →
- * 常见 bin 目录 → 原 PATH。
+ * 原 PATH → ClawOPT 管理的 venv bin → 运行 ClawOPT 的 node 所在目录 → `npm prefix -g`/bin → macOS 登录 shell 的 PATH →
+ * 常见 bin 目录。与参考实现不同，原 PATH 在最前（理由见 compute 里的注释）。
  */
 import fs from 'fs';
 import os from 'os';
@@ -90,7 +90,10 @@ export class PathAugmenter {
     const home = this.options.home ?? this.env.HOME ?? os.homedir();
     const basePath = this.env.PATH ?? '';
     const baseEnv = { ...pickAllowlistedEnv(this.env), ...pickInstallerEnv(this.env) };
-    const entries: string[] = [];
+    // 原 PATH 排最前：管理器报告的可执行文件必须就是 ClawOPT 起子进程时真正会跑的那一个。
+    // 实测本机两份 claude（/opt/homebrew/bin 2.1.272、/usr/local/bin 2.1.234），登录 shell 的顺序与服务进程相反；
+    // 把补充目录前置会让「检测到的版本」与「实际运行的版本」分家。补充目录只负责找到原 PATH 里没有的。
+    const entries: string[] = [...basePath.split(path.delimiter)];
 
     entries.push(...(this.options.extraBinDirs?.() ?? []));
     entries.push(path.dirname(process.execPath));
@@ -126,8 +129,6 @@ export class PathAugmenter {
         '/usr/local/bin',
       );
     }
-    entries.push(...basePath.split(path.delimiter));
-
     const seen = new Set<string>();
     return entries
       .map((entry) => entry.trim())

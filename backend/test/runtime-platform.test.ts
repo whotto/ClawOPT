@@ -233,14 +233,21 @@ describe('远程 OpenClaw 成员', () => {
     const outcome = await ok.handle.done;
     expect(outcome).toMatchObject({ kind: 'completed', outputText: '你好，已完成' });
     expect(ok.events.some((e) => e.event.type === 'response.output_text.snapshot' || e.event.type === 'response.output_text.delta')).toBe(true);
-    expect(client.disconnectCount).toBeGreaterThan(0);
+    await vi.waitFor(() => expect(client.disconnectCount).toBeGreaterThan(0), { timeout: 4000 });
 
     const failingClient = new FakeGatewayClient();
     const failing = runRemote({ client: failingClient });
     await vi.waitFor(() => expect(failingClient.sent).toHaveLength(1));
     failingClient.failRun('No API key found for provider "anthropic"');
     expect(await failing.handle.done).toMatchObject({ kind: 'failed', code: 'remoteOpenclaw.runFailed' });
-  });
+
+    // 真机实测：没配服务商的网关把失败当成一条助手回复发回来
+    const noProviderClient = new FakeGatewayClient();
+    const noProvider = runRemote({ client: noProviderClient });
+    await vi.waitFor(() => expect(noProviderClient.sent).toHaveLength(1));
+    noProviderClient.final('⚠️ Agent failed before reply: No API key found for provider "openai". Auth store: /Users/remote/.openclaw/agents/main/agent/openclaw-agent.sqlite');
+    expect(await noProvider.handle.done).toMatchObject({ kind: 'failed', code: 'remoteOpenclaw.runFailed' });
+  }, 15000);
 
   it('群聊派发：适配器按 member.runtime 从登记处取；没登记的运行时明说失败，不静默退回 OpenClaw', async () => {
     const registry = new RuntimeAdapterRegistry();
