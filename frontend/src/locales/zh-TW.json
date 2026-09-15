@@ -2303,5 +2303,36 @@
     },
     "notFound": "這條審批請求已不存在",
     "notActive": "這條審批請求已被答覆，或還沒輪到它"
+  },
+  "notifications": {
+    "unnamedConversation": "對話",
+    "unreadDot": "在你離開時已完成",
+    "os": {
+      "runCompletedTitle": "{{name}} 已完成",
+      "runCompletedBody": "回覆已經好了。",
+      "runFailedTitle": "{{name}} 執行失敗",
+      "runFailedBody": "這一輪沒有完成，打開對話查看詳情。",
+      "approvalTitle": "{{name}} 在等你核准",
+      "approvalBody": "打開對話查看請求。"
+    },
+    "settings": {
+      "title": "提醒",
+      "hint": "只儲存在目前瀏覽器。系統通知只在本分頁處於背景時彈出；正在看的對話不會提醒。",
+      "completionSound": "回覆完成時播放提示音",
+      "completionOs": "回覆完成時發系統通知",
+      "approvalSound": "有核准請求時播放提示音",
+      "approvalOs": "有核准請求時發系統通知",
+      "test": "試一下",
+      "testName": "ClawOPT",
+      "permissionLabel": "系統通知權限",
+      "permission": {
+        "granted": "已允許",
+        "denied": "已封鎖",
+        "default": "尚未詢問",
+        "unsupported": "此瀏覽器不支援"
+      },
+      "requestPermission": "允許通知",
+      "permissionDeniedHint": "請在瀏覽器的網站設定裡允許通知，然後重新整理頁面。"
+    }
   }
 }

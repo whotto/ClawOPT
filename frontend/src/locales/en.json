@@ -2303,5 +2303,36 @@
     },
     "notFound": "This approval request no longer exists",
     "notActive": "This approval request was already answered or is not active yet"
+  },
+  "notifications": {
+    "unnamedConversation": "Conversation",
+    "unreadDot": "Finished while you were away",
+    "os": {
+      "runCompletedTitle": "{{name}} finished",
+      "runCompletedBody": "The reply is ready.",
+      "runFailedTitle": "{{name}} failed",
+      "runFailedBody": "The run did not finish. Open the conversation for details.",
+      "approvalTitle": "{{name}} needs your approval",
+      "approvalBody": "Open the conversation to review the request."
+    },
+    "settings": {
+      "title": "Notifications",
+      "hint": "Saved in this browser. System notifications only appear while this tab is in the background; nothing rings for a conversation you are looking at.",
+      "completionSound": "Sound when a reply finishes",
+      "completionOs": "System notification when a reply finishes",
+      "approvalSound": "Sound when an approval is requested",
+      "approvalOs": "System notification when an approval is requested",
+      "test": "Test",
+      "testName": "ClawOPT",
+      "permissionLabel": "System notification permission",
+      "permission": {
+        "granted": "Allowed",
+        "denied": "Blocked",
+        "default": "Not requested yet",
+        "unsupported": "Not supported by this browser"
+      },
+      "requestPermission": "Allow notifications",
+      "permissionDeniedHint": "Allow notifications for this site in the browser settings, then reload."
+    }
   }
 }

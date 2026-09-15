@@ -2303,5 +2303,36 @@
     },
     "notFound": "这条审批请求已不存在",
     "notActive": "这条审批请求已被答复，或还没轮到它"
+  },
+  "notifications": {
+    "unnamedConversation": "对话",
+    "unreadDot": "在你离开时已完成",
+    "os": {
+      "runCompletedTitle": "{{name}} 已完成",
+      "runCompletedBody": "回复已经好了。",
+      "runFailedTitle": "{{name}} 运行失败",
+      "runFailedBody": "这一轮没有完成，打开对话查看详情。",
+      "approvalTitle": "{{name}} 在等你批准",
+      "approvalBody": "打开对话查看请求。"
+    },
+    "settings": {
+      "title": "提醒",
+      "hint": "只保存在当前浏览器。系统通知只在本标签页处于后台时弹出；正在看的对话不会提醒。",
+      "completionSound": "回复完成时播放提示音",
+      "completionOs": "回复完成时发系统通知",
+      "approvalSound": "有审批请求时播放提示音",
+      "approvalOs": "有审批请求时发系统通知",
+      "test": "试一下",
+      "testName": "ClawOPT",
+      "permissionLabel": "系统通知权限",
+      "permission": {
+        "granted": "已允许",
+        "denied": "已拦截",
+        "default": "尚未询问",
+        "unsupported": "此浏览器不支持"
+      },
+      "requestPermission": "允许通知",
+      "permissionDeniedHint": "请在浏览器的网站设置里允许通知，然后刷新页面。"
+    }
   }
 }
