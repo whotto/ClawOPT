@@ -158,6 +158,11 @@ describe('查询语义', () => {
     const results = search('deploy');
     expect(results.map((r) => [r.sessionId, r.matchedField])).toEqual([['e', 'title'], ['c', 'title'], ['m', 'message']]);
     expect(results.filter((r) => r.sessionId === 'm')).toHaveLength(1);
+    const hit = results.find((r) => r.sessionId === 'm')!;
+    expect(hit.matchedMessageId).toBe(Number(sql.prepare("SELECT id FROM chat_messages WHERE content LIKE 'deploy deploy%'").get().id));
+    expect(hit.anchorBeforeId).toBeNull();
+    const first = Number(sql.prepare("SELECT id FROM chat_messages WHERE content = 'deploy once'").get().id);
+    expect(search('once')[0]).toMatchObject({ matchedMessageId: first, anchorBeforeId: first + 1 });
   });
 
   it('用户输入不会变成 FTS 运算符（引号、NEAR、*、-、:）', () => {

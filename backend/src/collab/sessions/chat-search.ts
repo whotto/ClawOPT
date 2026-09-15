@@ -40,6 +40,11 @@ export interface ChatSearchResult {
   sessionName: string;
   matchedField: 'title' | 'message';
   matchedMessageId: number | null;
+  /**
+   * 跳到这条消息时历史分页用的 `beforeId`：这条消息之后的第一条用户消息 id（没有则 null = 最新一页）。
+   * 与会话内搜索（`/api/history/:id/search`）的 `anchorBeforeId` 同一语义，前端复用同一套跳转。
+   */
+  anchorBeforeId: number | null;
   snippet: string;
   role: string | null;
   timestamp: string | null;
@@ -202,6 +207,7 @@ export function searchChats(sql: Database.Database, options: { query: string; vi
       sessionName: row.name,
       matchedField: 'title',
       matchedMessageId: null,
+      anchorBeforeId: null,
       snippet: row.name,
       role: null,
       timestamp: row.last_at,
@@ -235,7 +241,8 @@ export function searchChats(sql: Database.Database, options: { query: string; vi
     )
     SELECT r.message_id AS message_id, r.session_key AS session_key, s.name AS name, m.role AS role,
       substr(m.content, 1, ${SNIPPET_SOURCE_MAX_CHARS}) AS content,
-      strftime('%Y-%m-%dT%H:%M:%SZ', m.created_at) AS created_at
+      strftime('%Y-%m-%dT%H:%M:%SZ', m.created_at) AS created_at,
+      (SELECT MIN(n.id) FROM chat_messages n WHERE n.session_key = r.session_key AND n.id > r.message_id AND n.role = 'user') AS anchor_before_id
     FROM ranked r
       JOIN chat_messages m ON m.id = r.message_id
       JOIN sessions s ON s.id = r.session_key
@@ -247,7 +254,7 @@ export function searchChats(sql: Database.Database, options: { query: string; vi
     ...shortTerms.map(escapeLikePattern),
     titleSessionIds,
     remaining,
-  ) as Array<{ message_id: number; session_key: string; name: string; role: string; content: string; created_at: string | null }>;
+  ) as Array<{ message_id: number; session_key: string; name: string; role: string; content: string; created_at: string | null; anchor_before_id: number | null }>;
 
   return {
     terms,
@@ -258,6 +265,7 @@ export function searchChats(sql: Database.Database, options: { query: string; vi
         sessionName: row.name,
         matchedField: 'message',
         matchedMessageId: row.message_id,
+        anchorBeforeId: row.anchor_before_id ?? null,
         snippet: buildChatSearchSnippet(row.content, terms),
         role: row.role,
         timestamp: row.created_at,

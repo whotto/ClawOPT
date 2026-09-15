@@ -12,6 +12,7 @@ import { useChatModeBootstrap } from './useChatModeBootstrap';
 import { useChatHistoryFetch } from './useChatHistoryFetch';
 import { useMessageSearch } from './useMessageSearch';
 import { useHistoryPaging } from './useHistoryPaging';
+import { useGlobalSearchFocus } from './useGlobalSearchFocus';
 import { useChatAttachRun } from './useChatAttachRun';
 import { useGroupEvents } from './useGroupEvents';
 import { useMessageActions } from './useMessageActions';
@@ -39,6 +40,8 @@ export function useChatController(props: ChatViewProps) {
   const c8 = { ...c7, ...useChatHistoryFetch(c7) };
   const c9 = { ...c8, ...useMessageSearch(c8) };
   const c10 = { ...c9, ...useHistoryPaging(c9) };
+  // 全局搜索（Ctrl/Cmd+K）交来的「跳到这条消息」：排在首屏加载之后，只读前面各段的值。
+  useGlobalSearchFocus(c10);
   useChatAttachRun(c10);
   const c11 = { ...c10, ...useGroupEvents(c10) };
   const c12 = { ...c11, ...useMessageActions(c11) };
