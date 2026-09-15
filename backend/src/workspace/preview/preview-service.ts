@@ -12,6 +12,7 @@ import {
 } from '../../core/http';
 import { previewCacheDir, uploadDir } from '../../core/paths';
 import { execFileWithInput, execPromise } from '../../core/process';
+import { applyServedFileHeaders } from '../files/served-file-headers';
 
 const HTML_PREVIEW_ROUTE_PADDING_SEGMENT = '__claw_preview_root__';
 
@@ -225,7 +226,7 @@ export function createPreviewService(ctx: PreviewServiceDeps) {
       }
 
       const filename = path.basename(requestedPath);
-      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(filename)}`);
+      applyServedFileHeaders(res, { filename, cache: 'no-store', disposition: 'inline' });
       return res.sendFile(requestedPath);
     } catch (error: any) {
       if (isStructuredRequestError(error)) {

@@ -8,6 +8,7 @@ import { resolveServablePath, servedPathOwner } from '../../core/files';
 import { isStructuredRequestError, type RouteApp } from '../../core/http';
 import { uploadDir } from '../../core/paths';
 import type { PreviewService } from '../preview/preview-service';
+import { applyPreviewDataHeaders, applyServedFileHeaders } from './served-file-headers';
 
 export type FileRoutesDeps = {
   db: DB;
@@ -51,6 +52,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
       } catch {
         return sendForbidden(res);
       }
+      applyServedFileHeaders(res, { filename: path.basename(verdict.realPath), cache: 'revalidate' });
       return res.sendFile(verdict.realPath);
     }
 
@@ -75,6 +77,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
     } catch {
       return sendForbidden(res);
     }
+    applyServedFileHeaders(res, { filename: path.basename(verdict.realPath), cache: 'revalidate' });
     res.sendFile(verdict.realPath);
   });
 
@@ -108,7 +111,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
 
       const filename = path.basename(verdict.realPath);
       // Allow inline responses for preview while keeping attachment as the default download behavior.
-      res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(filename)}`);
+      applyServedFileHeaders(res, { filename, cache: 'no-store', disposition });
       res.sendFile(verdict.realPath);
     } catch (error: any) {
       console.error(`[Download Error] ${error.message}`);
@@ -136,6 +139,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
         : absolutePath;
 
       const buffer = fs.readFileSync(servedPath);
+      applyPreviewDataHeaders(res);
       res.json({
         filename: path.basename(servedPath),
         data: buffer.toString('base64'),
@@ -181,7 +185,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
       const filename = path.basename(absolutePath);
 
       if (mode === 'source') {
-        res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(filename)}`);
+        applyServedFileHeaders(res, { filename, cache: 'no-store', disposition: 'inline' });
         return res.sendFile(absolutePath);
       }
 
@@ -191,7 +195,7 @@ export function registerFileRoutes(app: RouteApp, ctx: FileRoutesDeps): void {
 
       const cachedPdf = await ensureConvertedPreviewPdf(absolutePath);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(path.basename(cachedPdf))}`);
+      applyServedFileHeaders(res, { filename: path.basename(cachedPdf), cache: 'no-store', disposition: 'inline' });
       res.sendFile(cachedPdf);
     } catch (error: any) {
       if (isStructuredRequestError(error)) {
