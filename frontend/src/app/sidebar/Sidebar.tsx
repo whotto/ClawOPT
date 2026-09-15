@@ -185,7 +185,7 @@ export default function Sidebar(props: SidebarProps) {
 
       {/* Create Agent Modal - outside aside to center properly */}
       {agentEditor.isModalOpen && (
-        <AgentEditorModal editor={agentEditor} availableModels={availableModels} memberDropdownRef={groupEditor.memberDropdownRef} />
+        <AgentEditorModal editor={agentEditor} availableModels={availableModels} />
       )}
 
       {externalDialog && (

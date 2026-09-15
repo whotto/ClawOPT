@@ -1,11 +1,36 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import fs from 'fs';
 import path from 'path';
 
 const BUILD_ID = String(Date.now());
 
+/**
+ * 与服务端 `/api/version` 同源的构建身份：根 `package.json` 的版本 + `npm run build` 先写的 `.clawopt-build.json` 构建时间。
+ * 前端据此判断「页面还是上一次构建的产物」（壳层的刷新提示，判据在 src/app/onboarding/onboardingState.ts）。
+ * 没有构建元信息（单独跑 vite build、开发模式）时为 null，前端不提示。
+ */
+function readBuildIdentity(): { version: string | null; buildTime: string | null } {
+  const readJson = (file: string): Record<string, unknown> | null => {
+    try {
+      return JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', file), 'utf-8'));
+    } catch {
+      return null;
+    }
+  };
+  const version = readJson('package.json')?.version;
+  const buildTime = readJson('.clawopt-build.json')?.buildTime;
+  return {
+    version: typeof version === 'string' ? version : null,
+    buildTime: typeof buildTime === 'string' ? buildTime : null,
+  };
+}
+
 export default defineConfig({
+  define: {
+    __CLAWOPT_BUILD_IDENTITY__: JSON.stringify(readBuildIdentity()),
+  },
   plugins: [
     {
       name: 'inject-build-id',

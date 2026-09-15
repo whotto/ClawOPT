@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { useNotificationCenter } from '../features/notifications/useNotificationCenter';
 import PendingApprovalsTray from '../features/workflow/components/PendingApprovalsTray';
 import { AccessProvider, useAccessLoader } from './access';
+import ShellBanners from './onboarding/ShellBanners';
 import Sidebar from './sidebar/Sidebar';
 import type { ShellContext } from './shellContext';
 import { useAppNavigation } from './useAppNavigation';
@@ -15,7 +16,7 @@ export default function AppShell() {
   const nav = useAppNavigation(access.capabilities);
   const isConnected = useConnectionStatus();
   const { sessions, sessionsLoaded, reloadSessions, reorderSessions } = useSessions(nav.autoSelectSession);
-  const { availableModels, reloadModels } = useModels();
+  const { availableModels, reloadModels, modelsLoaded, modelsConfigReadFailed } = useModels();
   const visibleConversation = nav.currentView === 'chat' && nav.activeSessionId
     ? { kind: 'chat' as const, id: nav.activeSessionId }
     : nav.currentView === 'groups' && nav.activeGroupId ? { kind: 'group' as const, id: nav.activeGroupId } : null;
@@ -75,6 +76,14 @@ export default function AppShell() {
           unreadSessionIds={unreadSessionIds}
         />
         <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden md:overflow-visible md:relative md:z-[60]">
+          <ShellBanners
+            isConnected={isConnected}
+            inConversation={nav.currentView === 'chat' || nav.currentView === 'groups'}
+            modelsLoaded={modelsLoaded}
+            modelCount={availableModels.length}
+            modelsConfigReadFailed={modelsConfigReadFailed}
+            onOpenModelSettings={() => nav.navigateTo('settings', 'models', false)}
+          />
           <Outlet context={context} />
         </main>
         <PendingApprovalsTray

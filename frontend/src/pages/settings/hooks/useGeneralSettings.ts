@@ -8,8 +8,9 @@ import { saveConfig } from '../../../api/config';
 import { applyLanguagePreference, normalizeLanguage, type SupportedLanguage } from '../../../i18n';
 import type { useSettingsShared } from './useSettingsShared';
 
-export function useGeneralSettings(deps: Pick<ReturnType<typeof useSettingsShared>, 'i18n' | 'setIsLoading' | 't'>) {
-  const { i18n, setIsLoading, t } = deps;
+export function useGeneralSettings(deps: Pick<ReturnType<typeof useSettingsShared>, 'i18n' | 'setAreaLoading' | 't'>) {
+  const { i18n, setAreaLoading, t } = deps;
+  const setIsLoading = (loading: boolean) => setAreaLoading('general', loading);
 
   // 诊断快照：一键取回现场。这个产品装在用户自己的主机上，我们看不见——
   // 此前排障能拿到的只有一句截图或者一次 SSH。

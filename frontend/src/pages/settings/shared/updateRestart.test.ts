@@ -20,8 +20,13 @@ describe('normalizeUpdateRestartSteps', () => {
     ]);
   });
 
-  it('maps unrecognised statuses to pending (current behaviour, including "skipped")', () => {
-    const steps = normalizeUpdateRestartSteps([{ id: 'warmup_browser', status: 'skipped' }]);
+  it('keeps "skipped" (a normal outcome, e.g. browser not enabled) instead of turning it back into pending', () => {
+    const steps = normalizeUpdateRestartSteps([{ id: 'warmup_browser', status: 'skipped', detail: 'browser disabled' }]);
+    expect(steps?.[2]).toEqual({ id: 'warmup_browser', status: 'skipped', detail: 'browser disabled', updatedAt: null });
+  });
+
+  it('maps unrecognised statuses to pending', () => {
+    const steps = normalizeUpdateRestartSteps([{ id: 'warmup_browser', status: 'bogus' }]);
     expect(steps?.[2].status).toBe('pending');
   });
 });

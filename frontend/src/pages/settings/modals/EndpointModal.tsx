@@ -11,7 +11,7 @@ export default function EndpointModal({ ctx }: { ctx: SettingsController }) {
     handleSaveEndpoint,
     handleTestEndpoint,
     isEndpointModalOpen,
-    isLoading,
+    isModelsLoading,
     modelError,
     newEndpointData,
     setIsEndpointModalOpen,
@@ -160,10 +160,10 @@ export default function EndpointModal({ ctx }: { ctx: SettingsController }) {
                     <button
                       type="button"
                       onClick={handleSaveEndpoint}
-                      disabled={isLoading}
+                      disabled={isModelsLoading}
                       className="flex-[0.8] px-3 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap"
                     >
-                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      {isModelsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                       {t('settings.models.saveEndpoint')}
                     </button>
                   </div>
