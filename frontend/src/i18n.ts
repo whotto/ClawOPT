@@ -5,6 +5,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import en from './locales/en.json';
 import zhCN from './locales/zh-CN.json';
 import zhTW from './locales/zh-TW.json';
+import { getConfig } from './api/config';
 
 export const LANGUAGE_STORAGE_KEY = 'clawopt_preferred_language';
 export const SUPPORTED_LANGUAGES = ['zh-CN', 'zh-TW', 'en'] as const;
@@ -77,7 +78,7 @@ export async function syncLanguageFromConfig(): Promise<SupportedLanguage | null
   }
 
   try {
-    const response = await fetch('/api/config');
+    const response = await getConfig();
     if (!response.ok) {
       return null;
     }
