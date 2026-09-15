@@ -2411,5 +2411,28 @@
     "hintOpen": "Enter 開啟",
     "hintClose": "Esc 關閉",
     "hintShortcuts": "{{search}} 搜尋 · {{newChat}} 新增 · {{settings}} 設定"
+  },
+  "workspaceDiff": {
+    "filesChanged": "{{count}} 個檔案變更",
+    "changeType": {
+      "added": "新增",
+      "modified": "修改",
+      "deleted": "刪除",
+      "renamed": "重新命名"
+    },
+    "renamedFrom": "由 {{path}} 重新命名",
+    "binaryShort": "二進位",
+    "showAll": "顯示全部 {{count}} 個",
+    "showLess": "收合",
+    "moreFilesNotRecorded": "另有 {{count}} 個檔案超出記錄上限",
+    "changeTruncated": "變更較多，部分內容已截斷",
+    "panelTitle": "本輪工作區變更",
+    "loadingPatch": "正在載入差異…",
+    "patchLoadFailed": "差異載入失敗",
+    "binaryUnavailable": "二進位檔案，無法顯示差異",
+    "patchNotRecorded": "這個檔案的差異超出記錄上限，沒有儲存",
+    "patchTruncated": "差異過長，已截斷",
+    "unchangedLines": "展開 {{count}} 行未變更內容",
+    "notFound": "這筆變更記錄不存在"
   }
 }

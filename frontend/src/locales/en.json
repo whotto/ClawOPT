@@ -2411,5 +2411,28 @@
     "hintOpen": "Enter to open",
     "hintClose": "Esc to close",
     "hintShortcuts": "{{search}} search · {{newChat}} new · {{settings}} settings"
+  },
+  "workspaceDiff": {
+    "filesChanged": "{{count}} files changed",
+    "changeType": {
+      "added": "Added",
+      "modified": "Modified",
+      "deleted": "Deleted",
+      "renamed": "Renamed"
+    },
+    "renamedFrom": "Renamed from {{path}}",
+    "binaryShort": "Binary",
+    "showAll": "Show all {{count}}",
+    "showLess": "Show less",
+    "moreFilesNotRecorded": "{{count}} more files exceeded the recording limit",
+    "changeTruncated": "Large change; some content was truncated",
+    "panelTitle": "Workspace changes in this run",
+    "loadingPatch": "Loading diff…",
+    "patchLoadFailed": "Couldn't load the diff",
+    "binaryUnavailable": "Binary file — diff unavailable",
+    "patchNotRecorded": "This file's diff exceeded the recording limit and wasn't saved",
+    "patchTruncated": "Diff too long; truncated",
+    "unchangedLines": "Show {{count}} unchanged lines",
+    "notFound": "This change record doesn't exist"
   }
 }
