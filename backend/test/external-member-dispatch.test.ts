@@ -479,7 +479,7 @@ describe('外部成员经运行协调器', () => {
 
     const results = await coordinator.abortTopic('room:g1', 'user_stop');
     await running;
-    expect(results).toEqual([{ aborted: true, synced: true, ignored: false }]);
+    expect(results).toMatchObject([{ aborted: true, synced: true, ignored: false }]);
     expect(sawSignal?.aborted).toBe(true);
     expect(engine.db.getExternalSessionRow('g1', 'm1').status).toBe('cancelled');
     const [, content] = (engine.db.updateGroupMessage as any).mock.calls.at(-1);

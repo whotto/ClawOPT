@@ -57,10 +57,21 @@ export class ToolCallGroups {
     }
   }
 
-  /** 返回 false 表示没找到对应的调用或它已经有结果（重复 / 串线事件）。 */
-  addOutput(callId: string, output: string, status: 'completed' | 'failed'): boolean {
+  /**
+   * 返回 false 表示这个调用已经有结果（重复事件）。
+   *
+   * 没见过开始事件的结果（订阅晚了一步、网关只推了 result）不丢：
+   * 就地补一条调用记录、单独成组写入——库里依旧没有「有调用没结果」的行。
+   */
+  addOutput(callId: string, output: string, status: 'completed' | 'failed', missed?: { name?: string; arguments?: string }): boolean {
     const index = this.groups.findIndex((group) => group.calls.has(callId));
-    if (index < 0) return false;
+    if (index < 0) {
+      if (this.seen.has(callId)) return false;
+      this.seen.add(callId);
+      const now = this.now();
+      this.persist([{ callId, name: missed?.name ?? 'tool', arguments: missed?.arguments ?? '', output, status, startedAt: now, completedAt: now }]);
+      return true;
+    }
     const group = this.groups[index];
     const call = group.calls.get(callId)!;
     if (call.output !== null) return false;

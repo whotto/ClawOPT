@@ -20,10 +20,11 @@ import {
   type RouteApp,
 } from '../../core/http';
 import type { GatewayConnections } from '../../openclaw';
-import { ConfigReadError } from '../../openclaw';
+import { abortOpenClawSessionRuns, buildOpenClawChatSessionKey, ConfigReadError } from '../../openclaw';
+import type { RunCoordinator } from '../../runtime';
 import type { UploadService } from '../../workspace';
-import type { ChatRuns } from './active-run-manager';
-import { abortOpenClawSessionRuns, type ChatLifecycle } from './chat-lifecycle';
+import type { ChatLifecycle } from './chat-lifecycle';
+import type { ChatRuns } from './chat-run-managers';
 import {
   buildHistoryPageResponse,
   buildHistorySearchResponse,
@@ -33,7 +34,6 @@ import {
 } from './chat-messages';
 import type { SessionManager } from './session-manager';
 import {
-  buildOpenClawChatSessionKey,
   resetAgentWorkspaceToInitialState,
   type SessionRuntime,
 } from './session-runtime';
@@ -80,6 +80,7 @@ export type SessionRoutesDeps = {
   db: DB;
   sessionManager: SessionManager;
   chatRuns: ChatRuns;
+  runCoordinator: RunCoordinator;
   chatLifecycle: ChatLifecycle;
   chatMessages: ChatMessages;
   sessionRuntime: SessionRuntime;
@@ -90,7 +91,8 @@ export type SessionRoutesDeps = {
 
 export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): void {
   const { agentProvisioner, db, sessionManager } = ctx;
-  const { activeRunManager, localChatOperationManager, pendingChatPreparationManager } = ctx.chatRuns;
+  const { localChatOperationManager } = ctx.chatRuns;
+  const { runCoordinator } = ctx;
   const { reconcileInactiveChatLatestMessage } = ctx.chatLifecycle;
   const { withStructuredChatMessage } = ctx.chatMessages;
   const { bumpSessionInterruptionEpoch, getSessionInterruptionEpoch, resetAgentRuntimeStateToInitialState, sessionInterruptionEpochs } = ctx.sessionRuntime;
@@ -258,10 +260,9 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     const agentId = session.agentId;
     const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
     bumpSessionInterruptionEpoch(req.params.id);
-    pendingChatPreparationManager.cancel(req.params.id, interruptedEpoch);
     localChatOperationManager.abort(req.params.id, interruptedEpoch);
     try {
-      await activeRunManager.abortRun(req.params.id);
+      await runCoordinator.abort(req.params.id, 'user_stop');
     } catch {}
     try {
       const client = await getConnection(req.params.id);
@@ -323,11 +324,10 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
       const agentId = session.agentId;
       const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
       bumpSessionInterruptionEpoch(req.params.id);
-      pendingChatPreparationManager.cancel(req.params.id, interruptedEpoch);
       localChatOperationManager.abort(req.params.id, interruptedEpoch);
 
       try {
-        await activeRunManager.abortRun(req.params.id);
+        await runCoordinator.abort(req.params.id, 'user_stop');
       } catch {}
       try {
         const client = await getConnection(req.params.id);
@@ -454,23 +454,24 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
   app.get('/api/chat/:sessionId/active-run', async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const pendingPreparation = pendingChatPreparationManager.get(sessionId);
-      const run = activeRunManager.getRun(sessionId);
+      const run = runCoordinator.getActiveRun(sessionId);
       const localOperation = localChatOperationManager.get(sessionId);
-      if (!run && !pendingPreparation && !localOperation) {
+      if (!run && !localOperation) {
         await reconcileInactiveChatLatestMessage(sessionId);
       }
-      const active = !!(run || pendingPreparation || localOperation);
+      const active = !!(run || localOperation);
+      // 协调器里的网关运行：准备阶段还没有网关 run id（与迁移前的 openclaw-preparation 一致）。
+      const runMessageId = typeof run?.meta.messageId === 'number' ? run.meta.messageId : null;
       res.json({
         success: true,
         active,
         runState: {
           active,
-          messageId: run?.messageId ?? pendingPreparation?.messageId ?? localOperation?.messageId ?? null,
-          runId: run?.runId ?? null,
-          agentId: run?.agentId ?? pendingPreparation?.agentId ?? localOperation?.agentId ?? null,
-          startedAt: run?.startedAt ?? pendingPreparation?.startedAt ?? localOperation?.startedAt ?? null,
-          kind: localOperation?.kind ?? (run ? 'openclaw-run' : (pendingPreparation ? 'openclaw-preparation' : null)),
+          messageId: runMessageId ?? localOperation?.messageId ?? null,
+          runId: run?.phase === 'running' ? run.nativeRunId ?? null : null,
+          agentId: run?.agentId ?? localOperation?.agentId ?? null,
+          startedAt: run?.startedAt ?? localOperation?.startedAt ?? null,
+          kind: localOperation?.kind ?? (run ? (run.phase === 'preparing' ? 'openclaw-preparation' : 'openclaw-run') : null),
         },
       });
     } catch (error: any) {

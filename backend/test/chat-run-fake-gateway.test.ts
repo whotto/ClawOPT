@@ -283,3 +283,51 @@ describe('单聊运行：重新生成', () => {
     ]);
   }, 20000);
 });
+
+/**
+ * 迁移后新增、迁移前没有的东西：协调器写的通用事实。
+ * 上面七个场景证明「用户可见的不变」，这里证明「协调器真的在这条链路上」。
+ */
+describe('单聊运行经协调器：通用事实落库', () => {
+  it('会话行、run marker、网关终态用量（按网关 run 去重）、工具调用与结果都落库', async () => {
+    const { sessionId, gw } = newSession();
+    const sse = readSse(await post('/api/chat', { sessionId, message: 'with tools' }));
+    await waitSent(gw);
+    gw.tool('start', 'read', { id: 't1', args: { path: '/tmp/a' } });
+    gw.tool('result', 'read', { id: 't1', args: { path: '/tmp/a' } });
+    // 漏收开始事件的结果：迁移前也会写一行进度，迁移后同样不丢，并补成一条完整的工具调用记录。
+    gw.tool('result', 'exec', { id: 't2', args: { command: 'ls' } });
+    const usage = { input: 120, output: 30, cacheRead: 5, cacheWrite: 0, cost: { total: 0.002 } };
+    gw.final('done with tools', gw.lastRun(), { usage, model: 'fake/model-1' });
+    // 同一个终态事件网关重推一次：用量仍只记一次。
+    gw.emit('chat.final', { sessionKey: gw.lastRun().sessionKey, runId: gw.lastRun().runId, text: 'done with tools', message: { role: 'assistant', content: [{ type: 'text', text: 'done with tools' }], usage } });
+    await sse.end();
+
+    const db = h.ctx.db;
+    expect(db.getRunSession(sessionId)).toMatchObject({ surface: 'chat', runtime: 'openclaw', agent_id: 'main', end_reason: 'complete' });
+    // 分页读取只选展示用的列；run_marker 直接查表。
+    const [userRow, assistantRow] = db.db.prepare('SELECT id, run_marker, process_content FROM chat_messages WHERE session_key = ? ORDER BY id').all(sessionId);
+    expect(userRow.run_marker).toMatch(/^run-/);
+    expect(assistantRow.run_marker).toBe(userRow.run_marker);
+    expect(db.listSessionUsage(sessionId).map((row: any) => [row.run_id, row.source, row.input_tokens, row.output_tokens, row.cost_usd])).toEqual([
+      [`openclaw:agent:main:chat:${sessionId}:gw-run-1`, 'openclaw', 120, 30, 0.002],
+    ]);
+    expect(db.listRunToolCalls(sessionId).map((row: any) => [row.call_id, row.name, row.status, row.run_marker])).toEqual([
+      ['t1', 'read', 'completed', userRow.run_marker],
+      ['t2', 'exec', 'completed', userRow.run_marker],
+    ]);
+    expect(assistantRow.process_content).toContain('- ');
+  }, 20000);
+
+  it('运行中的会话在协调器里可见；结束后淘汰，不留状态', async () => {
+    const { sessionId, gw } = newSession();
+    const sse = readSse(await post('/api/chat', { sessionId, message: 'observe' }));
+    await waitSent(gw);
+    const run = h.ctx.runCoordinator.getActiveRun(sessionId);
+    expect(run).toMatchObject({ runtime: 'openclaw', agentId: 'main', phase: 'running', nativeRunId: 'gw-run-1' });
+    gw.final('bye');
+    await sse.end();
+    expect(h.ctx.runCoordinator.getActiveRun(sessionId)).toBeNull();
+    expect(h.ctx.runCoordinator.snapshot(sessionId).replay).toEqual([]);
+  }, 20000);
+});

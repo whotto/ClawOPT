@@ -423,7 +423,7 @@ export class RunCoordinator {
           }
         } else if (item.type === 'function_call_output') {
           const status = item.status === 'failed' ? 'failed' : 'completed';
-          if (!run.toolGroups.addOutput(item.call_id, item.output, status)) {
+          if (!run.toolGroups.addOutput(item.call_id, item.output, status, { name: item.name, arguments: item.arguments })) {
             this.droppedTotal.duplicate += 1;
             return;
           }
@@ -598,7 +598,7 @@ export class RunCoordinator {
     if (!run.terminalHandled && !run.aborting) {
       run.aborting = true;
       run.abortReason = reason;
-      const graceMs = options.graceMs ?? this.abortGraceMs;
+      const graceMs = options.graceMs ?? run.submission.abortGraceMs ?? this.abortGraceMs;
       this.publish(run, 'abort.started', { run_id: run.runId, reason, grace_ms: graceMs }, { allTopics: true, replay: { mode: 'replace', key: 'abort' } });
       run.controller.abort(reason);
       run.graceTimer = setTimeout(() => {
@@ -619,6 +619,7 @@ export class RunCoordinator {
       aborted: terminal.outcome.kind === 'aborted',
       synced: terminal.outcome.kind === 'aborted' ? terminal.outcome.synced : true,
       ignored: false,
+      outcome: terminal.outcome,
     };
   }
 

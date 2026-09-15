@@ -125,6 +125,8 @@ export interface RunSubmission<TRequest = unknown> {
   display?: string | null;
   /** 表面自己的附加信息（messageId 等），原样出现在运行视图里。 */
   meta?: Record<string, unknown>;
+  /** 这个运行时中止的宽限（缺省用协调器的默认值）。OpenClaw 的 chat.abort 自己就有 5 秒时限。 */
+  abortGraceMs?: number;
 }
 
 export type BusyPolicy = 'queue' | 'replace' | 'reject';
@@ -162,6 +164,8 @@ export interface AbortResult {
   aborted: boolean;
   synced: boolean;
   ignored: boolean;
+  /** 被中止那次运行的结局（没有运行时为 undefined）；表面据此区分「准备阶段就停了」与「运行中停下」。 */
+  outcome?: AdapterRunOutcome;
 }
 
 export interface SessionSnapshot {

@@ -2,14 +2,16 @@ import type { AgentSettings } from '../../control';
 import type { DB } from '../../core/db';
 import type { StructuredMessageParams } from '../../core/http';
 import type { GatewayConnections } from '../../openclaw';
+import { selectPreferredTextSnapshot } from '../../core/util';
+import {
+  extractLatestAssistantOutcomeRecord,
+  shouldPreferSettledAssistantText,
+} from '../../openclaw';
 import {
   CHAT_HISTORY_COMPLETION_PROBE_LIMIT,
   DEFAULT_PROCESS_END_TAG,
   DEFAULT_PROCESS_START_TAG,
-  extractLatestAssistantOutcomeRecord,
   hasUnclosedProcessBlock,
-  selectPreferredTextSnapshot,
-  shouldPreferSettledAssistantText,
   stripProcessBlocks,
 } from '../sessions';
 import { createAgentResponseFailedMessage, getStructuredGroupMessage } from './group-chat-engine';

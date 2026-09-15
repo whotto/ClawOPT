@@ -168,7 +168,7 @@ describe('中止与宽限', () => {
     await coordinator.submit(submission(), 'reject');
     await flush();
     const result = await coordinator.abort('s1', 'user_stop');
-    expect(result).toEqual({ aborted: true, synced: true, ignored: false });
+    expect(result).toMatchObject({ aborted: true, synced: true, ignored: false });
     expect(scripted.runs[0].interrupts).toEqual(['user_stop']);
     expect(scripted.runs[0].context.signal.aborted).toBe(true);
     const types = events.filter((e) => e.topic === 'session:s1').map((e) => e.type);
@@ -181,7 +181,7 @@ describe('中止与宽限', () => {
     await coordinator.submit(submission(), 'reject');
     await flush();
     const result = await coordinator.abort('s1', 'user_stop');
-    expect(result).toEqual({ aborted: true, synced: false, ignored: false });
+    expect(result).toMatchObject({ aborted: true, synced: false, ignored: false });
     expect(events.map((e) => e.type)).toContain('abort.timeout');
     expect(coordinator.isBusy('s1')).toBe(false);
   });
@@ -275,9 +275,10 @@ describe('工具调用原子落库', () => {
     groups.addOutput('a', 'A', 'completed');
     groups.addCall('b', 'Read', '{}');
     expect(groups.addCall('b', 'Read', '{}')).toBe(false);
+    expect(groups.addOutput('zzz', 'x', 'completed', { name: 'Grep' }), '漏收开始事件的结果不能丢').toBe(true);
     expect(groups.addOutput('zzz', 'x', 'completed')).toBe(false);
     groups.addOutput('b', 'B', 'failed');
-    expect(batches).toEqual([['a'], ['b']]);
+    expect(batches).toEqual([['a'], ['zzz'], ['b']]);
   });
 });
 

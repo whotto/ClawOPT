@@ -14,6 +14,25 @@ export type {
   RosterWarning,
 } from './agents-roster';
 export {
+  createHistoryMessageSignature,
+  extractLatestAssistantOutcome,
+  extractLatestAssistantOutcomeRecord,
+  extractSettledAssistantOutcome,
+  extractSettledAssistantOutcomeRecord,
+  extractSettledAssistantText,
+  getHistorySnapshot,
+  getHistoryTailActivity,
+  getUnknownHistorySnapshot,
+  isNonTerminalAssistantMessage,
+  shouldPreferSettledAssistantText,
+} from './chat-history-reconciliation';
+export type {
+  AssistantOutcomeRecord,
+  ChatHistorySnapshot,
+  HistoryTailActivity,
+  SettledAssistantOutcome,
+} from './chat-history-reconciliation';
+export {
   collectOpenClawPackageRoots,
   ensureOpenClawShellEntrypoint,
   ensureResolvedOpenClawExecutablePath,
@@ -35,6 +54,19 @@ export type {
   GatewayConnections,
   GatewayConnectionsDeps,
 } from './gateway-connections';
+export {
+  OPENCLAW_CHAT_ABORT_RETRY_DELAYS_MS,
+  OPENCLAW_CHAT_ABORT_TIMEOUT_MS,
+  OPENCLAW_CHAT_HISTORY_PROBE_LIMIT,
+  abortOpenClawSessionRuns,
+  buildOpenClawChatSessionKey,
+  isRecoverableGatewayDisconnectDetail,
+  resolveChatFinalTextSnapshot,
+  scheduleOpenClawSessionAbortRetry,
+} from './gateway-chat-run';
+export type {
+  GatewayChatClient,
+} from './gateway-chat-run';
 export {
   isLocalGatewayHostname,
   parseGatewayUrlForStatusProbe,

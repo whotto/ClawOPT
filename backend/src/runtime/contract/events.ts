@@ -25,6 +25,9 @@ export type FunctionCallOutputItem = {
   call_id: string;
   output: string;
   status?: 'completed' | 'failed';
+  /** 有的运行时在结果事件里重复工具名与参数（OpenClaw 的 session.tool result）；漏收了开始事件时靠它补全记录。 */
+  name?: string;
+  arguments?: string;
 };
 export type ReasoningItem = { type: 'reasoning'; id: string; text?: string };
 export type OutputItem = MessageItem | FunctionCallItem | FunctionCallOutputItem | ReasoningItem;

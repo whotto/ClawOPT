@@ -30,7 +30,7 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
-import { RunCoordinator } from '../runtime';
+import { createOpenClawRuntimeAdapter, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import {
   createChatCommands,
@@ -79,7 +79,10 @@ export function createAppContext() {
   /** 运行协调器：所有运行时（OpenClaw 网关、外部 Agent）的运行都经它；适配器只翻译事件。 */
   const runCoordinator = new RunCoordinator({ hub: realtime, store: db });
 
-  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator };
+  /** OpenClaw 网关运行时适配器（单聊）。无状态，整个进程一个。 */
+  const openclawAdapter = createOpenClawRuntimeAdapter();
+
+  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator, openclawAdapter };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);
@@ -99,7 +102,7 @@ export function createAppContext() {
   const roomReconciliation = createRoomReconciliation({ ...base, rooms, roomRuntime, agentSettings, gatewayConnections });
   const auth = createAuthMiddleware(base);
   const packs = createPackService({ ...base, agentSettings });
-  const chatRuns = createChatRuns(base);
+  const chatRuns = createChatRuns();
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
 

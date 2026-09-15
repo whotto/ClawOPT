@@ -21,7 +21,7 @@ import {
   getUnknownHistorySnapshot,
   isNonTerminalAssistantMessage,
   shouldPreferSettledAssistantText,
-} from '../sessions';
+} from '../../openclaw';
 import { EventEmitter } from 'events';
 import {
   AudioPreparationError,
@@ -49,7 +49,7 @@ import {
   roomTopic,
 } from './external-member-run';
 import { getGroupRuntimeSessionKey } from './group-workspace';
-import { selectPreferredTextSnapshot } from '../sessions';
+import { selectPreferredTextSnapshot } from '../../core/util';
 import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
 import { shouldUseConfiguredImageGenerationModel } from '../../control';
 

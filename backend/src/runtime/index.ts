@@ -9,6 +9,14 @@ export {
 export type {
   CommandExecutor,
 } from './adapters/claude-code';
+export {
+  OPENCLAW_ABORT_GRACE_MS,
+  OPENCLAW_CAPABILITIES,
+  createOpenClawRuntimeAdapter,
+} from './adapters/openclaw';
+export type {
+  OpenClawChatRunRequest,
+} from './adapters/openclaw';
 export type {
   AdapterEvent,
   AdapterRunContext,
