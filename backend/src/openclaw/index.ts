@@ -17,8 +17,26 @@ export {
   collectOpenClawPackageRoots,
   ensureOpenClawShellEntrypoint,
   ensureResolvedOpenClawExecutablePath,
+  findOpenClawExecutablePath,
   readOpenClawVersion,
 } from './cli';
+export {
+  OPENCLAW_CLI_ERROR_CODES,
+  OpenClawCliError,
+  classifyCliFailure,
+  createOpenClawCliRunner,
+  parseCliJson,
+  parseCliJsonLines,
+  redactCliText,
+  resolveCliProfile,
+  stripAnsi,
+} from './cli-runner';
+export type {
+  CliExec,
+  CliRunOptions,
+  OpenClawCliErrorCode,
+  OpenClawCliRunner,
+} from './cli-runner';
 export {
   getExecApprovalsPath,
   readOpenClawConfig,
