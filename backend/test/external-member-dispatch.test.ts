@@ -449,3 +449,76 @@ describe('外部成员经运行协调器', () => {
   });
 });
 
+/**
+ * P3 任务 6：会话隔离与运行超时。
+ * - 房间被清空 / 成员被中断之后到的事件：消息行与帧一个字节都不写；
+ * - 空闲超时按事件续期、总预算不续期，到点经协调器中止，失败原因写成 idle_timeout / hard_timeout。
+ */
+describe('会话隔离与运行超时', () => {
+  function manualAdapter() {
+    const h = harness({ executorOptions: { closeOnTerminate: true } });
+    h.deps.fs = sharedFs;
+    return { h, adapter: createClaudeCodeAdapter(h.deps) };
+  }
+  const delta = (text: string) => ({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }, session_id: 's' });
+
+  it('房间代数推进之后到的增量与终态不写库、不发帧，结果是 reset', async () => {
+    const engine = makeEngine();
+    const { h, adapter } = manualAdapter();
+    const running = runExternal(engine, member(), adapter);
+    const proc = await h.exec.next();
+    proc.line(delta('清空前'));
+    await new Promise((resolve) => setImmediate(resolve));
+    const emittedBefore = engine.emitted.filter((e: Emitted) => e.event === 'delta').length;
+    const updatesBefore = (engine.db.updateGroupMessage as any).mock.calls.length;
+    engine.markGroupReset('g1');
+    proc.line(delta('清空后迟到的'));
+    proc.line({ type: 'result', subtype: 'success', is_error: false, result: '清空后迟到的终态', session_id: 's', uuid: 'r' });
+    proc.close(0);
+    const result = await running;
+    expect(result.status).toBe('reset');
+    expect(engine.emitted.filter((e: Emitted) => e.event === 'delta').length).toBe(emittedBefore);
+    expect((engine.db.updateGroupMessage as any).mock.calls.length).toBe(updatesBefore);
+  });
+
+  it('只推进这个成员的中断版本：同群别的成员不受影响', () => {
+    const fence = new RoomFence();
+    const a = fence.token('g1', 'm1');
+    const b = fence.token('g1', 'm2');
+    fence.interruptMember('g1', 'm1');
+    expect(fence.isCurrent('g1', 'm1', a)).toBe(false);
+    expect(fence.isCurrent('g1', 'm2', b)).toBe(true);
+    fence.fenceRoom('g1');
+    expect(fence.isCurrent('g1', 'm2', b)).toBe(false);
+  });
+
+  it('空闲超时：没有事件就到点中止，原因记 idle_timeout；有事件就续期', async () => {
+    const engine = makeEngine();
+    const { h, adapter } = manualAdapter();
+    const running = runExternal(engine, member(), adapter, { idleSec: 0.15, totalSec: 60 });
+    const proc = await h.exec.next();
+    for (let i = 0; i < 3; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      proc.line(delta(`进度${i}`));
+    }
+    expect(proc.terminateCalls, '有事件还被空闲超时中止了').toBe(0);
+    const result = await running;
+    expect(proc.terminateCalls).toBeGreaterThan(0);
+    expect(result).toMatchObject({ status: 'failed', error: 'idle_timeout' });
+    expect(engine.db.getExternalSessionRow('g1', 'm1').status).toBe('idle_timeout');
+    const [, content] = (engine.db.updateGroupMessage as any).mock.calls.at(-1);
+    expect(content).toBe('Lead Engineer 执行失败（idle_timeout）');
+  });
+
+  it('总预算：事件不停也到点中止，原因记 hard_timeout', async () => {
+    const engine = makeEngine();
+    const { h, adapter } = manualAdapter();
+    const running = runExternal(engine, member(), adapter, { idleSec: 60, totalSec: 0.2 });
+    const proc = await h.exec.next();
+    const ticker = setInterval(() => { try { proc.line(delta('.')); } catch { /* 已关闭 */ } }, 30);
+    const result = await running;
+    clearInterval(ticker);
+    expect(result).toMatchObject({ status: 'failed', error: 'hard_timeout' });
+  });
+});
+
