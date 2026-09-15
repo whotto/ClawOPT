@@ -43,6 +43,8 @@ export interface SidebarProps {
   onSelectGroup: (id: string) => void;
   automationSection: AutomationSection;
   onOpenAutomation: (section: AutomationSection) => void;
+  /** 在后台完成、还没打开看过的单聊（features/notifications）。 */
+  unreadSessionIds?: ReadonlySet<string>;
 }
 
 /**

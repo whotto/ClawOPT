@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom';
+import { useNotificationCenter } from '../features/notifications/useNotificationCenter';
 import PendingApprovalsTray from '../features/workflow/components/PendingApprovalsTray';
 import { AccessProvider, useAccessLoader } from './access';
 import Sidebar from './sidebar/Sidebar';
@@ -15,6 +16,20 @@ export default function AppShell() {
   const isConnected = useConnectionStatus();
   const { sessions, sessionsLoaded, reloadSessions, reorderSessions } = useSessions(nav.autoSelectSession);
   const { availableModels, reloadModels } = useModels();
+  const visibleConversation = nav.currentView === 'chat' && nav.activeSessionId
+    ? { kind: 'chat' as const, id: nav.activeSessionId }
+    : nav.currentView === 'groups' && nav.activeGroupId ? { kind: 'group' as const, id: nav.activeGroupId } : null;
+  const openConversation = (target: { kind: 'chat' | 'group'; id: string }) => {
+    if (target.kind === 'group') {
+      nav.setActiveGroupId(target.id);
+      nav.navigateTo('groups', undefined, false);
+    } else {
+      nav.setActiveSessionId(target.id);
+      nav.navigateTo('chat', undefined, false);
+    }
+  };
+  // 完成 / 审批提醒与侧栏未读点（features/notifications）。
+  const { unreadSessionIds } = useNotificationCenter({ sessions, sessionsLoaded, openContext: visibleConversation, onOpen: openConversation });
 
   const context: ShellContext = {
     isConnected,
@@ -57,6 +72,7 @@ export default function AppShell() {
           onSelectGroup={nav.setActiveGroupId}
           automationSection={nav.automationSection}
           onOpenAutomation={nav.openAutomation}
+          unreadSessionIds={unreadSessionIds}
         />
         <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden md:overflow-visible md:relative md:z-[60]">
           <Outlet context={context} />
@@ -64,18 +80,8 @@ export default function AppShell() {
         <PendingApprovalsTray
           visibleWorkflowId={nav.currentView === 'automation' && nav.automationSection === 'workflows' ? nav.activeWorkflowId : null}
           onOpen={(workflowId) => nav.openAutomation('workflows', workflowId)}
-          visibleConversation={nav.currentView === 'chat' && nav.activeSessionId
-            ? { kind: 'chat', id: nav.activeSessionId }
-            : nav.currentView === 'groups' && nav.activeGroupId ? { kind: 'group', id: nav.activeGroupId } : null}
-          onOpenConversation={(context) => {
-            if (context.kind === 'group') {
-              nav.setActiveGroupId(context.id);
-              nav.navigateTo('groups', undefined, false);
-            } else {
-              nav.setActiveSessionId(context.id);
-              nav.navigateTo('chat', undefined, false);
-            }
-          }}
+          visibleConversation={visibleConversation}
+          onOpenConversation={openConversation}
         />
       </div>
     </AccessProvider>

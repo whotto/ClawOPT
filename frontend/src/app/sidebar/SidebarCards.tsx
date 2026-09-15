@@ -55,8 +55,11 @@ export function SessionCard({
       <div className="flex flex-1 min-w-0 items-start gap-2">
         <GripVertical className="h-3.5 w-3.5 self-center shrink-0 cursor-grab text-gray-300 transition-colors group-hover:text-gray-400 active:cursor-grabbing" />
         <div className="flex flex-col items-start gap-1.5 w-full">
-          <div className="text-[15px] truncate w-full flex-1 min-w-0 text-gray-900">
-            {s.name || t('sidebar.agentNum').replace('{{num}}', s.id)}
+          <div className="text-[15px] truncate w-full flex-1 min-w-0 text-gray-900 flex items-center gap-1.5">
+            <span className="truncate">{s.name || t('sidebar.agentNum').replace('{{num}}', s.id)}</span>
+            {sidebar.unreadSessionIds?.has(s.id) && (
+              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" data-testid="session-unread-dot" title={t('notifications.unreadDot')} aria-label={t('notifications.unreadDot')} />
+            )}
           </div>
           {(() => {
             // 副标题回答的是「这个 Agent 由谁来跑」，而答案就写在它的模型 ref 里。

@@ -240,6 +240,21 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
     expect(admin.body.map((session: any) => session.id)).toEqual(expect.arrayContaining(['s-main', 's-other']));
   });
 
+  it('会话活动（完成提醒的轮询兜底）：member 只见授权 Agent 的会话；结束标记与运行计数照实回', async () => {
+    h.ctx.db.ensureRunSession({ sessionKey: 's-other', surface: 'chat', runtime: 'openclaw', agentId: 'other' });
+    h.ctx.db.markRunSessionEnded('s-other', 'complete');
+    h.ctx.db.ensureRunSession({ sessionKey: 's-main', surface: 'chat', runtime: 'openclaw', agentId: 'main' });
+    h.ctx.db.markRunSessionEnded('s-main', 'abort');
+    const member = await status(tokens.member, '/api/sessions/activity');
+    const admin = await status(tokens.admin, '/api/sessions/activity');
+    expect(member.code).toBe(200);
+    const memberIds = member.body.activity.map((row: any) => row.sessionId);
+    expect(memberIds).toContain('s-main');
+    expect(memberIds).not.toContain('s-other');
+    expect(member.body.activity.find((row: any) => row.sessionId === 's-main')).toMatchObject({ running: false, runCount: 1, endReason: 'abort' });
+    expect(admin.body.activity.map((row: any) => row.sessionId)).toEqual(expect.arrayContaining(['s-main', 's-other']));
+  });
+
   it('member 取 / 流 / 停 / 发 / 改别人的会话一律 403，自己的照常；不留下任何写入', async () => {
     const otherMessage = Number(h.ctx.db.saveMessage({ session_key: 's-other', role: 'user', content: 'secret' }));
     const mineMessage = Number(h.ctx.db.saveMessage({ session_key: 's-main', role: 'user', content: 'mine' }));

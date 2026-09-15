@@ -32,3 +32,8 @@ export function getSessionConfigs(sessionId: string) {
 export function reorderSessions(ids: string[]) {
   return apiFetch('/sessions/reorder', jsonInit('POST', { ids }));
 }
+
+/** 看得见的单聊会话是否在跑、上一轮怎么结束（完成提醒的轮询兜底）。 */
+export function getSessionActivity() {
+  return apiFetch('/sessions/activity');
+}
