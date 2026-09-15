@@ -2500,5 +2500,15 @@
     "hint": "运行时报告的最近一次模型调用占用（含缓存）",
     "compactHint": "上下文快满了：发 /compact 让运行时压缩对话",
     "suggestCompact": "建议 /compact"
+  },
+  "slashCommands": {
+    "title": "命令",
+    "compact": "压缩对话上下文（交给运行时自己的压缩）",
+    "usage": "查看用量与上下文占用",
+    "context": "查看上下文占用（同 /usage）",
+    "status": "查看运行时会话状态",
+    "models": "查看可用模型",
+    "help": "查看帮助",
+    "clear": "清空这个对话的历史"
   }
 }

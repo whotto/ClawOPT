@@ -2500,5 +2500,15 @@
     "hint": "執行環境回報的最近一次模型呼叫佔用（含快取）",
     "compactHint": "上下文快滿了：傳 /compact 讓執行環境壓縮對話",
     "suggestCompact": "建議 /compact"
+  },
+  "slashCommands": {
+    "title": "命令",
+    "compact": "壓縮對話上下文（交給執行環境自己的壓縮）",
+    "usage": "查看用量與上下文佔用",
+    "context": "查看上下文佔用（同 /usage）",
+    "status": "查看執行環境工作階段狀態",
+    "models": "查看可用模型",
+    "help": "查看說明",
+    "clear": "清空這個對話的歷史"
   }
 }

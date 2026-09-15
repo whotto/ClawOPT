@@ -17,7 +17,7 @@ type ComposerProps = Pick<
   'isChat' | 'isGroup' | 'input' | 'setInput' | 'isLoading' | 'submitError' | 'setSubmitError' |
   'submitNotice' | 'setSubmitNotice' |
   'inputPreview' | 'setInputPreview' | 'pendingFiles' | 'quotedMessage' | 'setQuotedMessage' |
-  'showCommands' | 'setShowCommands' | 'allCommands' | 'filteredCommands' | 'setFilteredCommands' |
+  'showCommands' | 'setShowCommands' | 'slashCommands' | 'filteredCommands' | 'setFilteredCommands' |
   'commandIndex' | 'setCommandIndex' | 'showMentionPopup' | 'setShowMentionPopup' |
   'setMentionFilter' | 'mentionIndex' | 'setMentionIndex' | 'fileInputRef' | 'textareaRef' |
   'commandListRef' | 'currentGroup' | 'currentSession' | 'resolveGroupMemberDisplayName' |
@@ -29,7 +29,7 @@ export function Composer(c: ComposerProps) {
     handleFileChange, removePendingFile, handlePaste, handleSubmit, handleStop,
     handleGroupInputChange, getFilteredMembers, insertMention, handleKeyDown, t, isChat, isGroup,
     input, setInput, isLoading, submitError, setSubmitError, submitNotice, setSubmitNotice, inputPreview, setInputPreview,
-    pendingFiles, quotedMessage, setQuotedMessage, showCommands, setShowCommands, allCommands,
+    pendingFiles, quotedMessage, setQuotedMessage, showCommands, setShowCommands, slashCommands,
     filteredCommands, setFilteredCommands, commandIndex, setCommandIndex, showMentionPopup,
     setShowMentionPopup, setMentionFilter, mentionIndex, setMentionIndex, fileInputRef,
     textareaRef, commandListRef, currentGroup, currentSession, resolveGroupMemberDisplayName,
@@ -159,7 +159,7 @@ export function Composer(c: ComposerProps) {
             {isChat && showCommands && filteredCommands.length > 0 && (
               <div ref={commandListRef} className="absolute bottom-full left-0 mb-4 w-72 bg-white rounded-2xl border border-gray-300 z-[100] py-2 overflow-hidden animate-in fade-in slide-in-from-bottom-2">
                 <div className="px-4 py-2.5 text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 mb-1 flex justify-between items-center">
-                  <span>{t('unifiedChat.quickCommands')}</span><span>{t('unifiedChat.resultsCount', { count: filteredCommands.length })}</span>
+                  <span>{t('slashCommands.title')}</span><span>{t('unifiedChat.resultsCount', { count: filteredCommands.length })}</span>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
                   {filteredCommands.map((cmd, idx) => (
@@ -224,7 +224,7 @@ export function Composer(c: ComposerProps) {
                   <Plus className="w-5 h-5" />
                 </button>
                 {isChat && (
-                  <button type="button" onClick={() => { if (showCommands) setShowCommands(false); else { setFilteredCommands(allCommands); setCommandIndex(0); setShowCommands(true); } }}
+                  <button type="button" onClick={() => { if (showCommands) setShowCommands(false); else { setFilteredCommands(slashCommands); setCommandIndex(0); setShowCommands(true); } }}
                     className="h-9 px-2 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all font-bold text-base">/</button>
                 )}
                 {isGroup && (

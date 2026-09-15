@@ -4,12 +4,13 @@ import type { NavDotSummary } from './types';
 const NAV_SUMMARY_FALLBACK_REGEXES = [
   /````(?:process_step_thought|process_step_thought_streaming)[\s\S]*?````/g,
   /\[引用开始[^\]]*\]/g,
+  /<\/?quoted_message[^>]*>/g,
   /\[引用结束\]/g,
   /\/uploads\/[^\s)]+/g,
   /\/api\/files\/[^\s)]+/g,
   /\[执行工作_Start\][\s\S]*?(?:\[执行工作_End\]|$)/g,
 ];
-export const NAV_QUOTE_BLOCK_REGEX = /\[引用开始(?:[ \t]+author=".*?")?(?:[ \t]+time=".*?")?\][\s\S]*?(?:\[引用结束\]|$)/g;
+export const NAV_QUOTE_BLOCK_REGEX = /\[引用开始(?:[ \t]+author=".*?")?(?:[ \t]+time=".*?")?\][\s\S]*?(?:\[引用结束\]|$)|<quoted_message\b[^>]*>[\s\S]*?(?:<\/quoted_message>|$)/g;
 
 function normalizeNavSummaryWhitespace(text: string): string {
   return text

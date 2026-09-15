@@ -21,7 +21,7 @@ type NavDotsContext = Pick<
 
 function extractNavDotSummary(content: string, t: TFunction): NavDotSummary {
   const quoteLabel = `[${t('unifiedChat.quotedContent')}]`;
-  const hasQuote = content.includes('[引用开始');
+  const hasQuote = content.includes('[引用开始') || content.trimStart().startsWith('<quoted_message');
   const withoutQuotes = content.replace(NAV_QUOTE_BLOCK_REGEX, '\n');
 
   const { attachments, text: textWithoutAttachments } = parseAttachmentsFromContent(withoutQuotes);

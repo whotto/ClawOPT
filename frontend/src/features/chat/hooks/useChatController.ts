@@ -36,8 +36,8 @@ export function useChatController(props: ChatViewProps) {
   const c4 = { ...c3, ...useHistoryEdgePrompt(c3) };
   useSearchQueryDebounce(c4);
   const c5 = { ...c4, ...useHistoryScroll(c4) };
-  useComposerEffects(c5);
-  const c6 = { ...c5, ...useHistoryPageRounds(c5) };
+  const c5e = { ...c5, ...useComposerEffects(c5) };
+  const c6 = { ...c5e, ...useHistoryPageRounds(c5e) };
   const c7 = { ...c6, ...useChatModeBootstrap(c6) };
   const c8 = { ...c7, ...useChatHistoryFetch(c7) };
   const c9 = { ...c8, ...useMessageSearch(c8) };

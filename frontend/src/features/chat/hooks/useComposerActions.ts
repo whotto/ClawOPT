@@ -22,6 +22,7 @@ import type { GroupEvents } from './useGroupEvents';
 import type { MessageActions } from './useMessageActions';
 import type { ChatRunControl } from './useChatRunControl';
 import { createClientTurnId } from '../run/chatRunState';
+import { buildQuotedMessage, quotableContent } from '../lib/composerCommands';
 
 /** 本段读取的、由前面各段产出的值。 */
 type ComposerActionsContext = Pick<
@@ -35,7 +36,7 @@ type ComposerActionsContext = Pick<
   'mentionFilter' | 'setMentionFilter' | 'mentionIndex' | 'setMentionIndex' | 'textareaRef' |
   'abortControllerRef' | 'justSelectedFileRef' | 'dragCounter' | 'forceAutoScrollRef' |
   'currentGroup' | 'activeSessionName' | 'resolveGroupMemberDisplayName' | 'isGroupBusy' |
-  'formatQuoteTime' | 'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
+  'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
   'moveQueuedMessagePatch' | 'scrollToLatestBottom' | 'prepareLatestHistoryWindowForSubmit' |
   'recoverLatestChatMessages' | 'recoverGroupActiveRun' | 'recoverLatestGroupMessages' |
   'uploadFiles' | 'locallyStreamedRefsRef' | 'refreshRunState' | 'requestAttach'
@@ -50,7 +51,7 @@ export function useComposerActions(c: ComposerActionsContext) {
     setTypingAgents, setGroupRunState, showMentionPopup, setShowMentionPopup, mentionFilter,
     setMentionFilter, mentionIndex, setMentionIndex, textareaRef, abortControllerRef,
     justSelectedFileRef, dragCounter, forceAutoScrollRef, currentGroup, activeSessionName,
-    resolveGroupMemberDisplayName, isGroupBusy, formatQuoteTime, flushQueuedMessagePatches,
+    resolveGroupMemberDisplayName, isGroupBusy, flushQueuedMessagePatches,
     queueMessagePatch, dropQueuedMessagePatch, moveQueuedMessagePatch, scrollToLatestBottom,
     prepareLatestHistoryWindowForSubmit, recoverLatestChatMessages, recoverGroupActiveRun,
     recoverLatestGroupMessages, uploadFiles, locallyStreamedRefsRef, refreshRunState, requestAttach,
@@ -130,6 +131,17 @@ export function useComposerActions(c: ComposerActionsContext) {
     if (e.clipboardData?.files.length > 0) { e.preventDefault(); handleFileChange(Array.from(e.clipboardData.files)); }
   };
 
+  /**
+   * 发出去的正文：附件链接 + 输入；有引用时整条包进 `<quoted_message sender="…">…</quoted_message>` 之后（包裹必须在最前面，
+   * 气泡才认得出来）。命令（以 / 开头）从不带引用。
+   */
+  const composeOutgoingMessage = (uploadedContent: string, currentInput: string, currentQuote: ChatMessage | null): string => {
+    const body = [uploadedContent, currentInput].filter(Boolean).join('\n\n');
+    if (!currentQuote) return body;
+    const sender = currentQuote.role === 'user' ? String(t('common.you')) : (currentQuote.agentName || String(t('common.ai')));
+    return buildQuotedMessage({ sender, content: quotableContent(currentQuote.content, currentQuote.role) }, body);
+  };
+
   // ---- Send message ----
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -144,13 +156,7 @@ export function useComposerActions(c: ComposerActionsContext) {
       const restoreDraft = () => { setInput(currentInput); setPendingFiles(currentFiles); setQuotedMessage(currentQuote); };
       try {
         const uploadedContent = await uploadFiles(currentFiles);
-        let textContent = currentInput;
-        if (currentQuote) {
-          const author = currentQuote.role === 'user' ? t('common.you') : (currentQuote.agentName || t('common.ai'));
-          const time = formatQuoteTime(currentQuote.timestamp);
-          textContent = `[引用开始 author="${author}" time="${time}"]\n${currentQuote.content}\n[引用结束]\n\n${currentInput}`.trim();
-        }
-        const fullMessage = [uploadedContent, textContent].filter(Boolean).join('\n\n');
+        const fullMessage = composeOutgoingMessage(uploadedContent, currentInput, currentQuote);
         if (!fullMessage) return;
         const response = await postChatMessage({ sessionId: activeKey, message: fullMessage, queue: true, clientTurnId: createClientTurnId() });
         const payload = await response.json().catch(() => null);
@@ -197,13 +203,7 @@ export function useComposerActions(c: ComposerActionsContext) {
       };
       try {
         const uploadedContent = await uploadFiles(currentFiles);
-        let textContent = currentInput;
-        if (currentQuote) {
-          const author = currentQuote.role === 'user' ? t('common.you') : (currentQuote.agentName || t('common.ai'));
-          const time = formatQuoteTime(currentQuote.timestamp);
-          textContent = `[引用开始 author="${author}" time="${time}"]\n${currentQuote.content}\n[引用结束]\n\n${currentInput}`.trim();
-        }
-        const fullMessage = [uploadedContent, textContent].filter(Boolean).join('\n\n');
+        const fullMessage = composeOutgoingMessage(uploadedContent, currentInput, currentQuote);
         if (!fullMessage) { setIsLoading(false); return; }
         const parentForUser = submitLeafId || undefined;
         const currentSession = sessions.find(s => s.id === activeKey);
@@ -309,13 +309,7 @@ export function useComposerActions(c: ComposerActionsContext) {
     } else if (isGroup) {
       try {
         const uploadedContent = await uploadFiles(currentFiles);
-        let finalContent = currentInput;
-        if (currentQuote) {
-          const author = currentQuote.role === 'user' ? t('common.you') : (currentQuote.agentName || t('common.ai'));
-          const time = formatQuoteTime(currentQuote.timestamp);
-          finalContent = `[引用开始 author="${author}" time="${time}"]\n${currentQuote.content}\n[引用结束]\n\n${finalContent}`;
-        }
-        const fullMessage = [uploadedContent, finalContent].filter(Boolean).join('\n\n');
+        const fullMessage = composeOutgoingMessage(uploadedContent, currentInput, currentQuote);
         if (!fullMessage) return;
         const response = await postGroupMessage(activeKey, {
             content: fullMessage,

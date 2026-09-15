@@ -89,19 +89,8 @@ export function useChatPresence(c: ChatPresenceContext) {
     new Date(date).toLocaleDateString(currentLocale, { year: 'numeric', month: 'long', day: 'numeric' })
   ), [currentLocale]);
 
-  const formatQuoteTime = useCallback((date: Date | string | number) => (
-    new Date(date).toLocaleString(currentLocale, {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-  ), [currentLocale]);
-
   return {
     visibleMessages, activeProcessingAgents, isGroupBusy, focusMainInput, formatMessageDate,
-    formatQuoteTime,
   };
 }
 

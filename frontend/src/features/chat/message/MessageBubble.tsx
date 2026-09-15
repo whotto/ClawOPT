@@ -17,6 +17,7 @@ import { EXTERNAL_LINK_CLASS_NAME, normalizeNavigableHref } from './links';
 import { isInlineMarkdownCodeNode, getMarkdownNodePlainText, buildCodeCopyId, getCodeLanguage, shouldRenderEmbeddedFilesAsMarkdown, normalizeMalformedFencedBlocks } from './markdownContent';
 import { hasSearchMatchInProcessBlocks, sanitizeConfiguredProcessText, normalizeProcessBlocks } from './processContent';
 import { highlightSearchNodes } from './searchHighlight';
+import { parseQuotedMessage } from '../lib/composerCommands';
 
 export interface PendingFile {
   file: File;
@@ -129,6 +130,9 @@ const MessageBubbleInner: React.FC<MessageProps> = ({
 
   // Parse structural quotes first so process blocks inside quotes stay inside
   if (displayContent) {
+    // P1b 引用回复线格式：开头的 `<quoted_message sender="…">…</quoted_message>`，与旧的 [引用开始] 走同一个引用块渲染。
+    const quoted = parseQuotedMessage(displayContent);
+    if (quoted) displayContent = `\`\`\`\`\`\`chat_quote\n${quoted.sender || t('common.unknown')}|\n${quoted.quoted}\n\`\`\`\`\`\`\n${quoted.reply}`;
     const quoteRegex = /\[引用开始(?:[ \t]+author="(.*?)")?(?:[ \t]+time="(.*?)")?\]([\s\S]*?)(?:\[引用结束\]|$)/g;
     displayContent = displayContent.replace(quoteRegex, (_match, author, time, inner, offset, fullString) => {
       const lastNewlineIdx = fullString.lastIndexOf('\n', offset);

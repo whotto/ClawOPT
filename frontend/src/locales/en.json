@@ -2500,5 +2500,15 @@
     "hint": "Tokens used by the most recent model call, as reported by the runtime (including cache)",
     "compactHint": "Context is almost full: send /compact to let the runtime compact the conversation",
     "suggestCompact": "Try /compact"
+  },
+  "slashCommands": {
+    "title": "Commands",
+    "compact": "Compact the conversation context (using the runtime's own compaction)",
+    "usage": "Show usage and context occupancy",
+    "context": "Show context occupancy (same as /usage)",
+    "status": "Show the runtime session status",
+    "models": "List available models",
+    "help": "Show help",
+    "clear": "Clear this conversation's history"
   }
 }
