@@ -316,6 +316,10 @@ export function OrganizedSessionList({ sidebar, onShowInfo, renderFlat }: {
         );
       })}
 
+      {/* 平铺列表上面已经有置顶 / Recent 组时，给平铺列表一个标题：同一个会话出现两次时一眼看得出是「快捷入口 + 全部」而不是重复 */}
+      {!organized && visibleSections.length > 0 && (
+        <div className="px-1 pt-1 text-[11px] font-semibold text-gray-500" data-testid="session-org-all-label">{t('sessionOrg.allSessions')}</div>
+      )}
       {!organized && renderFlat((session) => (organization ? renderRowMenu(session, `flat:${session.id}`) : null))}
 
       {batchMode && (

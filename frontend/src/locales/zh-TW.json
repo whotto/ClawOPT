@@ -2448,6 +2448,7 @@
   "sessionOrg": {
     "organize": "整理",
     "recent": "最近",
+    "allSessions": "全部對話",
     "archived": "已封存",
     "uncategorized": "未分類",
     "archive": "封存",

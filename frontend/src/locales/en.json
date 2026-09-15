@@ -2448,6 +2448,7 @@
   "sessionOrg": {
     "organize": "Organize",
     "recent": "Recent",
+    "allSessions": "All conversations",
     "archived": "Archived",
     "uncategorized": "Uncategorized",
     "archive": "Archive",
