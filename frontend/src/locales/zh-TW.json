@@ -2870,5 +2870,88 @@
       "testFailed": "測試失敗",
       "testNeedsActive": "先在上面選好並設定朗讀或辨識服務商。"
     }
+  },
+  "mcpServer": {
+    "internalError": "MCP 服務內部錯誤",
+    "invalidArguments": "工具參數不合法",
+    "invalidDelegateAgents": "可委派目標不合法",
+    "invalidEnabled": "開關取值不合法",
+    "invalidToolsets": "工具集不合法",
+    "loopbackOnly": "只接受本機直連的請求",
+    "operationDisabled": "這個操作在本機沒有啟用",
+    "operationFailed": "操作失敗",
+    "operationNotAllowed": "這次執行的權杖不允許這個操作",
+    "outOfScope": "超出這次執行的範圍",
+    "runtimeUnknown": "未知的執行環境",
+    "tokenExpired": "權杖已過期",
+    "tokenInvalid": "權杖無效",
+    "tokenRevoked": "權杖已撤銷",
+    "toolset": {
+      "use": {
+        "name": "使用 ClawOPT",
+        "description": "使用 ClawOPT：檢視與讀取範圍內的工作階段、把一輪委派給允許的 Agent、列出 / 執行 / 檢視範圍內的工作流程、處理負責的看板任務。"
+      },
+      "memory": {
+        "name": "記憶",
+        "description": "記憶：檢索與寫入這個 Agent 的記憶卡片；群聊裡預設寫到群，無人值守的執行只在明確要求時寫。"
+      },
+      "api": {
+        "name": "唯讀介面",
+        "description": "唯讀介面：執行環境清單、範圍內的工作流程定義、看板列表、這次執行能碰到什麼。沒有通用路徑代理。"
+      }
+    },
+    "surface": {
+      "single-chat": "單聊",
+      "group-chat": "群聊",
+      "workflow": "工作流程",
+      "kanban": "看板",
+      "other": "其他"
+    },
+    "outcome": {
+      "allowed": "允許",
+      "denied_scope": "超出範圍",
+      "denied_operation": "操作不允許",
+      "expired": "已過期",
+      "revoked": "已撤銷",
+      "invalid": "無效",
+      "failed": "失敗"
+    },
+    "page": {
+      "title": "ClawOPT MCP 服務",
+      "description": "把 ClawOPT 以 MCP 工具的形式交給外部 Agent 執行環境（Claude Code、Codex、Pi……）。每個執行環境單獨開關，預設關閉。",
+      "scopeTitle": "範圍模型",
+      "scopeToken": "每次執行開始時簽發一張只屬於這次執行的權杖：只存雜湊、有效期 2 小時、執行結束立刻撤銷，從不借用任何人的登入。",
+      "scopeReach": "權杖只能碰這次執行的 Agent、工作階段、群或工作流程，判據與成員權限同一份；操作只在下面選的工具集裡。",
+      "scopeNever": "使用者、服務商、檔案、終端、升級這些操作不在清單裡，也沒有轉發任意介面的能力。",
+      "runtimesTitle": "依執行環境",
+      "noRuntimes": "沒有登記的外部執行環境",
+      "injected": "已注入",
+      "notInjected": "未注入",
+      "enable": "為 {{runtime}} 注入 ClawOPT MCP 服務",
+      "toolsets": "工具集",
+      "delegates": "可委派的目標",
+      "delegatesHint": "委派一輪只能交給這裡勾選的 Agent 或執行環境，而且不能交給自己；被委派出去的那一輪不能再委派。",
+      "delegationUnavailable": "本機沒有接上委派執行，委派操作會被拒絕。",
+      "saveFailed": "儲存失敗",
+      "loadFailed": "讀取 MCP 服務設定失敗",
+      "tokensTitle": "生效中的權杖",
+      "noTokens": "目前沒有生效中的權杖",
+      "colRuntime": "執行環境",
+      "colScope": "範圍",
+      "colOperations": "操作",
+      "colExpires": "過期時間",
+      "colTime": "時間",
+      "colOperation": "操作",
+      "colOutcome": "結果",
+      "colAgent": "執行環境 · Agent",
+      "colDetail": "細節",
+      "operationCount": "{{count}} 個操作",
+      "delegated": "委派出來的執行",
+      "revoke": "撤銷",
+      "revokeConfirm": "撤銷 {{runtime}} 在 {{session}} 上的權杖？這次執行裡的 ClawOPT 工具會立刻失效。",
+      "revokeFailed": "撤銷失敗",
+      "auditTitle": "呼叫稽核",
+      "noAudit": "還沒有呼叫紀錄"
+    }
   }
 }

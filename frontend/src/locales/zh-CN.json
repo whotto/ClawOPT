@@ -2870,5 +2870,88 @@
       "testFailed": "测试失败",
       "testNeedsActive": "先在上面选好并配置朗读或识别服务商。"
     }
+  },
+  "mcpServer": {
+    "internalError": "MCP 服务内部错误",
+    "invalidArguments": "工具参数不合法",
+    "invalidDelegateAgents": "可委派目标不合法",
+    "invalidEnabled": "开关取值不合法",
+    "invalidToolsets": "工具集不合法",
+    "loopbackOnly": "只接受本机直连的请求",
+    "operationDisabled": "这个操作在本机没有启用",
+    "operationFailed": "操作失败",
+    "operationNotAllowed": "这次运行的令牌不允许这个操作",
+    "outOfScope": "超出这次运行的范围",
+    "runtimeUnknown": "未知的运行时",
+    "tokenExpired": "令牌已过期",
+    "tokenInvalid": "令牌无效",
+    "tokenRevoked": "令牌已吊销",
+    "toolset": {
+      "use": {
+        "name": "使用 ClawOPT",
+        "description": "使用 ClawOPT：查看与读取范围内的会话、把一轮委派给允许的 Agent、列出 / 运行 / 查看范围内的工作流、处理负责的看板任务。"
+      },
+      "memory": {
+        "name": "记忆",
+        "description": "记忆：检索与写入这个 Agent 的记忆卡片；群聊里缺省写到群，无人值守的运行只在明确要求时写。"
+      },
+      "api": {
+        "name": "只读接口",
+        "description": "只读接口：运行时清单、范围内的工作流定义、看板列表、这次运行能碰到什么。没有通用路径代理。"
+      }
+    },
+    "surface": {
+      "single-chat": "单聊",
+      "group-chat": "群聊",
+      "workflow": "工作流",
+      "kanban": "看板",
+      "other": "其他"
+    },
+    "outcome": {
+      "allowed": "允许",
+      "denied_scope": "超出范围",
+      "denied_operation": "操作不允许",
+      "expired": "已过期",
+      "revoked": "已吊销",
+      "invalid": "无效",
+      "failed": "失败"
+    },
+    "page": {
+      "title": "ClawOPT MCP 服务",
+      "description": "把 ClawOPT 以 MCP 工具的形式交给外部 Agent 运行时（Claude Code、Codex、Pi……）。每个运行时单独开关，缺省关闭。",
+      "scopeTitle": "范围模型",
+      "scopeToken": "每次运行开始时签发一张只属于这次运行的令牌：只存哈希、有效期 2 小时、运行结束立刻吊销，从不借用任何人的登录。",
+      "scopeReach": "令牌只能碰这次运行的 Agent、会话、群或工作流，判据与成员权限同一份；操作只在下面选的工具集里。",
+      "scopeNever": "用户、服务商、文件、终端、升级这些操作不在清单里，也没有转发任意接口的能力。",
+      "runtimesTitle": "按运行时",
+      "noRuntimes": "没有登记的外部运行时",
+      "injected": "已注入",
+      "notInjected": "未注入",
+      "enable": "为 {{runtime}} 注入 ClawOPT MCP 服务",
+      "toolsets": "工具集",
+      "delegates": "可委派的目标",
+      "delegatesHint": "委派一轮只能交给这里勾选的 Agent 或运行时，而且不能交给自己；被委派出去的那一轮不能再委派。",
+      "delegationUnavailable": "本机没有接上委派执行，委派操作会被拒绝。",
+      "saveFailed": "保存失败",
+      "loadFailed": "读取 MCP 服务设置失败",
+      "tokensTitle": "生效中的令牌",
+      "noTokens": "当前没有生效中的令牌",
+      "colRuntime": "运行时",
+      "colScope": "范围",
+      "colOperations": "操作",
+      "colExpires": "过期时间",
+      "colTime": "时间",
+      "colOperation": "操作",
+      "colOutcome": "结果",
+      "colAgent": "运行时 · Agent",
+      "colDetail": "细节",
+      "operationCount": "{{count}} 个操作",
+      "delegated": "委派出来的运行",
+      "revoke": "吊销",
+      "revokeConfirm": "吊销 {{runtime}} 在 {{session}} 上的令牌？这次运行里的 ClawOPT 工具会立刻失效。",
+      "revokeFailed": "吊销失败",
+      "auditTitle": "调用审计",
+      "noAudit": "还没有调用记录"
+    }
   }
 }

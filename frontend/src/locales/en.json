@@ -2870,5 +2870,88 @@
       "testFailed": "Test failed",
       "testNeedsActive": "Choose and configure a read-aloud or recognition provider above first."
     }
+  },
+  "mcpServer": {
+    "internalError": "MCP server internal error",
+    "invalidArguments": "Invalid tool arguments",
+    "invalidDelegateAgents": "Invalid delegation targets",
+    "invalidEnabled": "Invalid enabled value",
+    "invalidToolsets": "Invalid toolsets",
+    "loopbackOnly": "Only direct local requests are accepted",
+    "operationDisabled": "This operation is not enabled on this host",
+    "operationFailed": "The operation failed",
+    "operationNotAllowed": "This run's token does not allow this operation",
+    "outOfScope": "Outside the scope of this run",
+    "runtimeUnknown": "Unknown runtime",
+    "tokenExpired": "The token has expired",
+    "tokenInvalid": "Invalid token",
+    "tokenRevoked": "The token has been revoked",
+    "toolset": {
+      "use": {
+        "name": "Use ClawOPT",
+        "description": "Use ClawOPT: list and read sessions in scope, delegate one turn to an allowed agent, list / run / inspect workflows in scope, and work on assigned kanban tasks."
+      },
+      "memory": {
+        "name": "Memory",
+        "description": "Memory: search and write this agent's memory cards; in group chats writes default to the room, and unattended runs only write when explicitly asked."
+      },
+      "api": {
+        "name": "Read-only API",
+        "description": "Read-only API: runtime list, workflow definitions in scope, kanban boards, and what this run can reach. There is no generic path proxy."
+      }
+    },
+    "surface": {
+      "single-chat": "Single chat",
+      "group-chat": "Group chat",
+      "workflow": "Workflow",
+      "kanban": "Kanban",
+      "other": "Other"
+    },
+    "outcome": {
+      "allowed": "Allowed",
+      "denied_scope": "Out of scope",
+      "denied_operation": "Operation not allowed",
+      "expired": "Expired",
+      "revoked": "Revoked",
+      "invalid": "Invalid",
+      "failed": "Failed"
+    },
+    "page": {
+      "title": "ClawOPT MCP server",
+      "description": "Expose ClawOPT as MCP tools to external agent runtimes (Claude Code, Codex, Pi…). Each runtime is switched on separately and is off by default.",
+      "scopeTitle": "Scope model",
+      "scopeToken": "Each run gets its own token when it starts: only its hash is stored, it lasts 2 hours, it is revoked as soon as the run ends, and it never borrows anyone's login.",
+      "scopeReach": "The token reaches only this run's agent, session, room or workflow, using the same rules as member permissions, and only the operations in the toolsets chosen below.",
+      "scopeNever": "Users, providers, files, terminal and updates are not on the list, and there is no way to forward arbitrary API calls.",
+      "runtimesTitle": "Per runtime",
+      "noRuntimes": "No external runtimes are registered",
+      "injected": "Injected",
+      "notInjected": "Not injected",
+      "enable": "Inject the ClawOPT MCP server into {{runtime}}",
+      "toolsets": "Toolsets",
+      "delegates": "Delegation targets",
+      "delegatesHint": "A delegated turn can only go to the agents or runtimes checked here and never to itself; a delegated turn cannot delegate again.",
+      "delegationUnavailable": "Delegation is not wired up on this host; delegate calls will be refused.",
+      "saveFailed": "Failed to save",
+      "loadFailed": "Failed to load MCP server settings",
+      "tokensTitle": "Active tokens",
+      "noTokens": "No active tokens right now",
+      "colRuntime": "Runtime",
+      "colScope": "Scope",
+      "colOperations": "Operations",
+      "colExpires": "Expires",
+      "colTime": "Time",
+      "colOperation": "Operation",
+      "colOutcome": "Outcome",
+      "colAgent": "Runtime · agent",
+      "colDetail": "Detail",
+      "operationCount": "{{count}} operations",
+      "delegated": "Delegated run",
+      "revoke": "Revoke",
+      "revokeConfirm": "Revoke the {{runtime}} token for {{session}}? ClawOPT tools in that run stop working immediately.",
+      "revokeFailed": "Failed to revoke",
+      "auditTitle": "Call audit",
+      "noAudit": "No calls recorded yet"
+    }
   }
 }
