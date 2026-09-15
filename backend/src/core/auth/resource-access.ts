@@ -10,7 +10,11 @@
  * | 群 | 群里至少一个成员的 Agent 在授权里 |
  * | 协调器会话键 `room:<群>:member:<成员>` | 同群 |
  * | 其他协调器会话（工作流节点等） | `run_sessions.agent_id` 在授权里 |
- * | 工作流（状态流、待审批） | 工作流里**每个**节点的 Agent 都在授权里（外部运行时节点对 member 一律不可见） |
+ * | 工作流（列表、读、运行 / 停止 / 重跑、审批、状态流、待审批） | 工作流里**每个**节点的 Agent 都在授权里（外部运行时节点对 member 一律不可见） |
+ * | 看板任务（列表、详情、评论、完成 / 阻塞、派活） | 任务的负责 Agent 在授权里（没有负责人、外部运行时负责人对 member 不可见） |
+ *
+ * 自动化里「建 / 改 / 删」工作流、定时、钩子、Webhook 端点与看板管理不按资源判，是管理员闸门（`requireAdminAuth`）。
+ * 外部运行时（协调器 Agent id 以 `ext:` 开头）不属于任何 member 的授权——即便有人把这样的 id 写进了授权清单。
  *
  * HTTP 路由（列表过滤、按 id 取、流、停止）与 `/ws` 主题授权都经这一处——两条通道的判据不许分家。
  * 资源不存在时一律返回 false：「不存在」与「无权看」对 member 不可区分，不泄露存在性。
@@ -41,6 +45,11 @@ export type ResourceAccessDeps = {
 };
 
 const ROOM_SESSION_KEY = /^room:(.+):member:[^:]+$/;
+/** 协调器给外部运行时起的 Agent id 前缀（`ext:<运行时>:<表面>`）。 */
+const EXTERNAL_AGENT_ID_PREFIX = 'ext:';
+
+/** member 在看板里能做的任务动作；其余（移动、解除阻塞、收回、归档）是管理员的。 */
+export const MEMBER_KANBAN_ACTIONS: ReadonlySet<string> = new Set(['complete', 'block', 'dispatch']);
 
 export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessDeps) {
   const isAdmin = (identity: RequestIdentity) => roleAtLeast(identity.role, 'admin');
@@ -78,16 +87,36 @@ export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessD
     return (lookup.roomAgentIds(groupId) ?? []).every((agentId) => canAccessAgent(identity, agentId));
   }
 
+  /** 自动化引用的 Agent（工作流节点、看板负责人）：外部运行时只有 admin 能用。 */
+  function canUseAutomationAgent(identity: RequestIdentity, agentId: string): boolean {
+    if (isAdmin(identity)) return true;
+    if (agentId.startsWith(EXTERNAL_AGENT_ID_PREFIX)) return false;
+    return canAccessAgent(identity, agentId);
+  }
+
   /** `agentIds` 为 null 表示工作流不存在。 */
   function canAccessWorkflow(identity: RequestIdentity, agentIds: string[] | null): boolean {
     if (agentIds === null) return false;
     if (isAdmin(identity)) return true;
-    return agentIds.every((agentId) => canAccessAgent(identity, agentId));
+    return agentIds.every((agentId) => canUseAutomationAgent(identity, agentId));
+  }
+
+  /**
+   * 看板任务：`assignee` 为任务的负责人（null = 没有负责人）。
+   * OpenClaw 负责人按 Agent id 判；外部运行时负责人换成 `ext:` id，member 一律不可见。
+   */
+  function canAccessKanbanTask(identity: RequestIdentity, assignee: { kind: string; id: string } | null): boolean {
+    if (isAdmin(identity)) return true;
+    if (!assignee) return false;
+    const agentId = assignee.kind === 'openclaw' ? assignee.id : `${EXTERNAL_AGENT_ID_PREFIX}${assignee.id}`;
+    return canUseAutomationAgent(identity, agentId);
   }
 
   return {
     isAdmin,
     canAccessWorkflow,
+    canAccessKanbanTask,
+    canUseAutomationAgent,
     canAccessAgent,
     canAccessRoom,
     canManageRoom,

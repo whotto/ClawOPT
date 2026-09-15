@@ -56,6 +56,7 @@ export type {
 } from './login-migration';
 export {
   createResourceAccess,
+  MEMBER_KANBAN_ACTIONS,
   sendResourceForbidden,
 } from './resource-access';
 export type {

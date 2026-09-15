@@ -198,6 +198,8 @@ export function createKanbanService(deps: {
 
   return {
     listBoards: () => store.listBoards(),
+    /** 不存在返回 null（授权守卫先取任务再判）。 */
+    getTask: (id: string) => store.getTask(id),
     createBoard(body: Record<string, unknown>) {
       const name = typeof body.name === 'string' ? body.name.trim() : '';
       if (!name || name.length > 80) throw invalid('name');
