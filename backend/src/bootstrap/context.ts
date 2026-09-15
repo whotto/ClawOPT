@@ -61,6 +61,7 @@ import {
   createSessionRuntime,
   SessionManager,
   SessionOrgStore,
+  TaskPlanStore,
 } from '../collab/sessions';
 import {
   createRoomEngine,
@@ -80,6 +81,9 @@ export function createAppContext() {
   /** 单聊会话的组织（按用户的分类 / 归档）与元数据（对话标题、来历、分叉血缘）；会话删了跟着清。 */
   const sessionOrg = new SessionOrgStore(db.connection());
   sessionManager.on('sessionDeleted', (session: { id: string }) => sessionOrg.removeSession(session.id));
+  /** 单聊的任务计划卡（每轮最新快照 + revision）；会话删了跟着清。 */
+  const taskPlans = new TaskPlanStore(db.connection());
+  sessionManager.on('sessionDeleted', (session: { id: string }) => taskPlans.deleteBySession(session.id));
   /** 会话令牌存储：随机、可过期、可吊销。 */
   const authStore = new AuthStore(db);
   /** 用户 / 角色 / Agent 授权与登录 IP 锁（P5a）。 */
@@ -158,6 +162,7 @@ export function createAppContext() {
     configManager,
     sessionManager,
     sessionOrg,
+    taskPlans,
     authStore,
     userStore,
     loginLocks,

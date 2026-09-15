@@ -268,6 +268,7 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
       ['/api/chat/s-other/context-usage'],
       ['/api/chat/s-other/tool-calls?messageIds=1'],
       ['/api/chat/s-other/tool-calls/1'],
+      ['/api/chat/s-other/task-plans?messageIds=1'],
       ['/api/chat/s-other/events'],
       ['/api/chat/s-other/queue/q-1', { method: 'DELETE' }],
       ['/api/chat/s-other/queue/q-1/insert', { method: 'POST' }],

@@ -132,7 +132,8 @@ export function createAcpDriver(ctx: TurnDriverContext, options: AcpDriverOption
         if (update.status === 'completed' || update.status === 'failed') handleToolDone(String(update.toolCallId ?? ''), update);
         return;
       case 'plan':
-        emitter.plan({ entries: Array.isArray(update.entries) ? update.entries.map((entry: any) => String(entry?.content ?? '')) : [] });
+        // 条目带上 ACP 原生的 status（pending / in_progress / completed），单聊计划卡要显示进度。
+        emitter.plan({ entries: Array.isArray(update.entries) ? update.entries.map((entry: any) => ({ content: String(entry?.content ?? ''), status: typeof entry?.status === 'string' ? entry.status : 'pending' })) : [] });
         return;
       default:
         return; // usage_update（上下文占用，不计费）、available_commands_update、session_info_update、user_message_chunk

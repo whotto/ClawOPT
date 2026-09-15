@@ -23,11 +23,13 @@ import { chatSessionTopic, openSseResponse, writeSseFrame } from './chat-stream'
 import { CHAT_USER_MESSAGE_EVENT } from './chat-turn-rows';
 import type { ContextUsage } from './context-usage';
 import { getToolCallFull, listToolTraces, parseMessageIdList } from './tool-trace';
+import { TASK_PLAN_EVENT, type TaskPlanStore } from './task-plans';
 
 export type ChatRunControlDeps = {
   db: Pick<DB, 'getSession' | 'connection'>;
   /** 上下文占用徽标（最近一次模型调用的占用 + 模型配置里的窗口）。 */
   contextUsage: (sessionId: string) => ContextUsage;
+  taskPlans: Pick<TaskPlanStore, 'listForMessages'>;
   realtime: RealtimeHub;
   runCoordinator: Pick<RunCoordinator, 'snapshot' | 'cancelQueued' | 'insertNow' | 'pendingApprovals'>;
   access: ResourceAccess;
@@ -50,6 +52,7 @@ export const CHAT_LIVE_EVENT_TYPES: ReadonlySet<string> = new Set([
   'plan.updated',
   'session.command',
   'workspace.diff.completed',
+  TASK_PLAN_EVENT,
   'approval.requested',
   'approval.resolved',
   'clarify.requested',
@@ -102,6 +105,11 @@ export function registerChatRunControlRoutes(app: RouteApp, deps: ChatRunControl
   app.get('/api/chat/:sessionId/context-usage', deps.guardParamSession, (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ success: true, ...deps.contextUsage(req.params.sessionId) });
+  });
+
+  app.get('/api/chat/:sessionId/task-plans', deps.guardParamSession, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ success: true, plans: deps.taskPlans.listForMessages(req.params.sessionId, parseMessageIdList(req.query.messageIds)) });
   });
 
   // 工具轨迹摘要（按运行分组，线上截断）与单个调用的完整内容（复制完整内容）。

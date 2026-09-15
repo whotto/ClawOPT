@@ -21,6 +21,7 @@ import { createStructuredChatError } from './chat-messages';
 import { chatSessionTopic, type ChatStreamSink, streamNewChatRunToSse } from './chat-stream';
 import { ChatTurnRows } from './chat-turn-rows';
 import { createExternalChatProjection } from './external-chat-projection';
+import { type TaskPlanStore, withTaskPlans } from './task-plans';
 
 export type ExternalSessionMode = 'global' | 'scoped';
 
@@ -90,6 +91,8 @@ export type ExternalChatTurnDeps = {
   runCoordinator: RunCoordinator;
   createAdapter: (runtime: string) => AgentRuntimeAdapter<RuntimeRunRequest> | null;
   defaultWorkspace: (sessionId: string) => string;
+  /** 任务计划卡（运行时发的计划 / TodoWrite / update_plan）；不给就不跟踪。 */
+  taskPlans?: TaskPlanStore;
   /** 这个会话是从哪个单聊分叉出来的（没有返回 null）。 */
   forkSource?: (sessionId: string) => string | null;
 };
@@ -170,17 +173,20 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
         meta: { messageId: rows.assistantMessageId, userMessageId: rows.userMessageId, agentId: session.agentId, kind: 'external-run', runtime },
       };
     },
-    projector: (run) => createExternalChatProjection({
-      db: deps.db,
-      configManager: deps.configManager,
-      run,
-      messageId: rows.assistantMessageId,
-      runMarkerMessageIds: rows.runMarkerMessageIds,
-      agentId: session.agentId,
-      agentName: turn.agentName,
-      modelUsed: modelTag,
-      command: command?.kind === 'turn' ? undefined : command?.kind,
-    }),
+    projector: (run) => {
+      const projector = createExternalChatProjection({
+        db: deps.db,
+        configManager: deps.configManager,
+        run,
+        messageId: rows.assistantMessageId,
+        runMarkerMessageIds: rows.runMarkerMessageIds,
+        agentId: session.agentId,
+        agentName: turn.agentName,
+        modelUsed: modelTag,
+        command: command?.kind === 'turn' ? undefined : command?.kind,
+      });
+      return deps.taskPlans ? withTaskPlans(deps.taskPlans, run, () => rows.assistantMessageId, projector) : projector;
+    },
     onFinished: (outcome: AdapterRunOutcome) => {
       const latest = deps.db.getSession(session.id);
       if (!latest) return;

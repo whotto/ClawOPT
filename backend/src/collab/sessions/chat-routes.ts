@@ -71,6 +71,7 @@ import type { SessionOrgStore } from './session-org-store';
 import { buildCommandResultFrame, serializeCommandResultContent } from './chat-command-result';
 import { compactCommandResult, computeContextUsage, resolveContextWindow, usageCommandResult } from './context-usage';
 import { createOpenClawChatProjection } from './openclaw-chat-projection';
+import { type TaskPlanStore, withTaskPlans } from './task-plans';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
 import { SessionInterruptedError, type SessionRuntime } from './session-runtime';
@@ -97,6 +98,7 @@ export type ChatRoutesDeps = {
   runtimePlatform: Pick<RuntimePlatform, 'createAdapter'>;
   /** 对话标题（第一条用户消息 → 自动标题）与分叉血缘。 */
   sessionOrg: Pick<SessionOrgStore, 'recordUserMessageForTitle' | 'getMeta'>;
+  taskPlans: TaskPlanStore;
 };
 
 /** 队列面板上显示的文字上限（整条消息仍按原样执行）。 */
@@ -194,6 +196,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     defaultWorkspace: externalSessionDefaultWorkspace,
     // 分叉出来的外部单聊：首轮从父会话的原生会话分叉（适配器按能力声明决定）。
     forkSource: (sessionId: string) => ctx.sessionOrg.getMeta(sessionId)?.parentSessionId ?? null,
+    taskPlans: ctx.taskPlans,
   };
 
   function buildInjectedMessage(sessionInfo: SessionRow | undefined, agentId: string, rawMessage: string): string {
@@ -366,8 +369,8 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
       projector: (run) => {
         const inner = innerProjector ? innerProjector(run) : undefined;
         // 生图优先或直连模型：本地投影器持帧桥（没出图时终态交给内层网关投影器）。纯网关一轮直接用网关投影器。
-        if (plan.directImageModel || !inner) return createLocalChatTaskProjection(localProjectionDeps(run), inner);
-        return inner;
+        const surface = plan.directImageModel || !inner ? createLocalChatTaskProjection(localProjectionDeps(run), inner) : inner;
+        return withTaskPlans(ctx.taskPlans, run, () => rows.assistantMessageId, surface);
       },
       origin: options.origin,
       workspacePath: getSessionWorkspacePath(sessionId),
@@ -899,6 +902,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
 
   registerChatRunControlRoutes(app, {
     db,
+    taskPlans: ctx.taskPlans,
     contextUsage: (sessionId) => computeContextUsage(db.listSessionUsage(sessionId), sessionContextWindow(sessionId)),
     realtime: ctx.realtime,
     runCoordinator,

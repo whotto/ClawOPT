@@ -90,6 +90,9 @@ export {
   SessionManager,
 } from './session-manager';
 export {
+  TaskPlanStore,
+} from './task-plans';
+export {
   SessionOrgStore,
 } from './session-org-store';
 export {
