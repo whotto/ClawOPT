@@ -918,5 +918,24 @@
       "diagnosticsCopied": "已复制",
       "diagnosticsFailed": "复制失败"
     }
+  },
+  "runtime": {
+    "notInstalled": "外部运行时未安装，或不在 PATH 中。请先在 Agent 管理里安装。",
+    "exitNonZero": "外部运行时异常退出。",
+    "apiError": "外部运行时报告了模型服务错误。",
+    "busy": "这个 Agent 还在处理上一条输入，请稍后再试。",
+    "updating": "这个运行时正在升级，完成后再试。",
+    "sessionClosed": "外部运行时的会话已关闭（长时间无输出或进程中途退出）。",
+    "providerCredentialsMissing": "所选服务商缺少接口地址或 API Key，请重新选择服务商与模型，或补全 Key。",
+    "oauthProviderScopedUnsupported": "订阅 / OAuth 类服务商不能在托管模式下使用，请改用全局模式或 API Key 服务商。",
+    "modelRequired": "托管模式需要选定模型。",
+    "modeUnsupported": "这个运行时不支持所选的运行模式。",
+    "notLoggedIn": "外部运行时尚未登录或没有配置服务商。请先在它自己的命令行里登录。",
+    "noOutput": "外部运行时结束了，但没有给出任何输出。",
+    "resumeFailed": "无法续上之前的会话，下一轮会开始新会话。",
+    "protocolError": "与外部运行时的通信协议出错。",
+    "commandUnsupported": "这个运行时不支持该会话命令。",
+    "launchFailed": "外部运行时启动失败。",
+    "capabilityUnsupported": "所装版本的外部运行时缺少所需能力。"
   }
 }

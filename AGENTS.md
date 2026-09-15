@@ -12,7 +12,7 @@
   - `bootstrap/`: 组装与生命周期。`context.ts` 构造单例与服务（经 `ctx` 注入）；`app.ts` 按固定顺序注册中间件与路由（顺序即行为，由 `test/route-order.test.ts` 对照清单校验）；`server.ts` 监听、就绪状态、优雅停机；`startup-steps.ts` 拆分前就有的启动修复；`startup-tasks.ts` 启动一次性任务登记表；`health.ts` 的 `/livez` `/readyz` `/health`。
   - `core/`: 与业务无关的底座，**不得依赖其他模块**。`db/`、`realtime/`（实时事件中枢与 `/ws` WebSocket 服务）、`auth/`（会话令牌、鉴权中间件与 `AUTH_PUBLIC_PATHS`）、`files/`（可服务路径闸门、原子写、`SafeFileStore`）、`config/`（ClawOPT 自身配置）、`http/`（结构化错误与错误码、路由登记表与 OpenAPI、配置版本号）、`events/`（业务事件总线）、`logger/`、`paths/`、`process/`、`util/`。
   - `openclaw/`: gateway 客户端与连接、`openclaw.json` 读写与名册门面、版本探测、CLI 定位、网关探测与重启、运行时补丁、设备配对。
-  - `runtime/`: 执行平面的唯一入口（P1a 起）。`contract/`（`AgentRuntimeAdapter` 接口、能力声明、Responses 风格规范事件、事实来源仲裁表、文本去重）；`coordinator/`（运行协调器：会话行、run marker、陈旧事件、单会话单运行与队列、中止宽限、重放缓冲、工具调用原子落库、用量去重、终态顺序、审批/澄清注册表、工作区 diff 检查点缝）；`adapters/`（`openclaw` 网关单聊、`claude-code`）；`external-agents/`（CLI 命令构造、stream-json 解析、可注入的本机执行器）；运行时不变量。
+  - `runtime/`: 执行平面的唯一入口（P1a 起）。`contract/`（`AgentRuntimeAdapter` 接口、能力声明、Responses 风格规范事件、事实来源仲裁表、文本去重）；`coordinator/`（运行协调器：会话行、run marker、陈旧事件、单会话单运行与队列、中止宽限、重放缓冲、工具调用原子落库、用量去重、终态顺序、审批/澄清注册表、工作区 diff 检查点缝）；`adapters/`（`openclaw` 网关单聊；编码类外部运行时各一个目录，共用件在 `_shared/`：可注入的进程执行器、白名单环境、运行时 home、续话判定、规范事件合成；`registry.ts` 是唯一的运行时清单，见「外部运行时适配器」）；运行时不变量。
   - `control/`: 控制面。agents / characters / models（含生图）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics 的路由与服务。
   - `workspace/`: 上传、文件下载与预览、链接改写、文档与音频工具链。
   - `collab/sessions/`: 单聊（会话、历史、消息、OpenClaw 运行的投影器 `openclaw-chat-projection.ts`、流出口 `chat-stream.ts`）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账、外部成员运行的投影器 `external-member-run.ts`、群聊帧唯一构造处 `room-frames.ts`）。

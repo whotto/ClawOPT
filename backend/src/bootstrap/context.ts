@@ -14,6 +14,7 @@
  * 顺序错了 TypeScript 会在 `createXxx({ ...ctx })` 那一行报缺字段。
  */
 import fs from 'fs';
+import path from 'path';
 
 import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword } from '../core/auth';
 import { ConfigManager } from '../core/config';
@@ -30,7 +31,15 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
-import { createOpenClawRuntimeAdapter, RunCoordinator } from '../runtime';
+import {
+  INTERIM_MCP_INJECTOR,
+  INTERIM_PROVIDER_PROXY,
+  RunCoordinator,
+  createCodingAgentAdapters,
+  createInterimRuntimeManager,
+  createLocalProcessExecutor,
+  createOpenClawRuntimeAdapter,
+} from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import {
   createChatCommands,
@@ -82,7 +91,23 @@ export function createAppContext() {
   /** OpenClaw 网关运行时适配器（单聊）。无状态，整个进程一个。 */
   const openclawAdapter = createOpenClawRuntimeAdapter();
 
-  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator, openclawAdapter };
+  /**
+   * 编码类外部运行时适配器（群聊外部成员）。每轮一个子进程，运行时 home 在 `<数据目录>/runtime/<运行时>/…`。
+   * TODO(P2 平台合并)：代理 / MCP 注入 / 运行时管理器换成 feat/p2-platform 的实现，删掉 interim 那一份。
+   */
+  const codingAgents = createCodingAgentAdapters({
+    proxy: INTERIM_PROVIDER_PROXY,
+    mcp: INTERIM_MCP_INJECTOR,
+    manager: createInterimRuntimeManager(),
+    executor: createLocalProcessExecutor(),
+    dataDir: path.join(process.env.HOME || '.', process.env.CLAWOPT_DATA_DIR || '.clawopt'),
+    logger: {
+      info: (message, detail) => console.log(message, detail ?? ''),
+      warn: (message, detail) => console.warn(message, detail ?? ''),
+    },
+  });
+
+  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator, openclawAdapter, codingAgents };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);

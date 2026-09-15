@@ -918,5 +918,24 @@
       "diagnosticsCopied": "已複製",
       "diagnosticsFailed": "複製失敗"
     }
+  },
+  "runtime": {
+    "notInstalled": "外部執行環境未安裝，或不在 PATH 中。請先在 Agent 管理裡安裝。",
+    "exitNonZero": "外部執行環境異常退出。",
+    "apiError": "外部執行環境回報了模型服務錯誤。",
+    "busy": "這個 Agent 還在處理上一則輸入，請稍後再試。",
+    "updating": "這個執行環境正在升級，完成後再試。",
+    "sessionClosed": "外部執行環境的工作階段已關閉（長時間無輸出或處理程序中途退出）。",
+    "providerCredentialsMissing": "所選服務商缺少介面位址或 API Key，請重新選擇服務商與模型，或補全 Key。",
+    "oauthProviderScopedUnsupported": "訂閱 / OAuth 類服務商不能在託管模式下使用，請改用全域模式或 API Key 服務商。",
+    "modelRequired": "託管模式需要選定模型。",
+    "modeUnsupported": "這個執行環境不支援所選的執行模式。",
+    "notLoggedIn": "外部執行環境尚未登入或沒有設定服務商。請先在它自己的命令列裡登入。",
+    "noOutput": "外部執行環境結束了，但沒有給出任何輸出。",
+    "resumeFailed": "無法接續先前的工作階段，下一輪會開始新的工作階段。",
+    "protocolError": "與外部執行環境的通訊協定出錯。",
+    "commandUnsupported": "這個執行環境不支援該工作階段指令。",
+    "launchFailed": "外部執行環境啟動失敗。",
+    "capabilityUnsupported": "所安裝版本的外部執行環境缺少所需能力。"
   }
 }

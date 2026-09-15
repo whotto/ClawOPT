@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import { randomUUID } from 'crypto';
-import {
-  createClaudeCodeRuntimeAdapter,
-  runExternalAgent,
-  type CommandExecutor,
-  type RunCoordinator,
+import type {
+  CodingAgentAdapterLookup,
+  CodingAgentRunRequest,
+  CodingAgentRuntimeAdapter,
+  RunCoordinator,
 } from '../../runtime';
 import fs from 'fs';
 import { ConfigReadError, readJsonConfigSafe } from '../../openclaw';
@@ -966,6 +966,13 @@ export class GroupChatEngine extends EventEmitter {
     this.runCoordinator = coordinator;
   }
 
+  /** 外部成员按 `member.runtime` 取适配器（Claude Code / Codex / Pi / Grok / OpenCode / DSH / Hermes）。 */
+  private codingAgents: CodingAgentAdapterLookup | null = null;
+
+  useCodingAgentAdapters(lookup: CodingAgentAdapterLookup): void {
+    this.codingAgents = lookup;
+  }
+
   private requireRunCoordinator(): RunCoordinator {
     if (!this.runCoordinator) throw new Error('GroupChatEngine: run coordinator is not attached');
     return this.runCoordinator;
@@ -1634,7 +1641,7 @@ export class GroupChatEngine extends EventEmitter {
       resetEpoch?: number;
       remainingDepth?: number;
     },
-    runner: CommandExecutor = runExternalAgent,
+    adapterOverride?: CodingAgentRuntimeAdapter,
   ): Promise<number | undefined> {
     const { groupId, groupName, member, allMembers, triggerMsg, triggerSenderName, depth, parentId } = opts;
     const runtime = member.runtime || 'claude-code';
@@ -1685,7 +1692,10 @@ export class GroupChatEngine extends EventEmitter {
     //
     // 不另写一套：两套 prompt 组装迟早分家，而这个仓库为「两处判据分家」栽过不止一次。
     // 过程标签传 undefined —— 外部 Agent 不产出过程标签，不该被要求去写。
-    const request = {
+    const request: CodingAgentRunRequest = {
+      // 运行时 home 按 (群, 成员) 稳定：同一成员跨轮次共用一份原生会话与配置。
+      mode: 'global',
+      conversation: { kind: 'group', roomId: groupId, memberId: member.id },
       sessionId,
       resume,
       prompt: this.buildAgentPrompt(
@@ -1706,12 +1716,25 @@ export class GroupChatEngine extends EventEmitter {
         undefined,
         opts.remainingDepth ?? 0,
       ),
-      workingDir: config.workingDir || process.cwd(),
-      model: config.model,
+      workspace: config.workingDir || process.cwd(),
+      model: typeof config.model === 'string' ? config.model : undefined,
+      reasoningEffort: typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined,
       allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
       maxBudgetUsd: typeof config.maxBudgetUsd === 'number' ? config.maxBudgetUsd : undefined,
-      appendSystemPrompt: config.appendSystemPrompt,
+      // 成员配置里的追加指令：群上下文仍在 prompt 里（buildAgentPrompt，基线快照守着），不顶掉对方自己的项目指令。
+      instructions: typeof config.appendSystemPrompt === 'string' ? config.appendSystemPrompt : undefined,
     };
+
+    const adapter = adapterOverride ?? this.codingAgents?.(runtime);
+
+    if (!adapter) {
+      // 库里存了一个这版 ClawOPT 不认识的运行时（或适配器没接上）：说清楚，不假装在跑。
+      const message = `${member.display_name} 执行失败（runtime.unknown: ${runtime}）`;
+      this.db.updateGroupMessage(msgId, message, config.model || runtime, undefined, '');
+      this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
+      this.emit('typing_done', { groupId, agentId: member.agent_id });
+      return msgId;
+    }
 
     try {
       // 运行交给协调器：会话行、run marker、陈旧事件、中止、用量去重、工具调用落库、终态顺序都在那里。
@@ -1724,7 +1747,7 @@ export class GroupChatEngine extends EventEmitter {
         topics: [roomTopic(groupId), agentTopic(senderId)],
         agentId: senderId,
         title: member.display_name,
-        adapter: createClaudeCodeRuntimeAdapter({ executor: runner }),
+        adapter,
         request,
         projector: (run) => createExternalMemberProjector({
           db: this.db,
@@ -1772,6 +1795,7 @@ export class GroupChatEngine extends EventEmitter {
       // 超时分成两种记：硬超时与中断的处置本来就不同。
       const failureStatus = outcome.kind === 'aborted' ? 'cancelled'
         : outcome.stopReason === 'hard_timeout' ? 'hard_timeout'
+        : outcome.stopReason === 'idle_timeout' ? 'idle_timeout'
         : 'failed';
       const detail = describeExternalFailure(outcome);
       if (resume) {

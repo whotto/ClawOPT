@@ -1,0 +1,65 @@
+$ /usr/local/bin/cli
+  "-p"
+  "--output-format"
+  "stream-json"
+  "--verbose"
+  "--include-partial-messages"
+  "--permission-prompts"
+  "none"
+  "--settings"
+  "/data/clawopt/runtime/claude-code/2b46da50e52b8a2b5406b373aae6f55b/settings.json"
+  "--setting-sources"
+  "local"
+  "--model"
+  "deepseek-v4"
+  "--session-id"
+  "11111111-1111-4111-8111-111111111111"
+  "--input-format"
+  "text"
+cwd: /work/project
+stdin: pipe
+env:
+  ANTHROPIC_API_KEY=clawopt_proxy_token_abcdefghijkl
+  ANTHROPIC_BASE_URL=http://127.0.0.1:3150/api/claude-code-proxy/route_1
+  ANTHROPIC_CUSTOM_MODEL_OPTION=deepseek-v4
+  ANTHROPIC_CUSTOM_MODEL_OPTION_NAME=Deepseek V4
+  ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4
+  ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME=Deepseek V4
+  ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4
+  ANTHROPIC_DEFAULT_OPUS_MODEL_NAME=Deepseek V4
+  ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-v4
+  ANTHROPIC_DEFAULT_SONNET_MODEL_NAME=Deepseek V4
+  ANTHROPIC_MODEL=deepseek-v4
+  CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50
+  CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000
+  ENABLE_TOOL_SEARCH=true
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  PATH=/usr/local/bin:/usr/bin:/bin
+stdin-data: "reply with ok\n"
+
+--- /data/clawopt/runtime/claude-code/2b46da50e52b8a2b5406b373aae6f55b/settings.json (600)
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)"
+    ]
+  },
+  "env": {
+    "KEEP_ME": "yes",
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:3150/api/claude-code-proxy/route_1",
+    "ANTHROPIC_MODEL": "deepseek-v4",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "deepseek-v4",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Deepseek V4",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Deepseek V4",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Deepseek V4",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Deepseek V4",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "ENABLE_TOOL_SEARCH": "true"
+  },
+  "model": "deepseek-v4"
+}
