@@ -2,7 +2,10 @@
  * 把实时 WebSocket 通道装到 HTTP 服务上：鉴权、Host 白名单、主题授权、接回快照、交互答复，
  * 全部从应用上下文里取——ws-server.ts 本身不认识任何业务表。
  */
-import type { Server } from 'http';
+import type { IncomingMessage, Server } from 'http';
+import type { Duplex } from 'stream';
+
+import { RELAY_WS_PATH } from '../collab/relay';
 
 import { attachRealtimeWebSocketServer, parseRealtimeTopic } from '../core/realtime';
 import { externalSenderId, parseExternalSenderId } from '../collab/rooms';
@@ -76,7 +79,15 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
     };
   };
 
-  return attachRealtimeWebSocketServer<RequestIdentity>(server, {
+  // 远程 Agent relay 的 WebSocket 接入（P3）：路径不同（`/api/relay/v1/connect`），不带登录 cookie，
+  // 鉴权是配对票据或 connector 凭据（在 relay-host 的握手里判）。/ws 的升级处理对别的路径直接放过，这里接住。
+  const onRelayUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    if ((req.url || '').split('?')[0] !== RELAY_WS_PATH) return;
+    ctx.relay.host.handleUpgrade(req, socket, head);
+  };
+  server.on('upgrade', onRelayUpgrade);
+
+  const realtime = attachRealtimeWebSocketServer<RequestIdentity>(server, {
     hub: ctx.realtime,
     authenticate: (req) => ctx.auth.authenticateHeaders(req.headers),
     isHostAllowed: (req) => isRequestHostAllowed(req.headers, ctx.configManager.getConfig().allowedHosts),
@@ -89,4 +100,11 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
         : { handled: false, resolved: false, error: 'forbidden' }
     ),
   });
+  return {
+    ...realtime,
+    close: async () => {
+      server.off('upgrade', onRelayUpgrade);
+      await realtime.close();
+    },
+  };
 }

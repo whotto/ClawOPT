@@ -72,6 +72,14 @@ export const AUTH_PUBLIC_PATHS = new Set([
   '/api/runtime-proxy/anthropic/:key/v1/messages',
   '/api/runtime-proxy/responses/:key/v1/models',
   '/api/runtime-proxy/responses/:key/v1/responses',
+  // 远程 Agent relay（P3，collab/relay）：调用方是另一台 ClawOPT 的服务端，没有本机登录。安全性在处理器里：
+  // 配对回调认请求密钥（x-clawopt-relay-secret，只存 SHA-256、常数时间比较、请求 10 分钟过期）；
+  // 远程工作区认每跳令牌（Bearer，只存 SHA-256，跑完即吊销，次数上限，路径闸门同群工作区编辑器）。
+  '/api/relay/v1/pairings/:requestId/submit',
+  '/api/relay/v1/pairings/:requestId/status',
+  '/api/relay/v1/pairings/:requestId/failure',
+  '/api/room-relay/workspace/actions',
+  '/api/room-relay/workspace/file',
 ]);
 
 /**

@@ -13,6 +13,9 @@
       "name": "bootstrap"
     },
     {
+      "name": "collab/relay"
+    },
+    {
       "name": "collab/rooms"
     },
     {
@@ -9873,6 +9876,476 @@
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/events",
         "x-clawopt-order": 308
+      }
+    },
+    "/api/groups/{id}/relay/pairings": {
+      "post": {
+        "operationId": "postApiGroupsIdRelayPairings",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/relay/pairings",
+        "x-clawopt-order": 309
+      },
+      "get": {
+        "operationId": "getApiGroupsIdRelayPairings",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/relay/pairings",
+        "x-clawopt-order": 310
+      }
+    },
+    "/api/groups/{id}/relay/pairings/{requestId}/decision": {
+      "post": {
+        "operationId": "postApiGroupsIdRelayPairingsRequestIdDecision",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/relay/pairings/:requestId/decision",
+        "x-clawopt-order": 311
+      }
+    },
+    "/api/groups/{id}/relay/connectors": {
+      "get": {
+        "operationId": "getApiGroupsIdRelayConnectors",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/relay/connectors",
+        "x-clawopt-order": 312
+      }
+    },
+    "/api/groups/{id}/relay/connectors/{connectorId}": {
+      "delete": {
+        "operationId": "deleteApiGroupsIdRelayConnectorsConnectorId",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "connectorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/groups/:id/relay/connectors/:connectorId",
+        "x-clawopt-order": 313
+      }
+    },
+    "/api/relay/v1/pairings/{requestId}/submit": {
+      "post": {
+        "operationId": "postApiRelayV1PairingsRequestIdSubmit",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/relay/v1/pairings/:requestId/submit",
+        "x-clawopt-order": 314
+      }
+    },
+    "/api/relay/v1/pairings/{requestId}/status": {
+      "get": {
+        "operationId": "getApiRelayV1PairingsRequestIdStatus",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/relay/v1/pairings/:requestId/status",
+        "x-clawopt-order": 315
+      }
+    },
+    "/api/relay/v1/pairings/{requestId}/failure": {
+      "post": {
+        "operationId": "postApiRelayV1PairingsRequestIdFailure",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/relay/v1/pairings/:requestId/failure",
+        "x-clawopt-order": 316
+      }
+    },
+    "/api/room-relay/workspace/actions": {
+      "post": {
+        "operationId": "postApiRoomRelayWorkspaceActions",
+        "tags": [
+          "collab/relay"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/room-relay/workspace/actions",
+        "x-clawopt-order": 317
+      }
+    },
+    "/api/room-relay/workspace/file": {
+      "get": {
+        "operationId": "getApiRoomRelayWorkspaceFile",
+        "tags": [
+          "collab/relay"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/room-relay/workspace/file",
+        "x-clawopt-order": 318
+      },
+      "put": {
+        "operationId": "putApiRoomRelayWorkspaceFile",
+        "tags": [
+          "collab/relay"
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/room-relay/workspace/file",
+        "x-clawopt-order": 319
+      }
+    },
+    "/api/relay/links": {
+      "get": {
+        "operationId": "getApiRelayLinks",
+        "tags": [
+          "collab/relay"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/relay/links",
+        "x-clawopt-order": 320
+      },
+      "post": {
+        "operationId": "postApiRelayLinks",
+        "tags": [
+          "collab/relay"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/relay/links",
+        "x-clawopt-order": 321
+      }
+    },
+    "/api/relay/links/{linkId}": {
+      "delete": {
+        "operationId": "deleteApiRelayLinksLinkId",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/relay/links/:linkId",
+        "x-clawopt-order": 322
+      }
+    },
+    "/api/relay/links/{linkId}/reconnect": {
+      "post": {
+        "operationId": "postApiRelayLinksLinkIdReconnect",
+        "tags": [
+          "collab/relay"
+        ],
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/relay/links/:linkId/reconnect",
+        "x-clawopt-order": 323
       }
     }
   },

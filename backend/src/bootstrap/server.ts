@@ -42,6 +42,7 @@ export async function startServer() {
   // 必须在监听之前——不能让前端先看到一个「还在跑」、其实已经没人执行的运行。
   ctx.automation.start();
   ctx.roomCollab.start();
+  ctx.relay.start();
   const { app, routes } = buildApp(ctx, { readiness });
   const server = createServer(app);
   const realtimeServer = attachRealtimeServer(server, ctx);
@@ -57,6 +58,7 @@ export async function startServer() {
   });
   shutdown.register({ name: 'write-gate-watchers', close: () => ctx.writeGate.stop() });
   shutdown.register({ name: 'room-handoff-dispatcher', close: () => ctx.roomCollab.stop() });
+  shutdown.register({ name: 'room-relay', close: () => ctx.relay.stop() });
   shutdown.register({
     name: 'automation',
     close: () => ctx.automation.stop(),

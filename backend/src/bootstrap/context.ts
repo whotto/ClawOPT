@@ -54,6 +54,8 @@ import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatfor
 import { createPreviewService, createUploadService } from '../workspace';
 import { createScopedProviderResolver } from './scoped-provider-resolver';
 import { createRoomSummaryRunner } from './room-summary-runner';
+import { createRelay } from '../collab/relay';
+import { isRequestHostAllowed } from './host-check';
 import {
   createChatCommands,
   createChatLifecycle,
@@ -137,8 +139,10 @@ export function createAppContext() {
     },
   });
   // 运行时目录定期清扫的判据：归属还在，而且还在用这个运行时（成员换了运行时，旧运行时的目录算孤儿）。
+  const relayRef: { current: { target: { ownsHome(sessionId: string): boolean } } | null } = { current: null };
   runtimePlatform.manager.homeOwnerExists = (owner, runtime) => {
-    if (owner.kind === 'session') return Boolean(db.getSession(owner.sessionId));
+    // relay target 链接（`relay-link-<id>`）的运行时目录跟着链接走。
+    if (owner.kind === 'session') return Boolean(db.getSession(owner.sessionId)) || Boolean(relayRef.current?.target.ownsHome(owner.sessionId));
     if (owner.kind === 'room-member') {
       return db.getGroupMembers(owner.groupId).some((member) => member.id === owner.memberId && member.runtime === runtime);
     }
@@ -214,6 +218,21 @@ export function createAppContext() {
       agentRunner: () => automation.agentRunner,
     }),
   });
+  /**
+   * 远程 Agent relay（P3）：本实例既可以当 host（别人的 Agent 经配对接进来，群成员 runtime = relay），
+   * 也可以当 target（把本机的运行时接进别人的群）。远程成员的适配器从这里取，其余运行时照旧从登记处取。
+   */
+  const relay = createRelay({
+    db,
+    roomCollab,
+    runCoordinator,
+    createAdapter: (runtime) => runtimePlatform.createAdapter(runtime),
+    emitMessage: (payload) => rooms.groupChatEngine.emit('message', payload),
+    isHostAllowed: (req) => isRequestHostAllowed(req.headers, configManager.getConfig().allowedHosts),
+    dataDir: path.dirname(defaultRuntimeDataDir()),
+  });
+  rooms.groupChatEngine.useRuntimeAdapters((runtime) => (runtime === 'relay' ? relay.host.adapter : runtimePlatform.createAdapter(runtime)));
+  relayRef.current = relay;
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
   const chatRuns = createChatRuns();
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
@@ -257,6 +276,7 @@ export function createAppContext() {
     roomRuntime,
     rooms,
     roomCollab,
+    relay,
     roomReconciliation,
     auth,
     access,

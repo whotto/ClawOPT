@@ -314,6 +314,8 @@ export function takeWorkspaceSnapshot(root: string, now: () => number = Date.now
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
+        // 群附件的存储目录（根下的 uploads/）不算 Agent 的工作区改动：人上传的附件、Agent 发布的附件都在这里。
+        if (current.depth === 0 && entry.name === 'uploads') continue;
         if (current.depth + 1 > SNAPSHOT_MAX_DEPTH) { truncated = true; continue; }
         stack.push({ abs: path.join(current.abs, entry.name), rel, depth: current.depth + 1 });
         continue;

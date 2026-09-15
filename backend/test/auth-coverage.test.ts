@@ -109,6 +109,13 @@ const EXPECTED_PUBLIC_ROUTES = [
   // P4a：入站钩子与本机测试收件箱。注册在闸门之后、靠白名单放行；安全性在处理器里（签名 / 回环 + 令牌）。
   'POST /api/hooks/workflows/:hookId',
   'POST /api/hooks/webhook-test/:token',
+  // P3：远程 Agent relay。配对回调认请求密钥，远程工作区认每跳令牌；安全性在处理器里（relay-routes / relay-host）。
+  'POST /api/relay/v1/pairings/:requestId/submit',
+  'GET /api/relay/v1/pairings/:requestId/status',
+  'POST /api/relay/v1/pairings/:requestId/failure',
+  'POST /api/room-relay/workspace/actions',
+  'GET /api/room-relay/workspace/file',
+  'PUT /api/room-relay/workspace/file',
   'GET *',
 ];
 
@@ -162,6 +169,11 @@ describe('鉴权覆盖（登录开启、匿名请求）', () => {
       '/api/auth/login',
       '/api/hooks/webhook-test/:token',
       '/api/hooks/workflows/:hookId',
+      '/api/relay/v1/pairings/:requestId/failure',
+      '/api/relay/v1/pairings/:requestId/status',
+      '/api/relay/v1/pairings/:requestId/submit',
+      '/api/room-relay/workspace/actions',
+      '/api/room-relay/workspace/file',
       '/api/runtime-proxy/anthropic/:key/v1/messages',
       '/api/runtime-proxy/anthropic/:key/v1/models',
       '/api/runtime-proxy/responses/:key/v1/models',
