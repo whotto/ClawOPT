@@ -26,6 +26,7 @@ import RestartModals from './modals/RestartModals';
 import SettingsErrorModal from './modals/SettingsErrorModal';
 import UpdateModals from './modals/UpdateModals';
 import PresetLibrary from './presets/PresetLibrary';
+import RuntimesPage from '../team/runtimes/RuntimesPage';
 import { useSettingsController } from './useSettingsController';
 
 /** P5a 控制面页面：各自管状态、需要更宽的版心，不经 useSettingsController。 */
@@ -39,6 +40,8 @@ const CONTROL_PAGES: Partial<Record<SettingsTab, ComponentType>> = {
   plugins: PluginsPage,
   usage: UsagePage,
   logs: LogsPage,
+  // Agent 运行时（P2）：卡片网格与配置编辑器，自己管状态。
+  runtimes: RuntimesPage,
 };
 
 /**
@@ -61,7 +64,9 @@ export default function SettingsPage() {
   const { capabilities } = useAccess();
   const forbidden = capabilities !== null && !capabilities.has(settingsTabCapability(settingsTab));
 
-  const headerTitle = ControlPage
+  const headerTitle = settingsTab === 'runtimes'
+    ? t('settings.runtimes.headerTitle')
+    : ControlPage
     ? t(`control.headerTitle.${settingsTab}`)
     : settingsTab === 'gateway'
       ? t('settings.gateway.headerTitle')

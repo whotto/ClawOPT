@@ -1,6 +1,8 @@
 import path from 'path';
 
 const dataDir = process.env.CLAWOPT_DATA_DIR || '.clawopt';
+/** ClawOPT 自己的数据目录（`$HOME/$CLAWOPT_DATA_DIR`）。 */
+export const clawoptDataDir = path.join(process.env.HOME || '.', dataDir);
 export const uploadDir = path.join(process.env.HOME || '.', dataDir, 'uploads');
 export const browserWarmupMarkerPath = path.join(process.env.HOME || '.', dataDir, 'browser-warmup.pending');
 export const updateRestartStatePath = path.join(process.env.HOME || '.', dataDir, 'update-restart-state.json');

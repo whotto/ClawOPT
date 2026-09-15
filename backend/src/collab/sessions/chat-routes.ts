@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import type express from 'express';
 
@@ -20,7 +21,8 @@ import {
   type GatewayConnections,
   type OpenClawClient,
 } from '../../openclaw';
-import { OPENCLAW_ABORT_GRACE_MS, type OpenClawChatRunRequest, type RunCoordinator } from '../../runtime';
+import { OPENCLAW_ABORT_GRACE_MS, type OpenClawChatRunRequest, type RunCoordinator, type RuntimePlatform } from '../../runtime';
+import { clawoptDataDir } from '../../core/paths';
 import type { ConfigManager } from '../../core/config';
 import type { AgentRuntimeAdapter } from '../../runtime';
 import type { UploadService } from '../../workspace';
@@ -50,6 +52,7 @@ import {
 } from './chat-stream';
 import type { DirectChatService } from './direct-chat-service';
 import { chatSessionParamGuard } from './session-routes';
+import { externalModelTag, runExternalChatTurn } from './external-chat-turn';
 import { createOpenClawChatProjection } from './openclaw-chat-projection';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
@@ -74,6 +77,8 @@ export type ChatRoutesDeps = {
   runCoordinator: RunCoordinator;
   openclawAdapter: AgentRuntimeAdapter<OpenClawChatRunRequest>;
   access: ResourceAccess;
+  /** 外部运行时单聊（会话行上有 external_runtime）按运行时 id 取适配器。 */
+  runtimePlatform: Pick<RuntimePlatform, 'createAdapter'>;
 };
 
 type ChatTurnKind = 'send' | 'regenerate';
@@ -113,6 +118,19 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     return sendResourceForbidden(res);
   };
   const guardParamSession = chatSessionParamGuard(ctx, 'sessionId');
+  /** 外部运行时单聊的依赖。缺省工作区在 ClawOPT 数据目录下（不在 ~/.openclaw 里造目录：这个会话不是 OpenClaw Agent）。 */
+  const externalTurnDeps = {
+    db,
+    configManager: ctx.configManager,
+    realtime: ctx.realtime,
+    runCoordinator,
+    createAdapter: (runtime: string) => ctx.runtimePlatform.createAdapter(runtime),
+    defaultWorkspace: (sessionId: string) => {
+      const dir = path.join(clawoptDataDir, 'workspaces', 'external', sessionId.replace(/[^A-Za-z0-9_-]/g, '_'));
+      fs.mkdirSync(dir, { recursive: true });
+      return dir;
+    },
+  };
 
   function buildInjectedMessage(sessionInfo: SessionRow | undefined, agentId: string, rawMessage: string): string {
     let injectedInstructions = '';
@@ -368,6 +386,28 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
       const parsedCommand = parseChatCommand(rawMessage);
       const sessionInfo = sessionManager.getSession(normalizedSessionId);
 
+      if (sessionInfo?.external_runtime) {
+        // 外部运行时单聊：`/compact` `/status` `/usage` 交给运行时本身（不是网关的内建命令），其余照常作为一轮。
+        let externalParentId = parentId ? Number(parentId) : undefined;
+        if (externalParentId === undefined) {
+          const history = db.getMessages(normalizedSessionId, 1);
+          externalParentId = history.length > 0 ? history[history.length - 1].id : undefined;
+        }
+        const externalAgentName = sessionInfo.name || sessionInfo.agentId;
+        userMsgId = Number(db.saveMessage({ session_key: normalizedSessionId, parent_id: externalParentId, role: 'user', content: rawMessage }));
+        assistantMsgId = Number(db.saveMessage({
+          session_key: normalizedSessionId, parent_id: userMsgId, role: 'assistant', content: '',
+          model_used: externalModelTag(sessionInfo), agent_id: sessionInfo.agentId, agent_name: externalAgentName,
+        }));
+        openTurnStream(res, transport, { userMsgId, assistantMsgId });
+        sink = createChatStreamSink(streamDeps, { transport, sessionId: normalizedSessionId, res, origin, messageId: assistantMsgId });
+        await runExternalChatTurn(externalTurnDeps, {
+          session: sessionInfo, transport, origin, res, sink, prompt: rawMessage,
+          assistantMessageId: assistantMsgId, runMarkerMessageIds: [userMsgId, assistantMsgId], agentName: externalAgentName,
+        });
+        return;
+      }
+
       const agentId = sessionInfo?.agentId || 'main';
       const allCharacters = db.getCharacters();
       const character = allCharacters.find(c => c.agentId === agentId);
@@ -518,6 +558,22 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
 
       const sessionInfo = sessionManager.getSession(normalizedSessionId);
       const rawMessage = String(message);
+
+      if (sessionInfo?.external_runtime) {
+        const externalAgentName = sessionInfo.name || sessionInfo.agentId;
+        assistantMsgId = Number(db.saveMessage({
+          session_key: normalizedSessionId, parent_id: numericParentId, role: 'assistant', content: '',
+          model_used: externalModelTag(sessionInfo), agent_id: sessionInfo.agentId, agent_name: externalAgentName,
+        }));
+        openTurnStream(res, transport, { userMsgId: numericParentId, assistantMsgId });
+        sink = createChatStreamSink(streamDeps, { transport, sessionId: normalizedSessionId, res, origin, messageId: assistantMsgId });
+        await runExternalChatTurn(externalTurnDeps, {
+          session: sessionInfo, transport, origin, res, sink, prompt: rawMessage,
+          assistantMessageId: assistantMsgId, runMarkerMessageIds: [assistantMsgId], agentName: externalAgentName,
+        });
+        return;
+      }
+
       const agentId = sessionInfo?.agentId || 'main';
       const finalMessage = buildInjectedMessage(sessionInfo, agentId, rawMessage);
 
@@ -616,6 +672,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
       let orphanAbortResult: { aborted: boolean; runIds: string[] } = { aborted: false, runIds: [] };
       try {
         const sessionInfo = sessionManager.getSession(normalizedSessionId);
+        if (sessionInfo?.external_runtime) throw Object.assign(new Error('external runtime session'), { skipOrphanAbort: true });
         const agentId = sessionInfo?.agentId || 'main';
         const client = await getConnection(normalizedSessionId);
         orphanAbortResult = await abortOpenClawSessionRuns(
@@ -625,7 +682,10 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
           { retryOnMiss: true },
         );
       } catch (error) {
-        console.warn(`[chat] Failed to abort orphan OpenClaw runs while stopping session ${normalizedSessionId}:`, error);
+        // 外部运行时会话：协调器那一路已经停了运行时进程组，没有网关 run 可清。
+        if (!(error as { skipOrphanAbort?: boolean })?.skipOrphanAbort) {
+          console.warn(`[chat] Failed to abort orphan OpenClaw runs while stopping session ${normalizedSessionId}:`, error);
+        }
       }
       await reconcileInactiveChatLatestMessage(normalizedSessionId);
       res.json({

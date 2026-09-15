@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { createGroup, updateGroup } from '../../api/groups';
+import { listMemberRuntimes, setRemoteMemberToken } from '../../api/runtime';
 import { requestActiveContextRefresh } from '../../utils/contextRefresh';
 import { getGroupIdValidationKey } from '../../utils/groupId';
 import type { SettingsTab, ViewType } from '../routeState';
 import { resolveSidebarSubmitError } from './sidebarFormat';
-import type { GroupMemberDraft, GroupSummary } from './sidebarTypes';
+import type { GroupMemberDraft, GroupSummary, MemberRuntimeOption } from './sidebarTypes';
 
 type GroupEditorDeps = {
   t: TFunction;
@@ -94,7 +95,7 @@ export function useGroupEditor({ t, groups, reloadGroups, onSelectGroup, navigat
         process_start_tag: newProcessStartTag,
         process_end_tag: newProcessEndTag,
         max_chain_depth: newMaxChainDepth,
-        members: selectedGroupMembers,
+        members: selectedGroupMembers.map(toGroupMemberPayload),
       };
       // 编辑走 PUT /groups/:id，新建走 POST /groups（进入编辑态时总会同时设置 editingGroupId）。
       const res = await (groupModalMode === 'edit' && editingGroupId
@@ -102,6 +103,17 @@ export function useGroupEditor({ t, groups, reloadGroups, onSelectGroup, navigat
         : createGroup(groupBody));
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        // 远程 OpenClaw 成员的令牌：群保存成功之后才经只写接口写入（空的表示不修改）。
+        const savedGroupId = groupModalMode === 'edit' && editingGroupId ? editingGroupId : newGroupId.trim();
+        for (const member of selectedGroupMembers) {
+          if (member.remoteToken && member.remoteToken.trim()) {
+            const tokenRes = await setRemoteMemberToken(savedGroupId, member.agentId, member.remoteToken.trim()).catch(() => null);
+            if (!tokenRes || !tokenRes.ok) {
+              setGroupSubmitError(t('remoteOpenclaw.tokenSaveFailed', { name: member.displayName }));
+              return;
+            }
+          }
+        }
         setShowGroupDialog(false);
         setNewGroupId('');
         setNewGroupName('');
@@ -143,6 +155,34 @@ export function useGroupEditor({ t, groups, reloadGroups, onSelectGroup, navigat
     setSelectedGroupMembers(prev => prev.map(m => m.agentId === agentId ? { ...m, roleDescription: role } : m));
   };
 
+  const updateGroupMemberRuntime = (agentId: string, patch: Partial<GroupMemberDraft>) => {
+    setSelectedGroupMembers(prev => prev.map(m => m.agentId === agentId ? { ...m, ...patch } : m));
+  };
+
+  /** 远程 OpenClaw 成员不在本机名册里：用名字生成一个成员 id（`remote-<名字>`），运行时直接设成 remote-openclaw。 */
+  const addRemoteGroupMember = (displayName: string) => {
+    const name = displayName.trim();
+    if (!name) return;
+    const base = `remote-${name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'member'}`;
+    let agentId = base;
+    let n = 2;
+    while (selectedGroupMembers.some(m => m.agentId === agentId)) agentId = `${base}-${n++}`;
+    setSelectedGroupMembers([...selectedGroupMembers, { agentId, displayName: name, roleDescription: '', runtime: 'remote-openclaw', externalConfig: { gatewayUrl: '', remoteAgentId: 'main', trustedLan: false }, hasRemoteToken: false }]);
+    setActiveRoleTab(agentId);
+  };
+
+  // 成员运行时选择器的选项：打开弹窗时取一次（登记了适配器的外部运行时 + 远程 OpenClaw）。
+  const [memberRuntimes, setMemberRuntimes] = useState<MemberRuntimeOption[]>([]);
+  useEffect(() => {
+    if (!showGroupDialog) return;
+    let cancelled = false;
+    void listMemberRuntimes().then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!cancelled && res.ok && Array.isArray(data.runtimes)) setMemberRuntimes(data.runtimes);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [showGroupDialog]);
+
   return {
     draggedAgentId, setDraggedAgentId,
     showGroupDialog, setShowGroupDialog,
@@ -167,6 +207,21 @@ export function useGroupEditor({ t, groups, reloadGroups, onSelectGroup, navigat
     toggleGroupMember,
     removeGroupMember,
     updateGroupMemberRole,
+    updateGroupMemberRuntime,
+    addRemoteGroupMember,
+    memberRuntimes,
+  };
+}
+
+/** 草稿 → 请求体：运行时与外部配置（JSON 文本）一起带上；令牌与界面状态不进请求体。 */
+export function toGroupMemberPayload(member: GroupMemberDraft) {
+  const runtime = member.runtime || 'openclaw';
+  return {
+    agentId: member.agentId,
+    displayName: member.displayName,
+    roleDescription: member.roleDescription,
+    runtime,
+    ...(runtime !== 'openclaw' ? { externalConfig: JSON.stringify(member.externalConfig ?? {}) } : {}),
   };
 }
 

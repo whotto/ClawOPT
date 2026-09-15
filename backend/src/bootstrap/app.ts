@@ -16,7 +16,7 @@ import path from 'path';
 
 import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
-import { registerExternalRuntimeRoutes } from '../runtime';
+import { registerExternalRuntimeRoutes, registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
 import {
   registerAgentRosterRoutes,
   registerAgentRoutes,
@@ -80,6 +80,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
       return compression.filter(req, res);
     },
   }));
+  // 本地模型代理的请求体（64 MB）：必须在全局 json 之前，body-parser 看到已解析就跳过。
+  registerRuntimeProxyBodyParser(routes.forModule('runtime'));
   // 4mb：工作区身份文件编辑器（MEMORY.md 常过百 KB）与头像 data URL；工作流定义（最多 500 节点）也在此上限内。
   // `/api/hooks/` 下的公开入口要按**原始字节**验 HMAC 签名，解析时顺手留一份原始请求体。
   bootstrapApp.use(express.json({
@@ -112,6 +114,10 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
 
   registerAuthRoutes(routes.forModule('core/auth'), ctx);
   registerUserRoutes(routes.forModule('core/auth'), ctx);
+  // 公开（按 AUTH_PUBLIC_PATHS 的模式放行），令牌在处理器里常数时间校验。
+  registerRuntimeProxyRoutes(routes.forModule('runtime'), ctx);
+  // 运行时管理 / 每运行时配置 / 运行时目录 / 远程 OpenClaw 成员（除成员运行时选择器外全部仅管理员）。
+  registerRuntimePlatformRoutes(routes.forModule('runtime'), ctx);
   registerGatewayRoutes(routes.forModule('control/gateway'), ctx);
   registerModelRoutes(routes.forModule('control/models'), ctx);
   registerCharacterRoutes(routes.forModule('control/agents'), ctx);

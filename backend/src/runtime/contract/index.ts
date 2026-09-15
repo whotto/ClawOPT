@@ -25,6 +25,8 @@ export type {
   ReasoningItem,
   ResponseEvent,
   RuntimeChannel,
+  SessionCommandName,
+  SessionCommandResult,
   UsageReport,
   WorkspaceRunChangeSummary,
 } from './events';

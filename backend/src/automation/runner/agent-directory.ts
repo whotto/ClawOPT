@@ -1,5 +1,5 @@
 /**
- * 节点可选的 Agent 名册：ClawOPT 的 OpenClaw 角色（会话表里的 agentId）+ 本机可用的外部运行时。
+ * 节点可选的 Agent 名册：ClawOPT 的 OpenClaw 角色（会话表里的 agentId）+ 运行时平台登记处里的编码类外部运行时。
  * 技能来自各自的技能目录：OpenClaw 角色是 `<工作区>/skills/<名>/SKILL.md`，Claude Code 是 `~/.claude/skills/<名>/SKILL.md`。
  */
 import fs from 'fs';
@@ -8,25 +8,31 @@ import path from 'path';
 
 import type { SessionManager } from '../../collab/sessions';
 import { readTextFileSafe } from '../../openclaw';
-import { buildExternalRuntimeList, resolveBinaryOnPath } from '../../runtime';
 import type { AgentDirectory, AgentDirectoryEntry, WorkflowAgentRef } from '../ports';
-import { supportedExternalRuntimes } from './coordinator-runner';
 
 const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_SKILL_BYTES = 256 * 1024;
 
+/** 外部运行时目录（bootstrap 从运行时平台的登记处与管理器组装；清单只有登记处一份）。 */
+export type ExternalRuntimeCatalog = {
+  /** 能作为工作流节点的运行时（编码类 CLI；远程 OpenClaw 要群成员令牌，不在内）。 */
+  list(): Array<{ id: string; name: string; modes: readonly string[]; approvals: boolean }>;
+  /** 本机装没装（同步判据：管理器缓存的检测结果）。 */
+  installed(id: string): boolean;
+  /** 重新检测（名册接口调用前刷新缓存）。 */
+  refresh?(): Promise<void>;
+};
+
 export type AgentDirectoryDeps = {
   sessionManager: Pick<SessionManager, 'getAllSessions'>;
   workspacePathFor: (agentId: string) => string;
-  binaryExists?: (binary: string) => boolean;
+  runtimes: ExternalRuntimeCatalog;
   homeDir?: string;
   /** 假 Runner 模式：一切 Agent 视为可用（本机演示不依赖 OpenClaw 网关与外部 CLI）。 */
   fakeRunner?: boolean;
 };
 
 export function createAgentDirectory(deps: AgentDirectoryDeps): AgentDirectory {
-  const binaryExists = deps.binaryExists ?? resolveBinaryOnPath;
-
   function skillsRoot(ref: WorkflowAgentRef): string | null {
     if (ref.kind === 'openclaw') return path.join(deps.workspacePathFor(ref.id), 'skills');
     if ((ref.runtime ?? ref.id) === 'claude-code') return path.join(deps.homeDir ?? os.homedir(), '.claude', 'skills');
@@ -81,22 +87,30 @@ export function createAgentDirectory(deps: AgentDirectoryDeps): AgentDirectory {
         : { available: false as const, reason: `OpenClaw agent ${ref.id} is not in the roster` };
     }
     const runtime = ref.runtime ?? ref.id;
-    if (!supportedExternalRuntimes().includes(runtime)) return { available: false as const, reason: `runtime ${runtime} has no adapter` };
-    const descriptor = buildExternalRuntimeList(binaryExists).find((item) => item.id === runtime);
-    if (!descriptor?.available) return { available: false as const, reason: `runtime ${runtime} is not installed on this host` };
+    if (!deps.runtimes.list().some((item) => item.id === runtime)) return { available: false as const, reason: `runtime ${runtime} has no adapter` };
+    if (!deps.runtimes.installed(runtime)) return { available: false as const, reason: `runtime ${runtime} is not installed on this host` };
     return { available: true as const };
   }
 
   return {
-    list(): AgentDirectoryEntry[] {
+    async list(): Promise<AgentDirectoryEntry[]> {
+      await deps.runtimes.refresh?.().catch(() => undefined);
       const openclaw = openclawAgents().map((agent) => {
         const ref: WorkflowAgentRef = { kind: 'openclaw', id: agent.id };
         return { ref, name: agent.name, available: true, skills: listSkills(ref) };
       });
-      const external = buildExternalRuntimeList(binaryExists).map((runtime) => {
+      const external = deps.runtimes.list().map((runtime) => {
         const ref: WorkflowAgentRef = { kind: 'external', id: runtime.id, runtime: runtime.id };
         const verdict = availability(ref);
-        return { ref, name: runtime.label, available: verdict.available, ...(verdict.available ? {} : { reason: verdict.reason }), skills: listSkills(ref) };
+        return {
+          ref,
+          name: runtime.name,
+          available: verdict.available,
+          ...(verdict.available ? {} : { reason: verdict.reason }),
+          skills: listSkills(ref),
+          modes: [...runtime.modes],
+          approvals: runtime.approvals,
+        };
       });
       return [...openclaw, ...external];
     },

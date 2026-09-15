@@ -5,7 +5,7 @@ import type { AgentEditorState } from './useAgentEditor';
 import type { GroupEditorState } from './useGroupEditor';
 
 /** 「+ 新建 智能体 / 工作群」按钮组：重置对应表单并打开弹窗。 */
-export default function NewButtons({ editor, groupEditor }: { editor: AgentEditorState; groupEditor: GroupEditorState }) {
+export default function NewButtons({ editor, groupEditor, onNewExternal }: { editor: AgentEditorState; groupEditor: GroupEditorState; onNewExternal?: () => void }) {
   const { t } = useTranslation();
   // 新建 Agent 会装配 OpenClaw Agent，是管理员的事；member 只能用自己的 Agent 建群。
   const canCreateAgent = useAccess().can('agents.manage');
@@ -74,6 +74,22 @@ export default function NewButtons({ editor, groupEditor }: { editor: AgentEdito
           </button>
         </div>
       </div>
+      {onNewExternal && (
+        // 外部运行时单聊单独一行：三个按钮挤在 256px 的侧栏里会把「智能体」竖着折成三行。
+        <div className="flex items-center mt-2">
+          <span className="flex items-center gap-1 text-sm flex-shrink-0 mr-2 invisible" aria-hidden="true">
+            <Plus className="w-4 h-4" />
+            {t('sidebar.newBtn')}
+          </span>
+          <button
+            onClick={onNewExternal}
+            data-testid="new-external-agent"
+            className="flex-1 py-1.5 px-3 text-gray-600 border border-dashed border-gray-300 rounded-xl bg-white hover:bg-amber-50 hover:text-gray-900 hover:border-orange-300 transition-colors text-sm active:scale-95 text-center"
+          >
+            {t('sidebar.externalAgent')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

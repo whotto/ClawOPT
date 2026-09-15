@@ -209,6 +209,7 @@ async function executeNode(ctx: RunContext, nodeId: string, path: IterationPath,
           timeoutMs: remaining ?? 24 * 60 * 60 * 1000,
           autoApprove: 'once',
           signal: ctx.abort.signal,
+          owner: { workflowId: ctx.run.workflowId, nodeId },
           ...(node.data.model ? { model: node.data.model } : {}),
         });
       } catch (error) {

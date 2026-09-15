@@ -6,6 +6,7 @@ import AutomationNav from './AutomationNav';
 import AgentEditorModal from './AgentEditorModal';
 import AgentInfoModal from './AgentInfoModal';
 import AgentList from './AgentList';
+import ExternalAgentDialog, { type ExternalSessionSummary } from './ExternalAgentDialog';
 import FavoritesList from './FavoritesList';
 import { DeleteGroupModal, ResetGroupModal } from './GroupConfirmModals';
 import GroupEditorModal from './GroupEditorModal';
@@ -31,7 +32,7 @@ export interface SidebarProps {
   activeSessionId: string;
   setActiveSessionId: (id: string) => void;
   isMobileMenuOpen: boolean;
-  sessions: {id: string, name: string, agentId?: string}[];
+  sessions: {id: string, name: string, agentId?: string, externalRuntime?: string}[];
   sessionsLoaded: boolean;
   reloadSessions: () => Promise<void>;
   reorderSessions: (newSessions: {id: string, name: string}[]) => Promise<void>;
@@ -99,6 +100,8 @@ export default function Sidebar(props: SidebarProps) {
   // 只有看得到全部会话与群的角色（能管理 Agent）才按列表清理收藏；member 的列表是过滤过的。
   const listsComplete = useAccess().can('agents.manage');
   usePruneSidebarFavorites(favorites, sessions, sessionsLoaded, groups, groupsLoaded, listsComplete);
+  // 外部运行时单聊的新建 / 编辑弹窗：null = 关；{} = 新建；带 externalRuntime 的会话 = 编辑。
+  const [externalDialog, setExternalDialog] = useState<ExternalSessionSummary | null>(null);
 
   if (currentView === 'settings' || currentView === 'automation') {
     return (
@@ -124,7 +127,17 @@ export default function Sidebar(props: SidebarProps) {
     );
   }
 
-  const { isInfoModalOpen, viewingSession, isDeleteModalOpen, isResetModalOpen, handleShowInfo } = sessionActions;
+  const { isInfoModalOpen, viewingSession, isDeleteModalOpen, isResetModalOpen } = sessionActions;
+  // 外部运行时会话没有 OpenClaw 侧的文件可看：详情按钮打开它自己的编辑弹窗。
+  const handleShowInfo = (e: React.MouseEvent, session: { id: string; name: string }) => {
+    const external = session as ExternalSessionSummary;
+    if (external.externalRuntime) {
+      e.stopPropagation();
+      setExternalDialog(external);
+      return;
+    }
+    void sessionActions.handleShowInfo(e, session);
+  };
   const { isGroupInfoOpen, viewingGroup, isDeleteGroupModalOpen, isResetGroupModalOpen } = groupDetails;
 
   return (
@@ -143,7 +156,7 @@ export default function Sidebar(props: SidebarProps) {
         />
 
         {/* + 新建 按钮组 */}
-        <NewButtons editor={agentEditor} groupEditor={groupEditor} />
+        <NewButtons editor={agentEditor} groupEditor={groupEditor} onNewExternal={() => setExternalDialog({ id: '', name: '' })} />
 
         {/* 可滚动列表区域 */}
         <div className="flex-1 overflow-y-auto px-4 py-1 min-h-0 scrollbar-hide">
@@ -171,6 +184,19 @@ export default function Sidebar(props: SidebarProps) {
       {/* Create Agent Modal - outside aside to center properly */}
       {agentEditor.isModalOpen && (
         <AgentEditorModal editor={agentEditor} availableModels={availableModels} memberDropdownRef={groupEditor.memberDropdownRef} />
+      )}
+
+      {externalDialog && (
+        <ExternalAgentDialog
+          session={externalDialog.externalRuntime ? externalDialog : null}
+          onClose={() => setExternalDialog(null)}
+          onSaved={async (sessionId) => {
+            setExternalDialog(null);
+            await reloadSessions();
+            if (sessionId) { setActiveSessionId(sessionId); onSelectGroup(''); navigateTo('chat', settingsTab, false); }
+          }}
+          onDeleted={async () => { setExternalDialog(null); await reloadSessions(); }}
+        />
       )}
 
       {/* Session Info Modal */}

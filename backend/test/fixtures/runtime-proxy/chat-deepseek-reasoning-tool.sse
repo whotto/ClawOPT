@@ -1,0 +1,22 @@
+: DeepSeek-style Chat Completions stream: reasoning_content deltas, text, one tool call (args in three chunks), finish, trailing usage chunk, [DONE]
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":"用户要看"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"reasoning_content":"目录。"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"content":"我先列一下"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"content":"文件。"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_ls_1","type":"function","function":{"name":"Bash","arguments":""}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"command\""}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":": \"ls -la\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: {"id":"chatcmpl-ds-001","object":"chat.completion.chunk","created":1789000000,"model":"deepseek-reasoner","choices":[],"usage":{"prompt_tokens":1200,"completion_tokens":85,"total_tokens":1285,"prompt_tokens_details":{"cached_tokens":1024},"completion_tokens_details":{"reasoning_tokens":40}}}
+
+data: [DONE]
+

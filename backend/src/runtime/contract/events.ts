@@ -75,6 +75,49 @@ export interface WorkspaceRunChangeSummary {
   truncated: boolean;
 }
 
+/**
+ * 会话命令（`/compact`、`/status`、`/usage`）的结果，或运行中途运行时自己报的压缩完成。
+ *
+ * 为什么不塞进 `plan.updated` 或正文：计划是给「接下来要做什么」的，正文是模型说的话——
+ * 压缩前后的 token 数、原生会话状态、用量统计是**宿主要渲染的结构化结果**，
+ * 塞进正文（JSON 字符串）界面没法本地化，塞进计划会被计划面板当成步骤显示。
+ * 数字缺就不给（不编），界面按缺省显示。
+ */
+export type SessionCommandName = 'compact' | 'status' | 'usage';
+
+export interface SessionCommandResult {
+  command: SessionCommandName;
+  ok: boolean;
+  /** 失败原因（已脱敏）。 */
+  error?: string;
+  compaction?: {
+    trigger: 'manual' | 'auto';
+    preTokens?: number;
+    postTokens?: number;
+    /** 运行时给出的压缩摘要（Pi 有）。 */
+    summary?: string;
+  };
+  status?: {
+    model?: string;
+    nativeSessionId?: string;
+    thinkingLevel?: string;
+    messageCount?: number;
+    autoCompaction?: boolean;
+    streaming?: boolean;
+  };
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    totalTokens?: number;
+    costUsd?: number;
+    contextTokens?: number;
+    contextWindow?: number;
+    contextPercent?: number;
+  };
+}
+
 export type ResponseEvent =
   | { type: 'response.created'; response_id: string; model?: string }
   | { type: 'response.output_item.added'; item: OutputItem }
@@ -93,6 +136,7 @@ export type ControlEvent =
   | { type: 'approval.requested'; request: ApprovalRequestInput }
   | { type: 'clarify.requested'; request: ClarifyRequestInput }
   | { type: 'plan.updated'; plan: unknown }
+  | { type: 'session.command'; result: SessionCommandResult }
   | { type: 'workspace.diff'; change: WorkspaceRunChangeSummary }
   | { type: 'runtime.init'; model?: string; runtimeVersion?: string }
   | { type: 'runtime.native_session'; nativeSessionId: string };

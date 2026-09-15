@@ -52,15 +52,25 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
  *
  * 57 → 58（P1a）：`core/db/native-build-check.ts` 读 better-sqlite3 的原生插件二进制做构建隐患检测。
  * 路径来自 `require.resolve('better-sqlite3/package.json')`，不是数据给的；只读、不解析内容，只查一个符号串。
+ *
  * 58 → 59（P4a）：工作流 OpenClaw 节点读图片附件（路径已过可服务路径闸门 + assertRegularFile；集成 v1.9 起在 `automation/runner/coordinator-runner.ts`）。
+ *
+ * 59 → 60（P2 适配器）：`runtime/adapters/_shared/session-state.ts` 经运行时 home 网关写 `.clawopt-session.json`。
+ * 路径 = 运行时 home（`<数据目录>/runtime/<运行时>/<哈希>`，不是数据给的）+ 固定文件名。
+ *
+ * 60 → 61（P2-platform）：`runtime/platform-store.ts::readPrivateText` 是运行时平面
+ * （代理恢复文件、本机密钥、更新策略、成员密钥、原生配置文件编辑器）唯一的读入口。路径要么是 ClawOPT 自己数据目录下的
+ * 固定文件，要么来自运行时描述符里写死的原生配置路径表，不来自请求数据；读之前 stat 判普通文件（不跟命名管道较劲）。
  */
-const CURRENT_SITE_BUDGET = 59;
+const CURRENT_SITE_BUDGET = 61;
 
 /**
  * 网关自己就是那唯一一处实现，不计入。
  * `safe-file-store.ts`（P0）是写入侧的网关：按路径排队 + 跨进程锁，落盘仍委托 `config-atomic-write.ts`。
+ * `runtime-fs.ts`（P2）是外部运行时 home 的网关：原子写 0600、拒绝穿透软链写、读只读普通文件（命名管道挂不住）；
+ * 各适配器只产出「要写哪些文件」的数据，由它落盘。
  */
-const GATEWAY_FILES = new Set(['openclaw-config.ts', 'config-atomic-write.ts', 'safe-file-store.ts']);
+const GATEWAY_FILES = new Set(['openclaw-config.ts', 'config-atomic-write.ts', 'safe-file-store.ts', 'runtime-fs.ts']);
 
 /** 上一版只扫 `.ts`，于是一个 `src/x.js` 就完全隐形。 */
 const SCANNED_EXT = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs'];

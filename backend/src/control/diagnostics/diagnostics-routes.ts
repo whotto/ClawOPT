@@ -10,12 +10,13 @@ import {
   readOpenClawConfigSafe,
   sanitizeErrorDetail,
 } from '../../openclaw';
-import { checkRuntimeInvariants, resolveBinaryOnPath } from '../../runtime';
+import { checkRuntimeInvariants, resolveBinaryOnPath, type RuntimePlatform } from '../../runtime';
 import { buildDiagnosticsReport } from './diagnostics';
 
 export type DiagnosticsRoutesDeps = {
   db: DB;
   rooms: RoomEngine;
+  runtimePlatform: Pick<RuntimePlatform, 'manager'>;
 };
 
 export function registerDiagnosticsRoutes(app: RouteApp, ctx: DiagnosticsRoutesDeps): void {
@@ -47,7 +48,16 @@ export function registerDiagnosticsRoutes(app: RouteApp, ctx: DiagnosticsRoutesD
         // 探不到就让它以 available:false 出现在报告里，不牵连其余几块。
       }
 
+      // 主机能力：探测失败不牵连其余几块（报告里标 available:false）。
+      let host: Awaited<ReturnType<typeof ctx.runtimePlatform.manager.hostCapabilities>> | null = null;
+      try {
+        host = await ctx.runtimePlatform.manager.hostCapabilities();
+      } catch {
+        host = null;
+      }
+
       res.json(buildDiagnosticsReport({
+        hostCapabilities: () => host,
         readConfig: () => readOpenClawConfigSafe(),
         detectEngineVersion: () => detectOpenClawVersion(),
         gatewayStatus: () => gateway,

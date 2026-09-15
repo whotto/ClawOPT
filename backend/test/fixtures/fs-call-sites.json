@@ -275,6 +275,16 @@
     "context": "target.targetPath"
   },
   {
+    "file": "runtime/platform-store.ts",
+    "call": "readFileSync",
+    "context": "filePath"
+  },
+  {
+    "file": "runtime/adapters/_shared/session-state.ts",
+    "call": "writeFile",
+    "context": "path.join"
+  },
+  {
     "file": "workspace/files/file-routes.ts",
     "call": "readFileSync",
     "context": "servedPath"

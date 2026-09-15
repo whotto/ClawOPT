@@ -8,23 +8,23 @@
  * - 表面 `workflow` 不建单聊会话、不进群，所以不出现在任何聊天列表里；转录（提示词、工具调用、用量、输出）
  *   由工作流运行面板按会话键读，运行中的增量走 `/ws` 的 `session:workflow:<sessionId>` 主题。
  * - 适配器只翻译：OpenClaw 用网关单聊适配器（会话键 `agent:<id>:workflow:<sessionId>`，与用户单聊互不干扰，
- *   专用网关连接 `workflow:<sessionId>`，结束即断开）；外部运行时用各自的契约适配器（目前 claude-code）。
+ *   专用网关连接 `workflow:<sessionId>`，结束即断开）；外部运行时从运行时平台的适配器登记处取（七个编码类运行时），
+ *   运行时 home 归属是 `{kind: workflow-node, workflowId, nodeId}`（看板派活是 `kanban` / 任务 id），删工作流 / 任务时回收。
  * - 审批：提交时带 `autoApprove`，协调器在请求排到队首时自动答「允许一次」/ 拒绝。**今天两个适配器都不发审批请求**：
  *   OpenClaw 的执行审批由网关自己的配置决定；Claude Code headless 用 `--permission-prompts none`（需要询问的工具一律拒绝）。
  *   将来声明了 `approvals` 能力的运行时自动生效，不用改这里。
  * - 运行被删：`discardSessions` 删协调器会话行与工具调用（用量保留）。
- * - 超时：Runner 自己计时，到点经协调器中止（外部运行时同时把剩余时限交给执行器做硬超时）。
+ * - 超时：Runner 自己计时，到点经协调器中止（外部运行时的驱动另有无输出空闲超时）。
  */
 import fs from 'fs';
 
 import { assertRegularFile, type GatewayConnections, type OpenClawClient } from '../../openclaw';
-import {
-  createClaudeCodeRuntimeAdapter,
-  type AgentRuntimeAdapter,
-  type ExternalRunRequest,
-  type OpenClawChatRunRequest,
-  type RunCoordinator,
-  type RunTerminal,
+import type {
+  AgentRuntimeAdapter,
+  OpenClawChatRunRequest,
+  RunCoordinator,
+  RunTerminal,
+  RuntimeRunRequest,
 } from '../../runtime';
 import type { AgentRunRequest, AgentRunResult, ContentBlocks, WorkflowAgentRunner } from '../ports';
 
@@ -37,14 +37,6 @@ export function workflowSessionKey(sessionId: string): string {
 export function workflowAgentId(ref: { kind: string; id: string; runtime?: string }): string {
   return ref.kind === 'openclaw' ? ref.id : `ext:${ref.runtime ?? ref.id}:workflow`;
 }
-
-type ExternalAdapterFactory = () => AgentRuntimeAdapter<ExternalRunRequest>;
-
-const DEFAULT_EXTERNAL_ADAPTERS: Record<string, ExternalAdapterFactory> = {
-  'claude-code': () => createClaudeCodeRuntimeAdapter(),
-};
-
-export const supportedExternalRuntimes = () => Object.keys(DEFAULT_EXTERNAL_ADAPTERS);
 
 function blocksToText(blocks: ContentBlocks): string {
   const parts: string[] = [];
@@ -62,13 +54,11 @@ export type CoordinatorRunnerDeps = {
   connections: Map<string, OpenClawClient>;
   /** 协调器通用表的删除口（运行被删时清会话行与工具调用）。 */
   db: { deleteRunSessionData(sessionKey: string): void };
-  /** 测试注入；缺省 = 各运行时的契约适配器。 */
-  externalAdapters?: Record<string, ExternalAdapterFactory>;
+  /** 外部运行时适配器：运行时平台的登记处（没登记返回 null）。 */
+  runtimePlatform: { createAdapter(runtime: string): AgentRuntimeAdapter<RuntimeRunRequest> | null };
 };
 
 export function createCoordinatorRunner(deps: CoordinatorRunnerDeps): WorkflowAgentRunner {
-  const externalAdapters = deps.externalAdapters ?? DEFAULT_EXTERNAL_ADAPTERS;
-
   function openclawRequest(req: AgentRunRequest, connectionKey: string): OpenClawChatRunRequest {
     return {
       sessionId: `agent:${req.agentRef.id}:workflow:${req.sessionId}`,
@@ -111,20 +101,22 @@ export function createCoordinatorRunner(deps: CoordinatorRunnerDeps): WorkflowAg
     const connectionKey = `workflow:${req.sessionId}`;
 
     let adapter: AgentRuntimeAdapter<any>;
-    let request: OpenClawChatRunRequest | ExternalRunRequest;
+    let request: OpenClawChatRunRequest | RuntimeRunRequest;
     if (isOpenClaw) {
       adapter = deps.openclawAdapter;
       request = openclawRequest(req, connectionKey);
     } else {
-      const makeAdapter = externalAdapters[runtime];
-      if (!makeAdapter) return { ok: false, output: '', error: `runtime ${runtime} has no adapter`, sessionId: req.sessionId };
-      adapter = makeAdapter();
+      const external = deps.runtimePlatform.createAdapter(runtime);
+      if (!external) return { ok: false, output: '', error: `runtime ${runtime} has no adapter`, sessionId: req.sessionId };
+      adapter = external;
       request = {
-        sessionId: req.sessionId,
+        mode: 'global',
         prompt: blocksToText(req.input),
-        workingDir: req.workspace,
+        workspace: req.workspace,
+        owner: { kind: 'workflow-node', workflowId: req.owner?.workflowId ?? 'workflow', nodeId: req.owner?.nodeId ?? req.sessionId },
+        // 每个节点执行是一轮新会话：句柄就是节点会话 id，不续话。
+        sessionId: req.sessionId,
         resume: false,
-        timeoutMs: req.timeoutMs,
         ...(req.model ? { model: req.model } : {}),
       };
     }

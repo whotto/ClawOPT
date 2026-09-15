@@ -8,9 +8,10 @@
 export type ViewType = 'chat' | 'settings' | 'groups' | 'automation';
 // P5a 起设置页签分三区（团队 / 自动化 / 系统），控制面页面也挂在 `/settings/:tab` 下：
 // 共用同一个壳层与侧栏，深链形状不变，老书签照常可用。
+// P2：团队区的「Agent 运行时」页挂在 `/settings/runtimes`（每运行时配置页用查询串 `?runtime=<id>`，不改路径形状）。
 export type SettingsTab =
   | 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about'
-  | 'agents' | 'skills' | 'mcp' | 'users'
+  | 'agents' | 'skills' | 'mcp' | 'runtimes' | 'users'
   | 'cron'
   | 'channels' | 'plugins' | 'usage' | 'logs';
 /** 自动化区的页面：`/automation/workflows[/:id]`、`/automation/kanban`、`/automation/webhooks`。 */
@@ -25,7 +26,7 @@ function isAutomationSection(value: unknown): value is AutomationSection {
 
 export const SETTINGS_TABS: readonly SettingsTab[] = [
   'gateway', 'general', 'models', 'presets', 'commands', 'about',
-  'agents', 'skills', 'mcp', 'users',
+  'agents', 'skills', 'mcp', 'runtimes', 'users',
   'cron',
   'channels', 'plugins', 'usage', 'logs',
 ];

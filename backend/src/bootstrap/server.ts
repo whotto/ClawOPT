@@ -22,6 +22,16 @@ export async function startServer() {
   shutdown.installSignalHandlers();
 
   const ctx = createAppContext();
+  // 代理目标的加密恢复文件：重启前登记过、还在用的 CLI 配置里的令牌继续有效。
+  const restoredProxyTargets = ctx.providerProxy.restore();
+  if (restoredProxyTargets > 0) console.log(`[RuntimeProxy] restored ${restoredProxyTargets} proxy target(s)`);
+  // 运行时管理器：预热 PATH、自动升级调度（60 秒一拍）与运行时目录定期清扫；群或成员已不在的远程令牌删掉。
+  ctx.runtimePlatform.start();
+  try {
+    ctx.runtimePlatform.remoteSecrets.prune((groupId, agentId) => ctx.db.getGroupMembers(groupId).some((member) => member.agent_id === agentId));
+  } catch (error) {
+    console.warn(`[RuntimePlatform] remote member token prune skipped: ${(error as NodeJS.ErrnoException)?.code ?? 'Error'}`);
+  }
   readiness.markDbReady();
   runStartupSteps(ctx);
   ctx.preview.detectLibreOffice();
@@ -61,6 +71,10 @@ export async function startServer() {
   shutdown.register({
     name: 'realtime-websocket',
     close: () => realtimeServer.close(),
+  });
+  shutdown.register({
+    name: 'runtime-platform',
+    close: () => ctx.runtimePlatform.stop(),
   });
   shutdown.register({
     name: 'run-coordinator',

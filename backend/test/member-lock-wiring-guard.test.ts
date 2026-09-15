@@ -102,8 +102,9 @@ describe('外部成员必须真的被路由过去', () => {
     const body = src.slice(0, src.indexOf('\n  public async sendToAgent('));
     expect(body, '外部成员绕过了协调器：陈旧检查、中止、用量去重、工具调用落库全部失效')
       .toContain('requireRunCoordinator().submit(');
-    expect(body, '执行器又被直接调用了——它应当只作为适配器的注入项').not.toMatch(/await runner\(/);
-    expect(body).toContain('createClaudeCodeRuntimeAdapter({ executor: runner })');
+    expect(body, '执行器又被直接调用了——它应当只作为适配器的注入项').not.toMatch(/spawn\(|await runner\(|executor\(/);
+    // P2 起按 member.runtime 从适配器登记处取适配器（七个编码类运行时 + 远程 OpenClaw），不再写死 Claude Code。
+    expect(body).toContain('this.runtimeAdapters?.(runtime)');
   });
 
   it('群聊停止也中止协调器里的外部成员运行（否则停止按钮停不住外部 Agent）', () => {

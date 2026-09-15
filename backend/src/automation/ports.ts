@@ -44,6 +44,11 @@ export type AgentRunRequest = {
   signal: AbortSignal;
   /** 可选模型绑定（外部运行时）。导出工作流时丢弃。 */
   model?: string;
+  /**
+   * 这次运行的归属（外部运行时的运行时 home 按它定位与回收）：工作流节点是 `{工作流 id, 节点 id}`，
+   * 看板派活是 `{'kanban', 任务 id}`。
+   */
+  owner?: { workflowId: string; nodeId: string };
 };
 
 export type AgentRunResult = {
@@ -79,6 +84,9 @@ export type AgentDirectoryEntry = {
   available: boolean;
   reason?: string;
   skills: string[];
+  /** 外部运行时：支持的模式（global / scoped）与是否有真审批。 */
+  modes?: string[];
+  approvals?: boolean;
 };
 
 /** 附件引用（`/uploads/<name>`）→ 可读的绝对路径；不可服务时返回 null。 */

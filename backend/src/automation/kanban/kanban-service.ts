@@ -167,6 +167,7 @@ export function createKanbanService(deps: {
         result = await runner.runAndWait({
           sessionId, agentRef, input: [{ type: 'text', text: buildPrompt(task) }], workspace,
           timeoutMs: DISPATCH_TIMEOUT_MS, autoApprove: 'once', signal: controller.signal,
+          owner: { workflowId: 'kanban', nodeId: taskId },
         });
       } catch (error) {
         result = { ok: false, output: '', error: (error as Error)?.message ?? 'dispatch failed', sessionId };

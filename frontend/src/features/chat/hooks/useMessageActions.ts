@@ -11,7 +11,7 @@ import { getRealtimeClient } from '../../../api/ws';
 import { readChatStreamTransport } from '../../../utils/chatStreamTransport';
 import { openChatTurnStream } from '../lib/chatStream';
 import {
-  isPersistedMessageId, mapStreamingErrorUpdate, mapHttpErrorResponse,
+  isPersistedMessageId, mapStreamingContentPatch, mapStreamingErrorUpdate, mapHttpErrorResponse,
   createClientStructuredChatError, resolveSubmitError,
 } from '../lib/messageMapping';
 import type { ChatViewState } from './useChatViewState';
@@ -277,22 +277,7 @@ export function useMessageActions(c: MessageActionsContext) {
               if (evt.type === 'final') {
                 receivedFinal = true;
               }
-              const patch: Partial<ChatMessage> = {
-                content: typeof evt.text === 'string' ? evt.text : '',
-              };
-              if (typeof evt.process_content === 'string') {
-                patch.processContent = evt.process_content;
-              }
-              if (typeof evt.process_streaming === 'boolean') {
-                patch.processStreaming = evt.process_streaming;
-              } else if (evt.type === 'final') {
-                patch.processStreaming = false;
-              }
-              if (typeof evt.modelUsed === 'string') {
-                patch.model = evt.modelUsed;
-              } else if (typeof evt.model_used === 'string') {
-                patch.model = evt.model_used;
-              }
+              const patch = mapStreamingContentPatch(evt);
               queueAssistantPatch(patch, evt.type === 'final');
             } else if (evt.type === 'error') {
               receivedError = true;

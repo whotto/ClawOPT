@@ -1,7 +1,7 @@
 import { buildStructuredApiError, type RouteApp } from '../core/http';
 import { sanitizeErrorDetail } from '../openclaw';
 import { resolveBinaryOnPath } from './binary-lookup';
-import { buildExternalRuntimeList } from './external-agents/registry';
+import { buildExternalRuntimeList } from './adapters/runtime-list';
 
 export function registerExternalRuntimeRoutes(app: RouteApp): void {
   /**

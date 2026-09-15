@@ -1,0 +1,21 @@
+$ /usr/local/bin/cli
+  "acp"
+  "--accept-hooks"
+cwd: /work/project
+stdin: pipe
+env:
+  CLAWOPT_HERMES_API_KEY=clawopt_proxy_token_abcdefghijkl
+  CLAWOPT_HERMES_BASE_URL=http://127.0.0.1:3150/api/claude-code-proxy/route_1
+  CLAWOPT_HERMES_MODEL=deepseek-v4
+  HERMES_HOME=/data/clawopt/runtime/hermes/b3397cd3250ad131c8afbeca/hermes-home
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  PATH=/usr/local/bin:/usr/bin:/bin
+
+--- /data/clawopt/runtime/hermes/b3397cd3250ad131c8afbeca/hermes-home/config.yaml (600)
+model:
+  provider: custom
+  default: ${CLAWOPT_HERMES_MODEL}
+  base_url: ${CLAWOPT_HERMES_BASE_URL}
+  api_key: ${CLAWOPT_HERMES_API_KEY}
+  api_mode: anthropic_messages

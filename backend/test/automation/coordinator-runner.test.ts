@@ -54,7 +54,7 @@ function setup(options: { onStart?: (controls: RunControls) => void; approvals?:
     },
     connections: new Map(),
     db: { deleteRunSessionData: (key) => { deletedSessions.push(key); } },
-    externalAdapters: { 'claude-code': () => external.adapter },
+    runtimePlatform: { createAdapter: (runtime) => (runtime === 'claude-code' ? external.adapter as any : null) },
   });
   const request = (overrides: Partial<AgentRunRequest> = {}): AgentRunRequest => ({
     sessionId: 'sess-1',
@@ -90,7 +90,10 @@ describe('协调器版 WorkflowAgentRunner', () => {
     expect(execution).toMatchObject({ status: 'completed', outputText: 'ok' });
     const sessionKey = workflowSessionKey(execution.sessionId!);
     expect(t.store.calls).toEqual([`ensure:${sessionKey}`, `ended:${sessionKey}:complete`]);
-    expect(t.external.runs[0].context.request).toMatchObject({ sessionId: execution.sessionId, prompt: expect.stringContaining('reply ok'), workingDir: '/tmp/wf', resume: false });
+    expect(t.external.runs[0].context.request).toMatchObject({
+      sessionId: execution.sessionId, prompt: expect.stringContaining('reply ok'), workspace: '/tmp/wf', resume: false, mode: 'global',
+      owner: { kind: 'workflow-node', workflowId: def.id, nodeId: 'a' },
+    });
     expect(t.realtime.filter((event) => event.topic === `session:${sessionKey}`).map((event) => event.type)).toEqual(['run.started', 'message.delta', 'run.completed']);
     expect(t.business.map((event) => event.type)).toEqual(['chat.run.started', 'chat.run.completed']);
     expect(t.business[1].payload).toMatchObject({ sessionId: sessionKey, surface: 'workflow', runtime: 'claude-code', text: 'ok' });
@@ -118,7 +121,6 @@ describe('协调器版 WorkflowAgentRunner', () => {
 
     const slow = setup();
     expect(await slow.runner.runAndWait(slow.request({ sessionId: 's-timeout', timeoutMs: 1 }))).toMatchObject({ ok: false, error: 'timeout', timedOut: true });
-    expect(slow.external.runs[0].context.request.timeoutMs).toBe(1);
 
     const empty = setup({ onStart: (run) => setTimeout(() => run.finish({ kind: 'completed', outputText: '  ' }), 1) });
     expect(await empty.runner.runAndWait(empty.request())).toMatchObject({ ok: false, error: 'no assistant text returned' });

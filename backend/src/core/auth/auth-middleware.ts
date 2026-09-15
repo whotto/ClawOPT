@@ -64,11 +64,18 @@ export const AUTH_PUBLIC_PATHS = new Set([
   '/api/hooks/workflows/:hookId',
   // 出站 Webhook 的本机回环测试收件箱：只收回环来源、HMAC 派生令牌常数时间比较。
   '/api/hooks/webhook-test/:token',
+  // 本地模型代理（P2，runtime/proxy）：调用方是 ClawOPT 自己拉起的外部 CLI（Claude Code、Codex……），
+  // 它们带不了登录 cookie，只拿得到代理签发的**每目标令牌**。安全性在处理器里：
+  // 未知 key 404、令牌（x-api-key 或 Bearer）常数时间比较不符 401；上游 key 只在服务端内存与加密恢复文件里。
+  '/api/runtime-proxy/anthropic/:key/v1/models',
+  '/api/runtime-proxy/anthropic/:key/v1/messages',
+  '/api/runtime-proxy/responses/:key/v1/models',
+  '/api/runtime-proxy/responses/:key/v1/responses',
 ]);
 
 /**
  * 请求路径是否命中公开白名单。条目里的 `:param` 只匹配**恰好一个非空段**——
- * `/api/hooks/workflows/x/extra` 与 `/api/hooks/workflowsX` 都不算公开。
+ * `/api/hooks/workflows/x/extra`、`/api/hooks/workflowsX` 与 `/api/runtime-proxy/anthropic/x/extra/v1/messages` 都不算公开。
  * 登记表（RouteRegistry）按路由模式原文比对同一个集合，所以条目必须与注册的路由模式逐字相同。
  */
 export function isAuthPublicPath(requestPath: string): boolean {

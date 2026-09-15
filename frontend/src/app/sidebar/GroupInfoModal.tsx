@@ -3,7 +3,7 @@ import { Edit2, RefreshCw, Share2, Trash2, X } from 'lucide-react';
 import type { SidebarProps } from './Sidebar';
 import { FavoriteButton } from './SidebarCards';
 import { resolveGroupMemberDisplayName as resolveMemberName } from './sidebarFormat';
-import type { SidebarFavoriteType } from './sidebarTypes';
+import { memberRuntimeDraftFields, type SidebarFavoriteType } from './sidebarTypes';
 import type { GroupDetailsState } from './useGroupDetails';
 import type { GroupEditorState } from './useGroupEditor';
 import type { useSidebarFavorites } from './useSidebarFavorites';
@@ -164,7 +164,8 @@ export default function GroupInfoModal({
                 viewingGroup.members?.map((m: any) => ({
                   agentId: m.agent_id,
                   displayName: resolveGroupMemberDisplayName(m),
-                  roleDescription: m.role_description || ''
+                  roleDescription: m.role_description || '',
+                  ...memberRuntimeDraftFields(m),
                 })) || []
               );
               setGroupSubmitError(null);

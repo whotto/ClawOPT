@@ -13,7 +13,7 @@
  *
  * ## 执行器可替换
  *
- * CLI 类适配器沿用「构造命令」与「执行命令」分离（external-agents/）：执行器由工厂注入，
+ * CLI 类适配器沿用「构造命令」与「执行命令」分离（adapters/_shared/cli-adapter.ts 与 process.ts）：执行器由工厂注入，
  * 本机子进程与将来的远程 relay 目标机是同一个接口，主机方案只是部署选项。
  */
 import type { ProxyMode, RuntimeCapabilities } from './capabilities';

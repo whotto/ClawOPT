@@ -5,7 +5,7 @@ import { getRealtimeClient } from '../../../api/ws';
 import { readChatStreamTransport } from '../../../utils/chatStreamTransport';
 import { openChatAttachStream } from '../lib/chatStream';
 import type { ChatMessage } from '../../../utils/message-merge';
-import { mapStreamingErrorUpdate, createClientStructuredChatError } from '../lib/messageMapping';
+import { mapStreamingContentPatch, mapStreamingErrorUpdate, createClientStructuredChatError } from '../lib/messageMapping';
 import type { ChatViewState } from './useChatViewState';
 import type { MessagePatchQueue } from './useMessagePatchQueue';
 import type { ChatHistoryFetch } from './useChatHistoryFetch';
@@ -111,22 +111,7 @@ export function useChatAttachRun(c: ChatAttachRunContext) {
               if (evt.type === 'final') {
                 receivedFinal = true;
               }
-              const patch: Partial<ChatMessage> = {
-                content: typeof evt.text === 'string' ? evt.text : '',
-              };
-              if (typeof evt.process_content === 'string') {
-                patch.processContent = evt.process_content;
-              }
-              if (typeof evt.process_streaming === 'boolean') {
-                patch.processStreaming = evt.process_streaming;
-              } else if (evt.type === 'final') {
-                patch.processStreaming = false;
-              }
-              if (typeof evt.modelUsed === 'string') {
-                patch.model = evt.modelUsed;
-              } else if (typeof evt.model_used === 'string') {
-                patch.model = evt.model_used;
-              }
+              const patch = mapStreamingContentPatch(evt);
               queueAttachedPatch(patch, evt.type === 'final');
             } else if (evt.type === 'error') {
               receivedError = true;

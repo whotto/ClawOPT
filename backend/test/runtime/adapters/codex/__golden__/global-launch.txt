@@ -1,0 +1,28 @@
+$ /usr/local/bin/cli
+  "exec"
+  "--json"
+  "-c"
+  "model_reasoning_summary=\"auto\""
+  "-c"
+  "model_reasoning_effort=\"high\""
+  "-c"
+  "developer_instructions=\"用中文回答\\n带 \\\"引号\\\"\""
+  "-c"
+  "mcp_servers.clawopt_api={ command = \"node\", args = [\"mcp.mjs\", \"api\"], env = { CLAWOPT_URL = \"http://127.0.0.1:3150\" }, startup_timeout_sec = 120 }"
+  "-c"
+  "mcp_servers.remote={ url = \"https://mcp.example/x\", http_headers = { X-Team = \"a\" }, startup_timeout_sec = 120 }"
+  "-m"
+  "gpt-6"
+  "--skip-git-repo-check"
+  "--dangerously-bypass-approvals-and-sandbox"
+  "--cd"
+  "/work/project"
+  "-"
+cwd: /work/project
+stdin: pipe
+env:
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  OPENAI_API_KEY=sk-user-openai-key-000000
+  PATH=/usr/local/bin:/usr/bin:/bin
+stdin-data: "reply with ok\n"

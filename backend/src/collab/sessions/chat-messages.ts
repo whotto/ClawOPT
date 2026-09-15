@@ -8,6 +8,7 @@ import {
   DEFAULT_HISTORY_PAGE_LIMIT,
   MAX_HISTORY_PAGE_LIMIT,
 } from './chat-constants';
+import { parseCommandResultContent } from './chat-command-result';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionRuntime } from './session-runtime';
 
@@ -69,6 +70,19 @@ export function buildStructuredChatErrorStreamEvent(structuredError: ReturnType<
 }
 
 function getStructuredChatMessage(content?: string | null) {
+  // 外部运行时的会话命令结果（`⌘ ` + JSON）：同一条结构化通道，界面按码本地化。
+  const commandResult = parseCommandResultContent(content);
+  if (commandResult) {
+    return {
+      messageCode: commandResult.messageCode,
+      messageParams: commandResult.messageParams as StructuredMessageParams | undefined,
+      rawDetail: commandResult.rawDetail ?? null,
+      displayContent: commandResult.fallbackText,
+      role: 'system' as const,
+      agent_id: undefined,
+      agent_name: undefined,
+    };
+  }
   if (!content || !content.startsWith(CHAT_RUN_ERROR_PREFIX)) return {};
 
   const detail = content.slice(CHAT_RUN_ERROR_PREFIX.length).trim();
@@ -139,7 +153,7 @@ export function createChatMessages(ctx: ChatMessagesDeps) {
     const structured = getStructuredChatMessage(content);
     return {
       ...message,
-      content,
+      content: 'displayContent' in structured && structured.displayContent ? structured.displayContent : content,
       process_content: processContent,
       process_streaming: structured.messageCode ? false : processStreaming,
       role: structured.role ?? message.role,

@@ -14,6 +14,7 @@
  * 顺序错了 TypeScript 会在 `createXxx({ ...ctx })` 那一行报缺字段。
  */
 import fs from 'fs';
+import path from 'path';
 
 import { AuthStore, createAuthMiddleware, createResourceAccess, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
 import { ConfigManager } from '../core/config';
@@ -49,8 +50,9 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
-import { createOpenClawRuntimeAdapter, RunCoordinator } from '../runtime';
+import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
+import { createScopedProviderResolver } from './scoped-provider-resolver';
 import {
   createChatCommands,
   createChatLifecycle,
@@ -110,6 +112,37 @@ export function createAppContext() {
   /** OpenClaw 网关运行时适配器（单聊）。无状态，整个进程一个。 */
   const openclawAdapter = createOpenClawRuntimeAdapter();
 
+  /** 本地模型代理（P2）：scoped 模式下外部 CLI 只拿代理令牌，上游 key 留在服务端。 */
+  const providerProxy = createProviderProxy({
+    publicBaseUrl: () => `http://127.0.0.1:${Number(process.env.PORT) || 3100}`,
+    dataDir: defaultRuntimeDataDir(),
+  });
+
+  /**
+   * 外部运行时底座（P2）：运行时管理器（安装 / 升级锁 / PATH 发现 / 运行时目录回收）、MCP 注入、
+   * 适配器登记、远程 OpenClaw 成员令牌。忙闲判据与卸载后停运行都接到协调器。
+   */
+  const runtimePlatform = createRuntimePlatform({
+    dataDir: defaultRuntimeDataDir(),
+    proxy: providerProxy,
+    // scoped 的上游：成员 / 会话配置里只有模型 id，地址与 key 在服务端从 ClawOPT 的模型配置取，只交给代理。
+    resolveScopedProvider: createScopedProviderResolver(agentProvisioner),
+    isRuntimeBusy: (runtime) => runCoordinator.activeRuns().some((run) => run.runtime === runtime),
+    stopRuntimeRuns: async (runtime) => {
+      await Promise.all(runCoordinator.activeRuns()
+        .filter((run) => run.runtime === runtime)
+        .map((run) => runCoordinator.abort(run.sessionKey, 'user_stop')));
+    },
+  });
+  // 运行时目录定期清扫的判据：归属还在，而且还在用这个运行时（成员换了运行时，旧运行时的目录算孤儿）。
+  runtimePlatform.manager.homeOwnerExists = (owner, runtime) => {
+    if (owner.kind === 'session') return Boolean(db.getSession(owner.sessionId));
+    if (owner.kind === 'room-member') {
+      return db.getGroupMembers(owner.groupId).some((member) => member.id === owner.memberId && member.runtime === runtime);
+    }
+    return true;
+  };
+
   const base = {
     db,
     configManager,
@@ -122,6 +155,8 @@ export function createAppContext() {
     realtime,
     runCoordinator,
     openclawAdapter,
+    providerProxy,
+    runtimePlatform,
   };
 
   const gatewayService = createGatewayService(base);

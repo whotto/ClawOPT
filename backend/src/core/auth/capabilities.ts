@@ -25,6 +25,8 @@ export const CAPABILITY_RULES: readonly CapabilityRule[] = [
   { id: 'settings.presets', minRole: 'admin', route: 'POST /api/presets/:presetId/install' },
   { id: 'settings.skills', minRole: 'admin', route: 'POST /api/skills/install' },
   { id: 'settings.mcp', minRole: 'admin', route: 'PUT /api/mcp/servers/:name' },
+  // Agent 运行时管理（安装 / 升级 / 原生配置 / MCP / 运行时目录）：全部管理员。
+  { id: 'settings.runtimes', minRole: 'admin', route: 'GET /api/runtime/runtimes' },
   // 自动化
   { id: 'settings.cron', minRole: 'admin', route: 'POST /api/cron/jobs' },
   { id: 'automation.workflows', minRole: 'member', route: 'GET /api/workflows' },

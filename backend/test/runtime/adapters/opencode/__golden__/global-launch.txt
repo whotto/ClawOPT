@@ -1,0 +1,27 @@
+$ /usr/local/bin/cli
+  "run"
+  "--format"
+  "json"
+  "--auto"
+  "--thinking"
+  "-m"
+  "anthropic/claude-sonnet-5"
+  "--variant"
+  "high"
+  "--file"
+  "/tmp/shot.png"
+cwd: /work/project
+stdin: pipe
+env:
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  OPENAI_API_KEY=sk-user-openai-key-000000
+  OPENCODE_CONFIG_CONTENT={"$schema":"https://opencode.ai/config.json","autoupdate":false,"share":"disabled","instructions":["/data/clawopt/runtime/opencode/b3397cd3250ad131c8afbeca/clawopt-rules.md"],"permission":{"*":"allow"}}
+  OPENCODE_DISABLE_AUTOUPDATE=1
+  PATH=/usr/local/bin:/usr/bin:/bin
+stdin-data: "reply with ok"
+
+--- /data/clawopt/runtime/opencode/b3397cd3250ad131c8afbeca/clawopt-rules.md (600)
+<!-- BEGIN CLAWOPT PROMPT -->
+规则
+<!-- END CLAWOPT PROMPT -->

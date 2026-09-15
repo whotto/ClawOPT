@@ -10,6 +10,9 @@ interface CreateSessionOptions {
   runtime_mode?: AgentRuntimeMode;
   system_prompt_mode?: AgentSystemPromptMode;
   tool_mode?: AgentToolMode;
+  external_runtime?: string | null;
+  external_config?: string | null;
+  external_session_id?: string | null;
 }
 
 export class SessionManager extends EventEmitter {
@@ -61,6 +64,10 @@ export class SessionManager extends EventEmitter {
       runtime_mode: options.runtime_mode || 'configured',
       system_prompt_mode: options.system_prompt_mode || 'system',
       tool_mode: options.tool_mode || 'full',
+      external_runtime: options.external_runtime ?? null,
+      external_config: options.external_config ?? null,
+      external_session_id: options.external_session_id ?? null,
+      external_session_resumable: 0,
     };
     
     this.db.saveSession(session);

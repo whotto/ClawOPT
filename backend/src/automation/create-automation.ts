@@ -15,7 +15,7 @@ import { resolveServablePath } from '../core/files';
 import { uploadDir, workflowWorkspacesDir } from '../core/paths';
 import type { RealtimeHub } from '../core/realtime';
 import type { GatewayConnections, OpenClawClient } from '../openclaw';
-import type { AgentRuntimeAdapter, OpenClawChatRunRequest, RunCoordinator } from '../runtime';
+import { resolveBinaryOnPath, type AgentRuntimeAdapter, type OpenClawChatRunRequest, type RunCoordinator, type RuntimePlatform } from '../runtime';
 import { createKanbanService } from './kanban/kanban-service';
 import { createKanbanStore } from './kanban/kanban-store';
 import { createInboundHooks } from './hooks/inbound-hooks';
@@ -45,6 +45,8 @@ export type AutomationDeps = {
   connections: Map<string, OpenClawClient>;
   runCoordinator: RunCoordinator;
   openclawAdapter: AgentRuntimeAdapter<OpenClawChatRunRequest>;
+  /** 外部运行时：适配器登记处（节点名册与 Runner 共用）、管理器（本机检测）、运行时目录回收。 */
+  runtimePlatform: Pick<RuntimePlatform, 'createAdapter' | 'registry' | 'manager' | 'releaseOwner'>;
   events: EventBus;
   /** 实时中枢：工作流状态流走 `workflow:<id>` 主题。 */
   realtime: Pick<RealtimeHub, 'publish' | 'hasSubscribers'>;
@@ -72,6 +74,26 @@ export function createAutomation(deps: AutomationDeps) {
   const directory = createAgentDirectory({
     sessionManager: deps.sessionManager,
     workspacePathFor: (agentId) => deps.agentProvisioner.getWorkspacePath(agentId),
+    runtimes: {
+      list: () => deps.runtimePlatform.registry.list()
+        .filter((entry) => (entry.descriptor.kind ?? 'cli') !== 'remote')
+        .map((entry) => ({
+          id: entry.descriptor.id,
+          name: entry.descriptor.name,
+          modes: entry.capabilities?.proxyMode ?? [],
+          approvals: Boolean(entry.capabilities?.approvals),
+        })),
+      // 管理器检测过就信它（扩充 PATH）；还没检测过（刚启动）先沿当前 PATH 找命令，名册接口会刷新缓存。
+      installed: (id) => {
+        const cached = deps.runtimePlatform.manager.cachedStatus(id);
+        if (cached) return cached.installed;
+        const command = deps.runtimePlatform.registry.get(id)?.descriptor.command;
+        return Boolean(command && resolveBinaryOnPath(command));
+      },
+      refresh: async () => {
+        await Promise.all(deps.runtimePlatform.registry.list().map((entry) => deps.runtimePlatform.manager.status(entry.descriptor.id).catch(() => null)));
+      },
+    },
     fakeRunner,
   });
   const runner = deps.runner ?? (fakeRunner ? createFakeRunner() : createCoordinatorRunner(deps));

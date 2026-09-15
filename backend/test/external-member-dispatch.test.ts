@@ -23,10 +23,17 @@ import { NON_RESUMABLE_EXTERNAL_SESSION_STATUSES as NON_RESUMABLE } from '../src
 import { RealtimeHub } from '../src/core/realtime';
 import { RunCoordinator } from '../src/runtime/coordinator';
 import { MemoryRunStore } from './helpers/scripted-adapter';
+import { createClaudeCodeAdapter, CLAUDE_CODE_CAPABILITIES, CLAUDE_CODE_DESCRIPTOR, CLAUDE_CODE_SOURCE_OF_TRUTH } from '../src/runtime/adapters/claude-code';
+import type { AdapterRunOutcome } from '../src/runtime/contract';
+import { harness, homeFor, MemoryFs } from './runtime/adapters/_helpers/harness';
+
+/** 同一个引擎的几轮共用一份内存文件系统（运行时 home 里的续话状态要跨轮次留着）。 */
+let sharedFs = new MemoryFs();
 
 type Emitted = { event: string; payload: any };
 
 function makeEngine(overrides: Record<string, any> = {}) {
+  sharedFs = new MemoryFs();
   const engine: any = Object.create(GroupChatEngine.prototype);
   const emitted: Emitted[] = [];
   const sessions = new Map<string, { session_id: string; status: string; last_error: string | null }>();
@@ -86,23 +93,45 @@ const member = (over: Record<string, any> = {}) => ({
   ...over,
 });
 
-/** 一个假的执行器：记录收到的请求，按脚本回放事件。 */
+/**
+ * 一个假的 Claude Code：真的 Claude Code 适配器 + 脚本化进程（按 stream-json 回放）。
+ * calls 记下每次起进程的参数、工作目录与写进 stdin 的 prompt。
+ */
 function fakeRunner(script: { ok: boolean; deltas?: string[]; finalText?: string; errorDetail?: string }) {
   const calls: any[] = [];
-  const runner = async (built: any, _adapter: any, opts: any) => {
-    calls.push(built);
-    for (const text of script.deltas ?? []) opts.onEvent({ kind: 'delta', text });
-    if (script.ok) opts.onEvent({ kind: 'final', text: script.finalText, sessionId: 'ignored' });
-    return {
-      ok: script.ok,
-      finalText: script.finalText,
-      exitCode: script.ok ? 0 : 1,
-      aborted: false,
-      timedOut: false,
-      errorDetail: script.errorDetail,
-    };
+  const h = harness({
+    executorOptions: {
+      onLaunch: (proc) => {
+        calls.push({ args: proc.spec.args, cwd: proc.spec.cwd, get stdinData() { return proc.stdin; } });
+        setImmediate(() => {
+          const sessionId = proc.spec.args[proc.spec.args.indexOf('--session-id') + 1] ?? proc.spec.args[proc.spec.args.indexOf('--resume') + 1];
+          for (const text of script.deltas ?? []) {
+            proc.line({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }, session_id: sessionId });
+          }
+          if (script.ok) {
+            proc.line({ type: 'result', subtype: 'success', is_error: false, result: script.finalText, session_id: sessionId, uuid: 'r1' });
+            proc.close(0);
+          } else {
+            proc.stderr(`${script.errorDetail ?? 'error'}\n`);
+            proc.close(1);
+          }
+        });
+      },
+    },
+  });
+  h.deps.fs = sharedFs;
+  return { runner: createClaudeCodeAdapter(h.deps), calls };
+}
+
+/** 直接给出结局的适配器替身（中止、空闲超时这类用脚本化进程不好造的结局）。 */
+function outcomeAdapter(outcome: AdapterRunOutcome) {
+  return {
+    id: 'claude-code',
+    descriptor: CLAUDE_CODE_DESCRIPTOR,
+    capabilities: CLAUDE_CODE_CAPABILITIES,
+    sourceOfTruth: CLAUDE_CODE_SOURCE_OF_TRUTH,
+    start: () => ({ done: Promise.resolve(outcome), interrupt: async () => ({ synced: true }), status: () => ({ phase: 'finished' as const }) }),
   };
-  return { runner, calls };
 }
 
 describe('sender_id 命名空间', () => {
@@ -170,13 +199,41 @@ describe('会话生命周期', () => {
   });
 
   it('中断与超时各自记成不同的状态，不都塞成 failed', async () => {
-    for (const [flag, expected] of [['aborted', 'cancelled'], ['timedOut', 'hard_timeout']] as const) {
+    const cases: Array<[AdapterRunOutcome, string]> = [
+      [{ kind: 'aborted', reason: 'user_stop', synced: true, phase: 'running' }, 'cancelled'],
+      [{ kind: 'failed', error: 'no output for 1800 s', code: 'runtime.sessionClosed', stopReason: 'idle_timeout' }, 'idle_timeout'],
+      [{ kind: 'failed', error: 'hard', stopReason: 'hard_timeout' }, 'hard_timeout'],
+    ];
+    for (const [outcome, expected] of cases) {
       const engine = makeEngine();
       engine.db.setExternalSession('g1', 'm1', 'uuid');
-      const runner = async () => ({ ok: false, exitCode: null, aborted: flag === 'aborted', timedOut: flag === 'timedOut', errorDetail: flag });
-      await runExternal(engine, member(), runner as any);
-      expect(engine.db.getExternalSessionRow('g1', 'm1').status, `${flag} 被记成了别的状态`).toBe(expected);
+      await runExternal(engine, member(), outcomeAdapter(outcome));
+      expect(engine.db.getExternalSessionRow('g1', 'm1').status, `${outcome.kind} 被记成了别的状态`).toBe(expected);
     }
+  });
+
+  it('成员选了 scoped：请求模式与协调器提交的 proxyMode 都是 scoped（用量才会按仲裁表只信代理），成员配置随请求带给解析器', async () => {
+    // 集成 P2 真机：不传 proxyMode 时 scoped 成员的用量记成了 CLI 的估计值（input 0、model 空），代理的真实计费被仲裁丢掉。
+    const engine = makeEngine();
+    const seen: any[] = [];
+    const adapter = {
+      ...outcomeAdapter({ kind: 'completed', outputText: 'ok' }),
+      start: (context: any) => { seen.push(context); return { done: Promise.resolve({ kind: 'completed', outputText: 'ok' }), interrupt: async () => ({ synced: true }), status: () => ({ phase: 'finished' as const }) }; },
+    };
+    await runExternal(engine, member({ external_config: JSON.stringify({ mode: 'scoped', model: 'deepseek/deepseek-v4', workingDir: '/srv/app' }) }), adapter);
+    expect(seen[0].proxyMode).toBe('scoped');
+    expect(seen[0].request).toMatchObject({ mode: 'scoped', runtimeConfig: { model: 'deepseek/deepseek-v4' }, owner: { kind: 'room-member', groupId: 'g1', memberId: 'm1' } });
+    await runExternal(engine, member(), adapter);
+    expect(seen[1].proxyMode).toBe('global');
+  });
+
+  it('库里的运行时没有对应适配器：消息里说清楚，不假装在跑', async () => {
+    const engine = makeEngine();
+    engine.useRuntimeAdapters(() => null);
+    await runExternal(engine, member({ runtime: 'no-such-runtime' }), undefined);
+    const [, content] = (engine.db.updateGroupMessage as any).mock.calls.at(-1);
+    expect(String(content)).toContain('runtime.unknown');
+    expect(engine.emitted.some((e: Emitted) => e.event === 'typing_done')).toBe(true);
   });
 });
 
@@ -434,20 +491,28 @@ describe('链式转发：外部 → 其他成员', () => {
  * 行为本身（帧、落库、续话、转发）由上面那些迁移前就有的用例守着。
  */
 describe('外部成员经运行协调器', () => {
+  /** 真的 Claude Code 适配器 + 由用例手动驱动的脚本化进程。 */
+  function manualAdapter() {
+    const h = harness({ executorOptions: { closeOnTerminate: false } });
+    h.deps.fs = sharedFs;
+    return { h, adapter: createClaudeCodeAdapter(h.deps) };
+  }
+
   it('会话键按 (群, 成员)，终态后写结束标记；result 的整轮用量按确定性 id 记一次；工具调用与结果成组落库', async () => {
     const engine = makeEngine();
-    const runner = async (_built: any, _parser: any, opts: any) => {
-      opts.onEvent({ kind: 'init', model: 'claude-sonnet-5', sessionId: 'sid-1', raw: { type: 'system', subtype: 'init' } });
-      opts.onEvent({ kind: 'progress', sessionId: 'sid-1', raw: { type: 'assistant', message: { id: 'msg_1', content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { path: 'a.ts' } }] } } });
-      opts.onEvent({ kind: 'unknown', sessionId: 'sid-1', raw: { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'body' }] }] } } });
-      opts.onEvent({ kind: 'delta', text: 'done', sessionId: 'sid-1', raw: { type: 'assistant', message: { id: 'msg_2', content: [{ type: 'text', text: 'done' }] } } });
-      const result = { type: 'result', subtype: 'success', result: 'done', session_id: 'sid-1', uuid: 'res-1', total_cost_usd: 0.01, usage: { input_tokens: 12, output_tokens: 3, cache_read_input_tokens: 100, cache_creation_input_tokens: 7 } };
-      // 同一个 result 重放两次：用量只能记一次。
-      opts.onEvent({ kind: 'final', text: 'done', sessionId: 'sid-1', costUsd: 0.01, raw: result });
-      opts.onEvent({ kind: 'final', text: 'done', sessionId: 'sid-1', costUsd: 0.01, raw: result });
-      return { ok: true, finalText: 'done', exitCode: 0, aborted: false, timedOut: false };
-    };
-    await runExternal(engine, member(), runner);
+    const { h, adapter } = manualAdapter();
+    const running = runExternal(engine, member(), adapter);
+    const proc = await h.exec.next();
+    proc.line({ type: 'system', subtype: 'init', model: 'claude-sonnet-5', session_id: 'sid-1' });
+    proc.line({ type: 'assistant', message: { id: 'msg_1', content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { path: 'a.ts' } }] }, session_id: 'sid-1' });
+    proc.line({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'body' }] }] }, session_id: 'sid-1' });
+    proc.line({ type: 'assistant', message: { id: 'msg_2', content: [{ type: 'text', text: 'done' }] }, session_id: 'sid-1' });
+    const result = { type: 'result', subtype: 'success', is_error: false, result: 'done', session_id: 'sid-1', uuid: 'res-1', total_cost_usd: 0.01, usage: { input_tokens: 12, output_tokens: 3, cache_read_input_tokens: 100, cache_creation_input_tokens: 7 } };
+    // 同一个 result 重放两次：用量只能记一次。
+    proc.line(result);
+    proc.line(result);
+    proc.close(0);
+    await running;
 
     const store: MemoryRunStore = engine.runStore;
     expect(store.calls[0]).toBe('ensure:room:g1:member:m1');
@@ -461,26 +526,28 @@ describe('外部成员经运行协调器', () => {
       [['toolu_1', 'Read', 'body', 'completed']],
     ]);
     expect(engine.db.setGroupMessageRunMarker).toHaveBeenCalledWith(101, expect.stringMatching(/^run-/));
+    // 运行时 home 按 (群, 成员) 稳定
+    expect(proc.spec.args.join(' ')).not.toContain('--append-system-prompt-file');
+    expect([...sharedFs.dirs].some((dir) => dir === homeFor('claude-code', { kind: 'room-member', groupId: 'g1', memberId: 'm1', agentId: 'lead-engineer' }))).toBe(true);
   });
 
-  it('群聊停止经协调器中止外部成员：执行器收到 abort 信号，会话记成 cancelled，消息写明原因', async () => {
+  it('群聊停止经协调器中止外部成员：进程组被停下，等 close 才收尾，会话记成 cancelled，消息写明原因', async () => {
     const engine = makeEngine();
     engine.db.setExternalSession('g1', 'm1', 'uuid-1');
-    let sawSignal: AbortSignal | undefined;
-    const runner = (_built: any, _parser: any, opts: any) => new Promise<any>((resolve) => {
-      sawSignal = opts.signal;
-      opts.onEvent({ kind: 'delta', text: '做到一半' });
-      opts.signal.addEventListener('abort', () => resolve({ ok: false, exitCode: null, aborted: true, timedOut: false, errorDetail: 'aborted' }));
-    });
-    const running = runExternal(engine, member(), runner);
-    await new Promise((resolve) => setImmediate(resolve));
+    const { h, adapter } = manualAdapter();
+    const running = runExternal(engine, member(), adapter);
+    const proc = await h.exec.next();
+    proc.line({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '做到一半' } }, session_id: 'uuid-1' });
     const coordinator = engine.runCoordinator as RunCoordinator;
     expect(coordinator.getActiveRun('room:g1:member:m1')?.agentId).toBe('ext:claude-code:lead-engineer');
 
-    const results = await coordinator.abortTopic('room:g1', 'user_stop');
+    const aborting = coordinator.abortTopic('room:g1', 'user_stop');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(proc.terminateCalls, '中止没有停进程组').toBeGreaterThan(0);
+    proc.close(null, 'SIGINT');
+    const results = await aborting;
     await running;
     expect(results).toMatchObject([{ aborted: true, synced: true, ignored: false }]);
-    expect(sawSignal?.aborted).toBe(true);
     expect(engine.db.getExternalSessionRow('g1', 'm1').status).toBe('cancelled');
     const [, content] = (engine.db.updateGroupMessage as any).mock.calls.at(-1);
     expect(content).toBe('Lead Engineer 执行失败（aborted）');
