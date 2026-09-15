@@ -93,3 +93,12 @@ export type {
   SummaryModelRunner,
   SummaryState,
 } from './room-summary';
+export { applyRoomSchema } from './room-schema';
+export { RELAY_RUNTIME_ID, isRelayMember } from './room-access';
+export type { RoomAccess } from './room-access';
+export type { RoomActor, RoomPolicy } from './room-policy';
+export type { RoomRelayPort } from './room-collab';
+export { WorkspaceFiles, WorkspacePathError, sha256 as workspaceSha256 } from './room-workspace';
+export { AttachmentError } from './room-attachments';
+export { RELAY_OUTCOME_UNKNOWN_CODE } from './handoff-dispatcher';
+export { externalMemberSessionKey } from './external-member-run';

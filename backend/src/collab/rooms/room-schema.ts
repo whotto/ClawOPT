@@ -281,6 +281,9 @@ const COLUMNS: Array<[table: string, column: string, ddl: string]> = [
   ['group_members', 'owner_guest_id', 'TEXT'],
   ['group_members', 'connector_id', 'TEXT'],
   ['group_members', 'description', "TEXT NOT NULL DEFAULT ''"],
+  // 远程 Agent：配对时 host 对 target 暴露的根地址（远程工作区令牌接口按它拼）
+  ['room_relay_pairings', 'host_base_url', "TEXT NOT NULL DEFAULT ''"],
+  ['room_relay_connectors', 'host_base_url', "TEXT NOT NULL DEFAULT ''"],
 ];
 
 function hasColumn(conn: Database.Database, table: string, column: string): boolean {

@@ -53,6 +53,12 @@ export type {
   SessionCommandResult,
   SourceOfTruthTable,
   UsageReport,
+  ApprovalDecision,
+} from './contract';
+// P3：远程 Agent relay 的适配器住在 collab/relay（它要用群与连接状态），能力声明与仲裁表的构造函数经 barrel 取。
+export {
+  defineCapabilities,
+  NATIVE_ONLY_SOURCE_OF_TRUTH,
 } from './contract';
 export {
   RUN_APPROVALS_TOPIC,
