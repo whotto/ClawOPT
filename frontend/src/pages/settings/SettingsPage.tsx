@@ -13,6 +13,7 @@ import RestartModals from './modals/RestartModals';
 import SettingsErrorModal from './modals/SettingsErrorModal';
 import UpdateModals from './modals/UpdateModals';
 import PresetLibrary from './presets/PresetLibrary';
+import RuntimesPage from '../team/runtimes/RuntimesPage';
 import { useSettingsController } from './useSettingsController';
 
 /**
@@ -30,7 +31,9 @@ export default function SettingsPage() {
   });
   const { t, settingsTab, onMenuClick, onAgentsChanged } = ctx;
 
-  const headerTitle = settingsTab === 'gateway'
+  const headerTitle = settingsTab === 'runtimes'
+    ? t('settings.runtimes.headerTitle')
+    : settingsTab === 'gateway'
     ? t('settings.gateway.headerTitle')
     : settingsTab === 'general'
       ? t('settings.general.headerTitle')
@@ -55,7 +58,13 @@ export default function SettingsPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:p-8">
-        <div className="max-w-2xl mx-auto space-y-6 sm:space-y-8">
+        {/* Agent 运行时（P2）：卡片网格与配置编辑器需要更宽的版心，自己管状态，不经 useSettingsController。 */}
+        {settingsTab === 'runtimes' && (
+          <div className="max-w-6xl mx-auto">
+            <RuntimesPage />
+          </div>
+        )}
+        <div className={`max-w-2xl mx-auto space-y-6 sm:space-y-8 ${settingsTab === 'runtimes' ? 'hidden' : ''}`}>
 
           {/* Gateway Settings Tab */}
           {settingsTab === 'gateway' && (

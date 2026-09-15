@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
+import MemberRuntimeSection from './MemberRuntimeSection';
 import { resolveGroupMemberDisplayName as resolveMemberName } from './sidebarFormat';
 import {
   MODAL_EDITOR_TEXTAREA_CLASS,
@@ -22,7 +24,10 @@ export default function GroupEditorModal({ groupEditor, sessions }: { groupEdito
     groupSearchQuery, setGroupSearchQuery, toggleGroupMember, activeRoleTab, setActiveRoleTab,
     draggedAgentId, setDraggedAgentId, removeGroupMember, updateGroupMemberRole,
     groupSubmitError, handleCreateGroup, groupIdError,
+    updateGroupMemberRuntime, addRemoteGroupMember, memberRuntimes,
   } = groupEditor;
+  const [remoteMemberName, setRemoteMemberName] = useState('');
+  const remoteRuntimeAvailable = memberRuntimes.some((runtime) => runtime.kind === 'remote');
   const resolveGroupMemberDisplayName = (member: Parameters<typeof resolveMemberName>[0]) => resolveMemberName(member, sessions);
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -184,6 +189,24 @@ export default function GroupEditorModal({ groupEditor, sessions }: { groupEdito
               )}
             </div>
           </div>
+          {remoteRuntimeAvailable && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 -mt-2">
+              <input
+                value={remoteMemberName}
+                onChange={(e) => setRemoteMemberName(e.target.value)}
+                placeholder={t('remoteOpenclaw.addMemberPlaceholder')}
+                className={`${MODAL_TEXT_INPUT_CLASS} sm:max-w-xs`}
+              />
+              <button
+                type="button"
+                disabled={!remoteMemberName.trim()}
+                onClick={() => { addRemoteGroupMember(remoteMemberName); setRemoteMemberName(''); }}
+                className="h-10 px-4 inline-flex items-center justify-center gap-1.5 rounded-xl text-sm font-semibold text-blue-600 bg-white border border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" />{t('remoteOpenclaw.addMember')}
+              </button>
+            </div>
+          )}
           {selectedGroupMembers.length > 0 && (
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">
@@ -253,13 +276,23 @@ export default function GroupEditorModal({ groupEditor, sessions }: { groupEdito
                     const activeMember = selectedGroupMembers.find(m => m.agentId === activeRoleTab) || selectedGroupMembers[0];
                     if (!activeMember) return null;
                     return (
-                      <textarea
-                        key={activeMember.agentId}
-                        value={activeMember.roleDescription}
-                        onChange={e => updateGroupMemberRole(activeMember.agentId, e.target.value)}
-                        placeholder={t('chat.rolePlaceholder').replace('{{name}}', resolveGroupMemberDisplayName(activeMember))}
-                        className={MODAL_EDITOR_TEXTAREA_CLASS}
-                      />
+                      <>
+                        <textarea
+                          key={activeMember.agentId}
+                          value={activeMember.roleDescription}
+                          onChange={e => updateGroupMemberRole(activeMember.agentId, e.target.value)}
+                          placeholder={t('chat.rolePlaceholder').replace('{{name}}', resolveGroupMemberDisplayName(activeMember))}
+                          className={MODAL_EDITOR_TEXTAREA_CLASS}
+                        />
+                        {/* P2：成员运行时（OpenClaw / 本机外部 CLI / 远程 OpenClaw 网关上的 Agent） */}
+                        <MemberRuntimeSection
+                          key={`runtime-${activeMember.agentId}`}
+                          member={activeMember}
+                          runtimes={memberRuntimes}
+                          groupId={groupModalMode === 'edit' ? newGroupId : ''}
+                          onChange={(patch) => updateGroupMemberRuntime(activeMember.agentId, patch)}
+                        />
+                      </>
                     );
                   })()}
                 </div>

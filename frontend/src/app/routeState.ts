@@ -6,9 +6,10 @@
 // 这类书签由 legacyHashToPath 一次性换成新路径。
 
 export type ViewType = 'chat' | 'settings' | 'groups';
-export type SettingsTab = 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about';
+// P2：团队区的「Agent 运行时」页挂在 `/settings/runtimes`（每运行时配置页用查询串 `?runtime=<id>`，不改路径形状）。
+export type SettingsTab = 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about' | 'runtimes';
 
-const SETTINGS_TABS: readonly SettingsTab[] = ['gateway', 'general', 'models', 'presets', 'commands', 'about'];
+const SETTINGS_TABS: readonly SettingsTab[] = ['gateway', 'general', 'models', 'presets', 'commands', 'about', 'runtimes'];
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'gateway';
 
 export const LOGIN_PATH = '/login';

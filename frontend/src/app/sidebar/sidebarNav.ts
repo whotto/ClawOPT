@@ -1,4 +1,4 @@
-import { Boxes, Cpu, Info, Network, Settings, Terminal, type LucideIcon } from 'lucide-react';
+import { Bot, Boxes, Cpu, Info, Network, Settings, Terminal, type LucideIcon } from 'lucide-react';
 import type { SettingsTab } from '../routeState';
 
 /**
@@ -21,6 +21,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   { tab: 'general', icon: Settings, labelKey: 'sidebar.generalSettings', zone: 'system' },
   { tab: 'models', icon: Cpu, labelKey: 'sidebar.modelsManage', zone: 'system' },
   { tab: 'presets', icon: Boxes, labelKey: 'sidebar.presetLibrary', zone: 'team' },
+  { tab: 'runtimes', icon: Bot, labelKey: 'sidebar.runtimesManage', zone: 'team' },
   { tab: 'commands', icon: Terminal, labelKey: 'sidebar.quickCommands', zone: 'system' },
   { tab: 'about', icon: Info, labelKey: 'sidebar.about', zone: 'system' },
 ];

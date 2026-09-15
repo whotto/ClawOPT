@@ -57,7 +57,34 @@ export type AgentFormData = {
   fallbacks: string[];
 };
 
-export type GroupMemberDraft = { agentId: string; displayName: string; roleDescription: string };
+export type GroupMemberDraft = {
+  agentId: string;
+  displayName: string;
+  roleDescription: string;
+  /** P2：成员运行时（缺省 openclaw）与外部配置（不含密钥）。 */
+  runtime?: string;
+  externalConfig?: Record<string, unknown>;
+  /** 远程 OpenClaw 成员的令牌：只在草稿里，保存群之后经只写接口进加密存储，从不回显。 */
+  remoteToken?: string;
+  hasRemoteToken?: boolean;
+};
+
+/** 成员运行时选择器的一项（后端 GET /api/runtime/member-runtimes）。 */
+export type MemberRuntimeOption = { id: string; name: string; kind: 'cli' | 'remote'; available: boolean; version: string | null };
+
+/** 从群成员行（后端形状）还原编辑草稿里的运行时字段。 */
+export function memberRuntimeDraftFields(member: { runtime?: string | null; external_config?: string | null }): Pick<GroupMemberDraft, 'runtime' | 'externalConfig'> {
+  let externalConfig: Record<string, unknown> | undefined;
+  if (member.external_config) {
+    try {
+      const parsed = JSON.parse(member.external_config);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) externalConfig = parsed;
+    } catch {
+      externalConfig = undefined;
+    }
+  }
+  return { runtime: member.runtime || 'openclaw', externalConfig };
+}
 
 export const MODAL_FORM_FONT_STYLE = {
   fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
