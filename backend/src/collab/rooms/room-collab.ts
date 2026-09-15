@@ -13,6 +13,7 @@ import path from 'path';
 import { createHandoffDispatcher } from './handoff-dispatcher';
 import { ensureGroupWorkspace } from './group-workspace';
 import { createRoomAttachments } from './room-attachments';
+import { createRoomDelegation } from './room-delegation';
 import { createHandoffStore } from './handoff-store';
 import { getStructuredGroupMessage, type RoomRunScope, type RoomTurnHooks } from './group-chat-engine';
 import { stripMentionsForRecipient } from './mentions';
@@ -120,6 +121,14 @@ export function createRoomCollab(deps: RoomCollabDeps) {
   });
 
   const dispatcherRef: { current: ReturnType<typeof createHandoffDispatcher> | null } = { current: null };
+  const delegation = createRoomDelegation({
+    conn,
+    members,
+    orchestrator: () => orchestrator,
+    resultText: (messageId) => (messageId ? String(deps.db.getGroupMessageById(messageId)?.content ?? '') : ''),
+    publish,
+    log,
+  });
 
   const orchestrator = createRoomOrchestrator({
     db: deps.db,
@@ -136,6 +145,8 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     rebindAttachments: (groupId, content) => attachments.rebind(groupId, content),
     publish,
     onContinuationFinished: (attemptId, result) => dispatcherRef.current?.onTurnFinished(attemptId, result),
+    createDelegation: (input) => { delegation.create(input); },
+    onDelegationTaskFinished: (delegationId, result) => delegation.onTaskFinished(delegationId, result),
     log,
   });
 
@@ -237,6 +248,7 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     summary,
     interactions,
     attachments,
+    delegation,
     /** 清空 / 删除房间时：协作表里这个群的状态一并清掉，摘要失效，会话种子轮换。 */
     clearRoomState(groupId: string) {
       queueStore.deleteForGroup(groupId);
@@ -244,6 +256,7 @@ export function createRoomCollab(deps: RoomCollabDeps) {
       workspaceChanges.deleteForGroup(groupId);
       // 附件文件本身由路由里的 clearStoredFilesBySessionKey 按 files 表删；这里清登记与进行中的上传会话。
       attachments.deleteForGroup(groupId);
+      delegation.deleteForGroup(groupId);
       conn.prepare('DELETE FROM room_summaries WHERE group_id = ?').run(groupId);
       policies.bumpSummaryGeneration(groupId);
       policies.rotateSessionSeed(groupId);
@@ -258,8 +271,12 @@ export function createRoomCollab(deps: RoomCollabDeps) {
       const failed = queueStore.recoverOnBoot();
       if (failed > 0) log(`[Rooms] ${failed} queued item(s) marked failed after restart`);
       dispatcher.start();
+      delegation.start();
     },
-    stop() { dispatcher.stop(); },
+    stop() {
+      dispatcher.stop();
+      delegation.stop();
+    },
   };
 }
 
