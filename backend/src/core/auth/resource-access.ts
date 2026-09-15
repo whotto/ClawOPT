@@ -15,8 +15,16 @@
  * HTTP 路由（列表过滤、按 id 取、流、停止）与 `/ws` 主题授权都经这一处——两条通道的判据不许分家。
  * 资源不存在时一律返回 false：「不存在」与「无权看」对 member 不可区分，不泄露存在性。
  */
-import type { RequestIdentity } from './auth-middleware';
+import type express from 'express';
+
+import { buildStructuredApiError } from '../http';
+import { AUTH_AGENT_FORBIDDEN_ERROR_CODE, type RequestIdentity } from './auth-middleware';
 import { roleAtLeast } from './user-store';
+
+/** 数据面资源不在授权里：与 `requireAgentAccess` 同一个错误码，前端同一句文案。 */
+export function sendResourceForbidden(res: express.Response): void {
+  res.status(403).json(buildStructuredApiError(AUTH_AGENT_FORBIDDEN_ERROR_CODE, 'This resource belongs to an agent that is not assigned to you.'));
+}
 
 export interface ResourceLookup {
   /** 单聊会话的 Agent；会话不存在返回 null。 */
@@ -60,6 +68,16 @@ export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessD
     return canAccessAgent(identity, agentId);
   }
 
+  /**
+   * 改群的结构（改成员 / 重置 / 删除）：看得见这个群，且群里**每个** Agent 都在授权里——
+   * 不能因为群里有自己的一个 Agent，就删掉别人的 Agent 也在里面的群。
+   */
+  function canManageRoom(identity: RequestIdentity, groupId: string): boolean {
+    if (!canAccessRoom(identity, groupId)) return false;
+    if (isAdmin(identity)) return true;
+    return (lookup.roomAgentIds(groupId) ?? []).every((agentId) => canAccessAgent(identity, agentId));
+  }
+
   /** `agentIds` 为 null 表示工作流不存在。 */
   function canAccessWorkflow(identity: RequestIdentity, agentIds: string[] | null): boolean {
     if (agentIds === null) return false;
@@ -72,6 +90,7 @@ export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessD
     canAccessWorkflow,
     canAccessAgent,
     canAccessRoom,
+    canManageRoom,
     canAccessChatSession,
     canAccessRunSession,
   };

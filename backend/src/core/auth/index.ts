@@ -56,6 +56,7 @@ export type {
 } from './login-migration';
 export {
   createResourceAccess,
+  sendResourceForbidden,
 } from './resource-access';
 export type {
   ResourceAccess,

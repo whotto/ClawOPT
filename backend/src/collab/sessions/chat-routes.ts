@@ -9,6 +9,7 @@ import {
   resolveModelTagForErrorReport,
   shouldUseConfiguredImageGenerationModel,
 } from '../../control';
+import { getRequestIdentity, type ResourceAccess, sendResourceForbidden } from '../../core/auth';
 import type { DB, SessionRow } from '../../core/db';
 import type { RouteApp } from '../../core/http';
 import type { RealtimeHub } from '../../core/realtime';
@@ -48,6 +49,7 @@ import {
   writeSseFrame,
 } from './chat-stream';
 import type { DirectChatService } from './direct-chat-service';
+import { chatSessionParamGuard } from './session-routes';
 import { createOpenClawChatProjection } from './openclaw-chat-projection';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
@@ -71,6 +73,7 @@ export type ChatRoutesDeps = {
   realtime: RealtimeHub;
   runCoordinator: RunCoordinator;
   openclawAdapter: AgentRuntimeAdapter<OpenClawChatRunRequest>;
+  access: ResourceAccess;
 };
 
 type ChatTurnKind = 'send' | 'regenerate';
@@ -98,6 +101,18 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
   const { getConnection } = ctx.gatewayConnections;
   const { clearStoredFilesBySessionKey } = ctx.uploads;
   const streamDeps = { realtime: ctx.realtime, runCoordinator };
+
+  /**
+   * 单聊数据面授权：发送、重新生成、接回流、停止、静默发送都在「这个会话看得见」之后。
+   * 会话 id 在请求体里（`/api/chat*`）或路径里（attach）；缺字段的请求交给处理器自己回 400。
+   */
+  const guardBodySession: express.RequestHandler = (req, res, next) => {
+    const sessionId = req.body?.sessionId;
+    if (!sessionId) return next();
+    if (ctx.access.canAccessChatSession(getRequestIdentity(req), String(sessionId))) return next();
+    return sendResourceForbidden(res);
+  };
+  const guardParamSession = chatSessionParamGuard(ctx, 'sessionId');
 
   function buildInjectedMessage(sessionInfo: SessionRow | undefined, agentId: string, rawMessage: string): string {
     let injectedInstructions = '';
@@ -333,7 +348,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     writeSseFrame(res, { type: 'ids', ...ids });
   }
 
-  app.post('/api/chat', async (req, res) => {
+  app.post('/api/chat', guardBodySession, async (req, res) => {
     const { sessionId, message, parentId } = req.body;
 
     if (!sessionId || !message) {
@@ -447,7 +462,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     }
   });
 
-  app.post('/api/chat/regenerate', async (req, res) => {
+  app.post('/api/chat/regenerate', guardBodySession, async (req, res) => {
     const { sessionId, message, parentId, targetMessageId } = req.body;
 
     if (!sessionId || !message || !parentId) {
@@ -549,7 +564,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     }
   });
 
-  app.get('/api/chat/attach/:sessionId', async (req, res) => {
+  app.get('/api/chat/attach/:sessionId', guardParamSession, async (req, res) => {
     try {
       const { sessionId } = req.params;
       const run = runCoordinator.getActiveRun(sessionId);
@@ -583,7 +598,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     }
   });
 
-  app.post('/api/chat/stop', async (req, res) => {
+  app.post('/api/chat/stop', guardBodySession, async (req, res) => {
     const { sessionId } = req.body || {};
 
     if (!sessionId) {
@@ -623,7 +638,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     }
   });
 
-  app.post('/api/chat/silent', async (req, res) => {
+  app.post('/api/chat/silent', guardBodySession, async (req, res) => {
     const { sessionId, message } = req.body;
 
     if (!sessionId || !message) {

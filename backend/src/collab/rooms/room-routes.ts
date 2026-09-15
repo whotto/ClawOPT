@@ -1,3 +1,6 @@
+import type express from 'express';
+
+import { getRequestIdentity, type ResourceAccess, sendResourceForbidden } from '../../core/auth';
 import type { DB } from '../../core/db';
 import {
   AGENT_CONFIG_READ_FAILED_ERROR_CODE,
@@ -39,6 +42,7 @@ export type RoomRoutesDeps = {
   roomReconciliation: RoomReconciliation;
   roomRuntime: RoomRuntime;
   uploads: UploadService;
+  access: ResourceAccess;
 };
 
 export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
@@ -49,10 +53,31 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   const { cleanupGroupRuntimeAgent } = ctx.roomRuntime;
   const { clearStoredFilesBySessionKey } = ctx.uploads;
 
+  /**
+   * 群的数据面授权（P5a 用户 ↔ Agent）：
+   * - 看、发消息、停、改 / 删 / 重新生成消息、事件流：群里至少一个 Agent 在授权里（admin 全部）；
+   * - 改群结构（改成员 / 重置 / 删群）：群里每个 Agent 都在授权里；
+   * - 建群、给群加成员：引用到的每个 Agent 都在授权里。
+   * 中间件在请求到来时才读 `access`（路由登记期不调用上下文里的函数）。
+   */
+  const guardRoom: express.RequestHandler = (req, res, next) => (
+    ctx.access.canAccessRoom(getRequestIdentity(req), String(req.params.id ?? '')) ? next() : sendResourceForbidden(res)
+  );
+  const guardManageRoom: express.RequestHandler = (req, res, next) => (
+    ctx.access.canManageRoom(getRequestIdentity(req), String(req.params.id ?? '')) ? next() : sendResourceForbidden(res)
+  );
+  const guardMemberAgents: express.RequestHandler = (req, res, next) => {
+    const members = Array.isArray(req.body?.members) ? req.body.members : [];
+    const identity = getRequestIdentity(req);
+    if (members.every((member: any) => ctx.access.canAccessAgent(identity, String(member?.agentId ?? '')))) return next();
+    return sendResourceForbidden(res);
+  };
+
   // --- Group Chat CRUD ---
-  app.get('/api/groups', (_req, res) => {
+  app.get('/api/groups', (req, res) => {
     try {
-      const groups = db.getGroupChats();
+      const identity = getRequestIdentity(req);
+      const groups = db.getGroupChats().filter((group) => ctx.access.canAccessRoom(identity, group.id));
       // Attach members to each group
       const result = groups.map(g => ({
         ...g,
@@ -64,7 +89,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.post('/api/groups', (req, res) => {
+  app.post('/api/groups', guardMemberAgents, (req, res) => {
     let persistedGroupId: string | null = null;
     try {
       const { id: rawId, name, description, system_prompt, process_start_tag, process_end_tag, max_chain_depth, members } = req.body;
@@ -138,7 +163,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.put('/api/groups/:id', (req, res) => {
+  app.put('/api/groups/:id', guardManageRoom, guardMemberAgents, (req, res) => {
     try {
       const existing = db.getGroupChat(req.params.id);
       if (!existing) return res.status(404).json({ success: false, error: 'Group not found' });
@@ -184,6 +209,8 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     if (!Array.isArray(ids)) {
       return res.status(400).json({ success: false, error: 'Invalid ids format' });
     }
+    const identity = getRequestIdentity(req);
+    if (!ids.every((id: unknown) => ctx.access.canAccessRoom(identity, String(id)))) return sendResourceForbidden(res);
 
     try {
       db.updateGroupChatPositions(ids.map((id: string, index: number) => ({ id, position: index })));
@@ -193,7 +220,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.delete('/api/groups/:id', async (req, res) => {
+  app.delete('/api/groups/:id', guardManageRoom, async (req, res) => {
     try {
       const group = db.getGroupChat(req.params.id);
       if (!group) {
@@ -221,7 +248,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   });
 
   // Reset group back to its initialized runtime state while keeping the team entity and members.
-  app.post('/api/groups/:id/reset', async (req, res) => {
+  app.post('/api/groups/:id/reset', guardManageRoom, async (req, res) => {
     try {
       const group = db.getGroupChat(req.params.id);
       if (!group) {
@@ -256,7 +283,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   });
 
   // --- Group Messages ---
-  app.get('/api/groups/:id/messages', async (req, res) => {
+  app.get('/api/groups/:id/messages', guardRoom, async (req, res) => {
     try {
       await reconcileInactiveGroupLatestMessage(req.params.id);
       const { beforeId, limit } = getHistoryPageQueryParams(req.query as Record<string, unknown>);
@@ -270,7 +297,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.get('/api/groups/:id/active-run', async (req, res) => {
+  app.get('/api/groups/:id/active-run', guardRoom, async (req, res) => {
     try {
       const group = db.getGroupChat(req.params.id);
       if (!group) {
@@ -305,7 +332,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.get('/api/groups/:id/messages/search', (req, res) => {
+  app.get('/api/groups/:id/messages/search', guardRoom, (req, res) => {
     try {
       const query = typeof req.query.q === 'string' ? req.query.q : '';
       res.json(buildHistorySearchResponse(db.searchGroupMessages(req.params.id, query)));
@@ -314,7 +341,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.post('/api/groups/:id/messages', async (req, res) => {
+  app.post('/api/groups/:id/messages', guardRoom, async (req, res) => {
     try {
       const { content, parentId: rawParentId } = req.body;
       if (!content?.trim()) return res.status(400).json({ success: false, error: 'content is required' });
@@ -360,7 +387,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.post('/api/groups/:id/stop', async (req, res) => {
+  app.post('/api/groups/:id/stop', guardRoom, async (req, res) => {
     try {
       const group = db.getGroupChat(req.params.id);
       if (!group) {
@@ -398,7 +425,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.put('/api/groups/:id/messages/:msgId', (req, res) => {
+  app.put('/api/groups/:id/messages/:msgId', guardRoom, (req, res) => {
     try {
       const { content } = req.body;
       const messageId = Number(req.params.msgId);
@@ -460,8 +487,12 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.delete('/api/groups/:id/messages/:msgId', (req, res) => {
+  app.delete('/api/groups/:id/messages/:msgId', guardRoom, (req, res) => {
     try {
+      // 消息必须属于路径里的这个群：授权判的是群，不按群收窄就能借自己看得见的群删别的群的消息。
+      if (!db.getGroupMessageById(Number(req.params.msgId), req.params.id)) {
+        return res.status(404).json({ success: false, error: 'Message not found' });
+      }
       const deletedRows = db.deleteGroupMessage(Number(req.params.msgId)) as Array<{ id: number; parent_id: number | null }>;
       if (!deletedRows.length) {
         return res.status(404).json({ success: false, error: 'Message not found' });
@@ -478,7 +509,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
-  app.post('/api/groups/:id/messages/regenerate', async (req, res) => {
+  app.post('/api/groups/:id/messages/regenerate', guardRoom, async (req, res) => {
     try {
       const { msgId } = req.body; // The message we want to regenerate
       if (!msgId) return res.status(400).json({ success: false, error: 'msgId required' });
@@ -531,7 +562,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   });
 
   // SSE endpoint for real-time updates
-  app.get('/api/groups/:id/events', async (req, res) => {
+  app.get('/api/groups/:id/events', guardRoom, async (req, res) => {
     const groupId = req.params.id;
     
     res.setHeader('Content-Type', 'text/event-stream');

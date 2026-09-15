@@ -1884,7 +1884,7 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/sessions",
         "x-clawopt-order": 84
       }
@@ -2100,7 +2100,7 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/sessions/:id",
         "x-clawopt-order": 85
       },
@@ -2136,7 +2136,7 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/sessions/:id",
         "x-clawopt-order": 86
       }

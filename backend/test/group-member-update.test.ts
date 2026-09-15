@@ -115,7 +115,7 @@ describe('路由确实这么做了（接线守卫）', () => {
   // 群聊路由在 P0 拆分后住在 collab/rooms/room-routes.ts（拆分前在 index.ts）。
   const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'collab', 'rooms', 'room-routes.ts'), 'utf-8');
   const body = () => {
-    const i = SRC.indexOf("app.put('/api/groups/:id', (req, res) => {");
+    const i = SRC.indexOf("app.put('/api/groups/:id', guardManageRoom, guardMemberAgents, (req, res) => {");
     expect(i, "找不到 PUT /api/groups/:id").toBeGreaterThan(0);
     return SRC.slice(i, i + 2600);
   };

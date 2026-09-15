@@ -761,6 +761,12 @@ export class DB {
       .run(role, agentId || null, agentName || null, id);
   }
 
+  /** 单聊消息属于哪个会话（授权用）；没有这条消息返回 null。 */
+  getMessageSessionKey(id: number): string | null {
+    const row = this.db.prepare('SELECT session_key FROM chat_messages WHERE id = ?').get(id) as { session_key?: string } | undefined;
+    return row?.session_key ?? null;
+  }
+
   updateMessageContent(id: number, content: string) {
     this.db.prepare('UPDATE chat_messages SET content = ? WHERE id = ?').run(content, id);
   }

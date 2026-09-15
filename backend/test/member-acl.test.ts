@@ -7,7 +7,7 @@
  * - 工作流 wf-main（main 节点）/ wf-other（other 节点）/ wf-external（Claude Code 节点）。
  *
  * 矩阵：super_admin / admin 全部可见；member 只见授权 Agent 的会话、含授权 Agent 的群、授权 Agent 的活动主题；
- * 被停用的用户与被吊销的会话在升级时就 401。
+ * 被停用的用户与被吊销的会话在升级时就 401。HTTP（列表、按 id 取、SSE 流、停止、改删消息）与 WS 同一判据。
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
@@ -216,5 +216,104 @@ describe('工作流实时：workflow:<id> 主题与 SSE 兜底、待办中心', 
       h.ctx.automation.engine.resolveApproval(id, pending.runId, pending.nodeId, { approved: false, executionId: pending.executionId });
       await h.ctx.automation.engine.waitForRun(pending.runId);
     }
+  });
+});
+
+describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () => {
+  const status = async (token: string, path: string, init: RequestInit = {}) => {
+    const controller = new AbortController();
+    const response = await api(token, path, { ...init, signal: controller.signal });
+    const code = response.status;
+    const body = response.headers.get('content-type')?.includes('application/json') ? await response.json() as any : null;
+    controller.abort();
+    return { code, body };
+  };
+  const post = (body: unknown) => ({ method: 'POST', body: JSON.stringify(body) });
+
+  it('会话列表（侧栏与 Agents 页共用）：member 只见授权 Agent 的会话；admin 全部', async () => {
+    const member = await status(tokens.member, '/api/sessions');
+    const admin = await status(tokens.admin, '/api/sessions');
+    expect(member.code).toBe(200);
+    expect(member.body.map((session: any) => session.id)).toContain('s-main');
+    expect(member.body.map((session: any) => session.id)).not.toContain('s-other');
+    expect(new Set(member.body.map((session: any) => session.agentId))).toEqual(new Set(['main']));
+    expect(admin.body.map((session: any) => session.id)).toEqual(expect.arrayContaining(['s-main', 's-other']));
+  });
+
+  it('member 取 / 流 / 停 / 发 / 改别人的会话一律 403，自己的照常；不留下任何写入', async () => {
+    const otherMessage = Number(h.ctx.db.saveMessage({ session_key: 's-other', role: 'user', content: 'secret' }));
+    const mineMessage = Number(h.ctx.db.saveMessage({ session_key: 's-main', role: 'user', content: 'mine' }));
+    const denied: Array<[string, RequestInit?]> = [
+      ['/api/history/s-other'],
+      ['/api/history/s-other/search?q=secret'],
+      ['/api/chat/s-other/active-run'],
+      ['/api/chat/attach/s-other'],
+      ['/api/sessions/s-other/configs'],
+      ['/api/sessions/s-other/reset', { method: 'POST' }],
+      ['/api/chat', post({ sessionId: 's-other', message: 'hi' })],
+      ['/api/chat/regenerate', post({ sessionId: 's-other', message: 'hi', parentId: otherMessage })],
+      ['/api/chat/stop', post({ sessionId: 's-other' })],
+      ['/api/chat/silent', post({ sessionId: 's-other', message: 'hi' })],
+      [`/api/messages/${otherMessage}`, { method: 'PUT', body: JSON.stringify({ content: 'tampered' }) }],
+      [`/api/messages/${otherMessage}`, { method: 'DELETE' }],
+      ['/api/sessions/reorder', post({ ids: ['s-main', 's-other'] })],
+      // 建 / 改 / 删会话会装配或撤销 Agent：控制面，member 一律不行（自己的也不行）
+      ['/api/sessions', post({ id: 'member-made', name: 'x' })],
+      ['/api/sessions/s-main', { method: 'PUT', body: JSON.stringify({ name: 'renamed' }) }],
+      ['/api/sessions/s-main', { method: 'DELETE' }],
+    ];
+    const results = await Promise.all(denied.map(async ([path, init]) => `${init?.method ?? 'GET'} ${path} ${(await status(tokens.member, path, init)).code}`));
+    expect(results).toEqual(denied.map(([path, init]) => `${init?.method ?? 'GET'} ${path} 403`));
+    expect(h.ctx.db.getMessages('s-other').map((row: any) => row.content)).toEqual(['secret']);
+    expect(h.ctx.db.getSession('s-main')?.name).toBe('Main');
+
+    expect((await status(tokens.member, '/api/history/s-main')).code).toBe(200);
+    expect((await status(tokens.member, '/api/chat/s-main/active-run')).code).toBe(200);
+    expect((await status(tokens.member, `/api/messages/${mineMessage}`, { method: 'PUT', body: JSON.stringify({ content: 'edited' }) })).code).toBe(200);
+
+    // admin 不受影响
+    expect((await status(tokens.admin, '/api/history/s-other')).code).toBe(200);
+    expect((await status(tokens.admin, '/api/chat/s-other/active-run')).code).toBe(200);
+    expect((await status(tokens.admin, '/api/history/s-other/search?q=secret')).code).toBe(200);
+  });
+
+  it('群：member 只见含授权 Agent 的群；看不见的群取 / 流 / 发 / 停 403；改结构要求群里每个 Agent 都授权', async () => {
+    const memberGroups = await status(tokens.member, '/api/groups');
+    expect(memberGroups.body.groups.map((group: any) => group.id)).toEqual(['g-main']);
+    const adminGroups = await status(tokens.admin, '/api/groups');
+    expect(adminGroups.body.groups.map((group: any) => group.id).sort()).toEqual(['g-main', 'g-other']);
+
+    const otherGroupMessage = h.ctx.db.saveGroupMessage({ group_id: 'g-other', sender_type: 'user', content: 'other group' });
+    const denied: Array<[string, RequestInit?]> = [
+      ['/api/groups/g-other/messages'],
+      ['/api/groups/g-other/messages/search?q=other'],
+      ['/api/groups/g-other/active-run'],
+      ['/api/groups/g-other/events'],
+      ['/api/groups/g-other/messages', post({ content: 'hi' })],
+      ['/api/groups/g-other/stop', { method: 'POST' }],
+      [`/api/groups/g-other/messages/${otherGroupMessage}`, { method: 'DELETE' }],
+      ['/api/groups/g-other/messages/regenerate', post({ msgId: otherGroupMessage })],
+      // g-main 里还有 other：看得见，但不能改结构
+      ['/api/groups/g-main', { method: 'PUT', body: JSON.stringify({ name: 'renamed' }) }],
+      ['/api/groups/g-main', { method: 'DELETE' }],
+      ['/api/groups/g-main/reset', { method: 'POST' }],
+      ['/api/groups', post({ id: 'member-group', name: 'mg', members: [{ agentId: 'other' }] })],
+      ['/api/groups/reorder', post({ ids: ['g-main', 'g-other'] })],
+    ];
+    const results = await Promise.all(denied.map(async ([path, init]) => `${init?.method ?? 'GET'} ${path} ${(await status(tokens.member, path, init)).code}`));
+    expect(results).toEqual(denied.map(([path, init]) => `${init?.method ?? 'GET'} ${path} 403`));
+    expect(h.ctx.db.getGroupChat('g-main')?.name).toBe('G main');
+    expect(h.ctx.db.getGroupMessages('g-other').map((row: any) => row.content)).toEqual(['other group']);
+
+    expect((await status(tokens.member, '/api/groups/g-main/messages')).code).toBe(200);
+    // 借自己看得见的群删别的群的消息：按群收窄，404（admin 同样 404）
+    expect((await status(tokens.member, `/api/groups/g-main/messages/${otherGroupMessage}`, { method: 'DELETE' })).code).toBe(404);
+    expect((await status(tokens.admin, `/api/groups/g-main/messages/${otherGroupMessage}`, { method: 'DELETE' })).code).toBe(404);
+    expect(h.ctx.db.getGroupMessages('g-other')).toHaveLength(1);
+
+    // member 能建只含自己 Agent 的群；admin 可取任意群
+    const created = await status(tokens.member, '/api/groups', post({ id: 'member-group', name: 'mg', members: [{ agentId: 'main' }] }));
+    expect(created.code).toBe(200);
+    expect((await status(tokens.admin, '/api/groups/g-other/messages')).code).toBe(200);
   });
 });

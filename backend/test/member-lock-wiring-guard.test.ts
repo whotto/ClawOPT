@@ -137,7 +137,7 @@ function routeBody(declaration: string, span = 1200): string {
 
 describe('新消息与重新生成用的不是同一个判据', () => {
   it('发新消息用 isGroupBlockingNewMessage（不含成员锁）', () => {
-    const body = routeBody("app.post('/api/groups/:id/messages', async (req, res) => {");
+    const body = routeBody("app.post('/api/groups/:id/messages', guardRoom, async (req, res) => {");
     expect(body, '用了含成员锁的判据，per-member 锁在 HTTP 层被抵消')
       .toContain('isGroupBlockingNewMessage');
     expect(body).not.toContain('isGroupProcessing(');
@@ -146,13 +146,13 @@ describe('新消息与重新生成用的不是同一个判据', () => {
   it('重新生成**仍然**用 isGroupProcessing（含成员锁，严）', () => {
     // 它重写已有消息的分支。v1.5.2 的原话：正在流式输出的那条被点「重新生成」，
     // 旧 run 继续往已删除的消息 id 写 delta，前端据此复活一条幽灵消息。
-    const body = routeBody("app.post('/api/groups/:id/messages/regenerate', async (req, res) => {");
+    const body = routeBody("app.post('/api/groups/:id/messages/regenerate', guardRoom, async (req, res) => {");
     expect(body, '重新生成放松成了新消息的判据，幽灵消息会回来')
       .toContain('isGroupProcessing(');
   });
 
   it('编辑后重跑也用严判据', () => {
-    const body = routeBody("app.put('/api/groups/:id/messages/:msgId', (req, res) => {", 2000);
+    const body = routeBody("app.put('/api/groups/:id/messages/:msgId', guardRoom, (req, res) => {", 2000);
     expect(body).toContain('isGroupProcessing(');
   });
 

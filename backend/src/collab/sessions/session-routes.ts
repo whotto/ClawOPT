@@ -9,6 +9,9 @@ import {
   RUNTIME_SETTINGS_CONFIG_READ_FALLBACK,
   withConfigReadFallback,
 } from '../../control';
+import type express from 'express';
+
+import { type AuthMiddleware, getRequestIdentity, type ResourceAccess, sendResourceForbidden } from '../../core/auth';
 import type { DB } from '../../core/db';
 import {
   AGENT_CONFIG_READ_FAILED_ERROR_CODE,
@@ -42,14 +45,28 @@ export type SessionListRoutesDeps = {
   agentProvisioner: AgentProvisioner;
   sessionManager: SessionManager;
   agentSettings: AgentSettings;
+  access: ResourceAccess;
 };
+
+/**
+ * 单聊会话的数据面授权（P5a 用户 ↔ Agent）：路径参数里的会话必须看得见，否则 403 `auth.agentForbidden`。
+ * 是中间件本身，请求到来时才读 `access`——路由登记期不调用上下文里的函数。
+ */
+export function chatSessionParamGuard(ctx: { access: ResourceAccess }, param: string): express.RequestHandler {
+  return (req, res, next) => {
+    if (ctx.access.canAccessChatSession(getRequestIdentity(req), String(req.params[param] ?? ''))) return next();
+    return sendResourceForbidden(res);
+  };
+}
 
 export function registerSessionListRoutes(app: RouteApp, ctx: SessionListRoutesDeps): void {
   const { agentProvisioner, sessionManager } = ctx;
   const { readEffectiveAgentRuntimeSettings } = ctx.agentSettings;
 
-  app.get('/api/sessions', (_req, res) => {
-    const sessions = sessionManager.getAllSessions();
+  // 会话列表（侧栏、Agents 页都用它）：member 只见授权 Agent 的会话。
+  app.get('/api/sessions', (req, res) => {
+    const identity = getRequestIdentity(req);
+    const sessions = sessionManager.getAllSessions().filter((session) => ctx.access.canAccessChatSession(identity, session.id));
     const sessionsWithModel = sessions.map(session => {
       // 配置读不动时退回旧的降级行为（model 空字符串、运行时设置退回默认值），
       // 不让整条列表 500——这里返回的是数组，没有顶层字段可挂标记位，所以
@@ -87,6 +104,8 @@ export type SessionRoutesDeps = {
   agentSettings: AgentSettings;
   gatewayConnections: GatewayConnections;
   uploads: UploadService;
+  access: ResourceAccess;
+  auth: Pick<AuthMiddleware, 'requireAdminAuth'>;
 };
 
 export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): void {
@@ -99,8 +118,12 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
   const { readEffectiveAgentRuntimeSettings } = ctx.agentSettings;
   const { disconnectConnection, getConnection } = ctx.gatewayConnections;
   const { clearStoredFilesBySessionKey } = ctx.uploads;
+  const { requireAdminAuth } = ctx.auth;
+  const guardSessionId = chatSessionParamGuard(ctx, 'id');
+  const guardSessionParam = chatSessionParamGuard(ctx, 'sessionId');
 
-  app.post('/api/sessions', async (req, res) => {
+  // 建 / 改 / 删会话会装配、改写、撤销 OpenClaw Agent（工作区文件、模型、openclaw.json）：属于控制面，admin 及以上。
+  app.post('/api/sessions', requireAdminAuth, async (req, res) => {
     const { id, name, soulContent, userContent, agentsContent, toolsContent, heartbeatContent, identityContent, model, process_start_tag, process_end_tag } = req.body;
     const fallbackMode = normalizeFallbackMode(req.body?.fallbackMode) ?? 'inherit';
     const fallbacks = normalizeFallbackList(req.body?.fallbacks);
@@ -202,7 +225,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
   });
 
-  app.put('/api/sessions/:id', async (req, res) => {
+  app.put('/api/sessions/:id', requireAdminAuth, async (req, res) => {
     const { name, soulContent, userContent, agentsContent, toolsContent, heartbeatContent, identityContent, model, process_start_tag, process_end_tag } = req.body;
     const fallbackMode = normalizeFallbackMode(req.body?.fallbackMode) ?? 'inherit';
     const fallbacks = normalizeFallbackList(req.body?.fallbacks);
@@ -247,7 +270,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
   });
 
-  app.delete('/api/sessions/:id', async (req, res) => {
+  app.delete('/api/sessions/:id', requireAdminAuth, async (req, res) => {
     const session = sessionManager.getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
@@ -314,7 +337,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
   });
 
   // Reset session back to its initialized runtime state while keeping the session entity.
-  app.post('/api/sessions/:id/reset', async (req, res) => {
+  app.post('/api/sessions/:id/reset', guardSessionId, async (req, res) => {
     const session = sessionManager.getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
@@ -375,7 +398,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
   });
 
   // Endpoint to fetch all configuring MD files for a given session's agent
-  app.get('/api/sessions/:id/configs', async (req, res) => {
+  app.get('/api/sessions/:id/configs', guardSessionId, async (req, res) => {
     const session = sessionManager.getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
@@ -422,11 +445,13 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     if (!Array.isArray(ids)) {
       return res.status(400).json({ success: false, error: 'Invalid ids format' });
     }
+    const identity = getRequestIdentity(req);
+    if (!ids.every((id) => ctx.access.canAccessChatSession(identity, String(id)))) return sendResourceForbidden(res);
     sessionManager.reorderSessions(ids);
     res.json({ success: true });
   });
 
-  app.get('/api/history/:sessionId', async (req, res) => {
+  app.get('/api/history/:sessionId', guardSessionParam, async (req, res) => {
     try {
       const { beforeId, limit } = getHistoryPageQueryParams(req.query as Record<string, unknown>);
       if (beforeId === null) {
@@ -442,7 +467,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
   });
 
-  app.get('/api/history/:sessionId/search', (req, res) => {
+  app.get('/api/history/:sessionId/search', guardSessionParam, (req, res) => {
     try {
       const query = typeof req.query.q === 'string' ? req.query.q : '';
       res.json(buildHistorySearchResponse(db.searchMessages(req.params.sessionId, query)));
@@ -451,7 +476,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
   });
 
-  app.get('/api/chat/:sessionId/active-run', async (req, res) => {
+  app.get('/api/chat/:sessionId/active-run', guardSessionParam, async (req, res) => {
     try {
       const { sessionId } = req.params;
       const run = runCoordinator.getActiveRun(sessionId);
@@ -479,7 +504,15 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
   });
 
-  app.put('/api/messages/:id', (req, res) => {
+  /** 按消息 id 改 / 删：先找到它属于哪个会话再判授权。没有这条消息时 member 同样 403（不泄露存在性）。 */
+  const guardMessageId: express.RequestHandler = (req, res, next) => {
+    const sessionKey = db.getMessageSessionKey(Number(req.params.id));
+    const identity = getRequestIdentity(req);
+    if (sessionKey !== null ? ctx.access.canAccessChatSession(identity, sessionKey) : ctx.access.isAdmin(identity)) return next();
+    return sendResourceForbidden(res);
+  };
+
+  app.put('/api/messages/:id', guardMessageId, (req, res) => {
     const { id } = req.params;
     const { content } = req.body;
     if (!content) return res.status(400).json({ success: false, error: 'Content is required' });
@@ -491,7 +524,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
   });
 
-  app.delete('/api/messages/:id', (req, res) => {
+  app.delete('/api/messages/:id', guardMessageId, (req, res) => {
     const { id } = req.params;
     try {
       const deletedIds = db.deleteMessage(Number(id));
