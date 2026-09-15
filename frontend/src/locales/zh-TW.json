@@ -419,7 +419,11 @@
     "uploadFailed": "附件上傳失敗，訊息沒有發送——先處理附件再發，免得對方收不到檔案。",
     "historyLoadFailed": "聊天記錄這次沒載入出來（不是記錄丟了）。重新整理或稍後重試。",
     "replyMayBeIncomplete": "這條回覆可能沒寫完——連線中斷了，而且沒能從歷史裡補回完整版本。重新發一次或讓它繼續。",
-    "resizeComposer": "拖動調整輸入框高度（雙擊恢復）"
+    "resizeComposer": "拖動調整輸入框高度（雙擊恢復）",
+    "attachmentNote": "替這個附件加說明（會一起傳給 Agent）",
+    "attachmentNoteShort": "說明",
+    "attachmentNotePlaceholder": "關於 {{name}} 的說明，按 Enter 完成",
+    "videoFramesAttached": "已從影片擷取 {{count}} 張代表影格一起傳送"
   },
   "messageBubble": {
     "processTitle": "執行過程",

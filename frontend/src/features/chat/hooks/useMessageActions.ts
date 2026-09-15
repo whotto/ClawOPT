@@ -322,7 +322,7 @@ export function useMessageActions(c: MessageActionsContext) {
   };
 
   // ---- Upload files helper ----
-  const uploadFiles = async (filesToUpload: {file: File, preview: string}[]): Promise<string> => {
+  const uploadFiles = async (filesToUpload: Array<{ file: File; preview: string; frameOf?: string }>): Promise<string> => {
     if (filesToUpload.length === 0) return '';
     const fd = new FormData();
     if (isChat) {
@@ -339,6 +339,8 @@ export function useMessageActions(c: MessageActionsContext) {
       return upData.files.map((f: any) => {
         const isImage = f.mimeType?.startsWith('image/');
         const name = f.name || f.originalname || t('common.file');
+        // 视频的代表帧也上传、也给 Agent，但在消息里以普通链接出现（不当成用户手动加的图片缩略图）。
+        if (isImage && filesToUpload.some((item) => item.frameOf && item.file.name === name)) return `[${name}](${f.url})`;
         return isImage ? `![${name}](${f.url})` : `[${name}](${f.url})`;
       }).join('\n');
     }

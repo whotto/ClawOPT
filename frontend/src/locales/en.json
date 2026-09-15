@@ -419,7 +419,11 @@
     "uploadFailed": "Attachment upload failed, so the message was not sent — fix the attachment first, otherwise the file never arrives.",
     "historyLoadFailed": "Chat history did not load this time (it is not lost). Refresh or try again.",
     "replyMayBeIncomplete": "This reply may be cut off — the connection dropped and the full version could not be recovered from history. Send again or ask it to continue.",
-    "resizeComposer": "Drag to resize the message box (double-click to reset)"
+    "resizeComposer": "Drag to resize the message box (double-click to reset)",
+    "attachmentNote": "Add a note for this attachment (sent to the agent too)",
+    "attachmentNoteShort": "Note",
+    "attachmentNotePlaceholder": "Note about {{name}} — press Enter when done",
+    "videoFramesAttached": "{{count}} representative frames extracted from the video will be sent too"
   },
   "messageBubble": {
     "processTitle": "Execution",

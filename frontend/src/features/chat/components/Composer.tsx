@@ -23,7 +23,7 @@ function readComposerHeight(): number {
 
 type ComposerProps = Pick<
   ChatController,
-  'handleFileChange' | 'removePendingFile' | 'handlePaste' | 'handleSubmit' | 'handleStop' |
+  'handleFileChange' | 'removePendingFile' | 'setPendingFileNote' | 'handlePaste' | 'handleSubmit' | 'handleStop' |
   'handleGroupInputChange' | 'getFilteredMembers' | 'insertMention' | 'handleKeyDown' | 't' |
   'isChat' | 'isGroup' | 'input' | 'setInput' | 'isLoading' | 'submitError' | 'setSubmitError' |
   'submitNotice' | 'setSubmitNotice' |
@@ -37,7 +37,7 @@ type ComposerProps = Pick<
 
 export function Composer(c: ComposerProps) {
   const {
-    handleFileChange, removePendingFile, handlePaste, handleSubmit, handleStop,
+    handleFileChange, removePendingFile, setPendingFileNote, handlePaste, handleSubmit, handleStop,
     handleGroupInputChange, getFilteredMembers, insertMention, handleKeyDown, t, isChat, isGroup,
     input, setInput, isLoading, submitError, setSubmitError, submitNotice, setSubmitNotice, inputPreview, setInputPreview,
     pendingFiles, quotedMessage, setQuotedMessage, showCommands, setShowCommands, slashCommands,
@@ -49,6 +49,7 @@ export function Composer(c: ComposerProps) {
   // 输入框最大高度可拖拽调整（拖上边的把手；双击恢复默认），按浏览器记住。
   const [maxHeight, setMaxHeight] = useState(readComposerHeight);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const [notingIndex, setNotingIndex] = useState<number | null>(null);
   const applyMaxHeight = (value: number, persist: boolean) => {
     const next = clampComposerHeight(value);
     setMaxHeight(next);
@@ -98,7 +99,7 @@ export function Composer(c: ComposerProps) {
         {/* Pending file previews */}
         {pendingFiles.length > 0 && (
           <div className="flex flex-wrap gap-3 pb-2 animate-in slide-in-from-bottom-2 duration-300">
-            {pendingFiles.map((pf, idx) => (
+            {pendingFiles.map((pf, idx) => pf.frameOf ? null : (
               <div key={idx} className={`relative group ${pf.preview ? 'w-24 h-24' : 'w-max min-w-[120px] max-w-[200px] h-14 pl-2 pr-3 flex items-center gap-2'} rounded-xl overflow-hidden bg-white border border-gray-300 flex-shrink-0 transition-all hover:scale-[1.02] active:scale-95 hover:bg-blue-50/50 hover:border-blue-200`}>
                 {pf.preview ? (
                   <img src={pf.preview} className="w-full h-full object-cover" alt="preview" />
@@ -113,12 +114,35 @@ export function Composer(c: ComposerProps) {
                     </>
                   ); })()
                 )}
+                <button
+                  type="button"
+                  onClick={() => setNotingIndex(notingIndex === idx ? null : idx)}
+                  className={`absolute bottom-1.5 right-1.5 rounded-full px-1.5 text-[10px] transition-all border ${pf.note ? 'bg-blue-600 text-white border-blue-600 opacity-100' : 'bg-white/90 text-gray-600 border-gray-300 opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}
+                  title={t('unifiedChat.attachmentNote')}
+                >
+                  {t('unifiedChat.attachmentNoteShort')}
+                </button>
                 <button onClick={() => removePendingFile(idx)} className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all border border-transparent hover:border-white/20">
                   <Plus className="w-3.5 h-3.5 rotate-45" />
                 </button>
               </div>
             ))}
+            {pendingFiles.some((pf) => pf.frameOf) && (
+              <span className="self-end text-[11px] text-gray-400">{t('unifiedChat.videoFramesAttached', { count: pendingFiles.filter((pf) => pf.frameOf).length })}</span>
+            )}
           </div>
+        )}
+        {notingIndex !== null && pendingFiles[notingIndex] && (
+          <input
+            autoFocus
+            value={pendingFiles[notingIndex].note ?? ''}
+            onChange={(event) => setPendingFileNote(notingIndex, event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); setNotingIndex(null); } }}
+            onBlur={() => setNotingIndex(null)}
+            maxLength={500}
+            placeholder={t('unifiedChat.attachmentNotePlaceholder', { name: pendingFiles[notingIndex].file.name })}
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
         )}
 
         <div className="relative">

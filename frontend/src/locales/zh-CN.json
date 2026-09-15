@@ -419,7 +419,11 @@
     "uploadFailed": "附件上传失败，消息没有发送——先处理附件再发，免得对方收不到文件。",
     "historyLoadFailed": "聊天记录这次没加载出来（不是记录丢了）。刷新页面或稍后重试。",
     "replyMayBeIncomplete": "这条回复可能没写完——连接中断了，而且没能从历史里补回完整版本。重新发一次或让它继续。",
-    "resizeComposer": "拖动调整输入框高度（双击恢复）"
+    "resizeComposer": "拖动调整输入框高度（双击恢复）",
+    "attachmentNote": "给这个附件加说明（会一起发给 Agent）",
+    "attachmentNoteShort": "说明",
+    "attachmentNotePlaceholder": "关于 {{name}} 的说明，回车完成",
+    "videoFramesAttached": "已从视频抽取 {{count}} 张代表帧一起发送"
   },
   "messageBubble": {
     "processTitle": "执行过程",
