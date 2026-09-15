@@ -80,6 +80,24 @@ export const AUTH_PUBLIC_PATHS = new Set([
   '/api/relay/v1/pairings/:requestId/failure',
   '/api/room-relay/workspace/actions',
   '/api/room-relay/workspace/file',
+  // 访客页（P3，collab/rooms/room-share-routes.ts）：调用方是没有账号的访客。安全性在处理器里：
+  // 概况与加入只认有效邀请码（加入有房间级限速与人数上限）；其余一律要访客令牌头（只存 SHA-256，
+  // 邀请码 / 群 / 邀请代 / 未吊销四项都对上才认）；访客的叫起按签发邀请码的人的授权判。
+  '/api/share/rooms/:code',
+  '/api/share/rooms/:code/join',
+  '/api/share/rooms/:code/me',
+  '/api/share/rooms/:code/messages',
+  '/api/share/rooms/:code/messages/:msgId/retract',
+  '/api/share/rooms/:code/queue',
+  '/api/share/rooms/:code/events',
+  '/api/share/rooms/:code/interactions',
+  '/api/share/rooms/:code/interactions/:interactionId/respond',
+  '/api/share/rooms/:code/uploads',
+  '/api/share/rooms/:code/uploads/:uploadId',
+  '/api/share/rooms/:code/uploads/:uploadId/complete',
+  '/api/share/rooms/:code/files/:storedName',
+  '/api/share/rooms/:code/relay/pairings',
+  '/api/share/rooms/:code/relay/connectors/:connectorId',
 ]);
 
 /**

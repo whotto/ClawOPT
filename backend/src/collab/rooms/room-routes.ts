@@ -60,6 +60,28 @@ export type RoomRoutesDeps = {
   roomCollab: RoomCollab;
 };
 
+/** 历史页的行：并上 P3 元数据（发送人、结构化 @、深度、附件）与挂在回复上的工作区 diff（`workspace: false` 时不带，访客页用）。 */
+export function decorateRoomMessageRows(collab: Pick<RoomCollab, 'messages' | 'workspaceChanges'>, groupId: string, rows: any[], options: { workspace?: boolean } = {}) {
+  const ids = rows.map((row) => Number(row.id)).filter(Number.isFinite);
+  const metas = collab.messages.getMetaForIds(ids);
+  const changes = options.workspace === false ? new Map() : collab.workspaceChanges.forMessages(groupId, ids);
+  return rows.map((row) => {
+    const meta = metas.get(Number(row.id));
+    const base = withStructuredGroupMessage(row, { groupId });
+    return {
+      ...base,
+      sender_user_id: meta?.senderUserId ?? null,
+      sender_guest_id: meta?.senderGuestId ?? null,
+      sender_member_id: meta?.senderMemberId ?? null,
+      structured_mentions: meta?.structuredMentions ?? null,
+      mention_depth: meta?.mentionDepth ?? 0,
+      message_kind: meta?.messageKind ?? '',
+      attachments: meta?.attachments ?? [],
+      workspace_changes: changes.get(Number(row.id)) ?? [],
+    };
+  });
+}
+
 export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   const { db } = ctx;
   const { groupChatEngine, groupSSEClients, publishRoomFrame } = ctx.rooms;
@@ -271,6 +293,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       const configCleanupFailed = cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
       deleteGroupWorkspace(req.params.id);
       collab.clearRoomState(req.params.id);
+      collab.guests.deleteForGroup(req.params.id);
       db.deleteGroupChat(req.params.id);
       collab.forgetRoom(req.params.id);
       // P2：群里所有外部成员的运行时目录一起回收。
@@ -327,26 +350,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   });
 
   /** 历史页：并上 P3 元数据（发送人、结构化 @、深度、附件）与挂在回复上的工作区 diff。 */
-  const decorateRows = (groupId: string, rows: any[]) => {
-    const ids = rows.map((row) => Number(row.id)).filter(Number.isFinite);
-    const metas = collab.messages.getMetaForIds(ids);
-    const changes = collab.workspaceChanges.forMessages(groupId, ids);
-    return rows.map((row) => {
-      const meta = metas.get(Number(row.id));
-      const base = withStructuredGroupMessage(row, { groupId });
-      return {
-        ...base,
-        sender_user_id: meta?.senderUserId ?? null,
-        sender_guest_id: meta?.senderGuestId ?? null,
-        sender_member_id: meta?.senderMemberId ?? null,
-        structured_mentions: meta?.structuredMentions ?? null,
-        mention_depth: meta?.mentionDepth ?? 0,
-        message_kind: meta?.messageKind ?? '',
-        attachments: meta?.attachments ?? [],
-        workspace_changes: changes.get(Number(row.id)) ?? [],
-      };
-    });
-  };
+  const decorateRows = (groupId: string, rows: any[]) => decorateRoomMessageRows(collab, groupId, rows);
 
   const sendRoomError = (res: express.Response, error: unknown): boolean => {
     if (error instanceof RoomRequestError) {
@@ -531,6 +535,40 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     collab.publish(req.params.id, { type: 'room_updated', data: { policyChanged: true } });
     const { sessionSeed, ...rest } = policy;
     res.json({ success: true, policy: rest });
+  });
+
+  /**
+   * 邀请码（访客页 `/share/rooms/:code`）：管理员签发 / 轮换 / 吊销，列出与吊销访客。
+   * 轮换与吊销都让邀请代 +1——旧码下所有访客令牌立即失效。访客发起的链按签发人的授权判（委托），所以签发人记在策略上。
+   */
+  app.post('/api/groups/:id/invite', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    if (!collab.roomAccess.isManager(identity, req.params.id)) return sendResourceForbidden(res);
+    if (!collab.policies.get(req.params.id)) return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
+    collab.retireGuests(req.params.id);
+    const code = collab.policies.rotateInviteCode(req.params.id, identity.implicit ? null : identity.userId);
+    collab.publish(req.params.id, { type: 'room_updated', data: { inviteChanged: true } });
+    res.json({ success: true, inviteCode: code, path: `/share/rooms/${code}` });
+  });
+
+  app.delete('/api/groups/:id/invite', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    if (!collab.roomAccess.isManager(identity, req.params.id)) return sendResourceForbidden(res);
+    collab.retireGuests(req.params.id);
+    collab.policies.revokeInviteCode(req.params.id);
+    collab.publish(req.params.id, { type: 'room_updated', data: { inviteChanged: true } });
+    res.json({ success: true });
+  });
+
+  app.get('/api/groups/:id/guests', guardRoom, (req, res) => {
+    res.json({ success: true, guests: collab.guests.list(req.params.id) });
+  });
+
+  app.delete('/api/groups/:id/guests/:guestId', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    if (!collab.roomAccess.isManager(identity, req.params.id)) return sendResourceForbidden(res);
+    if (!collab.revokeGuest(req.params.id, req.params.guestId)) return res.status(404).json(buildStructuredApiError('share.guestNotFound'));
+    res.json({ success: true });
   });
 
   /**

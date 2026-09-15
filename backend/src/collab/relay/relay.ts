@@ -48,6 +48,15 @@ export function createRelay(deps: RelayDeps) {
   deps.roomCollab.useRelay({
     isConnectorOnline: (connectorId) => host.isConnectorOnline(connectorId),
     issueWorkspaceGrant: (input) => host.issueWorkspaceGrant(input),
+    revokeGuestAgents: (groupId, guestId) => {
+      const revoked: string[] = [];
+      for (const row of pairings.listConnectors(groupId)) {
+        if (row.owner_kind !== 'guest' || row.owner_guest_id !== guestId || row.status === 'revoked') continue;
+        host.revokeConnector(row.id, 'guest revoked');
+        revoked.push(row.member_id);
+      }
+      return revoked;
+    },
   });
   return {
     pairings,

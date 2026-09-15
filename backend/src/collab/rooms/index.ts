@@ -102,3 +102,7 @@ export { WorkspaceFiles, WorkspacePathError, sha256 as workspaceSha256 } from '.
 export { AttachmentError } from './room-attachments';
 export { RELAY_OUTCOME_UNKNOWN_CODE } from './handoff-dispatcher';
 export { externalMemberSessionKey } from './external-member-run';
+export { registerRoomShareRoutes, guestTokenOf, sendShareError } from './room-share-routes';
+export type { RoomShareRoutesDeps } from './room-share-routes';
+export { createRoomGuests, GuestError, GUEST_TOKEN_HEADER } from './room-guests';
+export type { AuthenticatedGuest, RoomGuests, RoomGuestView } from './room-guests';

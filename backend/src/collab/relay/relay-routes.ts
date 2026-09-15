@@ -18,7 +18,7 @@ import { raw as expressRaw } from 'express';
 import { getRequestIdentity, type ResourceAccess, sendResourceForbidden } from '../../core/auth';
 import type { DB } from '../../core/db';
 import { buildStructuredApiError, type RouteApp } from '../../core/http';
-import { WorkspacePathError, type RoomCollab } from '../rooms';
+import { type AuthenticatedGuest, guestTokenOf, sendShareError, WorkspacePathError, type RoomCollab } from '../rooms';
 import type { HostPairingStore, PairingRequester } from './host-pairing-store';
 import { encodePairingCode, RELAY_HEADERS, RelayProtocolError } from './protocol';
 import type { RelayHost } from './relay-host';
@@ -67,17 +67,16 @@ export function registerRelayRoutes(app: RouteApp, ctx: RelayRoutesDeps): void {
 
   // ---------------------------------------------------------------- host：配对（登录用户）
 
-  app.post('/api/groups/:id/relay/pairings', guardRoom, (req, res) => {
+  const createPairing = (req: express.Request, res: express.Response, groupId: string, requester: PairingRequester) => {
     try {
       const collab = ctx.roomCollab;
-      const policy = collab.policies.get(req.params.id);
+      const policy = collab.policies.get(groupId);
       if (!policy) return res.status(404).json(buildStructuredApiError('groups.notFound'));
       if (!policy.allowGuestAgents) return res.status(403).json(buildStructuredApiError('relay.guestAgentsDisabled'));
-      const identity = getRequestIdentity(req);
-      const requester: PairingRequester = { kind: 'user', userId: identity.userId, name: identity.username ?? '' };
       const hostUrl = requestOrigin(req);
-      const created = ctx.relay.pairings.createRequest({ groupId: req.params.id, requester, maxAgents: policy.maxGuestAgentsPerMember, hostBaseUrl: hostUrl });
-      const roomName = ctx.db.getGroupChat(req.params.id)?.name ?? req.params.id;
+      const created = ctx.relay.pairings.createRequest({ groupId, requester, maxAgents: policy.maxGuestAgentsPerMember, hostBaseUrl: hostUrl });
+      const roomName = ctx.db.getGroupChat(groupId)?.name ?? groupId;
+      collab.publish(groupId, { type: 'pairing', data: { changed: true } });
       res.json({
         success: true,
         requestId: created.requestId,
@@ -87,6 +86,53 @@ export function registerRelayRoutes(app: RouteApp, ctx: RelayRoutesDeps): void {
     } catch (error) {
       sendRelayError(res, error);
     }
+  };
+
+  app.post('/api/groups/:id/relay/pairings', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    createPairing(req, res, req.params.id, { kind: 'user', userId: identity.userId, name: identity.username ?? '' });
+  });
+
+  // ---------------------------------------------------------------- host：访客配对自己的 Agent（访客令牌，公开入口）
+
+  const withGuest = (req: express.Request, res: express.Response): AuthenticatedGuest | null => {
+    try {
+      return ctx.roomCollab.guests.authenticate(String(req.params.code ?? ''), guestTokenOf(req));
+    } catch (error) {
+      sendShareError(res, error);
+      return null;
+    }
+  };
+
+  app.post('/api/share/rooms/:code/relay/pairings', (req, res) => {
+    const guest = withGuest(req, res);
+    if (!guest) return;
+    createPairing(req, res, guest.policy.groupId, { kind: 'guest', guestId: guest.actor.guestId, name: guest.actor.name });
+  });
+
+  app.get('/api/share/rooms/:code/relay/pairings', (req, res) => {
+    const guest = withGuest(req, res);
+    if (!guest) return;
+    const groupId = guest.policy.groupId;
+    res.json({
+      success: true,
+      pairings: ctx.relay.pairings.listPending(groupId).filter((item) => item.requesterKind === 'guest' && item.requesterGuestId === guest.actor.guestId),
+      connectors: ctx.relay.pairings.listConnectors(groupId)
+        .filter((row) => row.owner_kind === 'guest' && row.owner_guest_id === guest.actor.guestId)
+        .map((row) => ({ id: row.id, memberId: row.member_id, status: row.status, descriptor: JSON.parse(row.descriptor_json), online: ctx.relay.host.isConnectorOnline(row.id), createdAt: row.created_at })),
+    });
+  });
+
+  app.delete('/api/share/rooms/:code/relay/connectors/:connectorId', (req, res) => {
+    const guest = withGuest(req, res);
+    if (!guest) return;
+    const connector = ctx.relay.pairings.getConnector(String(req.params.connectorId));
+    if (!connector || connector.group_id !== guest.policy.groupId || connector.owner_kind !== 'guest' || connector.owner_guest_id !== guest.actor.guestId) {
+      return res.status(404).json(buildStructuredApiError('relay.connectorNotFound'));
+    }
+    ctx.relay.host.revokeConnector(connector.id, 'revoked by guest');
+    ctx.roomCollab.orchestrator.dropMember(guest.policy.groupId, connector.member_id, 'removed');
+    res.json({ success: true });
   });
 
   app.get('/api/groups/:id/relay/pairings', guardRoom, (req, res) => {

@@ -42,7 +42,7 @@ import {
 } from '../control';
 import { registerFileRoutes, registerUploadRoutes } from '../workspace';
 import { registerChatRoutes, registerSessionListRoutes, registerSessionRoutes } from '../collab/sessions';
-import { registerRoomRoutes } from '../collab/rooms';
+import { registerRoomRoutes, registerRoomShareRoutes } from '../collab/rooms';
 import { registerRelayRoutes } from '../collab/relay';
 import { registerAutomationRoutes, registerWorkflowRoutes } from '../automation';
 import type { AppContext } from './context';
@@ -181,6 +181,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   }));
 
   registerRoomRoutes(routes.forModule('collab/rooms'), ctx);
+  // 访客页（P3）：邀请码 + 访客令牌，公开入口按 AUTH_PUBLIC_PATHS 放行。
+  registerRoomShareRoutes(routes.forModule('collab/rooms'), ctx);
   // 远程 Agent relay（P3）：host 的配对 / connector / 远程工作区，target 的本机链接。公开入口按 AUTH_PUBLIC_PATHS 放行。
   registerRelayRoutes(routes.forModule('collab/relay'), ctx);
 

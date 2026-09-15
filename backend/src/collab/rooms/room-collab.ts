@@ -13,6 +13,7 @@ import path from 'path';
 import { createHandoffDispatcher } from './handoff-dispatcher';
 import { ensureGroupWorkspace } from './group-workspace';
 import { createRoomAttachments } from './room-attachments';
+import { createRoomGuests } from './room-guests';
 import { createRoomDelegation } from './room-delegation';
 import { createHandoffStore } from './handoff-store';
 import { getStructuredGroupMessage, type RoomRunScope, type RoomTurnHooks } from './group-chat-engine';
@@ -46,6 +47,8 @@ export type RoomCollabDeps = {
 export type RoomRelayPort = {
   isConnectorOnline(connectorId: string): boolean;
   issueWorkspaceGrant(input: { groupId: string; member: GroupMemberRow; policy: RoomPolicy; workspacePath: string }): { baseUrl: string; token: string; revoke(): Promise<void> } | null;
+  /** 吊销某个访客配对进来的全部远程 Agent，返回其成员 id。 */
+  revokeGuestAgents?(groupId: string, guestId: string): string[];
 };
 
 /** 摘要状态的端口（room-summary.ts 实现；缺省没有摘要）。 */
@@ -97,6 +100,12 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     uploadsDir: (groupId) => ensureGroupWorkspace(groupId).uploadsPath,
     legacyUploadOwner: (storedPath) => (deps.db.getFileByStoredName(path.basename(storedPath))?.session_key as string | undefined) ?? null,
     registerFile: (file) => deps.db.saveFile({ sessionKey: file.groupId, originalName: file.originalName, mimeType: file.mimeType, size: file.size, storedPath: file.storedPath }),
+  });
+
+  const guests = createRoomGuests({
+    conn,
+    policies,
+    agentNames: (groupId) => members(groupId).map((member) => member.display_name || member.agent_id),
   });
 
   const summary = createRoomSummary({
@@ -249,6 +258,23 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     interactions,
     attachments,
     delegation,
+    guests,
+    /** 吊销访客：令牌失效，其远程 Agent 的 connector 一并吊销、排队项丢弃（待决审批随运行收尾按超时拒绝）。 */
+    revokeGuest(groupId: string, guestId: string): boolean {
+      if (!guests.revoke(groupId, guestId)) return false;
+      for (const memberId of relay?.revokeGuestAgents?.(groupId, guestId) ?? []) orchestrator.dropMember(groupId, memberId, 'removed');
+      publish(groupId, { type: 'room_updated', data: { guestsChanged: true } });
+      return true;
+    },
+    /** 轮换 / 吊销邀请码之前：当前邀请代下的访客逐个吊销（含其远程 Agent）。 */
+    retireGuests(groupId: string): number {
+      let count = 0;
+      for (const guest of guests.list(groupId)) {
+        for (const memberId of relay?.revokeGuestAgents?.(groupId, guest.id) ?? []) orchestrator.dropMember(groupId, memberId, 'removed');
+        if (guests.revoke(groupId, guest.id)) count += 1;
+      }
+      return count;
+    },
     /** 清空 / 删除房间时：协作表里这个群的状态一并清掉，摘要失效，会话种子轮换。 */
     clearRoomState(groupId: string) {
       queueStore.deleteForGroup(groupId);

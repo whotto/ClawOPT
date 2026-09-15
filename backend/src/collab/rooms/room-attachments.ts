@@ -273,12 +273,29 @@ export function createRoomAttachments(deps: RoomAttachmentsDeps) {
     return commitFile({ groupId: input.groupId, tempPath, name: input.name, mediaType: mediaTypeFor(input.name), size: stat.size, sha256: sha, uploader: null, memberId: input.memberId });
   }
 
+  /**
+   * 访客页读附件：只认本群 `room_attachments` 登记过的存储名（旧上传接口的文件访客看不到），且必须是群上传目录里的普通文件。
+   */
+  function resolveStored(groupId: string, storedName: string): { absolutePath: string; name: string; mediaType: string; size: number } | null {
+    if (!STORED_NAME.test(storedName)) return null;
+    const row = conn.prepare('SELECT * FROM room_attachments WHERE stored_name = ? AND group_id = ?').get(storedName, groupId) as Record<string, any> | undefined;
+    if (!row) return null;
+    const abs = path.join(deps.uploadsDir(groupId), storedName);
+    try {
+      const stat = fs.lstatSync(abs);
+      if (!stat.isFile() || stat.isSymbolicLink()) return null;
+    } catch {
+      return null;
+    }
+    return { absolutePath: abs, name: row.original_name, mediaType: row.media_type, size: row.size };
+  }
+
   function deleteForGroup(groupId: string): void {
     for (const session of [...sessions.values()].filter((item) => item.groupId === groupId)) abortSession(session);
     conn.prepare('DELETE FROM room_attachments WHERE group_id = ?').run(groupId);
   }
 
-  return { openUpload, status, appendChunk, complete, abort, rebind, admitLegacyUpload, publishFromWorkspace, roomUsage, deleteForGroup, sweep };
+  return { openUpload, status, appendChunk, complete, abort, rebind, admitLegacyUpload, publishFromWorkspace, resolveStored, roomUsage, deleteForGroup, sweep };
 }
 
 export type RoomAttachments = ReturnType<typeof createRoomAttachments>;
