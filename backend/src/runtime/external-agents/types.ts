@@ -33,6 +33,8 @@ export interface ExternalRunRequest {
   maxBudgetUsd?: number;
   /** 额外允许访问的目录。 */
   extraDirs?: string[];
+  /** 执行器的硬超时（毫秒）。不进命令行；缺省用执行器的默认值。工作流节点用它传剩余时限。 */
+  timeoutMs?: number;
 }
 
 export interface BuiltCommand {

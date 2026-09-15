@@ -204,6 +204,7 @@ export function createClaudeCodeRuntimeAdapter(options: { executor?: CommandExec
       const done: Promise<AdapterRunOutcome> = executor(built, commands, {
         signal: context.signal,
         onEvent: (event) => translator.handle(event),
+        ...(typeof context.request.timeoutMs === 'number' ? { timeoutMs: context.request.timeoutMs } : {}),
       }).then((result): AdapterRunOutcome => {
         if (result.aborted) {
           return { kind: 'aborted', reason: interruptReason ?? 'user_stop', synced: true, phase: 'running' };

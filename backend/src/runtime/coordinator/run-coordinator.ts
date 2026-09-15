@@ -151,7 +151,10 @@ export class RunCoordinator {
     this.abortGraceMs = options.abortGraceMs ?? DEFAULT_ABORT_GRACE_MS;
     this.log = options.log ?? ((message) => console.warn(message));
     this.interactions = new InteractionRegistry({
-      onActivated: (view) => this.publishInteraction(view, 'requested'),
+      onActivated: (view) => {
+        this.publishInteraction(view, 'requested');
+        this.autoAnswerInteraction(view);
+      },
       onResolved: (view, outcome) => this.publishInteraction(view, 'resolved', outcome),
     });
   }
@@ -280,6 +283,23 @@ export class RunCoordinator {
     if (topic) this.hub.publish({ topic, type, payload, runId: view.runId });
     state?.replay.remove(replayKey);
     if (phase === 'resolved') this.interactionTopics.delete(view.id);
+  }
+
+  /**
+   * 无人值守的运行（`submission.autoApprove`）：审批请求一排到队首就自动作答。
+   * 放到微任务里答——此刻还在注册表的激活回调里，同步答复会重入注册表。
+   * 答复照常经注册表，`approval.requested` / `approval.resolved` 帧与业务事件一个不少，转录里看得见。
+   */
+  private autoAnswerInteraction(view: PendingInteractionView): void {
+    if (view.kind !== 'approval') return;
+    const policy = this.runsById.get(view.runId)?.submission.autoApprove;
+    if (!policy) return;
+    const choices = (view.request as { choices?: ReadonlyArray<string> }).choices ?? [];
+    const choice = policy === 'once' && choices.includes('once') ? 'once' : 'deny';
+    queueMicrotask(() => {
+      const result = this.interactions.respond(view.sessionKey, view.id, { choice });
+      if (!result.resolved) this.log(`[RunCoordinator] auto-approval (${choice}) not applied for ${view.id}: ${result.error ?? 'unknown'}`);
+    });
   }
 
   /** 交互请求 id → 发起它的运行的主题。 */

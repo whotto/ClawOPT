@@ -1820,7 +1820,13 @@
       "remainingAtStart": "{{seconds}}s of budget left at start",
       "prompt": "Prompt",
       "output": "Output",
-      "noOutput": "No output"
+      "noOutput": "No output",
+      "runtime": "Runtime",
+      "endReason": "ended: {{reason}}",
+      "live": "Live output",
+      "toolCalls": "Tool calls ({{count}})",
+      "noToolCalls": "No tool calls",
+      "usage": "Usage: {{input}} input / {{output}} output tokens · ${{cost}}"
     },
     "pending": {
       "description": "A workflow node is waiting for approval"

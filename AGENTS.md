@@ -91,7 +91,7 @@
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
 
 ## 自动化模块（P4a）
-- **执行平面只经 `automation/ports.ts` 的 `WorkflowAgentRunner`**（`runAndWait` / `abort`）。当前实现 `runner/existing-path-runner.ts` 是**接缝**：OpenClaw 走网关 `chat.send` + `agent.wait`，外部运行时走本机执行器（目前只有 claude-code 有适配器）。运行协调器落地后替换这一个文件与 `create-automation.ts` 的一行装配；引擎、看板、测试不改。不要在引擎或看板里直接调网关或执行器。
+- **执行平面只经 `automation/ports.ts` 的 `WorkflowAgentRunner`**（`runAndWait` / `abort` / `discardSessions`）。实现是 `runner/coordinator-runner.ts`：每个工作流节点与看板派活都是**运行协调器里 `workflow` 表面的真实会话**（会话键 `workflow:<sessionId>`；OpenClaw 走网关单聊适配器、网关会话键 `agent:<id>:workflow:<sessionId>`、专用连接结束即断开；外部运行时走各自的契约适配器，剩余时限同时交给执行器做硬超时）。`workflow` 表面不建单聊会话、不进群，所以不出现在聊天列表里；转录接口按会话键读 `run_sessions` / `run_tool_calls` / `session_usage`，运行面板运行中订阅 `/ws` 的 `session:workflow:<sessionId>` 主题。审批无人值守：提交带 `autoApprove`，协调器在请求排到队首时自动答「允许一次」（请求里没有 once 时拒绝）——今天 openclaw 与 claude-code 两个适配器都不声明 `approvals`，这条对它们不触发。删运行时 `discardSessions` 清会话行与工具调用（用量保留）。不要在引擎或看板里直接调网关、执行器或协调器。
 - 本机演示与 UI 验证用 `CLAWOPT_WORKFLOW_FAKE_RUNNER=1`（确定性假 Runner，按节点任务里的 `[fake:delay|fail|seq|output]` 指令出结果）；界面会明确标出演示模式。
 - 终态：`completed` / `completed_with_failures`（有节点失败，但每个失败都被 failure / always 路由接住）/ `failed` / `canceled`。**终态不可逆在仓储层强制**（`run-store.ts` 的 `WHERE status NOT IN 终态`），不要在服务层绕开；唯一的重置入口是带乐观并发条件的 `resetForRerun`。
 - 三张证据表共用运行行上的 `evidence_seq`，在同一事务里取号（`UPDATE … RETURNING`）。终态运行只允许追加非 completed 的收尾循环轮次。

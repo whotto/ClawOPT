@@ -3,13 +3,12 @@
  *
  * ## 为什么是接口
  *
- * 工作流节点、看板派活都要「让某个 Agent 跑一轮并等它结束」。这件事的正式实现属于
- * 运行协调器（`runtime/coordinator`，并行开发中）：队列、插入、中止、续传、落库、审批自动应答。
- * 引擎不该知道这些，也不该等协调器落地才能跑——所以只依赖 `WorkflowAgentRunner`。
+ * 工作流节点、看板派活都要「让某个 Agent 跑一轮并等它结束」。这件事的实现属于运行协调器
+ * （`runtime/coordinator`）：会话、中止、落库、用量、审批自动应答、业务事件。引擎和看板不该知道这些，
+ * 所以只依赖 `WorkflowAgentRunner`。
  *
- * 现在的实现是 `runner/existing-path-runner.ts`：**薄适配**，走 ClawOPT 已有的两条路径
- * （OpenClaw 网关 chat.send + agent.wait；外部运行时的本机执行器）。协调器落地后替换的只是
- * 那一个文件与 `bootstrap/context.ts` 里的一行装配，引擎、看板、测试都不动。
+ * 正式实现是 `runner/coordinator-runner.ts`：每次运行是协调器里 `workflow` 表面的一个会话
+ * （会话键 `workflow:<sessionId>`）。
  *
  * 测试与本机演示用 `runner/fake-runner.ts`（`CLAWOPT_WORKFLOW_FAKE_RUNNER=1`）。
  */
@@ -59,6 +58,8 @@ export type AgentRunResult = {
 export interface WorkflowAgentRunner {
   runAndWait(req: AgentRunRequest): Promise<AgentRunResult>;
   abort(sessionId: string): Promise<void> | void;
+  /** 运行被删除：丢掉这些会话在执行平面留下的记录（协调器会话行、工具调用；用量是账，保留）。 */
+  discardSessions(sessionIds: string[]): void;
 }
 
 export type AgentAvailability = { available: true } | { available: false; reason: string };

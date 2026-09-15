@@ -1820,7 +1820,13 @@
       "remainingAtStart": "开始时剩余预算 {{seconds}} 秒",
       "prompt": "提示词",
       "output": "输出",
-      "noOutput": "没有输出"
+      "noOutput": "没有输出",
+      "runtime": "运行时",
+      "endReason": "结束：{{reason}}",
+      "live": "实时输出",
+      "toolCalls": "工具调用（{{count}}）",
+      "noToolCalls": "没有工具调用",
+      "usage": "用量：输入 {{input}} / 输出 {{output}} tokens · ${{cost}}"
     },
     "pending": {
       "description": "工作流节点等待审批"

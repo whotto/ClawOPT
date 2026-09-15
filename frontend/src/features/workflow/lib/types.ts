@@ -141,6 +141,22 @@ export type Transcript = {
   error: string | null;
   startedAt: number | null;
   finishedAt: number | null;
+  /** 节点作为协调器会话运行时的会话记录（假 Runner 或没提交成功时为 null）。 */
+  session: TranscriptSession | null;
+};
+
+export type TranscriptSession = {
+  sessionKey: string;
+  /** `/ws` 主题：运行中的正文增量与工具事件。 */
+  topic: string;
+  surface: string;
+  runtime: string;
+  agentId: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  endReason: string | null;
+  toolCalls: Array<{ callId: string; name: string; arguments: string; output: string | null; status: string | null; startedAt: number | null; completedAt: number | null }>;
+  usage: Array<{ model: string | null; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd: number | null }>;
 };
 
 export type ScheduleRecord = {

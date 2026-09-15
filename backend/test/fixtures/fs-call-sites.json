@@ -1,6 +1,6 @@
 [
   {
-    "file": "automation/runner/existing-path-runner.ts",
+    "file": "automation/runner/coordinator-runner.ts",
     "call": "readFileSync",
     "context": "block.path"
   },

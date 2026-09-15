@@ -1,9 +1,11 @@
-// 节点转录侧栏：这个节点在当前运行里的每次执行（循环多轮时可切换），提示词与输出；挂起审批时给批准 / 拒绝。
+// 节点转录侧栏：这个节点在当前运行里的每次执行（循环多轮时可切换），提示词、工具调用、用量与输出；挂起审批时给批准 / 拒绝。
+// 节点是运行协调器里的 workflow 会话：运行中订阅 `/ws` 的会话主题看正文增量与工具事件，结束后读落库的转录。
 import { Check, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getRealtimeClient } from '../../../api/ws';
 import { formatIterationPath } from '../lib/evidence';
-import type { NodeExecution, RunRecord, Transcript } from '../lib/types';
+import type { NodeExecution, RunRecord, Transcript, TranscriptSession } from '../lib/types';
 import { StatusBadge, formatTime, iconButton, primaryButton, dangerButton } from './ui';
 
 const WIDTH_KEY = 'clawopt_workflow_transcript_width';
@@ -29,6 +31,30 @@ export default function TranscriptPanel({ run, nodeTitle, executions, initialExe
     }
   });
   const execution = executions.find((item) => item.executionId === executionId) ?? null;
+  const [live, setLive] = useState<{ text: string; tools: Array<{ callId: string; name: string; status: string }> }>({ text: '', tools: [] });
+  const liveTopic = execution?.status === 'running' ? transcript?.session?.topic ?? null : null;
+
+  // 运行中：订阅节点会话主题。订阅不到（无权、通道不可用）就只显示落库内容，不影响其余面板。
+  useEffect(() => {
+    setLive({ text: '', tools: [] });
+    if (!liveTopic) return;
+    const subscription = getRealtimeClient().subscribe(liveTopic, {
+      onEvent: (message) => {
+        const payload = message.payload ?? {};
+        if (message.event === 'message.delta' && typeof payload.delta === 'string') {
+          setLive((current) => ({ ...current, text: current.text + payload.delta }));
+        } else if (message.event === 'message.snapshot' && typeof payload.text === 'string') {
+          setLive((current) => ({ ...current, text: payload.text }));
+        } else if (message.event === 'tool.started') {
+          setLive((current) => ({ ...current, tools: [...current.tools, { callId: String(payload.call_id), name: String(payload.name ?? ''), status: 'running' }] }));
+        } else if (message.event === 'tool.completed' || message.event === 'tool.failed') {
+          const status = message.event === 'tool.failed' ? 'failed' : 'completed';
+          setLive((current) => ({ ...current, tools: current.tools.map((tool) => (tool.callId === payload.call_id ? { ...tool, status } : tool)) }));
+        }
+      },
+    });
+    return () => subscription.unsubscribe();
+  }, [liveTopic]);
 
   useEffect(() => {
     if (!executionId) return;
@@ -89,7 +115,10 @@ export default function TranscriptPanel({ run, nodeTitle, executions, initialExe
           <>
             <div className="text-xs text-gray-500 space-y-0.5">
               <div>{t('automation.transcript.agent')}: {transcript.agent.id}</div>
-              <div>{t('automation.transcript.session')}: <span className="font-mono">{transcript.sessionId}</span></div>
+              <div>{t('automation.transcript.session')}: <span className="font-mono">{transcript.session?.sessionKey ?? transcript.sessionId}</span></div>
+              {transcript.session && (
+                <div>{t('automation.transcript.runtime')}: {transcript.session.runtime}{transcript.session.endReason ? ` · ${t('automation.transcript.endReason', { reason: transcript.session.endReason })}` : ''}</div>
+              )}
               <div>{formatTime(transcript.startedAt)} → {formatTime(transcript.finishedAt)}</div>
               {execution?.remainingTimeoutMsAtStart !== null && execution?.remainingTimeoutMsAtStart !== undefined && (
                 <div>{t('automation.transcript.remainingAtStart', { seconds: Math.round(execution.remainingTimeoutMsAtStart / 1000) })}</div>
@@ -99,6 +128,7 @@ export default function TranscriptPanel({ run, nodeTitle, executions, initialExe
               <h4 className="text-xs font-semibold text-gray-500 mb-1">{t('automation.transcript.prompt')}</h4>
               <pre className="whitespace-pre-wrap break-words text-xs bg-gray-50 border border-gray-100 rounded-xl p-3 max-h-[40vh] overflow-y-auto">{transcript.prompt}</pre>
             </section>
+            {transcript.session && <TranscriptSessionDetails session={transcript.session} live={liveTopic ? live : null} />}
             <section>
               <h4 className="text-xs font-semibold text-gray-500 mb-1">{t('automation.transcript.output')}</h4>
               {transcript.output
@@ -110,5 +140,63 @@ export default function TranscriptPanel({ run, nodeTitle, executions, initialExe
         )}
       </div>
     </aside>
+  );
+}
+
+function TranscriptSessionDetails({ session, live }: {
+  session: TranscriptSession;
+  live: { text: string; tools: Array<{ callId: string; name: string; status: string }> } | null;
+}) {
+  const { t } = useTranslation();
+  const usage = session.usage.reduce((sum, row) => ({
+    input: sum.input + row.inputTokens,
+    output: sum.output + row.outputTokens,
+    cost: sum.cost + (row.costUsd ?? 0),
+  }), { input: 0, output: 0, cost: 0 });
+  return (
+    <>
+      {live && (
+        <section>
+          <h4 className="text-xs font-semibold text-gray-500 mb-1">{t('automation.transcript.live')}</h4>
+          {live.tools.length > 0 && (
+            <ul className="mb-2 space-y-1">
+              {live.tools.map((tool) => (
+                <li key={tool.callId} className="text-xs text-gray-600 flex items-center gap-2">
+                  <span className="font-mono">{tool.name}</span>
+                  <StatusBadge status={tool.status} />
+                </li>
+              ))}
+            </ul>
+          )}
+          <pre className="whitespace-pre-wrap break-words text-xs bg-white border border-gray-200 rounded-xl p-3 min-h-[2.5rem]">{live.text}</pre>
+        </section>
+      )}
+      <section>
+        <h4 className="text-xs font-semibold text-gray-500 mb-1">{t('automation.transcript.toolCalls', { count: session.toolCalls.length })}</h4>
+        {session.toolCalls.length === 0
+          ? <p className="text-xs text-gray-400">{t('automation.transcript.noToolCalls')}</p>
+          : (
+            <ul className="space-y-1.5">
+              {session.toolCalls.map((call) => (
+                <li key={call.callId}>
+                  <details className="rounded-xl border border-gray-100 bg-gray-50">
+                    <summary className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2">
+                      <span className="font-mono text-gray-800 truncate flex-1">{call.name}</span>
+                      {call.status && <StatusBadge status={call.status === 'interrupted' ? 'canceled' : call.status} />}
+                    </summary>
+                    <div className="px-3 pb-2 space-y-1">
+                      <pre className="whitespace-pre-wrap break-words text-[11px] text-gray-600 max-h-40 overflow-y-auto">{call.arguments}</pre>
+                      {call.output !== null && <pre className="whitespace-pre-wrap break-words text-[11px] text-gray-800 border-t border-gray-100 pt-1 max-h-60 overflow-y-auto">{call.output}</pre>}
+                    </div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          )}
+      </section>
+      {session.usage.length > 0 && (
+        <p className="text-xs text-gray-500">{t('automation.transcript.usage', { input: usage.input, output: usage.output, cost: usage.cost.toFixed(4) })}</p>
+      )}
+    </>
   );
 }

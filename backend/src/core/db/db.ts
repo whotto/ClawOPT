@@ -590,6 +590,14 @@ export class DB {
     })();
   }
 
+  /** 删协调器会话的通用行（工作流运行被删时）。`session_usage` 保留——用量是账。 */
+  deleteRunSessionData(sessionKey: string): void {
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM run_tool_calls WHERE session_key = ?').run(sessionKey);
+      this.db.prepare('DELETE FROM run_sessions WHERE session_key = ?').run(sessionKey);
+    })();
+  }
+
   listRunToolCalls(sessionKey: string): RunToolCallRow[] {
     return this.db.prepare('SELECT * FROM run_tool_calls WHERE session_key = ? ORDER BY id ASC').all(sessionKey) as RunToolCallRow[];
   }

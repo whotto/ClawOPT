@@ -17,7 +17,12 @@ import type {
 import type { ReplayPolicy } from './replay-buffer';
 import type { ToolCallRecord } from './tool-call-groups';
 
-export type RunSurface = 'chat' | 'room';
+/**
+ * 运行出现在哪个表面。`workflow`（工作流节点、看板派活）是**无人值守**的表面：它的会话只进
+ * `run_sessions` / `run_tool_calls` / `session_usage` 这几张通用表，不建单聊会话、不进群，
+ * 所以天然不出现在聊天列表里；转录由工作流运行面板按会话键读。
+ */
+export type RunSurface = 'chat' | 'room' | 'workflow';
 export type RunEndReason = 'complete' | 'error' | 'abort';
 
 export interface RunSessionInput {
@@ -127,6 +132,12 @@ export interface RunSubmission<TRequest = unknown> {
   meta?: Record<string, unknown>;
   /** 这个运行时中止的宽限（缺省用协调器的默认值）。OpenClaw 的 chat.abort 自己就有 5 秒时限。 */
   abortGraceMs?: number;
+  /**
+   * 无人值守时审批请求怎么自动答（工作流节点）：`once` 选「允许一次」（请求里没有这一项时按拒绝），
+   * `deny` 一律拒绝。缺省 = 交给人（经 `/ws` 的 `interaction.respond`）。
+   * 只对声明了 `approvals` 能力的运行时有意义；其余运行时（今天的 openclaw 与 claude-code）根本不发审批请求。
+   */
+  autoApprove?: 'once' | 'deny';
 }
 
 export type BusyPolicy = 'queue' | 'replace' | 'reject';

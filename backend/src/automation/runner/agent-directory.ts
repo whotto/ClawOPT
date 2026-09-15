@@ -10,7 +10,7 @@ import type { SessionManager } from '../../collab/sessions';
 import { readTextFileSafe } from '../../openclaw';
 import { buildExternalRuntimeList, resolveBinaryOnPath } from '../../runtime';
 import type { AgentDirectory, AgentDirectoryEntry, WorkflowAgentRef } from '../ports';
-import { supportedExternalRuntimes } from './existing-path-runner';
+import { supportedExternalRuntimes } from './coordinator-runner';
 
 const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_SKILL_BYTES = 256 * 1024;

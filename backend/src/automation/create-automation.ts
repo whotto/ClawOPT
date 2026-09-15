@@ -1,9 +1,8 @@
 /**
  * 自动化模块的装配：一个库连接、一套仓储、一个 Runner、一个事件总线出口。
  *
- * ★ Runner 接缝在这里：`CLAWOPT_WORKFLOW_FAKE_RUNNER=1` 用确定性假 Runner，否则用
- * `createExistingPathRunner`（走现有 OpenClaw 网关与外部运行时执行器）。运行协调器落地后，
- * 把 `runner` 换成协调器提供的实现即可。
+ * Runner 接缝在这里：`CLAWOPT_WORKFLOW_FAKE_RUNNER=1` 用确定性假 Runner，否则用
+ * `createCoordinatorRunner`（节点作为运行协调器里的 `workflow` 表面会话运行）。
  */
 import fs from 'fs';
 import path from 'path';
@@ -14,13 +13,14 @@ import type { DB } from '../core/db';
 import type { EventBus } from '../core/events';
 import { resolveServablePath } from '../core/files';
 import { uploadDir, workflowWorkspacesDir } from '../core/paths';
-import type { GatewayConnections } from '../openclaw';
+import type { GatewayConnections, OpenClawClient } from '../openclaw';
+import type { AgentRuntimeAdapter, OpenClawChatRunRequest, RunCoordinator } from '../runtime';
 import { createKanbanService } from './kanban/kanban-service';
 import { createKanbanStore } from './kanban/kanban-store';
 import { createInboundHooks } from './hooks/inbound-hooks';
 import type { AttachmentResolver, WorkflowAgentRunner } from './ports';
 import { createAgentDirectory } from './runner/agent-directory';
-import { createExistingPathRunner } from './runner/existing-path-runner';
+import { createCoordinatorRunner, workflowSessionKey } from './runner/coordinator-runner';
 import { createFakeRunner } from './runner/fake-runner';
 import { createScheduleService } from './schedules/schedule-service';
 import { ensureAutomationSchema } from './shared/schema';
@@ -41,6 +41,9 @@ export type AutomationDeps = {
   sessionManager: SessionManager;
   agentProvisioner: { getWorkspacePath(agentId: string): string };
   gatewayConnections: GatewayConnections;
+  connections: Map<string, OpenClawClient>;
+  runCoordinator: RunCoordinator;
+  openclawAdapter: AgentRuntimeAdapter<OpenClawChatRunRequest>;
   events: EventBus;
   /** 测试注入；缺省按环境变量选择。 */
   runner?: WorkflowAgentRunner;
@@ -65,7 +68,7 @@ export function createAutomation(deps: AutomationDeps) {
     workspacePathFor: (agentId) => deps.agentProvisioner.getWorkspacePath(agentId),
     fakeRunner,
   });
-  const runner = deps.runner ?? (fakeRunner ? createFakeRunner() : createExistingPathRunner({ gatewayConnections: deps.gatewayConnections }));
+  const runner = deps.runner ?? (fakeRunner ? createFakeRunner() : createCoordinatorRunner(deps));
 
   const resolveAttachment: AttachmentResolver = (url) => {
     const name = url.startsWith('/uploads/') ? url.slice('/uploads/'.length) : '';
@@ -166,7 +169,46 @@ export function createAutomation(deps: AutomationDeps) {
     },
   };
 
+  /**
+   * 节点会话的转录：协调器通用表里的会话行、工具调用（成组落库，按顺序）与用量。
+   * 假 Runner 与没有提交成功的节点没有会话行，返回 null。
+   */
+  const nodeSession = (sessionId: string | null) => {
+    if (!sessionId) return null;
+    const sessionKey = workflowSessionKey(sessionId);
+    const row = deps.db.getRunSession(sessionKey);
+    if (!row) return null;
+    return {
+      sessionKey,
+      topic: `session:${sessionKey}`,
+      surface: row.surface,
+      runtime: row.runtime,
+      agentId: row.agent_id,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      endReason: row.end_reason,
+      toolCalls: deps.db.listRunToolCalls(sessionKey).map((call) => ({
+        callId: call.call_id,
+        name: call.name,
+        arguments: call.arguments,
+        output: call.output,
+        status: call.status,
+        startedAt: call.started_at,
+        completedAt: call.completed_at,
+      })),
+      usage: deps.db.listSessionUsage(sessionKey).map((usage) => ({
+        model: usage.model,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        cacheReadTokens: usage.cache_read_tokens,
+        cacheWriteTokens: usage.cache_write_tokens,
+        costUsd: usage.cost_usd,
+      })),
+    };
+  };
+
   return {
+    nodeSession,
     packBundles,
     fakeRunner,
     settings,

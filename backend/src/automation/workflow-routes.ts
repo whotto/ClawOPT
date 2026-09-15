@@ -111,6 +111,8 @@ export function registerWorkflowRoutes(app: RouteApp, ctx: WorkflowRoutesDeps): 
         error: execution.error,
         startedAt: execution.startedAt,
         finishedAt: execution.finishedAt,
+        // 节点作为协调器会话运行（workflow 表面，不进聊天列表）：工具调用、用量与会话状态；运行中的增量订阅 `topic`。
+        session: automation().nodeSession(execution.sessionId),
       },
     };
   }));

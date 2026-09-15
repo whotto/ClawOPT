@@ -410,7 +410,16 @@ export function createWorkflowEngine(deps: EngineDeps) {
       stopRun(workflowId, runId);
       await completions.get(runId)?.catch(() => undefined);
     }
+    const sessionIds = deps.runStore.evidence(runId).nodeExecutions
+      .map((exec) => exec.sessionId)
+      .filter((sessionId): sessionId is string => !!sessionId);
     deps.runStore.deleteRun(runId);
+    // 节点会话在执行平面留下的记录（协调器会话行、工具调用）跟着运行走。
+    try {
+      deps.runner.discardSessions(sessionIds);
+    } catch (error) {
+      console.warn('[Workflow] discarding node sessions failed:', (error as Error)?.message);
+    }
     if (deps.hub.get(workflowId)?.runId === runId) deps.hub.forget(workflowId);
   }
 

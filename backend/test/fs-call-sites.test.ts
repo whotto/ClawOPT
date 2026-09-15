@@ -52,7 +52,7 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
  *
  * 57 → 58（P1a）：`core/db/native-build-check.ts` 读 better-sqlite3 的原生插件二进制做构建隐患检测。
  * 路径来自 `require.resolve('better-sqlite3/package.json')`，不是数据给的；只读、不解析内容，只查一个符号串。
- * 58 → 59（P4a）：工作流 OpenClaw Runner 读图片附件（路径已过可服务路径闸门 + assertRegularFile）。
+ * 58 → 59（P4a）：工作流 OpenClaw 节点读图片附件（路径已过可服务路径闸门 + assertRegularFile；集成 v1.9 起在 `automation/runner/coordinator-runner.ts`）。
  */
 const CURRENT_SITE_BUDGET = 59;
 

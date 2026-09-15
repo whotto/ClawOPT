@@ -15,12 +15,14 @@ import { delay } from '../shared/util';
 export type ScriptedHandler = (req: AgentRunRequest, callIndex: number) => AgentRunResult | Promise<AgentRunResult>;
 
 /** 测试用：把行为交给回调，自己只负责计数、超时与中止语义。 */
-export function createScriptedRunner(handler: ScriptedHandler): WorkflowAgentRunner & { calls: AgentRunRequest[]; aborted: string[] } {
+export function createScriptedRunner(handler: ScriptedHandler): WorkflowAgentRunner & { calls: AgentRunRequest[]; aborted: string[]; discarded: string[] } {
   const calls: AgentRunRequest[] = [];
   const aborted: string[] = [];
+  const discarded: string[] = [];
   return {
     calls,
     aborted,
+    discarded,
     async runAndWait(req) {
       calls.push(req);
       const index = calls.length - 1;
@@ -43,6 +45,9 @@ export function createScriptedRunner(handler: ScriptedHandler): WorkflowAgentRun
     },
     abort(sessionId) {
       aborted.push(sessionId);
+    },
+    discardSessions(sessionIds) {
+      discarded.push(...sessionIds);
     },
   };
 }

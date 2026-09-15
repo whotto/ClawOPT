@@ -1820,7 +1820,13 @@
       "remainingAtStart": "開始時剩餘預算 {{seconds}} 秒",
       "prompt": "提示詞",
       "output": "輸出",
-      "noOutput": "沒有輸出"
+      "noOutput": "沒有輸出",
+      "runtime": "執行環境",
+      "endReason": "結束：{{reason}}",
+      "live": "即時輸出",
+      "toolCalls": "工具呼叫（{{count}}）",
+      "noToolCalls": "沒有工具呼叫",
+      "usage": "用量：輸入 {{input}} / 輸出 {{output}} tokens · ${{cost}}"
     },
     "pending": {
       "description": "工作流節點等待審批"
