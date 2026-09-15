@@ -49,6 +49,16 @@ function ownerMatches(a: RuntimeHomeOwner, b: Partial<RuntimeHomeOwner> & { kind
   return a.workflowId === (b as any).workflowId && ((b as any).nodeId === undefined || a.nodeId === (b as any).nodeId);
 }
 
+/**
+ * 某个归属在某个运行时下的目录路径（纯函数，不碰文件系统）：`<root>/<runtime>/<sha256(归属)[0:24]>`。
+ * 同一归属跨轮次稳定；换群 / 换会话就是另一个目录。**从不重定向 HOME**：目录只经各 CLI 自己的指针变量生效。
+ */
+export function runtimeHomePath(root: string, runtime: string, owner: RuntimeHomeOwner): string {
+  if (!RUNTIME_ID.test(runtime) || RESERVED_NAMES.has(runtime)) throw new Error(`invalid runtime id for home: ${runtime}`);
+  const hash = crypto.createHash('sha256').update(canonicalJson(owner)).digest('hex').slice(0, 24);
+  return path.join(root, runtime, hash);
+}
+
 export class RuntimeHomes {
   private readonly settingsFile: string;
 
@@ -76,9 +86,8 @@ export class RuntimeHomes {
 
   /** 拿（必要时创建）某个归属在某个运行时下的目录，并记一次使用。适配器准备运行时调用。 */
   ensureHome(runtime: string, owner: RuntimeHomeOwner): string {
-    if (!RUNTIME_ID.test(runtime) || RESERVED_NAMES.has(runtime)) throw new Error(`invalid runtime id for home: ${runtime}`);
-    const hash = crypto.createHash('sha256').update(canonicalJson(owner)).digest('hex').slice(0, 24);
-    const dir = path.join(this.root, runtime, hash);
+    const dir = runtimeHomePath(this.root, runtime, owner);
+    const hash = path.basename(dir);
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const marker = path.join(dir, MARKER_FILE);
     const existing = this.readMarker(dir);

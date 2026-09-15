@@ -252,7 +252,7 @@ describe('远程 OpenClaw 成员', () => {
   it('群聊派发：适配器按 member.runtime 从登记处取；没登记的运行时明说失败，不静默退回 OpenClaw', async () => {
     const registry = new RuntimeAdapterRegistry();
     registerBuiltinAdapters(registry);
-    expect(registry.list().map((entry) => entry.descriptor.id)).toEqual(['claude-code', 'remote-openclaw']);
+    expect(registry.list().map((entry) => entry.descriptor.id)).toEqual(['claude-code', 'codex', 'pi', 'grok', 'opencode', 'dsh', 'hermes', 'remote-openclaw']);
     expect(() => registry.registerAdapter(registry.get('claude-code')!.descriptor, () => null as any)).toThrow(/already registered/);
 
     const engine: any = Object.create(GroupChatEngine.prototype);
@@ -287,7 +287,7 @@ describe('远程 OpenClaw 成员', () => {
     await run(member('remote-openclaw'));
     expect(updates.at(-1)).toBe('M-remote-openclaw 执行失败（remoteOpenclaw.tokenMissing）');
     await run(member('mystery-cli'));
-    expect(updates.at(-1)).toBe('M-mystery-cli 执行失败（runtime.adapterNotRegistered: mystery-cli）');
+    expect(updates.at(-1)).toBe('M-mystery-cli 执行失败（runtime.unknown: mystery-cli）');
     expect(requested).toEqual(['remote-openclaw', 'mystery-cli']);
   });
 

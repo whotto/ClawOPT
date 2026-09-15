@@ -79,8 +79,8 @@ export function createRoomEngine(ctx: RoomEngineDeps) {
   });
 
   groupChatEngine.useRunCoordinator(ctx.runCoordinator);
-  // P2：外部成员的适配器按运行时 id 从登记处取（Claude Code、远程 OpenClaw、以及适配器分支登记的其余运行时）。
-  groupChatEngine.useRuntimeAdapters((runtime, executor) => ctx.runtimePlatform.createAdapter(runtime, { executor }));
+  // P2：外部成员的适配器按运行时 id 从登记处取（七个编码类运行时 + 远程 OpenClaw）。
+  groupChatEngine.useRuntimeAdapters((runtime) => ctx.runtimePlatform.createAdapter(runtime));
 
   // SSE clients per group
   const groupSSEClients = new Map<string, Set<express.Response>>();

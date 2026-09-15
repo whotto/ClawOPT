@@ -45,8 +45,12 @@ export type ExternalMemberProjectorDeps = {
 
 export function describeExternalFailure(outcome: AdapterRunOutcome): string {
   if (outcome.kind === 'aborted') return 'aborted';
-  // 有 messageCode 的失败（远程 OpenClaw 成员连不上、没配令牌……）优先报码：原话可能带地址，码能被界面与排障对上。
-  if (outcome.kind === 'failed') return outcome.code || outcome.error || 'unknown';
+  if (outcome.kind === 'failed') {
+    // 编码类运行时（`runtime.*`）的详情已在适配器里脱敏（stderr 尾巴、上游原话），比码更能说清「为什么」；
+    // 其余有码的失败（远程 OpenClaw 连不上、没配令牌……）只报码：原话可能带对面主机的地址与路径。
+    if (outcome.code && !outcome.code.startsWith('runtime.')) return outcome.code;
+    return outcome.error || outcome.code || 'unknown';
+  }
   return 'unknown';
 }
 

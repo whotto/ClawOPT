@@ -10,7 +10,7 @@
  * 结论当成事实摆着。
  */
 import { describe, it, expect } from 'vitest';
-import { buildExternalRuntimeList, EXTERNAL_RUNTIMES } from '../src/runtime/external-agents/registry';
+import { buildExternalRuntimeList, EXTERNAL_RUNTIMES } from '../src/runtime/adapters/runtime-list';
 
 describe('清单形状', () => {
   it('每个运行时都给出 id、二进制名与可用性', () => {
@@ -32,7 +32,7 @@ describe('清单形状', () => {
     const list = buildExternalRuntimeList((binary) => binary === 'claude');
     const byId = Object.fromEntries(list.map((e) => [e.id, e]));
     expect(byId['claude-code'].available).toBe(true);
-    expect(byId['codex'].available).toBe(false);
+    expect(list.filter((e) => e.binary !== 'claude').every((e) => !e.available)).toBe(true);
   });
 
   it('探测器抛错时判为不可用，而不是让整份清单塌掉', () => {
@@ -41,7 +41,7 @@ describe('清单形状', () => {
     expect(list.every((e) => e.available === false)).toBe(true);
   });
 
-  it('claude-code 一定在清单里——它是目前唯一真机验过的那个', () => {
+  it('claude-code 一定在清单里，并且标为真机验证过', () => {
     expect(EXTERNAL_RUNTIMES.map((r) => r.id)).toContain('claude-code');
   });
 

@@ -3,12 +3,42 @@ export {
 } from './binary-lookup';
 export {
   CLAUDE_CODE_CAPABILITIES,
+  CLAUDE_CODE_DESCRIPTOR,
   CLAUDE_CODE_SOURCE_OF_TRUTH,
-  createClaudeCodeRuntimeAdapter,
+  createClaudeCodeAdapter,
 } from './adapters/claude-code';
+export {
+  createLocalProcessExecutor,
+} from './adapters/_shared/process';
 export type {
-  CommandExecutor,
-} from './adapters/claude-code';
+  ProcessExecutor,
+} from './adapters/_shared/process';
+export {
+  RUNTIME_MESSAGE_CODES,
+} from './adapters/_shared/errors';
+export type {
+  CodingAgentRuntimeAdapter,
+} from './adapters/_shared/cli-adapter';
+export type {
+  AdapterLogger,
+  CodingAgentAdapterDeps,
+  CodingAgentRunRequest,
+  ScopedProvider,
+  ScopedProviderResolver,
+} from './adapters/_shared/types';
+export {
+  CODING_AGENT_DEFINITIONS,
+  codingAgentDefinition,
+  registerCodingAgentAdapters,
+} from './adapters/registry';
+export {
+  EXTERNAL_RUNTIMES,
+  buildExternalRuntimeList,
+} from './adapters/runtime-list';
+export type {
+  ExternalRuntimeDescriptor,
+  ExternalRuntimeStatus,
+} from './adapters/runtime-list';
 export {
   OPENCLAW_ABORT_GRACE_MS,
   OPENCLAW_CAPABILITIES,
@@ -46,32 +76,6 @@ export type {
   SessionSnapshot,
   SubmitResult,
 } from './coordinator';
-export {
-  ClaudeCodeAdapter,
-  PROMPT_STDIN_THRESHOLD_BYTES,
-} from './external-agents/claude-code';
-export {
-  runExternalAgent,
-} from './external-agents/executor';
-export type {
-  RunOptions,
-  RunResult,
-} from './external-agents/executor';
-export {
-  EXTERNAL_RUNTIMES,
-  buildExternalRuntimeList,
-} from './external-agents/registry';
-export type {
-  ExternalRuntimeDescriptor,
-  ExternalRuntimeStatus,
-} from './external-agents/registry';
-export type {
-  BuiltCommand,
-  ExternalAgentAdapter,
-  ExternalRunEvent,
-  ExternalRunEventKind,
-  ExternalRunRequest,
-} from './external-agents/types';
 export {
   registerExternalRuntimeRoutes,
 } from './external-runtime-routes';

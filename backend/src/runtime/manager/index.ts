@@ -29,6 +29,7 @@ export { RUNTIME_INSTALL_MIN_FREE_MB, probeHostCapabilities } from './host-capab
 export type { HostCapabilities } from './host-capabilities';
 export { DEFAULT_RUNTIME_HOMES_SETTINGS, RuntimeHomes } from './runtime-homes';
 export type { RuntimeHomeOwner, RuntimeHomeRecord, RuntimeHomesSettings } from './runtime-homes';
+export { runtimeHomePath } from './runtime-homes';
 export {
   NativeConfigError,
   authFilePresence,

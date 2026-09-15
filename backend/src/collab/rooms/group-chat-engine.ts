@@ -1,12 +1,9 @@
 import crypto from 'crypto';
 import { randomUUID } from 'crypto';
-import {
-  createClaudeCodeRuntimeAdapter,
-  runExternalAgent,
-  type AgentRuntimeAdapter,
-  type CommandExecutor,
-  type RunCoordinator,
-  type RuntimeRunRequest,
+import type {
+  AgentRuntimeAdapter,
+  RunCoordinator,
+  RuntimeRunRequest,
 } from '../../runtime';
 import fs from 'fs';
 import { ConfigReadError, readJsonConfigSafe } from '../../openclaw';
@@ -969,18 +966,13 @@ export class GroupChatEngine extends EventEmitter {
   }
 
   /**
-   * 外部运行时适配器按 `member.runtime` 从登记处取（P2）。没注入时（老用例）只认 claude-code，
-   * 与 P1a 写死的行为一致。
+   * 外部成员按 `member.runtime` 从适配器登记处取适配器（Claude Code / Codex / Pi / Grok / OpenCode / DSH / Hermes /
+   * 远程 OpenClaw）。bootstrap 注入 `runtimePlatform.createAdapter`；没注入或登记处里没有 → 返回 null，调用方写明失败。
    */
-  private adapterFactory: ((runtime: string, executor: CommandExecutor) => AgentRuntimeAdapter<RuntimeRunRequest> | null) | null = null;
+  private runtimeAdapters: ((runtime: string) => AgentRuntimeAdapter<RuntimeRunRequest> | null) | null = null;
 
-  useRuntimeAdapters(factory: (runtime: string, executor: CommandExecutor) => AgentRuntimeAdapter<RuntimeRunRequest> | null): void {
-    this.adapterFactory = factory;
-  }
-
-  private resolveExternalAdapter(runtime: string, executor: CommandExecutor): AgentRuntimeAdapter<RuntimeRunRequest> | null {
-    if (this.adapterFactory) return this.adapterFactory(runtime, executor);
-    return runtime === 'claude-code' ? createClaudeCodeRuntimeAdapter({ executor }) : null;
+  useRuntimeAdapters(lookup: (runtime: string) => AgentRuntimeAdapter<RuntimeRunRequest> | null): void {
+    this.runtimeAdapters = lookup;
   }
 
   private requireRunCoordinator(): RunCoordinator {
@@ -1651,7 +1643,7 @@ export class GroupChatEngine extends EventEmitter {
       resetEpoch?: number;
       remainingDepth?: number;
     },
-    runner: CommandExecutor = runExternalAgent,
+    adapterOverride?: AgentRuntimeAdapter<RuntimeRunRequest>,
   ): Promise<number | undefined> {
     const { groupId, groupName, member, allMembers, triggerMsg, triggerSenderName, depth, parentId } = opts;
     const runtime = member.runtime || 'claude-code';
@@ -1702,7 +1694,11 @@ export class GroupChatEngine extends EventEmitter {
     //
     // 不另写一套：两套 prompt 组装迟早分家，而这个仓库为「两处判据分家」栽过不止一次。
     // 过程标签传 undefined —— 外部 Agent 不产出过程标签，不该被要求去写。
-    const request = {
+    const request: RuntimeRunRequest = {
+      // 成员配置里选了 scoped（ClawOPT 选服务商与模型、CLI 只连本地代理）才走 scoped；缺省 global（CLI 用自己的登录）。
+      mode: config.mode === 'scoped' ? 'scoped' : 'global',
+      // 运行时 home 按 (群, 成员) 稳定：同一成员跨轮次共用一份原生会话与配置；删成员 / 删群时按它回收。
+      owner: { kind: 'room-member', groupId, memberId: member.id, agentId: member.agent_id },
       sessionId,
       resume,
       prompt: this.buildAgentPrompt(
@@ -1723,29 +1719,32 @@ export class GroupChatEngine extends EventEmitter {
         undefined,
         opts.remainingDepth ?? 0,
       ),
-      workingDir: config.workingDir || process.cwd(),
-      model: config.model,
+      workspace: config.workingDir || process.cwd(),
+      model: typeof config.model === 'string' ? config.model : undefined,
+      reasoningEffort: typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined,
       allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
       maxBudgetUsd: typeof config.maxBudgetUsd === 'number' ? config.maxBudgetUsd : undefined,
-      appendSystemPrompt: config.appendSystemPrompt,
-      // P2：适配器需要成员配置（远程网关地址等，不含密钥）与归属（运行时目录、远程成员令牌按它找）。
+      // 成员配置（远程网关地址、scoped 的服务商与模型等，不含密钥）：远程 OpenClaw 与 scoped 服务商解析按它取。
       runtimeConfig: config,
-      owner: { kind: 'room-member' as const, groupId, memberId: member.id, agentId: member.agent_id },
+      // 成员配置里的追加指令：群上下文仍在 prompt 里（buildAgentPrompt，基线快照守着），不顶掉对方自己的项目指令。
+      instructions: typeof config.appendSystemPrompt === 'string' ? config.appendSystemPrompt : undefined,
     };
-    const adapter = this.resolveExternalAdapter(runtime, runner);
+    const adapter = adapterOverride ?? this.runtimeAdapters?.(runtime) ?? null;
+
+    if (!adapter) {
+      // 库里存了一个这版 ClawOPT 没登记适配器的运行时：说清楚，不静默退回 OpenClaw（v1.3.0 那种「选了不生效」）。
+      const message = `${member.display_name} 执行失败（runtime.unknown: ${runtime}）`;
+      this.db.updateGroupMessage(msgId, message, config.model || runtime, undefined, '');
+      this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
+      this.emit('typing_done', { groupId, agentId: member.agent_id });
+      return msgId;
+    }
 
     try {
       // 运行交给协调器：会话行、run marker、陈旧事件、中止、用量去重、工具调用落库、终态顺序都在那里。
       // 这里只剩外部成员自己的约定：消息行（投影器）、续话会话（external_sessions）、链式转发。
       // 成员锁仍在 sendToAgent 里取；协调器按 (群, 成员) 会话键再挡一次并发。
       const modelTag = config.model || runtime;
-      if (!adapter) {
-        // 成员配了一个本机没有登记适配器的运行时：说出来，不静默退回 OpenClaw（v1.3.0 那种「选了不生效」）。
-        const message = `${member.display_name} 执行失败（runtime.adapterNotRegistered: ${runtime}）`;
-        this.db.updateGroupMessage(msgId, message, modelTag, undefined, '');
-        this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
-        return msgId;
-      }
       const submitted = await this.requireRunCoordinator().submit({
         sessionKey: externalMemberSessionKey(groupId, member.id),
         surface: 'room',
@@ -1800,6 +1799,7 @@ export class GroupChatEngine extends EventEmitter {
       // 超时分成两种记：硬超时与中断的处置本来就不同。
       const failureStatus = outcome.kind === 'aborted' ? 'cancelled'
         : outcome.stopReason === 'hard_timeout' ? 'hard_timeout'
+        : outcome.stopReason === 'idle_timeout' ? 'idle_timeout'
         : 'failed';
       const detail = describeExternalFailure(outcome);
       if (resume) {

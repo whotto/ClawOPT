@@ -71,23 +71,37 @@ export const defaultProcessRunner: ProcessRunner = (command, args, options) => n
 });
 
 /**
- * 输出脱敏：去 ANSI / OSC、统一换行、抹掉 Bearer 令牌、`sk-…` 系列 key、`api_key=` 这类赋值、
- * URL 里的 userinfo，家目录换成 `~`。**给前端、写日志之前都必须过它。**
+ * 凭据形状的脱敏（唯一一份规则；运行时管理器的输出与适配器的 stderr / 错误详情都经它）：
+ * Bearer 令牌、`sk-…` 系列、常见厂商令牌前缀、ClawOPT 代理令牌、`api_key=` 这类赋值、URL 里的 userinfo。
+ */
+export function redactSecretShapes(text: string, marker: string): string {
+  return text
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, `$1${marker}`)
+    .replace(/\bsk-(?:ant-|proj-|or-)?[A-Za-z0-9_-]{8,}/g, `sk-${marker}`)
+    .replace(/\b(xai|gsk|ghp|github_pat|glpat|hf|npm)_[A-Za-z0-9_]{12,}/g, `$1_${marker}`)
+    .replace(/\bclawopt_[A-Za-z0-9_-]{12,}/g, `clawopt_${marker}`)
+    .replace(/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|_authToken|token|secret|password)["']?\s*[:=]\s*["']?)[^\s"',;}]{4,}/gi, `$1${marker}`)
+    .replace(/(\/\/)[^/@\s:]+:[^/@\s]+@/g, `$1${marker}@`);
+}
+
+/**
+ * 输出脱敏：去 ANSI / OSC、统一换行、抹掉凭据形状（redactSecretShapes），家目录换成 `~`。
+ * **给前端、写日志之前都必须过它。**
  */
 export function sanitizeProcessOutput(text: string, options: { home?: string; maxLines?: number } = {}): string {
-  let out = String(text ?? '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/\][^]*(?:|\\)/g, '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/\[[0-?]*[ -/]*[@-~]/g, '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, '$1[REDACTED]')
-    .replace(/\bsk-(?:ant-|proj-|or-)?[A-Za-z0-9_-]{8,}/g, 'sk-[REDACTED]')
-    .replace(/\b(xai|gsk|ghp|github_pat|glpat|hf|npm)_[A-Za-z0-9_]{12,}/g, '$1_[REDACTED]')
-    .replace(/((?:api[_-]?key|access[_-]?token|auth[_-]?token|secret|password|_authToken)["']?\s*[:=]\s*["']?)[^\s"',;]{4,}/gi, '$1[REDACTED]')
-    .replace(/(\/\/)[^/@\s:]+:[^/@\s]+@/g, '$1[REDACTED]@');
+  let out = redactSecretShapes(stripTerminalControls(text), '[REDACTED]');
   const home = options.home ?? process.env.HOME;
   if (home && home.length > 1) out = out.split(home).join('~');
   if (options.maxLines) out = out.split('\n').filter((line) => line.trim()).slice(0, options.maxLines).join('\n');
   return out.trim();
+}
+
+/** 去 ANSI / OSC 控制序列、统一换行。 */
+export function stripTerminalControls(text: string): string {
+  return String(text ?? '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/\][^]*(?:|\\)/g, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\r\n?/g, '\n');
 }

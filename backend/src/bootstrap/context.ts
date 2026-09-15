@@ -14,6 +14,7 @@
  * 顺序错了 TypeScript 会在 `createXxx({ ...ctx })` 那一行报缺字段。
  */
 import fs from 'fs';
+import path from 'path';
 
 import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword } from '../core/auth';
 import { ConfigManager } from '../core/config';

@@ -1,0 +1,41 @@
+$ /usr/local/bin/cli
+  "--profile"
+  "acp"
+  "--patch"
+  "/data/clawopt/runtime/dsh/b3397cd3250ad131c8afbeca/clawopt-acp.patch.yml"
+cwd: /work/project
+stdin: pipe
+env:
+  CLAWOPT_DSH_API_KEY=clawopt_proxy_token_abcdefghijkl
+  DSH_HOME=/data/clawopt/runtime/dsh/b3397cd3250ad131c8afbeca/dsh-home
+  DSH_PERMISSION_MODE=danger-full-access
+  DSH_TELEMETRY_DISABLED=1
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  PATH=/usr/local/bin:/usr/bin:/bin
+
+--- /data/clawopt/runtime/dsh/b3397cd3250ad131c8afbeca/clawopt-acp.patch.yml (600)
+- id: acp
+  config:
+    provider: clawopt
+    model: "deepseek-v4"
+
+--- /data/clawopt/runtime/dsh/b3397cd3250ad131c8afbeca/dsh-home/AGENTS.md (600)
+<!-- BEGIN CLAWOPT PROMPT -->
+托管规则
+<!-- END CLAWOPT PROMPT -->
+
+--- /data/clawopt/runtime/dsh/b3397cd3250ad131c8afbeca/dsh-home/settings.yaml (600)
+llm-pi-ai:
+  providers:
+    clawopt:
+      displayName: "deepseek"
+      apiKeyEnv: CLAWOPT_DSH_API_KEY
+      api: openai-responses
+      baseURL: "http://127.0.0.1:3150/api/codex-proxy/route_1/v1"
+      models:
+        - id: "deepseek-v4"
+          contextWindow: 200000
+          maxTokens: 8192
+          reasoningEfforts:
+            xhigh: xhigh

@@ -209,8 +209,12 @@ export function tomlKey(part: string): string {
   return /^[A-Za-z0-9_-]+$/.test(part) ? part : tomlString(part);
 }
 
+/**
+ * TOML 基本字符串。JSON 的转义（`\" \\ \n \t \b \f \uXXXX`）是 TOML 基本字符串转义的子集，
+ * 其余控制字符也一并转义（只转 `\ " \n \r \t` 的话，一个 U+0001 就能写出坏 TOML）。
+ */
 export function tomlString(value: string): string {
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')}"`;
+  return JSON.stringify(value);
 }
 
 export function tomlInline(value: TomlValue): string {

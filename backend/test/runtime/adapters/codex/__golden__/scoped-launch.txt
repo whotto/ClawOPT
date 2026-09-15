@@ -1,0 +1,45 @@
+$ /usr/local/bin/cli
+  "exec"
+  "--json"
+  "-c"
+  "model_reasoning_summary=\"auto\""
+  "-c"
+  "model_reasoning_effort=\"medium\""
+  "--skip-git-repo-check"
+  "--dangerously-bypass-approvals-and-sandbox"
+  "--cd"
+  "/work/project"
+  "-"
+cwd: /work/project
+stdin: pipe
+env:
+  CLAWOPT_CODEX_API_KEY=clawopt_proxy_token_abcdefghijkl
+  CODEX_HOME=/data/clawopt/runtime/codex/b3397cd3250ad131c8afbeca/codex-home
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  PATH=/usr/local/bin:/usr/bin:/bin
+stdin-data: "reply with ok\n"
+
+--- /data/clawopt/runtime/codex/b3397cd3250ad131c8afbeca/codex-home/AGENTS.md (600)
+<!-- BEGIN CLAWOPT PROMPT -->
+ClawOPT 规则
+<!-- END CLAWOPT PROMPT -->
+
+# 用户全局指令
+
+--- /data/clawopt/runtime/codex/b3397cd3250ad131c8afbeca/codex-home/config.toml (600)
+approval_policy = "never"
+model_provider = "clawopt"
+model = "deepseek-v4"
+model_reasoning_summary = "auto"
+developer_instructions = "ClawOPT 规则\n\n# 用户全局指令"
+
+[projects."/work/project"]
+trust_level = "trusted"
+
+[model_providers.clawopt]
+name = "deepseek"
+base_url = "http://127.0.0.1:3150/api/codex-proxy/route_1/v1"
+wire_api = "responses"
+env_key = "CLAWOPT_CODEX_API_KEY"
+requires_openai_auth = false

@@ -118,6 +118,7 @@ export const BUILTIN_RUNTIME_DESCRIPTORS: readonly RuntimeDescriptor[] = [
     name: 'Hermes Agent',
     vendor: 'Nous Research',
     command: 'hermes',
+    // PyPI 上的 hermes-agent 落后于主线（0.19 vs 0.21，2026-09-15）；官方安装方式是从仓库可编辑安装。
     pipPackage: 'hermes-agent',
     installKind: 'pip',
     pythonRequirement: '>=3.11,<3.14',
@@ -132,3 +133,10 @@ export const BUILTIN_RUNTIME_DESCRIPTORS: readonly RuntimeDescriptor[] = [
     },
   },
 ];
+
+/** 按 id 取内置描述符（适配器的定义引用它，不另写一份包名与命令）。没有就抛：适配器 id 与内置表分家是编码错误。 */
+export function builtinRuntimeDescriptor(id: string): RuntimeDescriptor {
+  const descriptor = BUILTIN_RUNTIME_DESCRIPTORS.find((entry) => entry.id === id);
+  if (!descriptor) throw new Error(`no builtin runtime descriptor for "${id}"`);
+  return descriptor;
+}

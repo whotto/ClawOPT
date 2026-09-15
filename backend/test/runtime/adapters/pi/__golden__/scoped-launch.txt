@@ -1,0 +1,66 @@
+$ /usr/local/bin/cli
+  "--mode"
+  "rpc"
+  "--session-id"
+  "11111111-1111-4111-8111-111111111111"
+  "--session-dir"
+  "/data/clawopt/runtime/pi/b3397cd3250ad131c8afbeca/sessions"
+  "--no-approve"
+  "--offline"
+  "--provider"
+  "clawopt"
+  "--model"
+  "deepseek-v4"
+cwd: /work/project
+stdin: pipe
+env:
+  CLAWOPT_PI_API_KEY=clawopt_proxy_token_abcdefghijkl
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  PATH=/usr/local/bin:/usr/bin:/bin
+  PI_CODING_AGENT_DIR=/data/clawopt/runtime/pi/b3397cd3250ad131c8afbeca/pi-agent
+  PI_OFFLINE=1
+  PI_SKIP_VERSION_CHECK=1
+stdin-data: "{\"id\":\"clawopt_think_run_1\",\"type\":\"set_thinking_level\",\"level\":\"high\"}\n{\"id\":\"clawopt_prompt_run_1\",\"type\":\"prompt\",\"message\":\"reply with ok\"}\n"
+
+--- /data/clawopt/runtime/pi/b3397cd3250ad131c8afbeca/pi-agent/models.json (600)
+{
+  "providers": {
+    "clawopt": {
+      "baseUrl": "http://127.0.0.1:3150/api/codex-proxy/route_1/v1",
+      "apiKey": "$CLAWOPT_PI_API_KEY",
+      "api": "openai-responses",
+      "models": [
+        {
+          "id": "deepseek-v4",
+          "name": "deepseek-v4",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh",
+            "max": "max"
+          },
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 200000,
+          "maxTokens": 16384,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    }
+  }
+}
+
+--- /data/clawopt/runtime/pi/b3397cd3250ad131c8afbeca/pi-agent/settings.json (600)
+{
+  "theme": "light"
+}
+
+symlinks:
+

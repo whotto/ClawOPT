@@ -30,11 +30,16 @@ export const CHILD_ENV_ALLOWLIST: readonly string[] = [
 /** 安装器（npm / uv / pip）额外放行的变量：包管理器自己的配置（prefix、registry、缓存目录）。不进 Agent 子进程。 */
 const INSTALLER_ENV_PATTERN = /^(npm_config_|NPM_CONFIG_|UV_|PIP_INDEX_URL$|PIP_EXTRA_INDEX_URL$)/;
 
+/** 外部 CLI 子进程能继承的变量名（唯一一份名单；适配器的 `buildChildEnv` 也按它再过一遍）。 */
+export function isAllowlistedEnvName(name: string): boolean {
+  return CHILD_ENV_ALLOWLIST.includes(name) || name.startsWith('LC_');
+}
+
 export function pickAllowlistedEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(source)) {
     if (value === undefined) continue;
-    if (CHILD_ENV_ALLOWLIST.includes(key) || key.startsWith('LC_')) out[key] = value;
+    if (isAllowlistedEnvName(key)) out[key] = value;
   }
   return out;
 }
