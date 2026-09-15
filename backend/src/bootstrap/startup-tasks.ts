@@ -14,8 +14,11 @@
  * - 日志只写任务 id 与 errorCode，**不写原始错误文本**——迁移失败的报错里常带着
  *   路径、配置片段甚至凭据。
  *
- * 目前登记的任务数为零；框架先就位，第一条迁移来的时候不必再发明一次。
+ * 登记表是 `buildStartupTasks(deps)` 的返回值：任务要用到上下文里的单例（库、用户表），
+ * 所以登记表在上下文建好之后才构造。
  */
+import { migrateLegacyLoginPassword, type UserStore } from '../core/auth';
+import type { DB } from '../core/db';
 import { sharedFileStore, type SafeFileStore } from '../core/files';
 
 export type StartupTaskScope = 'clawopt-data' | 'openclaw-home';
@@ -35,8 +38,27 @@ export type StartupTaskOutcome =
   | { status: 'failed'; ran: string[]; skipped: string[]; failedTask: string; errorCode: string }
   | { status: 'refused'; errorCode: string };
 
+export type StartupTaskDeps = {
+  db: Pick<DB, 'getConfig'>;
+  userStore: UserStore;
+  log?: (message: string) => void;
+};
+
 /** 登记表。新任务只追加到末尾，已发布的任务不改 id、不删除、不调整顺序。 */
-export const STARTUP_TASKS: StartupTask[] = [];
+export function buildStartupTasks(deps: StartupTaskDeps): StartupTask[] {
+  const log = deps.log ?? ((message: string) => console.log(message));
+  return [
+    {
+      // P5a：单一登录口令 → super_admin 用户。判据与理由见 core/auth/login-migration.ts。
+      id: 'auth.login-password-to-super-admin',
+      scope: 'clawopt-data',
+      run: () => {
+        const outcome = migrateLegacyLoginPassword({ userStore: deps.userStore, readRawAppConfig: () => deps.db.getConfig('app_config') });
+        log(`[StartupTasks] auth.login-password-to-super-admin: ${outcome.status === 'created' ? `created ${outcome.username}${outcome.mustChangePassword ? ' (must change password)' : ''}` : `skipped (${outcome.reason})`}`);
+      },
+    },
+  ];
+}
 
 const SCOPES: ReadonlySet<string> = new Set(['clawopt-data', 'openclaw-home']);
 

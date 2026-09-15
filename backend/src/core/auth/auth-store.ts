@@ -22,6 +22,8 @@ export type AuthSessionRecord = {
   createdAt: number;
   expiresAt: number;
   label: string;
+  /** 多用户（P5a）之后签发的会话带用户 id；之前的旧会话没有，归属到第一个 super_admin。 */
+  userId?: number;
 };
 
 /** `scrypt$<盐hex>$<派生key hex>`；旧的明文口令没有 `$` 前缀，据此区分。 */
@@ -101,7 +103,7 @@ export class AuthStore {
     if (removed) this.persist();
   }
 
-  issue(label = 'web'): AuthSessionRecord {
+  issue(label = 'web', userId?: number): AuthSessionRecord {
     this.sweep();
     const now = Date.now();
     const record: AuthSessionRecord = {
@@ -109,6 +111,7 @@ export class AuthStore {
       createdAt: now,
       expiresAt: now + SESSION_TTL_MS,
       label,
+      ...(typeof userId === 'number' ? { userId } : {}),
     };
     this.sessions.set(record.token, record);
     this.persist();
@@ -117,15 +120,32 @@ export class AuthStore {
 
   /** 令牌有效即返回 true。查表本身是 O(1) 且不比较用户输入的字节，无时序侧信道。 */
   verify(token: string): boolean {
-    if (!token) return false;
+    return this.resolve(token) !== null;
+  }
+
+  /** 有效令牌返回会话记录（含 userId），否则 null。 */
+  resolve(token: string): AuthSessionRecord | null {
+    if (!token) return null;
     const record = this.sessions.get(token);
-    if (!record) return false;
+    if (!record) return null;
     if (record.expiresAt <= Date.now()) {
       this.sessions.delete(token);
       this.persist();
-      return false;
+      return null;
     }
-    return true;
+    return record;
+  }
+
+  /** 停用、删除用户或管理员重置其口令时：该用户的会话全部作废。 */
+  revokeForUser(userId: number): void {
+    let removed = false;
+    for (const [token, record] of this.sessions) {
+      if (record.userId === userId) {
+        this.sessions.delete(token);
+        removed = true;
+      }
+    }
+    if (removed) this.persist();
   }
 
   revoke(token: string): void {

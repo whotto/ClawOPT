@@ -29,6 +29,14 @@ USE /uploads
 GET /api/auth/check
 POST /api/auth/logout
 POST /api/auth/login
+GET /api/auth/me
+POST /api/auth/change-password
+GET /api/users
+POST /api/users
+PUT /api/users/:id
+DELETE /api/users/:id
+GET /api/auth/locked-ips
+DELETE /api/auth/locked-ips
 GET /api/gateway/status
 POST /api/config/test
 GET /api/config/detect-all

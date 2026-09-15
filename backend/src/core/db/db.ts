@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 
+import { applyControlPlaneSchema } from './control-plane-schema';
+
 export type GroupChatRow = {
   id: string;
   name: string;
@@ -179,7 +181,16 @@ export class DB {
     this.db.exec(`VACUUM INTO '${targetPath.replace(/'/g, "''")}'`);
   }
 
+  /**
+   * 底层连接。只给自带表的 core 子模块（`core/auth` 的用户与 IP 锁）和控制面服务用，
+   * 它们各自管自己的 SQL，不往这个文件里继续堆方法。
+   */
+  connection(): Database.Database {
+    return this.db;
+  }
+
   private init() {
+    applyControlPlaneSchema(this.db);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,

@@ -16,7 +16,8 @@ import type { RouteRecord } from '../src/core/http';
 import { createStubContext } from './helpers/stub-context';
 
 const configManager = { getConfig: () => ({ loginEnabled: true, allowedHosts: [] }) };
-const authStore = { verify: () => false };
+const authStore = { verify: () => false, resolve: () => null };
+const userStore = { count: () => 0, get: () => null, firstActiveSuperAdmin: () => null, hasAgent: () => false };
 
 let server: http.Server;
 let baseUrl = '';
@@ -25,8 +26,8 @@ let records: RouteRecord[] = [];
 beforeAll(async () => {
   // 401 走的是原有错误处理中间件，它会 console.error 每一次——这里只关心状态码。
   vi.spyOn(console, 'error').mockImplementation(() => {});
-  const auth = createAuthMiddleware({ configManager, authStore } as any);
-  const ctx = createStubContext({ configManager, authStore, auth });
+  const auth = createAuthMiddleware({ configManager, authStore, userStore } as any);
+  const ctx = createStubContext({ configManager, authStore, userStore, auth });
   const built = buildApp(ctx);
   records = built.routes.list();
   server = http.createServer(built.app);

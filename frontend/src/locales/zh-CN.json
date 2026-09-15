@@ -364,7 +364,7 @@
       "loginProtectionHint": "开启后，访问网页需要输入登录密码",
       "loginPasswordLabel": "登录密码",
       "loginPasswordPlaceholder": "请输入登录密码",
-      "loginPasswordHint": "默认密码为 123456",
+      "loginPasswordHint": "至少 8 位。首次开启登录时会创建超级管理员账号 admin。",
       "saveError": "保存出错",
       "saved": "已保存",
       "save": "保存设置"

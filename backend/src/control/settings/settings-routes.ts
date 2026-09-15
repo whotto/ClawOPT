@@ -1,15 +1,24 @@
-import { type AuthMiddleware, type AuthStore, hashPassword } from '../../core/auth';
+import {
+  type AuthMiddleware,
+  type AuthStore,
+  getRequestIdentity,
+  MIGRATED_SUPER_ADMIN_USERNAME,
+  sendUserStoreError,
+  type UserStore,
+  validateNewPassword,
+} from '../../core/auth';
 import type { ConfigManager } from '../../core/config';
-import type { RouteApp } from '../../core/http';
+import { buildStructuredApiError, type RouteApp } from '../../core/http';
 
 export type SettingsRoutesDeps = {
   authStore: AuthStore;
   configManager: ConfigManager;
+  userStore: UserStore;
   auth: AuthMiddleware;
 };
 
 export function registerSettingsRoutes(app: RouteApp, ctx: SettingsRoutesDeps): void {
-  const { authStore, configManager } = ctx;
+  const { authStore, configManager, userStore } = ctx;
   const { requireAdminAuth } = ctx.auth;
 
   app.get('/api/config', (_req, res) => {
@@ -22,7 +31,8 @@ export function registerSettingsRoutes(app: RouteApp, ctx: SettingsRoutesDeps): 
       // 把登录密码明文吐出来，等于登录页形同虚设。要改凭据走 POST，不需要先读回来。
       hasToken: !!config.token,
       hasPassword: !!config.password,
-      hasLoginPassword: !!config.loginPassword,
+      // 多用户之后，「设过登录口令」= 至少有一个用户。
+      hasLoginPassword: userStore.count() > 0,
       aiName: config.aiName || 'OpenClaw',
       loginEnabled: config.loginEnabled || false,
       allowedHosts: config.allowedHosts || [],
@@ -42,14 +52,34 @@ export function registerSettingsRoutes(app: RouteApp, ctx: SettingsRoutesDeps): 
       if (typeof incoming[field] === 'string' && incoming[field] === '') delete incoming[field];
     }
 
-    // 新口令一律哈希后落盘；改口令即作废所有既有会话——否则「改了密码」这个动作
-    // 挡不住已经拿到令牌的人，用户会以为自己已经处理了泄露。
-    const passwordChanged = typeof incoming.loginPassword === 'string' && incoming.loginPassword !== '';
-    if (passwordChanged) {
-      incoming.loginPassword = hashPassword(incoming.loginPassword as string);
+    // 登录口令不再存进配置：没有用户时建出 super_admin `admin`，有用户时改当前用户（登录未开启时改第一个 super_admin）。
+    // 改口令即作废该用户的既有会话——否则「改了密码」挡不住已经拿到令牌的人。
+    const nextPassword = typeof incoming.loginPassword === 'string' ? incoming.loginPassword : '';
+    delete incoming.loginPassword;
+    try {
+      if (nextPassword) validateNewPassword(nextPassword);
+    } catch (error) {
+      if (sendUserStoreError(res, error)) return;
+      throw error;
     }
+    if (incoming.loginEnabled === true && !nextPassword && userStore.count() === 0) {
+      return res.status(400).json(buildStructuredApiError('auth.passwordRequiredToEnableLogin'));
+    }
+
     configManager.setConfig(incoming);
-    if (passwordChanged || incoming.loginEnabled === false) {
+    if (nextPassword) {
+      if (userStore.count() === 0) {
+        userStore.create({ username: MIGRATED_SUPER_ADMIN_USERNAME, password: nextPassword, role: 'super_admin' });
+      } else {
+        const identity = getRequestIdentity(req);
+        const targetId = identity.userId ?? userStore.firstActiveSuperAdmin()?.id ?? null;
+        if (targetId !== null) {
+          userStore.setPassword(targetId, nextPassword);
+          authStore.revokeForUser(targetId);
+        }
+      }
+    }
+    if (incoming.loginEnabled === false) {
       authStore.revokeAll();
     }
     res.json({ success: true });

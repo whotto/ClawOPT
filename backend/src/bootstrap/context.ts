@@ -15,7 +15,7 @@
  */
 import fs from 'fs';
 
-import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword } from '../core/auth';
+import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
 import { ConfigManager } from '../core/config';
 import { DB } from '../core/db';
 import { uploadDir } from '../core/paths';
@@ -55,6 +55,9 @@ export function createAppContext() {
   const sessionManager = new SessionManager(db);
   /** 会话令牌存储：随机、可过期、可吊销。 */
   const authStore = new AuthStore(db);
+  /** 用户 / 角色 / Agent 授权与登录 IP 锁（P5a）。 */
+  const userStore = new UserStore(db.connection());
+  const loginLocks = new LoginLockStore(db.connection());
 
   // 迁移：把配置里的明文口令换成 scrypt 哈希。只做一次，之后配置里不再有明文。
   (() => {
@@ -72,7 +75,7 @@ export function createAppContext() {
   const agentProvisioner = new AgentProvisioner();
   const connections = new Map<string, OpenClawClient>();
 
-  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections };
+  const base = { db, configManager, sessionManager, authStore, userStore, loginLocks, agentProvisioner, connections };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);

@@ -364,7 +364,7 @@
       "loginProtectionHint": "開啟後，訪問網頁需要輸入登入密碼",
       "loginPasswordLabel": "登入密碼",
       "loginPasswordPlaceholder": "請輸入登入密碼",
-      "loginPasswordHint": "預設密碼為 123456",
+      "loginPasswordHint": "至少 8 位。首次開啟登入時會建立超級管理員帳號 admin。",
       "saveError": "儲存失敗",
       "saved": "已儲存",
       "save": "儲存設定"

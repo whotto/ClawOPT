@@ -364,7 +364,7 @@
       "loginProtectionHint": "When enabled, visiting the web app requires a login password",
       "loginPasswordLabel": "Login Password",
       "loginPasswordPlaceholder": "Please enter the login password",
-      "loginPasswordHint": "Default password is 123456",
+      "loginPasswordHint": "At least 8 characters. Enabling login for the first time creates the super admin account \"admin\".",
       "saveError": "Save failed",
       "saved": "Saved",
       "save": "Save Settings"

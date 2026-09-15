@@ -15,7 +15,7 @@ import express from 'express';
 import net from 'net';
 import path from 'path';
 
-import { registerAuthGate, registerAuthRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
+import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
 import { registerExternalRuntimeRoutes } from '../runtime';
 import {
@@ -50,6 +50,7 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   const app = express();
   const routes = new RouteRegistry(app);
   routes.markAdminGuard(ctx.auth.requireAdminAuth);
+  routes.markAdminGuard(ctx.auth.requireSuperAdmin);
   const { configManager } = ctx;
 
   const bootstrapApp = routes.forModule('bootstrap');
@@ -103,6 +104,7 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   routes.markProtectedPrefix('/uploads');
 
   registerAuthRoutes(routes.forModule('core/auth'), ctx);
+  registerUserRoutes(routes.forModule('core/auth'), ctx);
   registerGatewayRoutes(routes.forModule('control/gateway'), ctx);
   registerModelRoutes(routes.forModule('control/models'), ctx);
   registerCharacterRoutes(routes.forModule('control/agents'), ctx);
