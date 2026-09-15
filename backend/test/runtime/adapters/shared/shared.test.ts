@@ -13,7 +13,6 @@ import { decideResume, type SessionState } from '../../../../src/runtime/adapter
 import { filterToml } from '../../../../src/runtime/adapters/_shared/toml';
 import { TurnEmitter, truncateToolOutput } from '../../../../src/runtime/adapters/_shared/turn';
 import { CODING_AGENT_DEFINITIONS } from '../../../../src/runtime/adapters/registry';
-import { EXTERNAL_RUNTIMES } from '../../../../src/runtime/adapters/runtime-list';
 import { runtimeHomePath } from '../../../../src/runtime/manager/runtime-homes';
 import { fakeManager } from '../_helpers/harness';
 
@@ -223,8 +222,7 @@ describe('错误码与脱敏', () => {
 });
 
 describe('登记表', () => {
-  it('每个运行时都交齐三件套（描述符、能力、仲裁表）且 id 与清单一致', () => {
-    expect(EXTERNAL_RUNTIMES.map((r) => r.id)).toEqual(CODING_AGENT_DEFINITIONS.map((d) => d.descriptor.id));
+  it('每个运行时都交齐三件套（描述符、能力、仲裁表）', () => {
     for (const definition of CODING_AGENT_DEFINITIONS) {
       expect(definition.descriptor.id).toMatch(/^[a-z][a-z0-9-]*$/);
       expect(definition.capabilities.proxyMode.length).toBeGreaterThan(0);

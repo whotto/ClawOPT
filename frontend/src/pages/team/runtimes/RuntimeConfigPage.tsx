@@ -5,8 +5,8 @@ import { ArrowLeft, KeyRound } from 'lucide-react';
 import { getRuntimeConfig } from '../../../api/runtime';
 import McpPanel from './McpPanel';
 import NativeFileEditor from './NativeFileEditor';
-import { resolveApiErrorMessage, type ErrorDisplay } from './runtimeLogic';
-import { Badge, Button, Card, ErrorBanner, readJson } from './runtimeUi';
+import { resolveApiErrorMessage, type ErrorDisplay, readJson } from './runtimeLogic';
+import { Badge, Button, Card, ErrorBanner } from '../../../components/control/ControlUi';
 
 type ConfigOverview = {
   runtime: { id: string; name: string; kind: string };

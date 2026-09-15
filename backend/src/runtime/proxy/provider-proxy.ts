@@ -19,8 +19,8 @@
  *
  * ## 出站
  *
- * 上游 base URL 只允许 http/https；解析到回环/内网只在服务商显式标成本地时放行（net-policy.ts）；
- * 不跟重定向。
+ * 上游地址过 `core/net` 的唯一出站策略：只允许 http/https；解析到回环/内网只在服务商显式标成本地时放行
+ * （`isLocalModelProvider`）；连接钉住校验过的 IP（`pinnedFetch`，防 DNS rebinding）；不跟重定向。
  */
 import crypto from 'crypto';
 import fs from 'fs';
@@ -28,7 +28,7 @@ import path from 'path';
 import type { Request, Response } from 'express';
 
 import { canonicalJson } from '../../core/http';
-import { assertOutboundUrlAllowed, isLocalProvider, NetPolicyError, type Lookup } from '../net-policy';
+import { assertOutboundUrl, isLocalModelProvider, OutboundUrlError, pinnedFetch, type Resolver } from '../../core/net';
 import { constantTimeEquals, LocalSecretBox, readPrivateText, writePrivateText } from '../platform-store';
 import { isOfficialAnthropicUpstream, requiresReasoningContentRoundTrip, resolveUpstreamEndpoint } from './endpoints';
 import { emitAnthropicRequest, isEncryptedThinkingError, parseAnthropicRequest, stripThinkingBlocks } from './request-anthropic';
@@ -102,8 +102,9 @@ export interface LocalProviderProxyOptions {
   publicBaseUrl: () => string;
   /** 运行时数据目录（`<数据目录>/runtime`）；不给则不做重启恢复。 */
   dataDir?: string;
+  /** 只为测试注入（把上游改写到本机假服务）；缺省是钉住校验过的 IP 的 `pinnedFetch`。 */
   fetchImpl?: typeof fetch;
-  lookup?: Lookup;
+  resolver?: Resolver;
   now?: () => number;
   log?: (message: string) => void;
 }
@@ -184,14 +185,14 @@ async function* readSseEvents(body: ReadableStream<Uint8Array>, mode: 'sse' | 'n
 export class LocalProviderProxy implements ProviderProxy {
   private readonly entries = new Map<string, TargetEntry>();
   private readonly listeners = new Map<string, Set<(event: CanonicalRuntimeEvent) => void>>();
-  private readonly fetchImpl: typeof fetch;
+  private readonly fetchImpl: typeof fetch | null;
   private readonly now: () => number;
   private readonly log: (message: string) => void;
   private readonly secretBox: LocalSecretBox | null;
   private readonly targetsDir: string | null;
 
   constructor(private readonly options: LocalProviderProxyOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetchImpl ?? null;
     this.now = options.now ?? Date.now;
     this.log = options.log ?? ((message) => console.log(message));
     this.secretBox = options.dataDir ? new LocalSecretBox(path.join(options.dataDir, 'proxy-target.key')) : null;
@@ -210,10 +211,10 @@ export class LocalProviderProxy implements ProviderProxy {
     try {
       parsed = new URL(trimBaseUrl(target.baseUrl));
     } catch {
-      throw new NetPolicyError('net.invalidUrl', 'Upstream base URL is not valid');
+      throw new OutboundUrlError('invalidUrl', 'Upstream base URL is not valid');
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new NetPolicyError('net.protocolNotAllowed', 'Upstream base URL must be http or https');
+      throw new OutboundUrlError('protocolNotAllowed', parsed.protocol);
     }
     const normalized: ProxyTarget = { ...target, baseUrl: trimBaseUrl(target.baseUrl) };
     const routeKey = base64Url(crypto.createHash('sha256').update(`clawopt-runtime-proxy:${this.identityOf(normalized)}`).digest()).slice(0, 32);
@@ -419,7 +420,7 @@ export class LocalProviderProxy implements ProviderProxy {
     } catch (error) {
       if (error instanceof ProxyHttpError) {
         sendClientError(res, family, error.status, error.errorType, error.message, error.providerError);
-      } else if (error instanceof NetPolicyError) {
+      } else if (error instanceof OutboundUrlError) {
         sendClientError(res, family, 403, 'permission_error', `Upstream address rejected (${error.errorCode})`);
       } else if ((error as Error)?.name === 'AbortError') {
         if (!res.writableEnded) res.end();
@@ -433,7 +434,7 @@ export class LocalProviderProxy implements ProviderProxy {
   private async callUpstream(entry: TargetEntry, body: Record<string, unknown>, stream: boolean, signal: AbortSignal, forwardHeaders: Record<string, string> = {}): Promise<globalThis.Response> {
     const { target } = entry;
     const endpoint = resolveUpstreamEndpoint(target.baseUrl, target.apiMode);
-    const url = await assertOutboundUrlAllowed(endpoint, { protocols: ['http:', 'https:'], allowPrivate: isLocalProvider(target.provider), lookup: this.options.lookup });
+    const { url, address } = await assertOutboundUrl(endpoint, { allowPrivateNetwork: isLocalModelProvider(target.provider), resolver: this.options.resolver });
     const headers: Record<string, string> = {
       'content-type': 'application/json',
       accept: stream ? 'text/event-stream' : 'application/json',
@@ -452,7 +453,10 @@ export class LocalProviderProxy implements ProviderProxy {
     const headersTimer = setTimeout(abort, UPSTREAM_HEADERS_TIMEOUT_MS);
     headersTimer.unref?.();
     try {
-      const response = await this.fetchImpl(url.toString(), { method: 'POST', headers, body: JSON.stringify(body), redirect: 'manual', signal: controller.signal });
+      const init = { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal };
+      const response = this.fetchImpl
+        ? await this.fetchImpl(url.toString(), { ...init, redirect: 'manual' })
+        : await pinnedFetch(url, address, init);
       if (response.status >= 300 && response.status < 400) {
         throw new ProxyHttpError(502, 'api_error', 'Upstream redirect was not followed');
       }

@@ -10,6 +10,8 @@ interface OpenClawConfig {
   gatewayUrl: string;
   token?: string;
   password?: string;
+  /** 远程网关：钉住出站策略校验过的 IP（`core/net` 的 `pinnedLookup`），防 DNS rebinding。本机网关不给。 */
+  lookup?: import('net').LookupFunction;
 }
 
 type Pending = {
@@ -285,7 +287,7 @@ export class OpenClawClient extends EventEmitter {
       };
 
       const wsUrl = this.config.gatewayUrl.replace(/^http/, 'ws');
-      const wsOptions: any = {};
+      const wsOptions: any = this.config.lookup ? { lookup: this.config.lookup } : {};
       // **不送 Origin 头。**
       //
       // Origin 是浏览器语义。送了它，网关的 `hasBrowserOriginHeader` 为真，

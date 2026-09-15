@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getRuntimeFile, saveRuntimeFile } from '../../../api/runtime';
-import { resolveApiErrorMessage, type ErrorDisplay } from './runtimeLogic';
-import { Badge, Button, Card, ErrorBanner, editorClass, readJson } from './runtimeUi';
+import { resolveApiErrorMessage, type ErrorDisplay, readJson } from './runtimeLogic';
+import { Badge, Button, Card, ErrorBanner, editorClass } from '../../../components/control/ControlUi';
 
 type FileView = { path: string; language: string; exists: boolean; content: string; revision: string; redactedCount: number };
 

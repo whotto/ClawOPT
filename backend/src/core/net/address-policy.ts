@@ -1,16 +1,26 @@
 /**
- * 服务端按用户给的 URL 出站时的地址策略（SSRF 闸门）。
+ * 服务端按用户 / 配置给的 URL 出站时的地址策略（SSRF 闸门）。**全仓库只有这一份判据。**
  *
- * AGENTS.md 的三道检查缺一不可：协议只允许 http/https、**解析后的全部地址**不得落在内网/保留段、
- * 重定向后的最终地址再查一遍。`.clawpack` 远端拉取与出站 Webhook 共用这一份判据——
- * 两处各写一份迟早分家（这个仓库为「判据分家」栽过不止一次）。
+ * AGENTS.md 的三道检查缺一不可：协议白名单（缺省 http/https）、**解析后的全部地址**不得落在内网/保留段、
+ * 重定向后的最终地址再查一遍（或干脆不跟）。调用方：
+ * - 出站 Webhook（`automation/webhooks`）：端点可显式「允许内网」；
+ * - `.clawpack` 远端拉取（`control/packs`）：只收公网，逐跳查重定向；
+ * - 本地模型代理的上游（`runtime/proxy`）：服务商显式标成本地（`isLocalModelProvider`）才放行内网；
+ * - 远程 OpenClaw 网关（`runtime/remote-openclaw`）：只收 ws/wss，打开「受信任的局域网」才放行内网。
+ * 放宽只有 `allowPrivateNetwork` 一个口子，由调用方按上面各自的显式开关给；协议与 userinfo 的检查照旧。
  *
- * 出站 Webhook 还要多一道：**连接时钉住校验过的那个 IP**（`pinnedLookup`），
+ * 校验之后还要**连接时钉住校验过的那个 IP**（`pinnedLookup` / `pinnedFetch`），
  * 否则校验与连接之间 DNS 换了答案（rebinding），前面的检查全部作废。
+ *
+ * 198.18.0.0/15（基准测试段）按保留段拦：开了 fake-IP 代理的开发机会把公网域名解析到这一段，
+ * 在那种机器上真实公网地址会被拒——宁可在开发机上失败，也不在 fake-IP 代理替我们远端解析 `localtest.me` 时漏过回环。
  */
 import dns from 'dns/promises';
+import http from 'http';
+import https from 'https';
 import net from 'net';
 import type { LookupFunction } from 'net';
+import { Readable } from 'stream';
 
 export type AddressVerdict =
   | { ok: true; url: URL; addresses: ResolvedAddress[] }
@@ -116,11 +126,20 @@ export function isPrivateHostname(hostname: string): boolean {
     || isBlockedIpAddress(host);
 }
 
+const DEFAULT_PROTOCOLS: readonly string[] = ['http:', 'https:'];
+
 export type Resolver = (hostname: string) => Promise<ResolvedAddress[]>;
 
 export const systemResolver: Resolver = async (hostname) => {
   const records = await dns.lookup(hostname, { all: true, verbatim: true });
   return records.map((record) => ({ address: record.address, family: record.family === 6 ? 6 : 4 }));
+};
+
+export type OutboundUrlOptions = {
+  /** 缺省 `['http:', 'https:']`；远程 OpenClaw 网关用 `['ws:', 'wss:']`。 */
+  protocols?: readonly string[];
+  allowPrivateNetwork?: boolean;
+  resolver?: Resolver;
 };
 
 /**
@@ -129,7 +148,7 @@ export const systemResolver: Resolver = async (hostname) => {
  */
 export async function checkOutboundUrl(
   rawUrl: string,
-  options: { allowPrivateNetwork?: boolean; resolver?: Resolver } = {},
+  options: OutboundUrlOptions = {},
 ): Promise<AddressVerdict> {
   let url: URL;
   try {
@@ -137,7 +156,7 @@ export async function checkOutboundUrl(
   } catch {
     return { ok: false, reason: 'invalidUrl', detail: String(rawUrl).slice(0, 200) };
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+  if (!(options.protocols ?? DEFAULT_PROTOCOLS).includes(url.protocol)) {
     return { ok: false, reason: 'protocolNotAllowed', detail: url.protocol };
   }
   if (url.username || url.password) {
@@ -176,4 +195,87 @@ export function pinnedLookup(address: ResolvedAddress): LookupFunction {
     if (wantsAll) cb(null, [{ address: address.address, family: address.family }]);
     else cb(null, address.address, address.family);
   }) as LookupFunction;
+}
+
+/** 结构化错误码（`net.*`），给抛异常风格的调用方（代理、远程网关）用。 */
+export const OUTBOUND_URL_ERROR_CODES: Record<UrlBlockReason, string> = {
+  invalidUrl: 'net.invalidUrl',
+  protocolNotAllowed: 'net.protocolNotAllowed',
+  userinfoNotAllowed: 'net.credentialsInUrl',
+  privateHostname: 'net.privateAddressBlocked',
+  privateAddress: 'net.privateAddressBlocked',
+  unresolvable: 'net.dnsFailed',
+};
+
+export class OutboundUrlError extends Error {
+  readonly errorCode: string;
+  constructor(readonly reason: UrlBlockReason, readonly detail: string) {
+    super(`Outbound URL rejected (${reason})`);
+    this.name = 'OutboundUrlError';
+    this.errorCode = OUTBOUND_URL_ERROR_CODES[reason];
+  }
+}
+
+/** `checkOutboundUrl` 的抛异常版：通过时回 URL 与要钉住的地址（第一条解析记录）。 */
+export async function assertOutboundUrl(rawUrl: string, options: OutboundUrlOptions = {}): Promise<{ url: URL; address: ResolvedAddress; addresses: ResolvedAddress[] }> {
+  const verdict = await checkOutboundUrl(rawUrl, options);
+  if (!verdict.ok) throw new OutboundUrlError(verdict.reason, verdict.detail);
+  return { url: verdict.url, address: verdict.addresses[0], addresses: verdict.addresses };
+}
+
+const LOCAL_MODEL_PROVIDER_IDS = new Set(['ollama', 'lmstudio', 'llamacpp', 'llama.cpp', 'vllm', 'localai', 'local']);
+
+/** 模型服务商是否显式标成本地（本地模型代理据此给上游放行内网）。 */
+export function isLocalModelProvider(provider: string): boolean {
+  const id = provider.trim().toLowerCase();
+  return LOCAL_MODEL_PROVIDER_IDS.has(id) || id.startsWith('local:');
+}
+
+/**
+ * 钉住 IP 的 fetch：连接落在校验过的地址上（Host 头与 TLS SNI 仍是原主机名），**从不跟随重定向**
+ * （3xx 原样交回调用方）。回的是标准 `Response`，响应体按流读。
+ */
+export function pinnedFetch(
+  url: URL,
+  address: ResolvedAddress,
+  init: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal } = {},
+): Promise<Response> {
+  const transport = url.protocol === 'https:' ? https : http;
+  const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  return new Promise<Response>((resolve, reject) => {
+    if (init.signal?.aborted) {
+      reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+      return;
+    }
+    const headers: Record<string, string> = { ...(init.headers ?? {}) };
+    if (init.body !== undefined) headers['content-length'] = String(Buffer.byteLength(init.body));
+    const req = transport.request({
+      protocol: url.protocol,
+      hostname,
+      port: url.port || undefined,
+      path: `${url.pathname}${url.search}`,
+      method: init.method ?? 'GET',
+      headers,
+      lookup: pinnedLookup(address),
+      ...(url.protocol === 'https:' ? { servername: hostname } : {}),
+    }, (res) => {
+      const responseHeaders = new Headers();
+      for (const [key, value] of Object.entries(res.headers)) {
+        if (Array.isArray(value)) for (const item of value) responseHeaders.append(key, item);
+        else if (value !== undefined) responseHeaders.set(key, String(value));
+      }
+      const status = res.statusCode ?? 502;
+      const nullBody = status === 204 || status === 304 || (init.method ?? 'GET').toUpperCase() === 'HEAD';
+      if (nullBody) res.resume();
+      resolve(new Response(nullBody ? null : Readable.toWeb(res) as unknown as ReadableStream, { status, statusText: res.statusMessage, headers: responseHeaders }));
+    });
+    const onAbort = () => {
+      req.destroy(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+    };
+    init.signal?.addEventListener('abort', onAbort, { once: true });
+    req.on('error', (error) => reject(error));
+    req.on('close', () => init.signal?.removeEventListener('abort', onAbort));
+    if (init.body !== undefined) req.write(init.body);
+    req.end();
+  });
 }

@@ -81,7 +81,6 @@ const EXPECTED_PUBLIC_ROUTES = [
   'GET /readyz',
   'GET /health',
   'GET /api/version',
-  'GET /api/external-runtimes',
   // TODO(鉴权)：注释声称受保护，实际注册在闸门之前。P0 不改行为，见 diagnostics-routes.ts。
   'GET /api/diagnostics',
   'GET /api/version/latest',

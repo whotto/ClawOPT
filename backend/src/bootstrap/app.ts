@@ -16,7 +16,7 @@ import path from 'path';
 
 import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
-import { registerExternalRuntimeRoutes, registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
+import { registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
 import {
   registerAgentRosterRoutes,
   registerAgentRoutes,
@@ -102,7 +102,6 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
 
   registerHealthRoutes(bootstrapApp, { readiness, connections: ctx.connections });
   registerVersionRoutes(routes.forModule('control/update'));
-  registerExternalRuntimeRoutes(routes.forModule('runtime'));
   registerDiagnosticsRoutes(routes.forModule('control/diagnostics'), ctx);
   registerUpdateRoutes(routes.forModule('control/update'), ctx);
   registerSettingsRoutes(routes.forModule('control/settings'), ctx);

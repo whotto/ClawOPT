@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next';
 export const inputClass = 'block w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed';
 export const textareaClass = `${inputClass} font-mono leading-relaxed`;
 export const labelClass = 'block text-sm font-medium text-gray-900 mb-1.5';
+/** 大段文本编辑（原生配置文件、MCP JSON）。 */
+export const editorClass = 'block w-full min-h-[16rem] px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-[13px] font-mono leading-relaxed resize-y';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -81,7 +83,7 @@ export function Badge({ tone = 'gray', children }: { tone?: BadgeTone; children:
 
 export type ErrorDisplay = { message: string; detail: string };
 
-export function ErrorBanner({ error, onClose }: { error: ErrorDisplay | null; onClose?: () => void }) {
+export function ErrorBanner({ error, onClose, action }: { error: ErrorDisplay | null; onClose?: () => void; action?: ReactNode }) {
   if (!error?.message) return null;
   return (
     <div className="p-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100 flex items-start gap-2">
@@ -89,8 +91,9 @@ export function ErrorBanner({ error, onClose }: { error: ErrorDisplay | null; on
       <div className="min-w-0 flex-1">
         <div>{error.message}</div>
         {error.detail && (
-          <div className="mt-2 rounded-xl border border-red-100 bg-white/70 px-3 py-2 text-xs text-red-500 whitespace-pre-wrap break-all font-mono">{error.detail}</div>
+          <div className="mt-2 rounded-xl border border-red-100 bg-white/70 px-3 py-2 text-xs text-red-500 whitespace-pre-wrap break-all font-mono max-h-40 overflow-auto">{error.detail}</div>
         )}
+        {action && <div className="mt-2">{action}</div>}
       </div>
       {onClose && (
         <button type="button" onClick={onClose} className="text-red-400 hover:text-red-600">

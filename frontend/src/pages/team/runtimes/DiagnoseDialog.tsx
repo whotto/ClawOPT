@@ -6,7 +6,7 @@ import { listMemberRuntimes } from '../../../api/runtime';
 import { createSession } from '../../../api/sessions';
 import { chatCapableRuntimes, type RuntimeOption } from '../../../components/runtime/runtimeSelection';
 import { writeComposerPrefill } from '../../../utils/composerPrefill';
-import { Button, editorClass, inputClass } from './runtimeUi';
+import { Button, editorClass, inputClass } from '../../../components/control/ControlUi';
 import { diagnoseSessionId, pickDiagnoseTarget, type DiagnoseAgent } from './runtimeLogic';
 
 /** 诊断优先交给这两个编码类运行时（装了才出现）：它们能直接读日志、跑命令。 */

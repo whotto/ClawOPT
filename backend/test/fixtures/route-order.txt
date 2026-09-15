@@ -7,7 +7,6 @@ GET /livez
 GET /readyz
 GET /health
 GET /api/version
-GET /api/external-runtimes
 GET /api/diagnostics
 GET /api/version/latest
 GET /api/openclaw/version/latest

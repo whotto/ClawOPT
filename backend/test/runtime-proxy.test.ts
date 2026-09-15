@@ -446,7 +446,7 @@ describe('出站地址策略', () => {
   });
 
   it('登记时拒绝非 http(s) 的 base URL', () => {
-    expect(() => harness.proxy.register(target({ baseUrl: 'file:///etc/passwd' }))).toThrow(/http or https/);
+    expect(() => harness.proxy.register(target({ baseUrl: 'file:///etc/passwd' }))).toThrow(expect.objectContaining({ errorCode: 'net.protocolNotAllowed' }));
     expect(() => harness.proxy.register(target({ baseUrl: 'not a url' }))).toThrow();
   });
 });

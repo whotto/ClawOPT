@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Search, X } from 'lucide-react';
 import { deleteRuntimeMcp, listRuntimeMcp, saveRuntimeMcp, testRuntimeMcp } from '../../../api/runtime';
-import { resolveApiErrorMessage, type ErrorDisplay } from './runtimeLogic';
-import { Badge, Button, Card, ErrorBanner, editorClass, inputClass, readJson } from './runtimeUi';
+import { resolveApiErrorMessage, type ErrorDisplay, readJson } from './runtimeLogic';
+import { Badge, Button, Card, ErrorBanner, editorClass, inputClass } from '../../../components/control/ControlUi';
 
 type McpServer = { name: string; transport: 'stdio' | 'http'; command?: string; args?: string[]; env?: Record<string, string>; url?: string; headers?: Record<string, string>; enabled: boolean; managed: boolean };
 type ProbeResult = { ok: boolean; tools: Array<{ name: string }>; error: string | null };

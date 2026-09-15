@@ -166,17 +166,17 @@ describe('远程 OpenClaw 成员', () => {
   });
 
   it('连接测试：只收 ws/wss；内网地址要显式受信任的局域网；没令牌直接报码；鉴权失败分类', async () => {
-    const lookup = async () => ['192.168.1.20'];
-    expect(await testRemoteOpenClawConnection({ gatewayUrl: 'http://gw.lan:18789', token: 't', trustedLan: true }, { lookup })).toMatchObject({ ok: false, messageCode: 'remoteOpenclaw.urlBlocked' });
-    expect(await testRemoteOpenClawConnection({ gatewayUrl: 'ws://gw.lan:18789', token: 't', trustedLan: false }, { lookup })).toMatchObject({ ok: false, messageCode: 'remoteOpenclaw.privateAddressNeedsTrustedLan' });
-    expect(await testRemoteOpenClawConnection({ gatewayUrl: 'ws://gw.lan:18789', token: '', trustedLan: true }, { lookup })).toMatchObject({ ok: false, messageCode: 'remoteOpenclaw.tokenMissing' });
+    const resolver = async () => [{ address: '192.168.1.20', family: 4 as const }];
+    expect(await testRemoteOpenClawConnection({ gatewayUrl: 'http://gw.lan:18789', token: 't', trustedLan: true }, { resolver })).toMatchObject({ ok: false, messageCode: 'remoteOpenclaw.urlBlocked' });
+    expect(await testRemoteOpenClawConnection({ gatewayUrl: 'ws://gw.lan:18789', token: 't', trustedLan: false }, { resolver })).toMatchObject({ ok: false, messageCode: 'remoteOpenclaw.privateAddressNeedsTrustedLan' });
+    expect(await testRemoteOpenClawConnection({ gatewayUrl: 'ws://gw.lan:18789', token: '', trustedLan: true }, { resolver })).toMatchObject({ ok: false, messageCode: 'remoteOpenclaw.tokenMissing' });
     const denied = await testRemoteOpenClawConnection({ gatewayUrl: 'ws://gw.lan:18789', token: 'bad', trustedLan: true }, {
-      lookup,
+      resolver,
       createClient: () => ({ connect: async () => { throw new Error('unauthorized: gateway token mismatch'); }, disconnect: () => {} }),
     });
     expect(denied).toMatchObject({ ok: false, messageCode: 'remoteOpenclaw.authFailed' });
     const good = await testRemoteOpenClawConnection({ gatewayUrl: 'wss://gw.example', token: 'ok', trustedLan: false, remoteAgentId: 'writer' }, {
-      lookup: async () => ['93.184.216.34'],
+      resolver: async () => [{ address: '93.184.216.34', family: 4 }],
       createClient: () => ({ connect: async () => {}, call: async () => ({ agents: [{ id: 'main' }, { id: 'writer' }] }), disconnect: () => {} }),
     });
     expect(good).toMatchObject({ ok: true, agentFound: true, agents: ['main', 'writer'] });
@@ -187,7 +187,7 @@ describe('远程 OpenClaw 成员', () => {
     const client = options.client ?? new FakeGatewayClient();
     const adapter = createRemoteOpenClawRuntimeAdapter({
       secrets,
-      lookup: async () => ['192.168.1.20'],
+      resolver: async () => [{ address: '192.168.1.20', family: 4 }],
       createClient: () => {
         if (options.connectError) {
           const failing: any = new FakeGatewayClient();
@@ -275,7 +275,7 @@ describe('远程 OpenClaw 成员', () => {
     engine.useRuntimeAdapters((runtime: string) => {
       requested.push(runtime);
       return runtime === 'remote-openclaw'
-        ? createRemoteOpenClawRuntimeAdapter({ secrets: { get: () => null }, lookup: async () => ['192.168.1.20'] })
+        ? createRemoteOpenClawRuntimeAdapter({ secrets: { get: () => null }, resolver: async () => [{ address: '192.168.1.20', family: 4 }] })
         : null;
     });
     const member = (runtime: string) => ({

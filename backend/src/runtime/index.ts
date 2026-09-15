@@ -33,14 +33,6 @@ export {
   registerCodingAgentAdapters,
 } from './adapters/registry';
 export {
-  EXTERNAL_RUNTIMES,
-  buildExternalRuntimeList,
-} from './adapters/runtime-list';
-export type {
-  ExternalRuntimeDescriptor,
-  ExternalRuntimeStatus,
-} from './adapters/runtime-list';
-export {
   OPENCLAW_ABORT_GRACE_MS,
   OPENCLAW_CAPABILITIES,
   createOpenClawRuntimeAdapter,
@@ -78,9 +70,6 @@ export type {
   SessionSnapshot,
   SubmitResult,
 } from './coordinator';
-export {
-  registerExternalRuntimeRoutes,
-} from './external-runtime-routes';
 export {
   checkRuntimeInvariants,
 } from './runtime-invariants';
@@ -169,12 +158,6 @@ export {
   constantTimeEquals,
   defaultRuntimeDataDir,
 } from './platform-store';
-export {
-  NetPolicyError,
-  assertOutboundUrlAllowed,
-  isLocalProvider,
-  isPrivateAddress,
-} from './net-policy';
 export type {
   InvariantMemberRow,
   InvariantSessionRow,

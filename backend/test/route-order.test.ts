@@ -12,6 +12,12 @@
  * 相对拆分前的清单，唯一的新增是 P0 加的 `GET /livez`、`GET /readyz`（紧挨 `/health` 之前）。
  * P4a 在 `/api/files` 之后、静态资源之前追加了自动化模块的路由（工作流 / 定时 / 钩子 / Webhook / 看板），
  * 其中 `POST /api/hooks/*` 两条是有意公开的（见 AUTH_PUBLIC_PATHS）。
+ * P5a 在认证路由后追加用户路由、末尾追加控制面；P2 在用户路由后追加本地模型代理（`USE /api/runtime-proxy` 请求体解析器
+ * 在全局 json 之前，四条代理路由有意公开）与 `/api/runtime/*` 运行时平台路由。
+ *
+ * **有意删除**（集成 v1.9 合入 P2）：`GET /api/external-runtimes`。它与 `GET /api/runtime/member-runtimes` 是两份运行时清单
+ * （探测判据不同：原始 PATH vs 管理器的扩充 PATH），而且注册在登录闸门之前、匿名可达；只留登记处 + 管理器那一份。
+ * 所以 v1.9 与 P2 两份历史清单对当前清单是「除这一行外的子序列」。
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';

@@ -24,8 +24,9 @@ import {
   type HostCapabilities,
   type RuntimeCardAction,
   type RuntimeStatus,
+  readJson,
 } from './runtimeLogic';
-import { Badge, Button, Card, ErrorBanner, readJson } from './runtimeUi';
+import { Badge, Button, Card, ErrorBanner } from '../../../components/control/ControlUi';
 
 /**
  * 团队 → Agent 运行时（`/settings/runtimes`）：每个外部运行时一张卡；`?runtime=<id>` 进它的配置页。

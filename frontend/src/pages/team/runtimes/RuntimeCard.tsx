@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bot, Settings2, Stethoscope } from 'lucide-react';
 import { runtimeCardActions, type ErrorDisplay, type HostCapabilities, type RuntimeCardAction, type RuntimeStatus } from './runtimeLogic';
-import { Badge, Button, Card, ErrorBanner, Switch } from './runtimeUi';
+import { Badge, Button, Card, ErrorBanner, Toggle } from '../../../components/control/ControlUi';
 
 export type RuntimeCardProps = {
   status: RuntimeStatus;
@@ -124,12 +124,15 @@ export default function RuntimeCard({ status, host, busy, error, onAction, onAut
 
       {status.kind !== 'remote' && status.installed && (
         <div className="border-t border-gray-100 pt-2">
-          <Switch
-            checked={status.autoUpdate}
-            disabled={!status.managed || busy === 'autoUpdate'}
-            onChange={onAutoUpdate}
-            label={status.managed ? t('runtimes.autoUpdate') : t('runtimes.autoUpdateUnavailable')}
-          />
+          <label className={`inline-flex items-center gap-2 text-xs text-gray-600 ${!status.managed ? 'opacity-50' : ''}`}>
+            <Toggle
+              checked={status.autoUpdate}
+              disabled={!status.managed || busy === 'autoUpdate'}
+              onChange={onAutoUpdate}
+              label={status.managed ? t('runtimes.autoUpdate') : t('runtimes.autoUpdateUnavailable')}
+            />
+            {status.managed ? t('runtimes.autoUpdate') : t('runtimes.autoUpdateUnavailable')}
+          </label>
         </div>
       )}
     </Card>

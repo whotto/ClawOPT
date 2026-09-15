@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { isAuthPublicPath } from '../src/core/auth';
-import { assertOutboundUrlAllowed, isLocalProvider, isPrivateAddress, resolveUpstreamEndpoint } from '../src/runtime';
+import { resolveUpstreamEndpoint } from '../src/runtime';
 import { normalizeResponsesPassthroughFrame } from '../src/runtime/proxy/provider-proxy';
 import { SseParser } from '../src/runtime/proxy/sse';
 import { ChatStreamDecoder } from '../src/runtime/proxy/stream-decoders';
@@ -71,27 +71,6 @@ describe('公开路径模式匹配', () => {
   });
 });
 
-describe('出站地址策略', () => {
-  it.each([
-    ['127.0.0.1', true], ['10.1.2.3', true], ['172.20.0.1', true], ['192.168.1.1', true], ['169.254.169.254', true],
-    ['100.64.0.1', true], ['::1', true], ['fd00::1', true], ['fe80::1', true], ['::ffff:127.0.0.1', true],
-    ['93.184.216.34', false], ['198.18.0.5', false], ['2606:4700::1111', false],
-  ])('%s 内网=%s', (address, expected) => {
-    expect(isPrivateAddress(address)).toBe(expected);
-  });
-
-  it('解析后的地址才算数：域名解析到回环一样拦；本地服务商判据是显式的', async () => {
-    await expect(assertOutboundUrlAllowed('https://localtest.me/v1', { protocols: ['https:'], allowPrivate: false, lookup: async () => ['127.0.0.1'] })).rejects.toMatchObject({ errorCode: 'net.privateAddressBlocked' });
-    await expect(assertOutboundUrlAllowed('https://ok.test/v1', { protocols: ['https:'], allowPrivate: false, lookup: async () => ['93.184.216.34', '10.0.0.1'] })).rejects.toMatchObject({ errorCode: 'net.privateAddressBlocked' });
-    await expect(assertOutboundUrlAllowed('ftp://ok.test', { protocols: ['https:'], allowPrivate: true })).rejects.toMatchObject({ errorCode: 'net.protocolNotAllowed' });
-    await expect(assertOutboundUrlAllowed('https://user:pw@ok.test', { protocols: ['https:'], allowPrivate: true })).rejects.toMatchObject({ errorCode: 'net.credentialsInUrl' });
-    await expect(assertOutboundUrlAllowed('http://127.0.0.1:11434/v1', { protocols: ['http:'], allowPrivate: true })).resolves.toBeInstanceOf(URL);
-    expect(isLocalProvider('ollama')).toBe(true);
-    expect(isLocalProvider('local:my-vllm')).toBe(true);
-    expect(isLocalProvider('openai')).toBe(false);
-    expect(isLocalProvider('ollama-cloud')).toBe(false);
-  });
-});
 
 describe('Responses 直通帧整理', () => {
   it('缺 created_at / sequence_number 才补；上游给了的不改', () => {

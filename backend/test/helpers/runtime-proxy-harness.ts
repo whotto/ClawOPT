@@ -2,7 +2,7 @@
  * 本地模型代理的测试台：一个假上游（按用例脚本回 SSE / JSON，记下收到的请求）+ 一个只挂代理路由的 Express。
  *
  * 目标 base URL 用不存在的域名（`upstream.test` 这类），`fetchImpl` 把它改写到本机假上游；
- * `lookup` 把域名解析成公网地址——这样出站地址策略走的是真实判据，而不是被「127.0.0.1」短路。
+ * `resolver` 把域名解析成公网地址——这样出站地址策略走的是真实判据，而不是被「127.0.0.1」短路。
  */
 import express from 'express';
 import fs from 'fs';
@@ -72,7 +72,7 @@ export async function createProxyHarness(options: { dataDir?: string; publicAddr
     publicBaseUrl: () => 'http://127.0.0.1:9',
     dataDir: options.dataDir,
     fetchImpl,
-    lookup: async () => [options.publicAddress ?? '93.184.216.34'],
+    resolver: async () => [{ address: options.publicAddress ?? '93.184.216.34', family: 4 }],
     log: () => {},
   });
   const app = express();

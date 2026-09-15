@@ -45,7 +45,7 @@ export type HostCapabilities = {
 
 export type ApiError = { errorCode?: string; errorDetail?: string | null; errorParams?: Record<string, unknown> | null; operation?: RuntimeOperationRecord };
 
-export type ErrorDisplay = { message: string; detail: string };
+export type { ErrorDisplay } from '../../../components/control/ControlUi';
 
 export type RuntimeCardAction ='install' | 'update' | 'checkUpdate' | 'uninstall' | 'settings';
 
@@ -146,4 +146,9 @@ export function pickDiagnoseTarget(target: string, agents: DiagnoseAgent[]): { s
     return { sessionId, createRuntime: agents.some((agent) => agent.id === sessionId) ? null : runtime };
   }
   return { sessionId: target, createRuntime: null };
+}
+
+/** 读 JSON 响应体；不是 JSON 时回空对象（错误体交给 errorDisplay 统一说人话）。 */
+export async function readJson<T = any>(response: Response): Promise<T> {
+  return response.json().catch(() => ({} as T));
 }

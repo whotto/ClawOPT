@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderX } from 'lucide-react';
 import { getRuntimeHomes, saveRuntimeHomesSettings, sweepRuntimeHomes } from '../../../api/runtime';
-import { resolveApiErrorMessage, type ErrorDisplay } from './runtimeLogic';
-import { Button, Card, ErrorBanner, inputClass, readJson } from './runtimeUi';
+import { resolveApiErrorMessage, type ErrorDisplay, readJson } from './runtimeLogic';
+import { Button, Card, ErrorBanner, inputClass } from '../../../components/control/ControlUi';
 
 /** 运行时目录回收：空闲多少天回收（0 = 只在会话 / 成员删除时回收）与立即清扫。 */
 export default function RuntimeHomesCard() {
