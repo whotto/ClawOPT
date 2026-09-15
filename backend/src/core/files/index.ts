@@ -21,6 +21,7 @@ export type {
   WriteOptions,
 } from './safe-file-store';
 export {
+  isSensitiveRelativePath,
   resolveServablePath,
   servableRoots,
   servedPathOwner,

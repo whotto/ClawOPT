@@ -9,8 +9,6 @@ export {
   normalizeGroupToolProgressLocale,
   normalizeToolArgsRecord,
   parseExternalSenderId,
-  selectGroupContextWindow,
-  truncateGroupTriggerMessage,
 } from './group-chat-engine';
 export type {
   GroupDirectImageGenerationHandler,
@@ -41,6 +39,13 @@ export {
 export type {
   GroupIdValidationIssue,
 } from './group-workspace';
+export {
+  createRoomCollab,
+} from './room-collab';
+export type {
+  RoomCollab,
+  RoomCollabDeps,
+} from './room-collab';
 export {
   createRoomEngine,
 } from './room-engine';

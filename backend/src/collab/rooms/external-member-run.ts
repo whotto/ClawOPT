@@ -41,6 +41,12 @@ export type ExternalMemberProjectorDeps = {
   basePayload: ExternalMemberMessagePayload;
   displayName: string;
   modelTag: string;
+  /** 会话隔离：房间被清空 / 删除、成员被中断之后，这次运行的写入一律丢弃。缺省恒为当前。 */
+  isCurrent?: () => boolean;
+  /** 每个事件到来时调用（运行看门狗的空闲续期）。 */
+  onActivity?: () => void;
+  /** 失败原因的补充（看门狗到点时是 idle_timeout / hard_timeout，比「aborted」说得清）。 */
+  failureDetail?: () => string | null;
 };
 
 export function describeExternalFailure(outcome: AdapterRunOutcome): string {
@@ -55,18 +61,22 @@ export function describeExternalFailure(outcome: AdapterRunOutcome): string {
 }
 
 export function createExternalMemberProjector(deps: ExternalMemberProjectorDeps): RunProjector & { text(): string } {
-  const { db, emit, run, basePayload, displayName, modelTag } = deps;
+  const { db, run, basePayload, displayName, modelTag } = deps;
+  const isCurrent = deps.isCurrent ?? (() => true);
+  const emit: ExternalMemberProjectorDeps['emit'] = (event, payload) => { if (isCurrent()) deps.emit(event, payload); };
   let accumulated = '';
   db.setGroupMessageRunMarker(basePayload.id, run.runMarker);
 
   return {
     text: () => accumulated,
     onEvent(event) {
+      deps.onActivity?.();
       if (event.type !== 'response.output_text.delta' || !event.delta) return;
       accumulated += event.delta;
       emit('delta', { ...basePayload, content: accumulated, process_content: '', process_streaming: true });
     },
     finish(outcome) {
+      if (!isCurrent()) return { messageId: basePayload.id, error: 'stale room session' };
       if (outcome.kind === 'completed') {
         const finalText = outcome.outputText ?? accumulated;
         db.updateGroupMessage(basePayload.id, finalText, modelTag, undefined, '');
@@ -74,7 +84,7 @@ export function createExternalMemberProjector(deps: ExternalMemberProjectorDeps)
         return { messageId: basePayload.id, output: finalText };
       }
       // 失败不删行，只写原因——行留着，排障才看得到「上次为什么失败」。
-      const detail = describeExternalFailure(outcome);
+      const detail = deps.failureDetail?.() ?? describeExternalFailure(outcome);
       const message = `${displayName} 执行失败（${detail}）`;
       db.updateGroupMessage(basePayload.id, message, modelTag, undefined, '');
       emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });

@@ -51,16 +51,10 @@ import { ensureGroupWorkspace, getGroupRuntimeSessionKey } from './group-workspa
 import { selectPreferredTextSnapshot } from '../../core/util';
 import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
 import { shouldUseConfiguredImageGenerationModel } from '../../control';
+import type { ExecuteTurnInput, MemberTurnExecutor, MemberTurnResult } from './room-orchestrator';
+import { RoomFence, RunWatchdog, type FenceToken } from './room-fence';
+import { RELAY_OUTCOME_UNKNOWN_CODE } from './handoff-dispatcher';
 
-const DEFAULT_MAX_CHAIN_DEPTH = 6;
-
-/**
- * 发消息的人能直接叫起哪些 Agent（按 agent_id）。只约束用户发起的第一跳；
- * Agent 之间的链式转交按既有深度规则继续（member 只发起了第一跳，见 AGENTS.md）。
- */
-export type WakePredicate = (agentId: string) => boolean;
-const WAKE_ANY: WakePredicate = () => true;
-const GROUP_STREAM_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 const GROUP_STREAM_COMPLETION_PROBE_DELAY_MS = 1200;
 const GROUP_STREAM_COMPLETION_WAIT_TIMEOUT_MS = 1500;
 const GROUP_HISTORY_COMPLETION_PROBE_LIMIT = 60;
@@ -69,19 +63,6 @@ const GROUP_HISTORY_COMPLETION_SETTLE_POLL_MS = 500;
 const GROUP_FINAL_EVENT_SETTLE_GRACE_MS = 1500;
 const GROUP_EMPTY_COMPLETION_RETRY_WINDOW_MS = 5 * 60 * 1000;
 const GROUP_HISTORY_ACTIVITY_GRACE_MS = 2 * 60 * 1000;
-const GROUP_CONTEXT_MESSAGE_MAX_CHARS = 900;
-const GROUP_CONTEXT_MESSAGE_HEAD_CHARS = 380;
-const GROUP_CONTEXT_MESSAGE_TAIL_CHARS = 380;
-const GROUP_CONTEXT_RECENT_WINDOW = 15;
-// 历史窗口除了「最多 15 条」再加一道字符预算：15 条 × 900 字的摘要在长对话里
-// 每一跳都是 1.3 万字起，且原样进网关会话累积。预算按新→旧挑，至少保 1 条。
-const GROUP_CONTEXT_BUDGET_CHARS = 9000;
-// 「最新任务」原先不设上限：上一位成员 2 万字的回复会整段转交，而同一段
-// 又以 900 字摘要出现在历史里。这里保头保尾，中间省略并说明。
-const GROUP_TRIGGER_MAX_CHARS = 6000;
-const GROUP_TRIGGER_HEAD_CHARS = 4000;
-const GROUP_TRIGGER_TAIL_CHARS = 1600;
-const GROUP_CONTEXT_EVIDENCE_LINE_PATTERN = /(`|https?:\/\/|\/|\\|\.|已执行|执行|启动|运行|浏览器|监听|地址|端口|日志|结果|存在|生成|导出|输出|完成|成功|失败|校验|验证|测试|created|running|started|output|result|verified|browser|url|path|port|listen)/i;
 const MAX_CHAIN_DEPTH_MESSAGE_CODE = 'group.maxChainDepthReached' as const;
 const MAX_CHAIN_DEPTH_MESSAGE_REGEX = /^链式转发已达到最大深度 \((\d+) 轮\)$/;
 const CHAIN_FORWARDING_DISABLED_MESSAGE_CODE = 'group.chainForwardingDisabled' as const;
@@ -676,96 +657,6 @@ function combineGroupProcessContent(toolContent: string, modelContent: string): 
     .join('\n\n');
 }
 
-function truncateGroupContextMessage(content: string): string {
-  const normalizedContent = normalizeGroupPromptText(content);
-  if (normalizedContent.length <= GROUP_CONTEXT_MESSAGE_MAX_CHARS) {
-    return normalizedContent;
-  }
-
-  const head = normalizedContent.slice(0, GROUP_CONTEXT_MESSAGE_HEAD_CHARS).trimEnd();
-  const tail = normalizedContent.slice(-GROUP_CONTEXT_MESSAGE_TAIL_CHARS).trimStart();
-  return `${head}\n...(中间省略)...\n${tail}`.trim();
-}
-
-function summarizeGroupProcessEvidence(content: string): string {
-  const normalizedContent = normalizeGroupPromptText(content);
-  if (!normalizedContent) return '';
-
-  const rawLines = normalizedContent
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
-
-  if (rawLines.length === 0) return '';
-
-  const evidenceLines = rawLines.filter(line => GROUP_CONTEXT_EVIDENCE_LINE_PATTERN.test(line));
-  const prioritizedLines = evidenceLines.length > 0 ? evidenceLines : rawLines;
-  return truncateGroupContextMessage(prioritizedLines.join('\n'));
-}
-
-function buildGroupContextMessageSummary(
-  content: string,
-  processStartTag?: string,
-  processEndTag?: string,
-  processContentText?: string | null,
-): string {
-  const normalizedContent = normalizeGroupPromptText(content);
-  const normalizedProcessContent = normalizeGroupPromptText(processContentText || '');
-
-  if (normalizedProcessContent) {
-    const processEvidenceSummary = summarizeGroupProcessEvidence(normalizedProcessContent);
-
-    if (normalizedContent && processEvidenceSummary) {
-      return truncateGroupContextMessage(
-        `${normalizedContent}\n\n[过程证据摘要]\n${processEvidenceSummary}`,
-      );
-    }
-
-    if (normalizedContent) {
-      return truncateGroupContextMessage(normalizedContent);
-    }
-
-    if (processEvidenceSummary) {
-      return processEvidenceSummary;
-    }
-  }
-
-  if (!normalizedContent) return '';
-
-  const startTag = processStartTag?.trim();
-  const endTag = processEndTag?.trim();
-  if (!startTag || !endTag) {
-    return truncateGroupContextMessage(normalizedContent);
-  }
-
-  const processRegex = new RegExp(
-    `${escapeRegExpForPrompt(startTag)}([\\s\\S]*?)(?:${escapeRegExpForPrompt(endTag)}|$)`,
-    'g',
-  );
-  const outsideProcessContent = normalizeGroupPromptText(normalizedContent.replace(processRegex, '\n\n'));
-  const extractedProcessContent = Array.from(normalizedContent.matchAll(processRegex))
-    .map(match => normalizeGroupPromptText(match[1] || ''))
-    .filter(Boolean)
-    .join('\n\n');
-  const processEvidenceSummary = summarizeGroupProcessEvidence(extractedProcessContent);
-
-  if (outsideProcessContent && processEvidenceSummary) {
-    return truncateGroupContextMessage(
-      `${outsideProcessContent}\n\n[过程证据摘要]\n${processEvidenceSummary}`,
-    );
-  }
-
-  if (outsideProcessContent) {
-    return truncateGroupContextMessage(outsideProcessContent);
-  }
-
-  if (processEvidenceSummary) {
-    return processEvidenceSummary;
-  }
-
-  return truncateGroupContextMessage(normalizedContent);
-}
-
 function isGroupHostTakeoverEnabled(): boolean {
   try {
     // 走网关：同样是大写变量名躲过了守卫。本 sprint 不碰群聊的执行逻辑，
@@ -799,17 +690,6 @@ function buildGroupHostTakeoverPrompt(): string {
   ].join('\n');
 }
 
-function createMaxChainDepthMessage(maxDepth: number): Required<StructuredGroupMessage> & { content: string } {
-  return {
-    content: `链式转发已达到最大深度 (${maxDepth} 轮)`,
-    messageCode: MAX_CHAIN_DEPTH_MESSAGE_CODE,
-    messageParams: { maxDepth },
-    rawDetail: '',
-    forceSystemMessage: true,
-  };
-}
-
-// 链式转发设为 0 时成员仍 @ 了别人：原先静默吞掉，用户只看到链条停了、不知道为什么。
 /**
  * 成员正忙。改成每成员一把锁之后，这条取代了原来那个「整群 409」的沉默行为——
  * 用户得看见是**谁**在忙，而不是整个群没反应。
@@ -822,66 +702,6 @@ function createMemberBusyMessage(agentName: string): Required<StructuredGroupMes
     rawDetail: '',
     forceSystemMessage: true,
   };
-}
-
-function createChainForwardingDisabledMessage(agentName: string): Required<StructuredGroupMessage> & { content: string } {
-  return {
-    content: `链式转发已关闭，未转交给 ${agentName}`,
-    messageCode: CHAIN_FORWARDING_DISABLED_MESSAGE_CODE,
-    messageParams: { agentName },
-    rawDetail: '',
-    forceSystemMessage: true,
-  };
-}
-
-/**
- * 从最近的群消息里挑进提示词的历史窗口：新→旧，受条数与字符预算双重约束。
- * 触发消息本身（parentId 指向的那条）若与「最新任务」内容一致则不重复放进历史。
- */
-export function selectGroupContextWindow(
-  rows: GroupMessageRow[],
-  options: {
-    triggerParentId?: number | null;
-    triggerMsg?: string;
-    triggerSenderName?: string;
-    maxRows?: number;
-    budgetChars?: number;
-  } = {},
-): GroupMessageRow[] {
-  const maxRows = options.maxRows ?? GROUP_CONTEXT_RECENT_WINDOW;
-  const budget = options.budgetChars ?? GROUP_CONTEXT_BUDGET_CHARS;
-  const trigger = (options.triggerMsg || '').trim();
-  const picked: GroupMessageRow[] = [];
-  let used = 0;
-
-  for (let index = rows.length - 1; index >= 0 && picked.length < maxRows; index -= 1) {
-    const row = rows[index];
-    const isTriggerRow = options.triggerParentId != null
-      && row.id === options.triggerParentId
-      && (
-        (trigger !== '' && row.content.trim() === trigger)
-        || (options.triggerSenderName !== undefined && row.sender_type === 'agent' && row.sender_name === options.triggerSenderName)
-        || (row.sender_type === 'user' && trigger !== '' && row.content.trim() === trigger)
-      );
-    if (isTriggerRow) continue;
-
-    const bodyChars = Math.min(
-      row.content.length + (row.process_content?.length ?? 0),
-      GROUP_CONTEXT_MESSAGE_MAX_CHARS + 64,
-    );
-    const cost = bodyChars + (row.sender_name?.length ?? 2) + 4;
-    if (picked.length > 0 && used + cost > budget) break;
-    picked.unshift(row);
-    used += cost;
-  }
-
-  return picked;
-}
-
-export function truncateGroupTriggerMessage(triggerMsg: string): string {
-  if (triggerMsg.length <= GROUP_TRIGGER_MAX_CHARS) return triggerMsg;
-  const omitted = triggerMsg.length - GROUP_TRIGGER_HEAD_CHARS - GROUP_TRIGGER_TAIL_CHARS;
-  return `${triggerMsg.slice(0, GROUP_TRIGGER_HEAD_CHARS)}\n\n…（中间省略 ${omitted} 字，全文已作为上一条消息保存在团队对话里）…\n\n${triggerMsg.slice(-GROUP_TRIGGER_TAIL_CHARS)}`;
 }
 
 export function createAgentResponseFailedMessage(agentName: string, rawDetail?: string | null): Required<StructuredGroupMessage> & { content: string } {
@@ -939,20 +759,57 @@ export function getStructuredGroupMessage(content?: string | null): StructuredGr
 }
 
 /**
- * GroupChatEngine handles message routing in group chats.
- * 
- * Improvements inspired by OpenCrew:
- * - Structured agent prompts (Objective / Context / Boundaries)
- * - WAIT discipline: agents do one step then wait
- * - Better anti-loop: per-group maxTurns + self-mention prevention
+ * 群里一个成员执行一跳（P3 起）。
+ *
+ * **引擎只负责「执行一跳」**：谁接、按什么顺序、能不能继续转交、深度、发起人授权都在编排器（`room-orchestrator.ts`）；
+ * prompt 由协作层按 v2 上下文构建（`room-prompt.ts`，经 `useRoomTurnHooks` 注入）。
+ * 一跳结束只返回结果，不再在这里递归转交。
+ *
+ * 两条执行路径彼此独立：
+ * - OpenClaw 网关路径（`runGatewayMember`）：整套会话对账、文本快照保护、工具进度 i18n，全是从事故里长出来的；
+ *   网关运行的跟踪状态按群键（一个群同时一次网关运行），所以同群的网关成员经 `gatewayTurnChains` 串行；
+ * - 外部运行时路径（`runExternalMember`，含远程 Agent）：经运行协调器，同群不同成员并发。
  */
-export class GroupChatEngine extends EventEmitter {
+export type PromptEnvironment = {
+  workspace: { root: string; uploads: string | null; output: string | null } | null;
+  processTags: { startTag: string; endTag: string } | null;
+  hostTakeoverPrompt: string | null;
+  /** 交给接收方的触发正文（网关路径已并入附件检视 / 文档工具 / 转写语境）。 */
+  triggerText: string;
+  /** 历史里的上传链接 → 工作区路径（网关路径）。 */
+  rewriteContent?: (text: string) => string;
+};
+
+/** 一跳的运行作用域：远程工作区令牌、工作区检查点。`finish` 在运行结束、算 diff 之前吊销令牌并等进行中的写入排空。 */
+export type RoomRunScope = {
+  remoteWorkspaceApi: { baseUrl: string; token: string } | null;
+  runtimeConfig: Record<string, unknown>;
+  finish(result: { messageId: number | null; status: MemberTurnResult['status']; runMarker: string | null }): Promise<void>;
+};
+
+export type RoomTurnHooks = {
+  buildPrompt(input: ExecuteTurnInput, env: PromptEnvironment, scope: RoomRunScope): string;
+  beginRun(input: ExecuteTurnInput, workspacePath: string | null): Promise<RoomRunScope>;
+};
+
+const NOOP_SCOPE: RoomRunScope = { remoteWorkspaceApi: null, runtimeConfig: {}, finish: async () => {} };
+
+type TurnContext = {
+  input: ExecuteTurnInput;
+  parentId: number | undefined;
+  fence: FenceToken;
+  idleMs: number;
+  totalMs: number;
+  scope: RoomRunScope;
+};
+
+export class GroupChatEngine extends EventEmitter implements MemberTurnExecutor {
   private db: DB;
   private getClient: (sessionId: string) => Promise<OpenClawClient>;
   private getAgentModel: (agentId: string) => string;
   private getPreferredLanguage: () => GroupToolProgressLocale;
-  private processingGroups = new Set<string>();
-  private resetEpochs = new Map<string, number>();
+  /** 房间代数 + 成员中断版本（会话隔离）。清空 / 删除 / 停止推进房间代数，中断单个成员推进它的版本。 */
+  readonly fence = new RoomFence();
   private prepareGroupRuntime: (groupId: string, agentId: string) => Promise<{
       runtimeAgentId: string;
       workspacePath: string;
@@ -965,6 +822,8 @@ export class GroupChatEngine extends EventEmitter {
   private buildImageGenerationStartProcessContent?: GroupDirectImageGenerationStartProcessBuilder;
   private pendingRuns = new Map<string, PendingGroupRun>();
   private activeRuns = new Map<string, ActiveGroupRun>();
+  /** 同群的网关成员串行（网关运行的跟踪状态按群键，见类注释）。 */
+  private gatewayTurnChains = new Map<string, Promise<unknown>>();
   /** 外部成员的运行由协调器驱动（room-engine.ts 组装时注入）。 */
   private runCoordinator: RunCoordinator | null = null;
 
@@ -974,12 +833,24 @@ export class GroupChatEngine extends EventEmitter {
 
   /**
    * 外部成员按 `member.runtime` 从适配器登记处取适配器（Claude Code / Codex / Pi / Grok / OpenCode / DSH / Hermes /
-   * 远程 OpenClaw）。bootstrap 注入 `runtimePlatform.createAdapter`；没注入或登记处里没有 → 返回 null，调用方写明失败。
+   * 远程 OpenClaw / 远程 Agent relay）。bootstrap 注入；没注入或登记处里没有 → 返回 null，调用方写明失败。
    */
   private runtimeAdapters: ((runtime: string) => AgentRuntimeAdapter<RuntimeRunRequest> | null) | null = null;
 
   useRuntimeAdapters(lookup: (runtime: string) => AgentRuntimeAdapter<RuntimeRunRequest> | null): void {
     this.runtimeAdapters = lookup;
+  }
+
+  private turnHooks: RoomTurnHooks | null = null;
+
+  /** 协作层（prompt v2 构建、远程工作区令牌、工作区检查点）。 */
+  useRoomTurnHooks(hooks: RoomTurnHooks): void {
+    this.turnHooks = hooks;
+  }
+
+  private requireTurnHooks(): RoomTurnHooks {
+    if (!this.turnHooks) throw new Error('GroupChatEngine: room turn hooks are not attached');
+    return this.turnHooks;
   }
 
   private requireRunCoordinator(): RunCoordinator {
@@ -1015,26 +886,11 @@ export class GroupChatEngine extends EventEmitter {
   }
 
   /**
-   * 每个群当前持锁的起始时间。
-   *
-   * 锁本身在 finally 里释放，不会因抛错泄漏——真正会卡死的是
-   * dispatchExistingUserMessage 一直 await 不返回（文档工具首次 bootstrap
-   * 最长 20 分钟、转写、生图都在这条链上，全程没有超时）。此时 finally 没执行，
-   * 群就一直锁着，之后每条消息都吃 409 且无从自救。
-   *
-   * 这里不强杀正在跑的任务（它可能真的只是慢，杀掉会让用户丢掉已经产生的回复），
-   * 而是记录持锁时长：超过阈值后允许新一轮抢占，并在日志里留痕。
-   */
-  private processingSince = new Map<string, number>();
-
-  /**
    * 每成员一把锁，键是 (群, 成员)。
    *
-   * 原来整轮派发握着群锁：一个 Claude Code 跑 10 分钟，整个群 10 分钟不能说话。
-   * 外部 Agent 的典型时长就是分钟级，而「多 Agent 协作」的前提是别人还能说话——
-   * 所以 per-member 是结论，不是选项。
-   *
-   * 陈旧阈值沿用群锁那一套（15 分钟）：外部子进程跑飞时，成员不能永远锁死。
+   * P3 起执行顺序由编排器的每 Agent 队列保证（同一个成员同一时刻只有一个 worker），
+   * 这把锁留作兜底：绕开队列的路径、陈旧 worker 接管时仍然不会让同一个成员并发两轮。
+   * 陈旧阈值 15 分钟：外部子进程跑飞时，成员不能永远锁死。
    */
   private processingMembers = new Map<string, number>();
 
@@ -1093,34 +949,24 @@ export class GroupChatEngine extends EventEmitter {
     return false;
   }
 
-  /** 超过这个时长仍未释放，视为卡死，允许新消息抢占。 */
+  /** 这个成员是不是正在跑（重新生成它的回复前要看）。 */
+  isMemberBusy(groupId: string, agentId: string): boolean {
+    const key = this.memberLockKey(groupId, agentId);
+    return this.processingMembers.has(key) && !this.isMemberLockStale(key);
+  }
+
+  /** 群里跑得最久的那个成员已经跑了多久（分钟）；没有在跑的返回 null。给 409 提示一个能判断的数字。 */
+  longestMemberRunMinutes(groupId: string): number | null {
+    const held = this.heldMemberLockSnapshot().filter((item) => item.groupId === groupId);
+    if (held.length === 0) return null;
+    return Math.floor(Math.max(...held.map((item) => item.heldMs)) / 60000);
+  }
+
+  /** 超过这个时长仍未释放，视为卡死，允许接管。 */
   private static readonly STALE_LOCK_MS = 15 * 60 * 1000;
 
-  /** 持锁是否已经陈旧到可以被抢占。 */
-  private isGroupLockStale(groupId: string): boolean {
-    const since = this.processingSince.get(groupId);
-    if (since === undefined) return false;
-    return Date.now() - since > GroupChatEngine.STALE_LOCK_MS;
-  }
-
-  /** 已经持锁多久（分钟），用于给用户一个能判断的数字。 */
-  groupLockAgeMinutes(groupId: string): number | null {
-    const since = this.processingSince.get(groupId);
-    if (since === undefined) return null;
-    return Math.floor((Date.now() - since) / 60000);
-  }
-
   private emitRunState(groupId: string) {
-    const activeRun = this.activeRuns.get(groupId);
-    const pendingRun = this.pendingRuns.get(groupId);
-    const currentRun = activeRun || pendingRun;
-    this.emit('run_state', {
-      groupId,
-      active: this.processingGroups.has(groupId) || this.hasBusyMember(groupId) || !!currentRun,
-      agentId: currentRun?.agentId || null,
-      runId: activeRun?.runId || null,
-      startedAt: currentRun?.startedAt || null,
-    });
+    this.emit('run_state', this.getGroupRunState(groupId));
   }
 
   private setPendingRun(pendingRun: PendingGroupRun) {
@@ -1159,20 +1005,22 @@ export class GroupChatEngine extends EventEmitter {
     this.emitRunState(groupId);
   }
 
-  private getResetEpoch(groupId: string): number {
-    return this.resetEpochs.get(groupId) ?? 0;
+  private isTurnCurrent(turn: TurnContext): boolean {
+    return this.fence.isCurrent(turn.input.groupId, turn.input.member.id, turn.fence);
   }
 
-  private throwIfGroupReset(groupId: string, expectedEpoch: number): void {
-    if (this.getResetEpoch(groupId) !== expectedEpoch) {
-      throw new GroupResetInterruptedError(groupId);
-    }
+  private throwIfTurnStale(turn: TurnContext): void {
+    if (!this.isTurnCurrent(turn)) throw new GroupResetInterruptedError(turn.input.groupId);
   }
 
+  /** 房间级隔离（清空 / 删除 / 停止 / 换工作区）：之前开跑的运行之后的一切写入都被拒。 */
   markGroupReset(groupId: string): number {
-    const nextEpoch = this.getResetEpoch(groupId) + 1;
-    this.resetEpochs.set(groupId, nextEpoch);
-    return nextEpoch;
+    return this.fence.fenceRoom(groupId);
+  }
+
+  /** 成员级隔离（中断单个成员）。 */
+  markMemberInterrupted(groupId: string, memberId: string): number {
+    return this.fence.interruptMember(groupId, memberId);
   }
 
   forceResetGroupState(groupId: string): void {
@@ -1187,7 +1035,6 @@ export class GroupChatEngine extends EventEmitter {
       affectedAgentIds.add(pendingRun.agentId);
     }
 
-    this.processingGroups.delete(groupId);
     this.pendingRuns.delete(groupId);
     this.activeRuns.delete(groupId);
     this.emitRunState(groupId);
@@ -1203,38 +1050,16 @@ export class GroupChatEngine extends EventEmitter {
     const currentRun = activeRun || pendingRun;
     return {
       groupId,
-      active: this.processingGroups.has(groupId) || this.hasBusyMember(groupId) || !!currentRun,
+      active: this.hasBusyMember(groupId) || !!currentRun,
       agentId: currentRun?.agentId || null,
       runId: activeRun?.runId || null,
       startedAt: currentRun?.startedAt || null,
     };
   }
 
-  /** 「群里还有事在跑吗」——给展示层与重新生成用，**包含**成员锁。 */
+  /** 「群里还有事在跑吗」——展示层与编辑重跑用，包含成员锁。 */
   isGroupProcessing(groupId: string) {
-    return this.processingGroups.has(groupId) || this.hasBusyMember(groupId)
-      || this.pendingRuns.has(groupId) || this.activeRuns.has(groupId);
-  }
-
-  /**
-   * 「现在能不能接一条新消息」——**不包含**成员锁，这是它与上面那条的全部区别。
-   *
-   * 一个外部成员跑 10 分钟不该让整个群说不了话，那正是 per-member 锁的目的；
-   * 用 `isGroupProcessing()` 来挡新消息，会在 HTTP 层把那个目的整个抵消掉
-   * （这个错我犯过：锁改完了，路由没改，于是锁在生产上空转）。
-   *
-   * 但也不能全放开：`activeRuns` / `pendingRuns` 是**按 groupId 键**的，
-   * 网关那条路上整套会话对账都挂在「一个群同时只有一次运行」这个假设上。
-   * 放两轮网关运行并发进去，等于让它们并发写同一份从没为并发设计过的状态。
-   *
-   * 所以判据是：群级独占（重新生成）与网关运行仍然挡；**纯外部成员在忙不挡**
-   * ——外部路径不碰 activeRuns，对它开放是安全的。
-   *
-   * 等网关路径的运行跟踪也改成按成员键之后，这两条判据才能合并。
-   */
-  isGroupBlockingNewMessage(groupId: string) {
-    return this.processingGroups.has(groupId)
-      || this.pendingRuns.has(groupId) || this.activeRuns.has(groupId);
+    return this.hasBusyMember(groupId) || this.pendingRuns.has(groupId) || this.activeRuns.has(groupId);
   }
 
   getGroupActiveRunMessage(groupId: string) {
@@ -1278,50 +1103,34 @@ export class GroupChatEngine extends EventEmitter {
     }
   }
 
+  /** 中断群里某个网关成员正在跑的那一轮（外部成员经协调器中止）。 */
+  async abortGatewayMember(groupId: string, agentId: string): Promise<boolean> {
+    const activeRun = this.activeRuns.get(groupId);
+    if (!activeRun || activeRun.agentId !== agentId) return false;
+    const result = await this.abortGroupRun(groupId);
+    return result.aborted;
+  }
+
   private resolveMemberDisplayName(member: GroupMemberRow): string {
     const linkedSession = this.db.getSessionByAgentId(member.agent_id) || this.db.getSession(member.agent_id);
     const latestName = linkedSession?.name?.trim();
     return latestName || member.display_name;
   }
 
-  private resolveMembers(members: GroupMemberRow[]): GroupMemberRow[] {
+  resolveMembers(members: GroupMemberRow[]): GroupMemberRow[] {
     return members.map((member) => {
       const latestName = this.resolveMemberDisplayName(member);
       return latestName === member.display_name ? member : { ...member, display_name: latestName };
     });
   }
 
-  private resolveGroupParentId(groupId: string, _requestedParentId?: number): number | undefined {
+  private resolveGroupParentId(groupId: string): number | undefined {
     // Group chats are strictly linear. Always attach new messages to the latest
     // persisted group message instead of honoring any older valid parent id.
     return this.db.getLatestGroupMessageId(groupId);
   }
 
-  /**
-   * Parse @mentions from message content.
-   * Returns array of matching member agentIds.
-   */
-  parseMentions(content: string, members: GroupMemberRow[]): string[] {
-    const mentioned: string[] = [];
-    
-    // Check for @all
-    if (/@all\b/i.test(content)) {
-      return members.map(m => m.agent_id);
-    }
-
-    for (const member of members) {
-      // Match @displayName (e.g. @产品经理, @程序员)
-      const escaped = member.display_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`@${escaped}(?:\\s|$|[，。！？,.]|$)`, 'i');
-      if (regex.test(content)) {
-        mentioned.push(member.agent_id);
-      }
-    }
-
-    return [...new Set(mentioned)];
-  }
-
-  private saveSystemNotice(
+  saveSystemNotice(
     groupId: string,
     parentId: number | undefined,
     notice: Required<StructuredGroupMessage> & { content: string },
@@ -1351,13 +1160,8 @@ export class GroupChatEngine extends EventEmitter {
 
   /**
    * 按「成员引用」查成员。引用可能是裸的 `agent_id`，也可能是外部成员的
-   * `sender_id`（`ext:<runtime>:<agentId>`）——后者会从三个地方回传进来：
-   * 不带 @ 时的「回复上一个发言者」、重新生成、运行恢复。
-   *
-   * 不认第二种写法的后果不是报错，是 `sendToAgent` 里 `find` 落空后静默
-   * `return parentId`：用户追问一句，群里毫无反应。
-   *
-   * 判据只实现一次，放在这里，三个调用点都经过 `sendToAgent` 自然享受到。
+   * `sender_id`（`ext:<runtime>:<agentId>`）——后者会从重新生成、运行恢复这些地方回传进来。
+   * 判据只实现一次，放在这里。
    */
   resolveMemberByAgentRef(members: GroupMemberRow[], ref: string): GroupMemberRow | undefined {
     const direct = members.find((m) => m.agent_id === ref);
@@ -1369,320 +1173,83 @@ export class GroupChatEngine extends EventEmitter {
     return members.find((m) => m.agent_id === parsed.agentId && (m.runtime || 'openclaw') === parsed.runtime);
   }
 
-  /**
-   * 用户这条消息直接叫起谁（链式转交不在这里，见 sendToAgent）。
-   *
-   * `canWake` 是发消息的人能叫起的 Agent（member 只能叫起授权给自己的；admin 与内部调用不传 = 全部）：
-   * - @了人：只路由到 `canWake` 放行的；@到的全不放行就谁也不叫——不能因为 @ 的人不让叫，就改叫别人；
-   * - `/new`：只发给放行的成员；
-   * - 没 @：回复上一个发言的 Agent（放行时），否则第一个放行的成员；一个都没有就不派发。
-   * 被挡下的 @ 仍然作为正文落库，由路由层回结构化提示（`groups.mentionNotPermitted`，见 blockedMentions）。
-   */
-  private resolveTargetAgentIds(groupId: string, content: string, members: GroupMemberRow[], canWake: WakePredicate = WAKE_ANY): string[] {
-    const permitted = members.filter((member) => canWake(member.agent_id));
-
-    if (content.trim() === '/new') {
-      return permitted.map((member) => member.agent_id);
-    }
-
-    const mentioned = this.parseMentions(content, members);
-    if (mentioned.length > 0) {
-      return mentioned.filter((agentId) => canWake(agentId));
-    }
-
-    const recent = this.db.getRecentGroupMessages(groupId, 5);
-    const lastAgent = [...recent].reverse().find((message) => (
-      message.sender_type === 'agent'
-      && message.sender_id !== 'system'
-    ));
-    if (lastAgent?.sender_id) {
-      const lastMember = this.resolveMemberByAgentRef(members, lastAgent.sender_id);
-      if (canWake(lastMember?.agent_id ?? lastAgent.sender_id)) return [lastAgent.sender_id];
-    }
-    return permitted.length > 0 ? [permitted[0].agent_id] : [];
-  }
-
-  /** 这条消息里 @到、但发消息的人叫不起的成员（@all 同样按成员逐个算）。 */
-  blockedMentions(groupId: string, content: string, canWake: WakePredicate): GroupMemberRow[] {
-    const members = this.resolveMembers(this.db.getGroupMembers(groupId));
-    const mentioned = new Set(this.parseMentions(content, members));
-    return members.filter((member) => mentioned.has(member.agent_id) && !canWake(member.agent_id));
-  }
-
-  /** 按成员引用（agent_id 或外部成员的 sender_id）判能不能叫起；引用不到成员时按引用本身判。 */
-  canWakeMemberRef(groupId: string, ref: string, canWake: WakePredicate): boolean {
-    const members = this.resolveMembers(this.db.getGroupMembers(groupId));
-    return canWake(this.resolveMemberByAgentRef(members, ref)?.agent_id ?? ref);
-  }
-
-  private async dispatchExistingUserMessage(
-    groupId: string,
-    groupName: string,
-    content: string,
-    members: GroupMemberRow[],
-    userMsgId: number,
-    resetEpoch: number,
-    canWake: WakePredicate = WAKE_ANY,
-  ): Promise<void> {
-    const targetAgentIds = this.resolveTargetAgentIds(groupId, content, members, canWake);
-    let currentParentId: number | undefined = userMsgId;
-
-    for (const agentId of targetAgentIds) {
-      this.throwIfGroupReset(groupId, resetEpoch);
-      const res = await this.sendToAgent(groupId, groupName, agentId, content, '用户', 0, currentParentId, resetEpoch);
-      if (res !== undefined) currentParentId = res;
-    }
-  }
-
-  /**
-   * Build a structured prompt for an agent (inspired by OpenCrew's Subagent Packet).
-   * Includes: role identity, group context, recent messages, task, and boundaries.
-   */
-  buildAgentPrompt(
-    groupName: string,
-    groupDesc: string,
-    member: GroupMemberRow,
-    allMembers: GroupMemberRow[],
-    recentMessages: GroupMessageRow[], 
-    triggerMsg: string,
-    triggerSenderName: string,
-    processStartTag?: string,
-    processEndTag?: string,
-    workspacePath?: string,
-    uploadsPath?: string,
-    outputPath?: string,
-    remainingDepth: number = 0
-  ): string {
-    // Build recent message context (last 15 messages, truncated)
-    const contextLines = recentMessages.map(m => {
-      const name = m.sender_type === 'user' ? '用户' : (m.sender_name || '未知');
-      const normalizedContent = uploadsPath
-        ? rewriteMessageWithWorkspaceUploads(m.content, uploadsPath, { extractImageAttachments: false }).text
-        : m.content;
-      const normalizedProcessContent = uploadsPath
-        ? rewriteMessageWithWorkspaceUploads(m.process_content || '', uploadsPath, { extractImageAttachments: false }).text
-        : (m.process_content || '');
-      const summary = buildGroupContextMessageSummary(normalizedContent, processStartTag, processEndTag, normalizedProcessContent);
-      return `[${name}]: ${summary}`;
-    }).join('\n');
-
-    // Build the dynamic contextual prompt
-    // Format instructions FIRST for maximum priority
-    const parts: string[] = [];
-    const hasProcessTags = !!(processStartTag && processEndTag);
-
-    // 0. FORMAT INSTRUCTIONS (FIRST - highest priority)
-    let formatHeader = `=== 系统强制规定（最高优先级，必须遵守）===\n`;
-    let ruleIdx = 1;
-
-    if (hasProcessTags) {
-      formatHeader += `规则${ruleIdx++}: 【工作记录汇报】在回复中，用以下标签包裹你的实际执行步骤、操作记录和中间结果（就像团队成员汇报工作进度一样）：\n${processStartTag}\n（在这里写你做了什么、执行了哪些操作、看到了什么结果）\n${processEndTag}\n标签外面写最终结论或给人的回复。这是团队协作的标准汇报格式，必须遵守！\n`;
-      formatHeader += `规则${ruleIdx++}: 【实时更新处理过程】一开始动手就立刻输出 ${processStartTag}，并随着你的实际工作持续追加简短进度，比如“正在打开 xxx 文件”“正在修改 xxx 文件”“已完成搜索”。每次只写一句高信号进展，不要逐字粘贴大段命令输出、网页原文或重复日志；除非出错，只保留关键动作、关键结果、关键结论。不要等全部做完后再一次性回顾总结。完成工作记录后，再输出 ${processEndTag}，最后在标签外给出结论。\n`;
-    }
-
-    formatHeader += `规则${ruleIdx++}: 【以上下文为准】如果你之前的记忆、你自己更早的回复、或 OpenClaw 历史记忆，与下面提供的“团队对话历史 / 最新任务”冲突，必须以下面提供的内容为准，并明确纠正旧结论，不能抱着旧判断不放。\n`;
-
-    if (remainingDepth === 0) {
-      formatHeader += `规则${ruleIdx++}: 【禁止@他人】严禁在回复中出现 "@任何人" 的内容。必须独立完成任务，直接给出结论。\n`;
-    } else {
-      const otherMembers = allMembers.filter(m => m.agent_id !== member.agent_id).map(m => m.display_name);
-      if (otherMembers.length > 0) {
-        formatHeader += `规则${ruleIdx++}: 【可选转交】若需他人继续处理，可在回复末尾加 "@姓名"（可用: ${otherMembers.join(', ')}）。若已完成则不加。\n`;
-      }
-    }
-
-    formatHeader += `=== 规定结束 ===`;
-    parts.push(formatHeader);
-
-    // 1. Group-level system prompt
-    if (groupDesc && groupDesc.trim() !== '') {
-      parts.push(groupDesc);
-    }
-
-    if (this.canUseHostTakeover(member.agent_id)) {
-      parts.push(buildGroupHostTakeoverPrompt());
-    }
-
-    if (workspacePath && uploadsPath && outputPath) {
-      parts.push(
-        `团队工作区:\n`
-        + `- 根目录: ${workspacePath}\n`
-        + `- 上传目录: ${uploadsPath}\n`
-        + `- 输出目录: ${outputPath}\n`
-        + `- 新生成的项目目录请创建在团队工作区根目录下，不要写入成员个人 workspace。`
-      );
-    }
-    
-    // 2. Member-level role
-    if (member.role_description && member.role_description.trim() !== '') {
-      parts.push(`当前身份: ${member.display_name}\n${member.role_description}`);
-    } else {
-      parts.push(`当前身份: ${member.display_name}`);
-    }
-
-    // 3. Chat context
-    if (contextLines) {
-      parts.push(`团队对话历史:\n${contextLines}`);
-    }
-
-    // 4. Trigger message
-    parts.push(`最新任务 (${triggerSenderName}):\n${truncateGroupTriggerMessage(triggerMsg)}`);
-
-    // 5. End reminder
-    if (hasProcessTags) {
-      parts.push(`[汇报格式提醒] 请用 ${processStartTag}...${processEndTag} 记录你的操作步骤和执行结果，再在标签外写对话结论。过程只保留高信号短句，不要贴大段原始输出。`);
-    }
-
-    const finalPrompt = parts.join('\n\n');
-    console.log(`[GroupChat][Prompt] agent=${member.display_name} hasProcessTags=${hasProcessTags} depth=${remainingDepth}\n${finalPrompt.slice(0, 600)}`);
-    return finalPrompt;
-  }
-
-  /**
-   * Send a user message to the group chat, route to agents.
-   */
-  async sendUserMessage(groupId: string, content: string, specifiedParentId?: number, canWake: WakePredicate = WAKE_ANY): Promise<void> {
-    // **这里不再握整轮群锁。**
-    //
-    // 原来整轮派发都握着它：一个 Claude Code 跑 10 分钟，整个群 10 分钟不能说话，
-    // 第二条消息直接吃 409。而「多 Agent 协作」的前提就是别人还能说话——
-    // 所以并发控制下沉到 sendToAgent 里的每成员一把锁。
-    //
-    // 下面「算 parent → 落库 → 广播」那一段全是同步调用，Node 单线程下本来就原子，
-    // 不需要锁来保护；群锁真正挡住的是整轮派发，而那正是不该挡的东西。
-    //
-    // 重新生成（rerunUserMessage）仍然走群锁——v1.5.2 明确要求过，它重写的是
-    // 已有消息的分支，和追加一条新消息不是一回事。
-    const resetEpoch = this.getResetEpoch(groupId);
-    this.emitRunState(groupId);
-
-    try {
-      this.throwIfGroupReset(groupId, resetEpoch);
-      const group = this.db.getGroupChat(groupId);
-      if (!group) throw new Error('团队不存在');
-
-      this.throwIfGroupReset(groupId, resetEpoch);
-      const members = this.resolveMembers(this.db.getGroupMembers(groupId));
-      if (members.length === 0) throw new Error('团队没有成员');
-
-      // Always keep group chats linear: if the requested parent is stale, fall back to the latest existing message.
-      const computedParentId = this.resolveGroupParentId(groupId, specifiedParentId);
-
-      // Save user message
-      const userMsgId = this.db.saveGroupMessage({
-        group_id: groupId,
-        parent_id: computedParentId,
-        sender_type: 'user',
-        sender_name: '用户',
-        content,
-      });
-
-      this.emit('message', { groupId, id: userMsgId, parent_id: computedParentId, sender_type: 'user', sender_name: '用户', content, created_at: new Date().toISOString() });
-      await this.dispatchExistingUserMessage(groupId, group.name, content, members, userMsgId, resetEpoch, canWake);
-    } catch (error) {
-      if (!(error instanceof GroupResetInterruptedError)) {
-        throw error;
-      }
-    } finally {
-      this.emitRunState(groupId);
-    }
-  }
-
-  async rerunUserMessage(groupId: string, userMessageId: number, canWake: WakePredicate = WAKE_ANY): Promise<void> {
-    if (this.processingGroups.has(groupId)) {
-      if (!this.isGroupLockStale(groupId)) {
-        const error = new Error('Group run already in progress.');
-        (error as Error & { code?: string }).code = 'GROUP_RUN_IN_PROGRESS';
-        throw error;
-      }
-      // 卡了太久：放行新一轮，否则这个群只能靠 /stop 才能恢复。
-      console.warn(`[GroupChat] 群 ${groupId} 的运行锁已持有 ${this.groupLockAgeMinutes(groupId)} 分钟，判定为卡死并允许新一轮开始`);
-      this.processingGroups.delete(groupId);
-      this.processingSince.delete(groupId);
-    }
-
-    const resetEpoch = this.getResetEpoch(groupId);
-    this.processingGroups.add(groupId);
-    this.processingSince.set(groupId, Date.now());
-    this.emitRunState(groupId);
-
-    try {
-      this.throwIfGroupReset(groupId, resetEpoch);
-      const group = this.db.getGroupChat(groupId);
-      if (!group) throw new Error('团队不存在');
-
-      this.throwIfGroupReset(groupId, resetEpoch);
-      const members = this.resolveMembers(this.db.getGroupMembers(groupId));
-      if (members.length === 0) throw new Error('团队没有成员');
-
-      const userMessage = this.db.getGroupMessageById(userMessageId, groupId);
-      if (!userMessage || userMessage.sender_type !== 'user') {
-        throw new Error('Only user messages can be rerun.');
-      }
-
-      const latestMessageId = this.db.getLatestGroupMessageId(groupId);
-      if (latestMessageId !== userMessageId) {
-        throw new Error('Only the latest user message can be rerun.');
-      }
-
-      await this.dispatchExistingUserMessage(
-        groupId,
-        group.name,
-        userMessage.content,
-        members,
-        userMessageId,
-        resetEpoch,
-        canWake,
-      );
-    } catch (error) {
-      if (!(error instanceof GroupResetInterruptedError)) {
-        throw error;
-      }
-    } finally {
-      this.processingGroups.delete(groupId);
-      this.processingSince.delete(groupId);
-      this.emitRunState(groupId);
-    }
-  }
-
-  /**
-   * Send a message to a specific agent and handle chain forwarding.
-   * Anti-loop protection:
-   *   1. Max chain depth (default 6, configurable per group)
-   *   2. No self-mention forwarding
-   *   3. Relaxed A->B->A to allow iterative multi-agent tasks (like Coder<=>Tester loops)
-   */
-  /**
-   * 外部运行时成员的派发路径。
-   *
-   * **它和网关那条路完全分开。** 网关那条上有整套会话对账、文本快照保护、
-   * 工具进度 i18n，全是从事故里长出来的；为了加一个分支去动它，风险远大于收益。
-   *
-   * 会话只在成功时落库：实测 `--resume` 指向不存在的会话会失败退出
-   * （No conversation found with session ID），所以失败的那一轮若把 uuid 写进去，
-   * 之后每一轮都会拿着一个死会话去 resume，永久失败。
-   */
   /** 外部成员的默认工作目录：本群工作区（按需创建）。单独成方法，便于用例替身而不去碰真实的 ~/.openclaw。 */
   resolveExternalMemberWorkspace(groupId: string): string {
     return ensureGroupWorkspace(groupId).workspacePath;
   }
 
-  private async runExternalMember(
-    opts: {
-      groupId: string;
-      groupName: string;
-      member: GroupMemberRow;
-      allMembers: GroupMemberRow[];
-      triggerMsg: string;
-      triggerSenderName: string;
-      depth: number;
-      parentId?: number;
-      resetEpoch?: number;
-      remainingDepth?: number;
-    },
-    adapterOverride?: AgentRuntimeAdapter<RuntimeRunRequest>,
-  ): Promise<number | undefined> {
-    const { groupId, groupName, member, allMembers, triggerMsg, triggerSenderName, depth, parentId } = opts;
+  /**
+   * 执行一跳（编排器的 `MemberTurnExecutor`）。成员锁在这里取、在 finally 里放；
+   * 外部成员与网关成员分两条路；网关成员同群串行。
+   */
+  async executeTurn(input: ExecuteTurnInput): Promise<MemberTurnResult> {
+    const { groupId, member } = input;
+    const agentId = member.agent_id;
+    const parentId = this.resolveGroupParentId(groupId);
+
+    // 每成员一把锁。拿不到说明这个成员正在跑上一轮——**说出来**，不要静默。
+    if (!this.acquireMemberLock(groupId, agentId)) {
+      this.saveSystemNotice(groupId, parentId, createMemberBusyMessage(member.display_name));
+      return { status: 'busy', messageId: null, text: '', errorCode: MEMBER_BUSY_MESSAGE_CODE };
+    }
+    try {
+      const turn: TurnContext = {
+        input,
+        parentId,
+        fence: this.fence.token(groupId, member.id),
+        idleMs: input.policy.runIdleTimeoutSec * 1000,
+        totalMs: input.policy.runTotalBudgetSec * 1000,
+        scope: NOOP_SCOPE,
+      };
+      if ((member.runtime || 'openclaw') !== 'openclaw') {
+        return await this.runExternalMember(turn);
+      }
+      const previous = this.gatewayTurnChains.get(groupId) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      const chain = previous.catch(() => undefined).then(() => gate);
+      this.gatewayTurnChains.set(groupId, chain);
+      await previous.catch(() => undefined);
+      try {
+        // 排队期间房间可能被清空：开跑前再看一眼。
+        turn.fence = this.fence.token(groupId, member.id);
+        if (!this.isTurnCurrent(turn)) return { status: 'reset', messageId: null, text: '' };
+        return await this.runGatewayMemberWithScope(turn);
+      } finally {
+        release();
+        if (this.gatewayTurnChains.get(groupId) === chain) this.gatewayTurnChains.delete(groupId);
+      }
+    } finally {
+      // 锁必须在这里放，不能在某个 return 出口放——中途抛错、被停止打断、
+      // 上游超时都会跳过那些出口，而成员锁一旦漏放就只能等 15 分钟陈旧接管。
+      this.releaseMemberLock(groupId, agentId);
+    }
+  }
+
+  private async runGatewayMemberWithScope(turn: TurnContext): Promise<MemberTurnResult> {
+    const { groupId } = turn.input;
+    const workspace = ensureGroupWorkspace(groupId).workspacePath;
+    turn.scope = this.turnHooks ? await this.turnHooks.beginRun(turn.input, workspace) : NOOP_SCOPE;
+    let result: MemberTurnResult = { status: 'failed', messageId: null, text: '', error: 'not started' };
+    try {
+      result = await this.runGatewayMember(turn);
+      return result;
+    } finally {
+      await turn.scope.finish({ messageId: result.messageId, status: result.status, runMarker: null }).catch((error) => {
+        console.warn(`[GroupChat] run scope finish failed for ${groupId}:`, (error as Error)?.message);
+      });
+    }
+  }
+
+  /**
+   * 外部运行时成员的派发路径（含远程 Agent relay）。
+   *
+   * 会话只在成功时落库：实测 `--resume` 指向不存在的会话会失败退出（No conversation found with session ID），
+   * 所以失败的那一轮若把 uuid 写进去，之后每一轮都会拿着一个死会话去 resume，永久失败。
+   */
+  private async runExternalMember(turn: TurnContext, adapterOverride?: AgentRuntimeAdapter<RuntimeRunRequest>): Promise<MemberTurnResult> {
+    const { groupId, member } = turn.input;
+    const parentId = turn.parentId;
     const runtime = member.runtime || 'claude-code';
     const senderId = externalSenderId(runtime, member.agent_id);
 
@@ -1700,6 +1267,7 @@ export class GroupChatEngine extends EventEmitter {
     const resume = Boolean(existingSession);
 
     const createdAt = new Date().toISOString();
+    const modelTag = config.model || runtime;
     const msgId = this.db.saveGroupMessage({
       group_id: groupId,
       parent_id: parentId,
@@ -1708,9 +1276,10 @@ export class GroupChatEngine extends EventEmitter {
       sender_name: member.display_name,
       content: '',
       process_content: '',
-      model_used: config.model || runtime,
+      model_used: modelTag,
       created_at: createdAt,
     });
+    turn.input.onReplyCreated(msgId);
 
     const basePayload = {
       groupId,
@@ -1719,76 +1288,67 @@ export class GroupChatEngine extends EventEmitter {
       sender_type: 'agent' as const,
       sender_id: senderId,
       sender_name: member.display_name,
-      model_used: config.model || runtime,
+      model_used: modelTag,
       created_at: createdAt,
     };
     this.emit('message', { ...basePayload, content: '', process_content: '', process_streaming: false });
     this.emit('typing', { groupId, agentId: member.agent_id, displayName: member.display_name });
 
-    // 复用网关那条路的 prompt 组装：团队名册、群设定、最近历史、@ 协议、剩余深度
-    // 全在里面。此前这里只有一行 `${发言人}：${内容}`——外部成员既不知道群里有谁，
-    // 也看不见上文，**就算想 @ 别人也不知道该 @ 谁**。
-    //
-    // 不另写一套：两套 prompt 组装迟早分家，而这个仓库为「两处判据分家」栽过不止一次。
-    // 过程标签传 undefined —— 外部 Agent 不产出过程标签，不该被要求去写。
     // 没配工作目录的成员落在本群工作区。不能退回 process.cwd()：global 模式的外部 CLI 会跳过沙箱执行命令，
     // 那等于把 ClawOPT 自己的安装目录交给它。
     const memberWorkspace = typeof config.workingDir === 'string' && config.workingDir.trim()
       ? config.workingDir
       : this.resolveExternalMemberWorkspace(groupId);
-    const request: RuntimeRunRequest = {
-      // 成员配置里选了 scoped（ClawOPT 选服务商与模型、CLI 只连本地代理）才走 scoped；缺省 global（CLI 用自己的登录）。
-      mode: config.mode === 'scoped' ? 'scoped' : 'global',
-      // 运行时 home 按 (群, 成员) 稳定：同一成员跨轮次共用一份原生会话与配置；删成员 / 删群时按它回收。
-      owner: { kind: 'room-member', groupId, memberId: member.id, agentId: member.agent_id },
-      sessionId,
-      resume,
-      prompt: this.buildAgentPrompt(
-        groupName,
-        this.db.getGroupChat(groupId)?.system_prompt || '',
-        member,
-        allMembers,
-        selectGroupContextWindow(
-          this.db.getGroupMessages(groupId, 100).filter((m) => m.id !== msgId),
-          { triggerParentId: parentId, triggerMsg, triggerSenderName },
-        ),
-        triggerMsg,
-        triggerSenderName,
-        undefined,
-        undefined,
-        memberWorkspace,
-        undefined,
-        undefined,
-        opts.remainingDepth ?? 0,
-      ),
-      workspace: memberWorkspace,
-      model: typeof config.model === 'string' ? config.model : undefined,
-      reasoningEffort: typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined,
-      allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
-      maxBudgetUsd: typeof config.maxBudgetUsd === 'number' ? config.maxBudgetUsd : undefined,
-      // 成员配置（远程网关地址、scoped 的服务商与模型等，不含密钥）：远程 OpenClaw 与 scoped 服务商解析按它取。
-      runtimeConfig: config,
-      // 成员配置里的追加指令：群上下文仍在 prompt 里（buildAgentPrompt，基线快照守着），不顶掉对方自己的项目指令。
-      instructions: typeof config.appendSystemPrompt === 'string' ? config.appendSystemPrompt : undefined,
-    };
     const adapter = adapterOverride ?? this.runtimeAdapters?.(runtime) ?? null;
 
     if (!adapter) {
       // 库里存了一个这版 ClawOPT 没登记适配器的运行时：说清楚，不静默退回 OpenClaw（v1.3.0 那种「选了不生效」）。
       const message = `${member.display_name} 执行失败（runtime.unknown: ${runtime}）`;
-      this.db.updateGroupMessage(msgId, message, config.model || runtime, undefined, '');
+      this.db.updateGroupMessage(msgId, message, modelTag, undefined, '');
       this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
       this.emit('typing_done', { groupId, agentId: member.agent_id });
-      return msgId;
+      return { status: 'failed', messageId: msgId, text: '', error: `runtime.unknown: ${runtime}`, errorCode: 'runtime.unknown' };
     }
 
+    turn.scope = this.turnHooks ? await this.turnHooks.beginRun(turn.input, memberWorkspace) : NOOP_SCOPE;
+    let result: MemberTurnResult = { status: 'failed', messageId: msgId, text: '', error: 'not started' };
+    let runMarker: string | null = null;
+    const sessionKey = externalMemberSessionKey(groupId, member.id);
+    let watchdog: RunWatchdog | null = null;
     try {
+      // 群上下文（摘要、转录、名册、@ 协议、安全提示）在 prompt 里（v2，红线 A 的快照守着）；
+      // 成员配置里的追加指令不进 prompt，经运行时的指令文件传入，不顶掉对方自己的项目指令。
+      const prompt = this.turnHooks
+        ? this.turnHooks.buildPrompt(turn.input, {
+          workspace: { root: memberWorkspace, uploads: null, output: null },
+          processTags: null,
+          hostTakeoverPrompt: null,
+          triggerText: turn.input.payload.triggerText,
+        }, turn.scope)
+        : turn.input.payload.triggerText;
+      const request: RuntimeRunRequest = {
+        // 成员配置里选了 scoped（ClawOPT 选服务商与模型、CLI 只连本地代理）才走 scoped；缺省 global（CLI 用自己的登录）。
+        mode: config.mode === 'scoped' ? 'scoped' : 'global',
+        // 运行时 home 按 (群, 成员) 稳定：同一成员跨轮次共用一份原生会话与配置；删成员 / 删群时按它回收。
+        owner: { kind: 'room-member', groupId, memberId: member.id, agentId: member.agent_id },
+        sessionId,
+        resume,
+        prompt,
+        workspace: memberWorkspace,
+        model: typeof config.model === 'string' ? config.model : undefined,
+        reasoningEffort: typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined,
+        allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
+        maxBudgetUsd: typeof config.maxBudgetUsd === 'number' ? config.maxBudgetUsd : undefined,
+        // 成员配置（远程网关地址、scoped 的服务商与模型、relay 的 connector 等，不含密钥）+ 这一跳的作用域（远程工作区令牌）。
+        runtimeConfig: { ...config, ...turn.scope.runtimeConfig },
+        instructions: typeof config.appendSystemPrompt === 'string' ? config.appendSystemPrompt : undefined,
+      };
+
       // 运行交给协调器：会话行、run marker、陈旧事件、中止、用量去重、工具调用落库、终态顺序都在那里。
-      // 这里只剩外部成员自己的约定：消息行（投影器）、续话会话（external_sessions）、链式转发。
-      // 成员锁仍在 sendToAgent 里取；协调器按 (群, 成员) 会话键再挡一次并发。
-      const modelTag = config.model || runtime;
-      const submitted = await this.requireRunCoordinator().submit({
-        sessionKey: externalMemberSessionKey(groupId, member.id),
+      // 这里只剩外部成员自己的约定：消息行（投影器）、续话会话（external_sessions）、隔离与超时。
+      const coordinator = this.requireRunCoordinator();
+      const submitted = await coordinator.submit({
+        sessionKey,
         surface: 'room',
         topics: [roomTopic(groupId), agentTopic(senderId)],
         agentId: senderId,
@@ -1797,14 +1357,20 @@ export class GroupChatEngine extends EventEmitter {
         request,
         // 仲裁表的用量维度按模式选路（scoped 信代理、global 信 CLI）：不传的话 scoped 成员会记 CLI 的估计值、丢掉代理的真实计费。
         proxyMode: request.mode,
-        projector: (run) => createExternalMemberProjector({
-          db: this.db,
-          emit: (event, payload) => this.emit(event, payload),
-          run,
-          basePayload,
-          displayName: member.display_name,
-          modelTag,
-        }),
+        projector: (run) => {
+          runMarker = run.runMarker;
+          return createExternalMemberProjector({
+            db: this.db,
+            emit: (event, payload) => this.emit(event, payload),
+            run,
+            basePayload,
+            displayName: member.display_name,
+            modelTag,
+            isCurrent: () => this.isTurnCurrent(turn),
+            onActivity: () => watchdog?.touch(),
+            failureDetail: () => watchdog?.reason ?? null,
+          });
+        },
         workspacePath: memberWorkspace,
         meta: { groupId, memberId: member.id, messageId: msgId },
       }, 'reject');
@@ -1812,40 +1378,34 @@ export class GroupChatEngine extends EventEmitter {
         const message = `${member.display_name} 执行失败（busy）`;
         this.db.updateGroupMessage(msgId, message, modelTag, undefined, '');
         this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
-        return msgId;
+        result = { status: 'busy', messageId: msgId, text: '', error: 'busy' };
+        return result;
       }
+      watchdog = new RunWatchdog(turn.idleMs, turn.totalMs, () => {
+        void coordinator.abort(sessionKey, 'user_stop');
+      });
       const { outcome, projection } = await submitted.completion;
+      watchdog.stop();
+
+      if (!this.isTurnCurrent(turn)) {
+        result = { status: 'reset', messageId: null, text: '' };
+        return result;
+      }
 
       if (outcome.kind === 'completed') {
-        const finalText = projection.output ?? '';
         // 只有成功才把会话记下来。
         this.db.setExternalSession(groupId, member.id, sessionId);
-
-        // 链式转发：外部成员 @ 了别人，那个人要真的被叫起来。
-        // 此前这里是叶子节点——外部 Agent 说「@情报调研 帮我查一下」，那句话只作为
-        // 文本停在群里，协作因此是**单向**的（OpenClaw 能转给外部，外部转不回来）。
-        //
-        // 走的是同一个 sendToAgent，所以它在里面按 runtime 分岔、重新查 max_chain_depth、
-        // 重新拿成员锁——转发的语义与网关那条路完全一致，不是另一套。
-        let lastMsgId = msgId;
-        for (const nextAgentId of this.parseMentions(finalText, allMembers)) {
-          if (nextAgentId === member.agent_id) continue;   // 不转给自己
-          const next = await this.sendToAgent(
-            groupId, groupName, nextAgentId, finalText, member.display_name,
-            depth + 1, lastMsgId, opts.resetEpoch,
-          );
-          if (next !== undefined) lastMsgId = next;
-        }
-        return lastMsgId;
+        result = { status: 'completed', messageId: msgId, text: projection.output ?? '' };
+        return result;
       }
 
       // 失败不删行，只标状态——行留着，排障才看得到「上次为什么失败」。
-      // 超时分成两种记：硬超时与中断的处置本来就不同。
-      const failureStatus = outcome.kind === 'aborted' ? 'cancelled'
+      // 超时分成两种记：硬超时与中断的处置本来就不同（看门狗到点记成对应的超时）。
+      const failureStatus = watchdog.reason ?? (outcome.kind === 'aborted' ? 'cancelled'
         : outcome.stopReason === 'hard_timeout' ? 'hard_timeout'
-        : outcome.stopReason === 'idle_timeout' ? 'idle_timeout'
-        : 'failed';
-      const detail = describeExternalFailure(outcome);
+          : outcome.stopReason === 'idle_timeout' ? 'idle_timeout'
+            : 'failed');
+      const detail = watchdog.reason ?? describeExternalFailure(outcome);
       if (resume) {
         this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
       } else {
@@ -1853,71 +1413,28 @@ export class GroupChatEngine extends EventEmitter {
         this.db.setExternalSession(groupId, member.id, sessionId);
         this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
       }
+      result = {
+        status: outcome.kind === 'aborted' && !watchdog.reason ? 'aborted' : 'failed',
+        messageId: msgId,
+        text: '',
+        error: detail,
+        errorCode: outcome.kind === 'failed' ? outcome.code : watchdog.reason ?? undefined,
+      };
+      return result;
     } finally {
+      watchdog?.stop();
       this.emit('typing_done', { groupId, agentId: member.agent_id });
+      await turn.scope.finish({ messageId: result.messageId, status: result.status, runMarker }).catch((error) => {
+        console.warn(`[GroupChat] run scope finish failed for ${groupId}:`, (error as Error)?.message);
+      });
     }
-
-    return msgId;
   }
 
-  public async sendToAgent(
-    groupId: string,
-    groupName: string,
-    agentId: string,
-    triggerMsg: string,
-    triggerSenderName: string,
-    depth: number,
-    parentId?: number,
-    resetEpoch?: number
-  ): Promise<number | undefined> {
-    const effectiveResetEpoch = resetEpoch ?? this.getResetEpoch(groupId);
-    this.throwIfGroupReset(groupId, effectiveResetEpoch);
-
-    // Keep the agent reply chain attached to the latest valid message even if the incoming parent is stale.
-    parentId = this.resolveGroupParentId(groupId, parentId);
-
-    const group = this.db.getGroupChat(groupId);
-    const maxDepth = group?.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
-
-    if (maxDepth === 0 && depth > 0) {
-      // 链式转发设为 0 时禁止自动转发——但要说出来，不能静默停在这里。
-      const targetName = this.db.getGroupMembers(groupId).find(m => m.agent_id === agentId)?.display_name || agentId;
-      return this.saveSystemNotice(groupId, parentId, createChainForwardingDisabledMessage(targetName));
-    }
-
-    if (maxDepth > 0 && depth >= maxDepth) {
-      return this.saveSystemNotice(groupId, parentId, createMaxChainDepthMessage(maxDepth));
-    }
-
-    const members = this.resolveMembers(this.db.getGroupMembers(groupId));
-    const member = this.resolveMemberByAgentRef(members, agentId);
-    if (!member) return parentId;
-    // **归一**：后面所有地方（成员锁、typing 事件、落库）都用裸 agent_id。
-    // 不归一的话，`eng` 与 `ext:claude-code:eng` 会拿到两把不同的锁，
-    // 「成员正忙」这条判据整个失效。
-    agentId = member.agent_id;
-
-    // 每成员一把锁。拿不到说明这个成员正在跑上一轮——**说出来**，
-    // 不要静默排队，也不要像从前那样让整个群 409。
-    if (!this.acquireMemberLock(groupId, agentId)) {
-      return this.saveSystemNotice(groupId, parentId, createMemberBusyMessage(member.display_name));
-    }
-
-    // 外部运行时走**完全独立**的一条路，不进下面的网关流程。
-    // 那条流程上有整套会话对账、文本快照保护、工具进度 i18n，全是从事故里长出来的；
-    // 为了加一个分支去改它，风险远大于收益。
-    if ((member.runtime || 'openclaw') !== 'openclaw') {
-      try {
-        return await this.runExternalMember({
-          groupId, groupName, member, allMembers: members,
-          triggerMsg, triggerSenderName, depth, parentId,
-          resetEpoch: effectiveResetEpoch,
-          remainingDepth: maxDepth === 0 ? 0 : Math.max(0, maxDepth - depth),
-        });
-      } finally {
-        this.releaseMemberLock(groupId, agentId);
-      }
-    }
+  private async runGatewayMember(turn: TurnContext): Promise<MemberTurnResult> {
+    const { groupId, member } = turn.input;
+    const agentId = member.agent_id;
+    const triggerMsg = turn.input.payload.triggerText;
+    const parentId = turn.parentId;
 
     // Emit typing indicator
     this.emit('typing', { groupId, agentId, displayName: member.display_name });
@@ -1950,6 +1467,7 @@ export class GroupChatEngine extends EventEmitter {
         model_used: modelUsed,
         created_at: placeholderCreatedAt,
       });
+      turn.input.onReplyCreated(msgId);
 
       this.emit('message', {
         groupId,
@@ -1980,26 +1498,11 @@ export class GroupChatEngine extends EventEmitter {
       });
 
       const group = this.db.getGroupChat(groupId);
-      const groupSysPrompt = group?.system_prompt || group?.description || '';
       const runtimeContext = await this.prepareGroupRuntime(groupId, agentId);
       runtimeWorkspacePath = runtimeContext.workspacePath;
-      this.throwIfGroupReset(groupId, effectiveResetEpoch);
-      
-      // Always replay a recent summarized history window into the prompt.
-      // Relying on delta-only memory makes agents cling to stale session context after
-      // edits, resets, prompt-shaping fixes, or earlier misreads, and can also drop
-      // history entirely if the current placeholder message is included in the scan.
-      const allRecent = this.db
-        .getGroupMessages(groupId, 100)
-        .filter(message => message.id !== msgId);
-      const promptContextMessages = selectGroupContextWindow(allRecent, {
-        triggerParentId: parentId,
-        triggerMsg,
-        triggerSenderName,
-      });
+      this.throwIfTurnStale(turn);
       
       const isResetCommand = triggerMsg.trim() === '/new';
-      const remainingDepth = maxDepth === 0 ? 0 : Math.max(0, maxDepth - depth);
       const memberSessionConfig = this.db.getSessionByAgentId(agentId);
       const { startTag: processStartTag, endTag: processEndTag } = resolveConfiguredProcessTagPair(
         group?.process_start_tag,
@@ -2018,7 +1521,7 @@ export class GroupChatEngine extends EventEmitter {
           console.error('[GroupChatEngine] Failed to prepare managed document tooling runtime:', error);
         }
       }
-      this.throwIfGroupReset(groupId, effectiveResetEpoch);
+      this.throwIfTurnStale(turn);
       const imageInspectionContext = isResetCommand
         ? ''
         : buildImageUploadInspectionContext(rewrittenTrigger.linkedUploads);
@@ -2030,7 +1533,7 @@ export class GroupChatEngine extends EventEmitter {
         : buildAudioTranscriptContext(
           await prepareAudioTranscriptsFromUploads(rewrittenTrigger.linkedUploads, runtimeContext.runtimeAgentId)
         );
-      this.throwIfGroupReset(groupId, effectiveResetEpoch);
+      this.throwIfTurnStale(turn);
       const promptInput = [rewrittenTrigger.text, imageInspectionContext, documentToolingContext, audioTranscriptContext].filter(Boolean).join('\n\n').trim();
 
       const imageIntentContext = runtimeContext.bootstrapContext || '';
@@ -2064,7 +1567,7 @@ export class GroupChatEngine extends EventEmitter {
         })
         : null;
       if (directImageResult && msgId !== undefined) {
-        this.throwIfGroupReset(groupId, effectiveResetEpoch);
+        this.throwIfTurnStale(turn);
         latestProcessOutput = directImageResult.processContent;
         this.db.updateGroupMessage(
           msgId,
@@ -2086,33 +1589,26 @@ export class GroupChatEngine extends EventEmitter {
           model_used: directImageResult.modelUsed,
           created_at: placeholderCreatedAt,
         });
-        return msgId;
+        return { status: 'completed', messageId: msgId, text: directImageResult.content };
       }
 
-      const prompt = isResetCommand 
+      // 上下文（摘要、清洗过的转录、名册、非主人安全提示）由协作层按 v2 构建；`/new` 原样交给网关（重置会话命令）。
+      const prompt = isResetCommand
         ? triggerMsg
-        : this.buildAgentPrompt(
-          groupName,
-          groupSysPrompt,
-          member,
-          members,
-          promptContextMessages,
-          promptInput,
-          triggerSenderName,
-          processStartTag,
-          processEndTag,
-          runtimeContext.workspacePath,
-          runtimeContext.uploadsPath,
-          runtimeContext.outputPath,
-          remainingDepth
-        );
+        : this.requireTurnHooks().buildPrompt(turn.input, {
+          workspace: { root: runtimeContext.workspacePath, uploads: runtimeContext.uploadsPath, output: runtimeContext.outputPath },
+          processTags: processStartTag && processEndTag ? { startTag: processStartTag, endTag: processEndTag } : null,
+          hostTakeoverPrompt: canUseHostTakeover ? buildGroupHostTakeoverPrompt() : null,
+          triggerText: promptInput,
+          rewriteContent: (text) => rewriteMessageWithWorkspaceUploads(text, runtimeContext.uploadsPath, { extractImageAttachments: false }).text,
+        }, turn.scope);
 
       // Use the group's ID as the session key so it isolates memory per group
       // Tools (browser, code execution, etc.) are granted via agentId, not sessionKey.
       const sessionKey = getGroupRuntimeSessionKey(groupId, group?.runtime_session_epoch);
       const client = await this.getClient(runtimeContext.runtimeAgentId);
       sessionEventsClient = client;
-      this.throwIfGroupReset(groupId, effectiveResetEpoch);
+      this.throwIfTurnStale(turn);
       try {
         await client.subscribeSessionEvents();
         sessionEventsSubscribed = true;
@@ -2125,7 +1621,7 @@ export class GroupChatEngine extends EventEmitter {
       const preRunHistorySnapshot = await client.getChatHistory(expectedSessionKey, GROUP_HISTORY_COMPLETION_PROBE_LIMIT)
         .then((history) => getHistorySnapshot(history))
         .catch(() => getUnknownHistorySnapshot());
-      this.throwIfGroupReset(groupId, effectiveResetEpoch);
+      this.throwIfTurnStale(turn);
 
       // Start streaming response
       const { runId, sessionKey: finalSessionKey } = await client.sendChatMessageStreaming({
@@ -2134,7 +1630,7 @@ export class GroupChatEngine extends EventEmitter {
         agentId: runtimeContext.runtimeAgentId,
         attachments: rewrittenTrigger.attachments,
       });
-      if (this.getResetEpoch(groupId) !== effectiveResetEpoch) {
+      if (!this.isTurnCurrent(turn)) {
         try {
           await client.abortChat({ sessionKey: finalSessionKey, runId });
         } catch {}
@@ -2170,6 +1666,12 @@ export class GroupChatEngine extends EventEmitter {
       let finalEventText = '';
       const response = await new Promise<string>((resolve, reject) => {
         let idleTimeout: NodeJS.Timeout | null = null;
+        // 总预算（从开跑算，不随事件续期）：到点中止网关运行并按失败收尾。空闲超时见 resetIdleTimeout。
+        const totalBudgetTimer = setTimeout(() => {
+          void client.abortChat({ sessionKey: finalSessionKey, runId }).catch(() => undefined);
+          rejectOnce(new Error('Run exceeded the total time budget (hard_timeout).'));
+        }, turn.totalMs);
+        totalBudgetTimer.unref?.();
         let completionProbeTimer: NodeJS.Timeout | null = null;
         let completionProbeInFlight = false;
         let completionProbePending = false;
@@ -2223,6 +1725,12 @@ export class GroupChatEngine extends EventEmitter {
           options?: { trimVisibleContent?: boolean; trimVisibleProcess?: boolean; force?: boolean },
         ) => {
           const { combinedProcessOutput, combinedProcessStreaming } = syncCombinedProcessState();
+          if (!this.isTurnCurrent(turn)) {
+            // 房间被清空 / 删除 / 成员被中断之后到的事件：一个字节都不写，停掉这次运行。
+            void client.abortChat({ sessionKey: finalSessionKey, runId }).catch(() => undefined);
+            rejectOnce(new GroupResetInterruptedError(groupId));
+            return { combinedProcessOutput, combinedProcessStreaming, nextVisibleFinalOutput: visibleFinalOutput, nextVisibleProcessOutput: visibleProcessOutput, didVisibleChange: false };
+          }
           const nextVisibleFinalOutputRaw = rewriteVisibleFileLinks(finalOutput, { workspacePath: runtimeContext.workspacePath });
           const nextVisibleProcessOutputRaw = rewriteVisibleFileLinks(combinedProcessOutput, { workspacePath: runtimeContext.workspacePath });
           const nextVisibleFinalOutput = options?.trimVisibleContent ? nextVisibleFinalOutputRaw.trim() : nextVisibleFinalOutputRaw;
@@ -2289,6 +1797,7 @@ export class GroupChatEngine extends EventEmitter {
         };
 
         const cleanup = () => {
+          clearTimeout(totalBudgetTimer);
           clearIdleTimeout();
           clearCompletionProbeTimer();
           client.off('chat.delta', onDelta);
@@ -2323,7 +1832,7 @@ export class GroupChatEngine extends EventEmitter {
           clearIdleTimeout();
           idleTimeout = setTimeout(() => {
             rejectOnce(new Error((finalOutput.trim() || latestProcessOutput.trim()) ? 'Stream interrupted (idle timeout).' : 'Stream timed out (no response).'));
-          }, GROUP_STREAM_IDLE_TIMEOUT_MS);
+          }, turn.idleMs);
         };
 
         const scheduleCompletionProbe = (delay = GROUP_STREAM_COMPLETION_PROBE_DELAY_MS) => {
@@ -2657,7 +2166,7 @@ export class GroupChatEngine extends EventEmitter {
       });
 
       // Update DB with final content
-      this.throwIfGroupReset(groupId, effectiveResetEpoch);
+      this.throwIfTurnStale(turn);
       const protectedResponse = selectPreferredTextSnapshot(
         selectPreferredTextSnapshot(finalOutput, response),
         finalEventText,
@@ -2681,7 +2190,6 @@ export class GroupChatEngine extends EventEmitter {
         }
       }
       latestProcessOutput = canonicalProcessContent;
-      const mentionedIds = this.parseMentions(canonicalResponse, members);
       if (!canonicalResponse.trim() && msgId !== undefined) {
         if (isResetCommand) {
           this.db.deleteGroupMessage(msgId);
@@ -2692,7 +2200,7 @@ export class GroupChatEngine extends EventEmitter {
           });
           this.clearActiveRun(groupId, runId);
           finishTyping();
-          return parentId;
+          return { status: 'completed', messageId: null, text: '' };
         }
 
         const { content: errMsg, messageCode, messageParams, rawDetail } = createAgentResponseFailedMessage(
@@ -2718,20 +2226,20 @@ export class GroupChatEngine extends EventEmitter {
         });
         this.clearActiveRun(groupId, runId);
         finishTyping();
-        return msgId;
+        return { status: 'failed', messageId: msgId, text: '', error: 'No text output returned from the run.' };
       }
 
       if (msgId === undefined) {
         this.clearActiveRun(groupId, runId);
         finishTyping();
-        return parentId;
+        return { status: 'failed', messageId: null, text: '', error: 'reply row missing' };
       }
 
       this.db.updateGroupMessage(
         msgId, 
         canonicalResponse, 
         this.getAgentModel(agentId), 
-        mentionedIds.length > 0 ? JSON.stringify(mentionedIds) : null,
+        null,
         canonicalProcessContent,
       );
       const visibleResponse = selectPreferredTextSnapshot(
@@ -2762,27 +2270,18 @@ export class GroupChatEngine extends EventEmitter {
       this.clearActiveRun(groupId, runId);
       finishTyping();
 
-      // Chain forward: if the agent's response mentions other agents
-      let lastMsgId = msgId;
-      if (mentionedIds.length > 0) {
-        for (const nextAgentId of mentionedIds) {
-          if (nextAgentId !== agentId) { // Don't send to self
-            const res = await this.sendToAgent(groupId, groupName, nextAgentId, canonicalResponse, member.display_name, depth + 1, lastMsgId, effectiveResetEpoch);
-            if (res !== undefined) lastMsgId = res;
-          }
-        }
-      }
-      return lastMsgId;
+      // 转交（@ 了别人）不在这里做：结果交回编排器，由它按服务端签发的深度与发起人授权统一路由。
+      return { status: 'completed', messageId: msgId, text: canonicalResponse };
     } catch (err: any) {
-      if (err instanceof GroupResetInterruptedError || this.getResetEpoch(groupId) !== effectiveResetEpoch) {
-        return parentId;
+      if (err instanceof GroupResetInterruptedError || !this.isTurnCurrent(turn)) {
+        return { status: 'reset', messageId: null, text: '' };
       }
 
       if (activeRunId) {
         this.clearActiveRun(groupId, activeRunId);
       }
       finishTyping();
-      console.error(`[GroupChatEngine] sendToAgent Error. Group: ${groupId}, Agent: ${agentId}`, err);
+      console.error(`[GroupChatEngine] runGatewayMember Error. Group: ${groupId}, Agent: ${agentId}`, err);
       const rawDetail = typeof err?.rawDetail === 'string'
         ? err.rawDetail
         : (typeof err?.message === 'string' ? err.message : '');
@@ -2813,11 +2312,8 @@ export class GroupChatEngine extends EventEmitter {
           created_at: new Date().toISOString(),
         });
       }
-      return msgId || parentId;
+      return { status: 'failed', messageId: msgId ?? null, text: '', error: rawDetail || 'agent response failed' };
     } finally {
-      // 锁必须在这里放，不能在 try 的出口放——中途抛错、被 /stop 打断、
-      // 上游超时都会跳过那些出口，而成员锁一旦漏放就只能等 15 分钟陈旧接管。
-      this.releaseMemberLock(groupId, agentId);
       if (sessionEventsSubscribed && sessionEventsClient) {
         sessionEventsSubscribed = false;
         try {

@@ -63,6 +63,7 @@ import {
   SessionManager,
 } from '../collab/sessions';
 import {
+  createRoomCollab,
   createRoomEngine,
   createRoomMessages,
   createRoomReconciliation,
@@ -186,12 +187,25 @@ export function createAppContext() {
         const session = db.getSession(sessionId);
         return session ? chatSessionAccessAgentId(session) : null;
       },
-      roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map(groupMemberAccessAgentId) : null),
+      // 远程 Agent（relay 成员）不是本机 Agent：不参与「群里有没有自己的 Agent」的可见性判定（P3）。
+      roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).filter((member) => member.runtime !== 'relay').map(groupMemberAccessAgentId) : null),
       runSessionAgentId: (sessionKey) => db.getRunSession(sessionKey)?.agent_id ?? null,
       uploadSessionKey: (storedName) => (db.getFileByStoredName(storedName)?.session_key as string | undefined) || null,
     },
   });
   const uploads = createUploadService({ ...base, access });
+  /** 群协作（P3）：结构化 @、每 Agent 队列、交接续跑、摘要、审批路由、工作区 diff、远程 Agent。 */
+  const roomCollab = createRoomCollab({
+    db,
+    rooms,
+    access,
+    identityForUser: (userId) => {
+      const user = userStore.get(userId);
+      if (!user || user.status !== 'active') return null;
+      return { userId: user.id, username: user.username, role: user.role, implicit: false, mustChangePassword: user.mustChangePassword };
+    },
+    loginEnabled: () => configManager.getConfig().loginEnabled === true,
+  });
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
   const chatRuns = createChatRuns();
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
@@ -234,6 +248,7 @@ export function createAppContext() {
     directChat,
     roomRuntime,
     rooms,
+    roomCollab,
     roomReconciliation,
     auth,
     access,

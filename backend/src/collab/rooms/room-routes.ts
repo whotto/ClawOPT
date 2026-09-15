@@ -21,7 +21,10 @@ import {
   buildHistorySearchResponse,
   getHistoryPageQueryParams,
 } from '../sessions';
-import { roomTopic } from './external-member-run';
+import { externalMemberSessionKey, roomTopic } from './external-member-run';
+import type { RoomCollab } from './room-collab';
+import { RoomRequestError } from './room-orchestrator';
+import { originatorFromActor } from './room-policy';
 import {
   deleteGroupWorkspace,
   ensureGroupWorkspace,
@@ -45,6 +48,7 @@ export type RoomRoutesDeps = {
   roomRuntime: RoomRuntime;
   uploads: UploadService;
   access: ResourceAccess;
+  roomCollab: RoomCollab;
 };
 
 export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
@@ -54,6 +58,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   const { broadcastGroupReconciliationActions, reconcileInactiveGroupLatestMessage } = ctx.roomReconciliation;
   const { cleanupGroupRuntimeAgent } = ctx.roomRuntime;
   const { clearStoredFilesBySessionKey } = ctx.uploads;
+  const collab = ctx.roomCollab;
 
   /**
    * 群的数据面授权（P5a 用户 ↔ Agent）：
@@ -68,20 +73,6 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   const guardManageRoom: express.RequestHandler = (req, res, next) => (
     ctx.access.canManageRoom(getRequestIdentity(req), String(req.params.id ?? '')) ? next() : sendResourceForbidden(res)
   );
-  /**
-   * 发消息的人能直接叫起的 Agent（admin 全部；member 只有授权给自己的）。
-   * 只管用户发起的第一跳：@、没 @ 时的默认回复对象、编辑后重跑、重新生成某个 Agent 的回复；
-   * Agent 回复里的 @ 转交按既有链深规则继续，不再按发起人过滤（AGENTS.md「群聊叫起」）。
-   */
-  const wakePredicateFor = (req: express.Request) => {
-    const identity = getRequestIdentity(req);
-    // 外部成员（含远程 OpenClaw）按 `ext:<运行时>` 判：引擎给的是成员的 agent_id，这里按群成员表换成判定用的 id。
-    const members = db.getGroupMembers(String(req.params.id ?? ''));
-    return (agentId: string) => {
-      const member = members.find((item) => item.agent_id === agentId);
-      return ctx.access.canAccessAgent(identity, member ? groupMemberAccessAgentId(member) : agentId);
-    };
-  };
   const guardMemberAgents: express.RequestHandler = (req, res, next) => {
     const members = Array.isArray(req.body?.members) ? req.body.members : [];
     const identity = getRequestIdentity(req);
@@ -146,6 +137,8 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         updated_at: now,
       });
       persistedGroupId = id;
+      // 房间归属人 = 建群的人（登录关闭时的隐式主人不记 id：归属人判定对隐式身份恒为真）。
+      collab.policies.setOwner(id, getRequestIdentity(req).userId);
 
       // Save members
       if (Array.isArray(members)) {
@@ -257,6 +250,8 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
       }
 
+      // 隔离先于中断：先丢排队项并推进房间代数，再停运行——中断返回之后迟到的写入也写不进来。
+      collab.orchestrator.dropRoom(req.params.id);
       groupChatEngine.markGroupReset(req.params.id);
       await ctx.runCoordinator.abortTopic(roomTopic(req.params.id), 'user_stop');
       try {
@@ -266,7 +261,9 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       clearStoredFilesBySessionKey(req.params.id);
       const configCleanupFailed = cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
       deleteGroupWorkspace(req.params.id);
+      collab.clearRoomState(req.params.id);
       db.deleteGroupChat(req.params.id);
+      collab.forgetRoom(req.params.id);
       // P2：群里所有外部成员的运行时目录一起回收。
       ctx.runtimePlatform.releaseOwner({ kind: 'room-member', groupId: req.params.id });
       // 群、工作区、库行都删干净了；只有 openclaw.json 的清理没跑完（配置读不动）。
@@ -287,6 +284,8 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
       }
 
+      // 隔离先于中断：先丢排队项并推进房间代数，再停运行——中断返回之后迟到的写入也写不进来。
+      collab.orchestrator.dropRoom(req.params.id);
       groupChatEngine.markGroupReset(req.params.id);
       await ctx.runCoordinator.abortTopic(roomTopic(req.params.id), 'user_stop');
       try {
@@ -301,6 +300,10 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         updated_at: new Date().toISOString(),
       });
       db.deleteGroupMessagesByGroup(req.params.id);
+      // 清空上下文：队列、交接链、工作区 diff、摘要一并清掉；会话种子轮换、外部成员的续话句柄作废（旧上下文不再续）。
+      collab.clearRoomState(req.params.id);
+      for (const member of db.getGroupMembers(req.params.id)) db.clearExternalSession(req.params.id, member.id);
+      collab.orchestrator.resumeRoom(req.params.id);
       clearStoredFilesBySessionKey(req.params.id);
       const configCleanupFailed = cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
       resetGroupWorkspace(req.params.id);
@@ -314,16 +317,43 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
+  /** 历史页：并上 P3 元数据（发送人、结构化 @、深度、附件）与挂在回复上的工作区 diff。 */
+  const decorateRows = (groupId: string, rows: any[]) => {
+    const ids = rows.map((row) => Number(row.id)).filter(Number.isFinite);
+    const metas = collab.messages.getMetaForIds(ids);
+    const changes = collab.workspaceChanges.forMessages(groupId, ids);
+    return rows.map((row) => {
+      const meta = metas.get(Number(row.id));
+      const base = withStructuredGroupMessage(row, { groupId });
+      return {
+        ...base,
+        sender_user_id: meta?.senderUserId ?? null,
+        sender_guest_id: meta?.senderGuestId ?? null,
+        sender_member_id: meta?.senderMemberId ?? null,
+        structured_mentions: meta?.structuredMentions ?? null,
+        mention_depth: meta?.mentionDepth ?? 0,
+        message_kind: meta?.messageKind ?? '',
+        attachments: meta?.attachments ?? [],
+        workspace_changes: changes.get(Number(row.id)) ?? [],
+      };
+    });
+  };
+
+  const sendRoomError = (res: express.Response, error: unknown): boolean => {
+    if (error instanceof RoomRequestError) {
+      res.status(error.status).json(buildStructuredApiError(error.code, error.message, error.params as any));
+      return true;
+    }
+    return false;
+  };
+
   // --- Group Messages ---
   app.get('/api/groups/:id/messages', guardRoom, async (req, res) => {
     try {
       await reconcileInactiveGroupLatestMessage(req.params.id);
       const { beforeId, limit } = getHistoryPageQueryParams(req.query as Record<string, unknown>);
       const result = db.getGroupMessagesPage(req.params.id, { beforeId, limit });
-      res.json(buildHistoryPageResponse(
-        result.rows.map((row) => withStructuredGroupMessage(row, { groupId: req.params.id })),
-        result.pageInfo,
-      ));
+      res.json(buildHistoryPageResponse(decorateRows(req.params.id, result.rows), result.pageInfo));
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -373,57 +403,138 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
+  /**
+   * 发消息：结构化 @ 校验（三态）、@all 只给 admin 与房间归属人、按发起人授权决定叫起谁、每 Agent 排队。
+   * 永远受理（不再因为「群里有人在跑」回 409）；被挡下的 @ 照样落库，回结构化提示。
+   */
   app.post('/api/groups/:id/messages', guardRoom, async (req, res) => {
     try {
-      const { content, parentId: rawParentId } = req.body;
-      if (!content?.trim()) return res.status(400).json({ success: false, error: 'content is required' });
-
-      const group = db.getGroupChat(req.params.id);
-      if (!group) {
-        return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
-      }
-
-      // 新消息用 isGroupBlockingNewMessage（**不含成员锁**）。用 isGroupProcessing
-      // 会把 per-member 锁在这一层整个抵消掉——一个外部成员跑 10 分钟，整个群 409。
-      if (groupChatEngine.isGroupBlockingNewMessage(req.params.id)) {
-        return res.status(409).json({
-          // 把「已经跑了多久」一并回去：用户看到「上一轮已经跑了 3 分钟」
-          // 和看到一个裸 409，能做的判断完全不同。
-          ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE, null, {
-            minutes: groupChatEngine.groupLockAgeMinutes(req.params.id) ?? 0,
-          }),
-          runState: groupChatEngine.getGroupRunState(req.params.id),
-        });
-      }
-
-      const parsedParentId = (
-        typeof rawParentId === 'number' && Number.isFinite(rawParentId) && rawParentId > 0
-          ? Math.floor(rawParentId)
-          : typeof rawParentId === 'string' && rawParentId.trim()
-            ? Number.parseInt(rawParentId, 10)
-            : undefined
-      );
-      const parentId = Number.isFinite(parsedParentId as number) && (parsedParentId as number) > 0
-        ? Number(parsedParentId)
-        : undefined;
-
-      // 被挡下的 @ 照样作为正文落库，只是不叫起；回一条结构化提示让界面说清楚为什么没人回。
-      const canWake = wakePredicateFor(req);
-      const blocked = groupChatEngine.blockedMentions(req.params.id, content, canWake);
-      const agentNames = blocked.map((member) => member.display_name);
-
-      // Respond immediately, processing happens async
+      const { content } = req.body;
+      if (typeof content !== 'string' || !content.trim()) return res.status(400).json({ success: false, error: 'content is required' });
+      const identity = getRequestIdentity(req);
+      const result = collab.orchestrator.ingestHumanMessage({
+        groupId: req.params.id,
+        actor: collab.roomAccess.actorFromIdentity(identity),
+        identity,
+        content,
+        mentions: req.body?.mentions,
+        queueCapability: typeof req.body?.queueCapability === 'string' ? req.body.queueCapability : null,
+      });
+      const agentNames = result.blocked.map((member) => member.display_name);
+      const offlineNames = result.offline.map((member) => member.display_name);
       res.json({
         success: true,
+        messageId: result.messageId,
+        queued: result.queued,
         ...(agentNames.length > 0
           ? { notice: { messageCode: GROUP_MENTION_NOT_PERMITTED_MESSAGE_CODE, messageParams: { agents: agentNames.join(', ') }, agentNames } }
-          : {}),
+          : offlineNames.length > 0
+            ? { notice: { messageCode: 'groups.agentOffline', messageParams: { agentName: offlineNames.join(', ') }, agentNames: offlineNames } }
+            : {}),
       });
+    } catch (err: any) {
+      if (sendRoomError(res, err)) return;
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
 
-      // Process message in background
-      groupChatEngine.sendUserMessage(req.params.id, content, parentId, canWake).catch((err: any) => {
-        console.error('[GroupChat] Error processing message:', err);
+  /** 执行队列快照（界面可见位置）。 */
+  app.get('/api/groups/:id/queue', guardRoom, (req, res) => {
+    res.json({ success: true, ...collab.orchestrator.snapshot(req.params.id) });
+  });
+
+  /** 撤回排队中的消息：发送人本人，且这条消息的所有目标都还在排队。 */
+  app.post('/api/groups/:id/messages/:msgId/retract', guardRoom, (req, res) => {
+    try {
+      const identity = getRequestIdentity(req);
+      const result = collab.orchestrator.retract({
+        groupId: req.params.id,
+        messageId: Number(req.params.msgId),
+        actor: collab.roomAccess.actorFromIdentity(identity),
+        capability: typeof req.body?.queueCapability === 'string' ? req.body.queueCapability : null,
       });
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      if (sendRoomError(res, err)) return;
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  /** 交接链（停止卡片）。 */
+  app.get('/api/groups/:id/handoffs', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    res.json({ success: true, chains: collab.dispatcher.list(req.params.id), canManage: collab.roomAccess.isManager(identity, req.params.id) });
+  });
+
+  /** 一跳「继续」：管理员；目标必须对发起人与点按钮的人都叫得起。 */
+  app.post('/api/groups/:id/handoffs/:chainId/continue', guardRoom, (req, res) => {
+    try {
+      const identity = getRequestIdentity(req);
+      if (!collab.roomAccess.isManager(identity, req.params.id)) return sendResourceForbidden(res);
+      const result = collab.dispatcher.continueChain(req.params.id, req.params.chainId, identity);
+      res.status(result.status === 'replay' ? 200 : 202).json({ success: true, ...result });
+    } catch (err: any) {
+      if (sendRoomError(res, err)) return;
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  /** 房间协作策略（交接、摘要、超时、访客 / 远程 Agent）。读：看得见群；改：管理员。 */
+  app.get('/api/groups/:id/policy', guardRoom, (req, res) => {
+    const policy = collab.policies.get(req.params.id);
+    if (!policy) return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
+    const identity = getRequestIdentity(req);
+    const canManage = collab.roomAccess.isManager(identity, req.params.id);
+    const { inviteCode, inviteCreatedBy, sessionSeed, ...rest } = policy;
+    res.json({
+      success: true,
+      policy: { ...rest, inviteCode: canManage ? inviteCode : null },
+      canManage,
+      canMentionAll: collab.roomAccess.canMentionAll(collab.roomAccess.actorFromIdentity(identity), req.params.id, identity),
+      isOwner: collab.roomAccess.isOwner(identity, req.params.id),
+    });
+  });
+
+  app.put('/api/groups/:id/policy', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    if (!collab.roomAccess.isManager(identity, req.params.id)) return sendResourceForbidden(res);
+    const body = req.body ?? {};
+    const pick = <T,>(key: string, check: (value: unknown) => boolean): T | undefined => (check(body[key]) ? body[key] as T : undefined);
+    const isBool = (value: unknown) => typeof value === 'boolean';
+    const isNum = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
+    const policy = collab.policies.update(req.params.id, {
+      handoffEnabled: pick('handoffEnabled', isBool),
+      handoffUnlimited: pick('handoffUnlimited', isBool),
+      handoffMaxDepth: pick('handoffMaxDepth', isNum),
+      summaryModel: pick('summaryModel', (value) => typeof value === 'string'),
+      summaryEveryTurns: pick('summaryEveryTurns', isNum),
+      runIdleTimeoutSec: pick('runIdleTimeoutSec', isNum),
+      runTotalBudgetSec: pick('runTotalBudgetSec', isNum),
+      allowGuestAgents: pick('allowGuestAgents', isBool),
+      maxGuestAgentsPerMember: pick('maxGuestAgentsPerMember', isNum),
+      allowRemoteWorkspace: pick('allowRemoteWorkspace', isBool),
+    });
+    if (!policy) return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
+    collab.publish(req.params.id, { type: 'room_updated', data: { policyChanged: true } });
+    const { sessionSeed, ...rest } = policy;
+    res.json({ success: true, policy: rest });
+  });
+
+  /** 中断单个成员：管理员，或远程 Agent 的主人。丢掉它排队中的项、推进它的中断版本、停掉正在跑的那一轮。 */
+  app.post('/api/groups/:id/members/:memberId/interrupt', guardRoom, async (req, res) => {
+    try {
+      const identity = getRequestIdentity(req);
+      const member = collab.members(req.params.id).find((row) => row.id === req.params.memberId);
+      if (!member) return res.status(404).json(buildStructuredApiError('groups.memberNotFound'));
+      const actor = collab.roomAccess.actorFromIdentity(identity);
+      const allowed = collab.roomAccess.isManager(identity, req.params.id)
+        || ((member as any).owner_kind === 'user' && collab.roomAccess.isAgentOwner(actor, identity, req.params.id, member));
+      if (!allowed) return sendResourceForbidden(res);
+      collab.orchestrator.dropMember(req.params.id, member.id, 'interrupted');
+      groupChatEngine.markMemberInterrupted(req.params.id, member.id);
+      const external = await ctx.runCoordinator.abort(externalMemberSessionKey(req.params.id, member.id), 'user_stop');
+      const gateway = await groupChatEngine.abortGatewayMember(req.params.id, member.agent_id).catch(() => false);
+      res.json({ success: true, aborted: external.aborted || gateway });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -436,6 +547,8 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
       }
 
+      // 停止整个房间：暂停排空并丢掉排队项 → 推进房间代数（迟到的写入被拒）→ 中止外部与网关运行。
+      collab.orchestrator.dropRoom(req.params.id);
       groupChatEngine.markGroupReset(req.params.id);
       // 外部成员的运行在协调器里：一并中止（子进程整组收掉）。此前停止按钮停不住外部 Agent，
       // 它会一直跑到自己结束、占着成员锁。
@@ -445,6 +558,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         return { aborted: false };
       });
       groupChatEngine.forceResetGroupState(req.params.id);
+      collab.orchestrator.resumeRoom(req.params.id);
       const cleanedMessageIds: number[] = [];
 
       const recentMessages = db.getRecentGroupMessages(req.params.id, 20);
@@ -484,13 +598,12 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         return res.status(404).json({ success: false, error: 'Message not found' });
       }
 
+      // 编辑后重跑会删掉这条之后的消息：群里还有人在跑或在排队时不行（它们正往那些消息里写）。
       const shouldRerun = existingMessage.sender_type === 'user';
-      if (shouldRerun && groupChatEngine.isGroupProcessing(req.params.id)) {
+      if (shouldRerun && (groupChatEngine.isGroupProcessing(req.params.id) || collab.orchestrator.busyMembers(req.params.id).length > 0)) {
         return res.status(409).json({
-          // 把「已经跑了多久」一并回去：用户看到「上一轮已经跑了 3 分钟」
-          // 和看到一个裸 409，能做的判断完全不同。
           ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE, null, {
-            minutes: groupChatEngine.groupLockAgeMinutes(req.params.id) ?? 0,
+            minutes: groupChatEngine.longestMemberRunMinutes(req.params.id) ?? 0,
           }),
           runState: groupChatEngine.getGroupRunState(req.params.id),
         });
@@ -510,19 +623,29 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         : [];
       const deletedIds = deletedRows.map((row) => row.id);
 
-      res.json({ success: true, rerunStarted: shouldRerun, deletedIds });
+      let rerun: ReturnType<typeof collab.orchestrator.rerunHumanMessage> | null = null;
+      if (shouldRerun) {
+        const identity = getRequestIdentity(req);
+        try {
+          rerun = collab.orchestrator.rerunHumanMessage({ groupId: req.params.id, messageId, actor: collab.roomAccess.actorFromIdentity(identity), identity });
+        } catch (error) {
+          if (!sendRoomError(res, error)) throw error;
+          return;
+        }
+      }
+      const blockedNames = rerun?.blocked.map((member) => member.display_name) ?? [];
+      res.json({
+        success: true,
+        rerunStarted: shouldRerun,
+        deletedIds,
+        ...(blockedNames.length > 0 ? { notice: { messageCode: GROUP_MENTION_NOT_PERMITTED_MESSAGE_CODE, messageParams: { agents: blockedNames.join(', ') }, agentNames: blockedNames } } : {}),
+      });
 
       if (updatedMessage) {
-        publishRoomFrame(req.params.id, { type: 'edit', ...withStructuredGroupMessage(updatedMessage, { groupId: req.params.id }) });
+        publishRoomFrame(req.params.id, { type: 'edit', ...decorateRows(req.params.id, [updatedMessage])[0] });
       }
       if (deletedIds.length > 0) {
         publishRoomFrame(req.params.id, { type: 'delete', deletedIds, fallbackParentId: messageId });
-      }
-
-      if (shouldRerun) {
-        void groupChatEngine.rerunUserMessage(req.params.id, messageId, wakePredicateFor(req)).catch((err: any) => {
-          console.error('[GroupChat] Error rerunning edited user message:', err);
-        });
       }
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
@@ -551,58 +674,58 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     }
   });
 
+  /**
+   * 重新生成某条 Agent 回复 = 按它的触发消息重跑那个 Agent（发起人 = 点重新生成的人，第一跳授权照判）。
+   * 那个 Agent 正在跑或排队时 409：旧运行还在往这条消息里写。
+   */
   app.post('/api/groups/:id/messages/regenerate', guardRoom, async (req, res) => {
     try {
-      const { msgId } = req.body; // The message we want to regenerate
+      const { msgId } = req.body;
       if (!msgId) return res.status(400).json({ success: false, error: 'msgId required' });
-      
+
       const targetMsg = db.getGroupMessageById(Number(msgId), req.params.id) as any;
-      
       if (!targetMsg || targetMsg.sender_type !== 'agent' || !targetMsg.sender_id) {
-         return res.status(400).json({ success: false, error: 'Cannot regenerate this message' });
+        return res.status(400).json({ success: false, error: 'Cannot regenerate this message' });
       }
+      const members = collab.members(req.params.id);
+      const meta = collab.messages.getMeta(Number(msgId));
+      const member = (meta?.senderMemberId ? members.find((row) => row.id === meta.senderMemberId) : undefined)
+        ?? groupChatEngine.resolveMemberByAgentRef(members, targetMsg.sender_id);
+      if (!member) return res.status(400).json({ success: false, error: 'Cannot regenerate this message' });
+      const identity = getRequestIdentity(req);
+      const actor = collab.roomAccess.actorFromIdentity(identity);
       // 重新生成 = 叫起写这条回复的 Agent：发起人叫不起就 403，且不删原回复。
-      if (!groupChatEngine.canWakeMemberRef(req.params.id, targetMsg.sender_id, wakePredicateFor(req))) {
+      if (!collab.roomAccess.originatorCanWake(originatorFromActor(actor, collab.policies.get(req.params.id)), member)) {
         return sendResourceForbidden(res);
       }
-
-      // 与发消息走同一把群锁。原先这里不查锁：正在流式输出的那条被点「重新生成」，
-      // 旧 run 继续往已删除的消息 id 写 delta，前端据此复活一条幽灵消息，
-      // 同一群会话上两个 run 并行，/stop 只能停后起的那个。
-      if (groupChatEngine.isGroupProcessing(req.params.id)) {
+      if (groupChatEngine.isMemberBusy(req.params.id, member.agent_id) || collab.orchestrator.pendingCount(req.params.id, member.id) > 0) {
         return res.status(409).json({
-          ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE, null, {
-            minutes: groupChatEngine.groupLockAgeMinutes(req.params.id) ?? 0,
-          }),
+          ...buildStructuredApiError(GROUP_RUN_IN_PROGRESS_ERROR_CODE, null, { minutes: groupChatEngine.longestMemberRunMinutes(req.params.id) ?? 0 }),
           runState: groupChatEngine.getGroupRunState(req.params.id),
         });
       }
 
-      // In linear group history, regenerate reuses the parent trigger message.
-      let promptContext = "继续";
-      let validParentId = targetMsg.parent_id || null;
+      // 线性历史里，重新生成复用它的父消息作为触发。
+      let triggerText = '继续';
+      let triggerSenderName = '用户';
+      let validParentId: number | null = targetMsg.parent_id || null;
       if (validParentId) {
-         const triggerMsg = db.getGroupMessageById(validParentId) as any;
-         if (triggerMsg) {
-           promptContext = triggerMsg.content;
-         } else {
-           validParentId = null; // SAFEGUARD: Prevent FOREIGN KEY constraint fail if parent is orphaned
-         }
+        const triggerMsg = db.getGroupMessageById(validParentId) as any;
+        if (triggerMsg) {
+          triggerText = triggerMsg.content;
+          triggerSenderName = triggerMsg.sender_name || triggerSenderName;
+        } else {
+          validParentId = null;
+        }
       }
 
       db.deleteGroupMessage(Number(msgId));
       publishRoomFrame(req.params.id, { type: 'delete', id: Number(msgId), parent_id: validParentId });
-
       res.json({ success: true });
 
-      // Inform engine to resend request as a sibling response
-      const groupName = db.getGroupChat(req.params.id)?.name || '团队';
-      // Emulate a new trigger directly targeting that agent without advancing depth too quickly, using promptContext
-      (groupChatEngine as any).sendToAgent(req.params.id, groupName, targetMsg.sender_id, promptContext, targetMsg.sender_name || 'Agent', 0, validParentId || undefined).catch((err: any) => {
-        console.error('[GroupChat] Error regenerating message:', err);
-      });
-
+      collab.orchestrator.regenerate({ groupId: req.params.id, member, triggerMessageId: validParentId, triggerText, triggerSenderName, actor });
     } catch (err: any) {
+      if (sendRoomError(res, err)) return;
       res.status(500).json({ success: false, error: err.message });
     }
   });
