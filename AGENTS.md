@@ -10,19 +10,19 @@
 ## 仓库结构
 - `backend/`: 后端服务、OpenClaw gateway 客户端、SQLite、agent/session/group/file 管理。按模块组织（P0 起），`backend/src/index.ts` 只负责启动：
   - `bootstrap/`: 组装与生命周期。`context.ts` 构造单例与服务（经 `ctx` 注入）；`app.ts` 按固定顺序注册中间件与路由（顺序即行为，由 `test/route-order.test.ts` 对照清单校验）；`server.ts` 监听、就绪状态、优雅停机；`startup-steps.ts` 拆分前就有的启动修复；`startup-tasks.ts` 启动一次性任务登记表；`health.ts` 的 `/livez` `/readyz` `/health`。
-  - `core/`: 与业务无关的底座，**不得依赖其他模块**。`db/`、`auth/`（会话令牌、鉴权中间件与 `AUTH_PUBLIC_PATHS`）、`files/`（可服务路径闸门、原子写、`SafeFileStore`）、`config/`（ClawOPT 自身配置）、`http/`（结构化错误与错误码、路由登记表与 OpenAPI、配置版本号）、`events/`（业务事件总线）、`logger/`、`paths/`、`process/`、`util/`。
-  - `openclaw/`: gateway 客户端与连接、`openclaw.json` 读写与名册门面、版本探测、CLI 定位、网关探测与重启、运行时补丁、设备配对。
+  - `core/`: 与业务无关的底座，**不得依赖其他模块**。`db/`（控制面的表集中在 `control-plane-schema.ts`）、`auth/`（会话令牌、鉴权中间件与 `AUTH_PUBLIC_PATHS`、多用户 `user-store.ts`、登录 IP 锁 `login-lock.ts`、单一口令迁移 `login-migration.ts`、用户路由 `user-routes.ts`）、`files/`（可服务路径闸门、原子写、`SafeFileStore`）、`config/`（ClawOPT 自身配置）、`http/`（结构化错误与错误码、路由登记表与 OpenAPI、配置版本号）、`events/`（业务事件总线）、`logger/`、`paths/`、`process/`、`util/`。
+  - `openclaw/`: gateway 客户端与连接、`openclaw.json` 读写与名册门面、版本探测、CLI 定位、网关探测与重启、运行时补丁、设备配对，以及控制面的 CLI 统一调用口 `cli-runner.ts`。
   - `runtime/`: 外部 Agent 运行时（`external-agents/`）与运行时不变量。
-  - `control/`: 控制面。agents / characters / models（含生图）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics 的路由与服务。
+  - `control/`: 控制面。agents（含克隆 `agent-clone.ts`、头像、引擎名册路由）/ characters / models（含生图、服务商编辑器 `provider-editor.ts`、连通性测试 `provider-probe.ts`、目录缓存与可见性 `model-catalog.ts`、审计 `provider-audit.ts`）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics，以及 P5a 新增的 cron / channels / skills / mcp / plugins / usage / logs（含网关服务状态卡）/ workspace-files（工作区身份文件）/ write-gate（写入审批）；`shared/` 放控制面共用的错误出口 `control-http.ts` 与引擎名册 `engine-roster.ts`。
   - `workspace/`: 上传、文件下载与预览、链接改写、文档与音频工具链。
   - `collab/sessions/`: 单聊（会话、历史、消息、聊天运行管理）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账）。
   - 模块之间只经各自的 `index.ts`（barrel）互相导入；`*-routes.ts` 只由 bootstrap 注册，服务不得引用。由 `npm run boundaries:check` 机械校验。
 - `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。`frontend/src/` 下：
   - `app/`: 应用壳。`App.tsx`（BrowserRouter + 鉴权）、`routes.tsx` 路由表、`routeState.ts` URL ↔ 视图状态纯函数（带单测，改路径形状两边一起改）、`AppShell.tsx`（侧栏 + Outlet）、`auth.tsx`（登录守卫）、壳层轮询 hooks，以及 `sidebar/` 侧栏（设置导航由 `sidebarNav.ts` 数据驱动，条目带 工作台/团队/自动化/系统 zone）。
-  - 路由：`/login`、`/chat/:sessionId`、`/groups/:groupId`（无 id 为团队列表）、`/settings/:tab`（gateway / general / models / presets / commands / about）。用 history 路由，依赖后端 `app.get('*')` 回退 index.html；旧 `#settings/...` 书签挂载前自动换成新路径。缺段按 localStorage 记忆补齐，地址栏优先。
-  - `pages/`: 路由页面容器。`chat/`（单聊与群聊共用同一组件实例）、`settings/`（所有页签共用一个挂载实例；状态在 `hooks/`，页签在 `tabs/`，弹窗在 `modals/`，预设库在 `presets/`）、`login/`。
+  - 路由：`/login`、`/chat/:sessionId`、`/groups/:groupId`（无 id 为团队列表）、`/settings/:tab`（gateway / general / models / presets / commands / about，以及 P5a 控制面 agents / skills / mcp / users / cron / channels / plugins / usage / logs）。页签清单 `SETTINGS_TABS` 与侧栏 `SETTINGS_NAV_ITEMS` 由 `sidebarNav.test.ts` 互相校验：新增页签两边一起加。用 history 路由，依赖后端 `app.get('*')` 回退 index.html；旧 `#settings/...` 书签挂载前自动换成新路径。缺段按 localStorage 记忆补齐，地址栏优先。
+  - `pages/`: 路由页面容器。`chat/`（单聊与群聊共用同一组件实例）、`settings/`（所有页签共用一个挂载实例；状态在 `hooks/`，页签在 `tabs/`，弹窗在 `modals/`，预设库在 `presets/`，模型页附加区在 `models/`）、`login/`；控制面页面按分区放 `team/`、`automation/`、`system/`，由 `SettingsPage` 挂载、各自管状态，共用 `control/useControlApi.ts`（读 JSON、错误本地化、当前用户）与 `components/control/ControlUi.tsx`（按钮、卡片、弹窗等与设置页同一套样式）。
   - `features/`: 页面内功能块。`chat/`（`hooks/` 状态与副作用、`components/` 展示层、`lib/` 纯函数、`message/` 消息气泡与过程块）、`files/`（文件预览，按格式分查看器）。
-  - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`。组件里不要再直接写 `fetch`。
+  - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`；控制面各资源在 `control.ts` 里按资源分组。组件里不要再直接写 `fetch`。
   - `components/`: 跨页面复用的小组件；`utils/`: 与页面无关的纯逻辑（`message-merge`、`history-window` 等）；`locales/`: 三语文案。
   - 单个组件文件不超过 800 行；确需超过的在文件头写一行原因（目前只有 `features/chat/message/MessageBubble.tsx`）。
 - `docs/`: 项目截图和文档资源。
@@ -37,7 +37,7 @@
 - `cd backend && npm test`: 类型检查 + vitest（覆盖凭据与会话、包解析与路径闸门、可服务路径白名单、上游消息解包、聊天历史对账、外部 Agent 适配与执行、运行时不变量）。**新增守卫时必须先证明它会红**：把对应的防护改回有缺陷的写法，看该用例失败，再还原。没验过的门等于没有门。
 - **手工自检不是守卫。** 在命令行里跑一遍确认「它是对的」只证明这一刻对；守卫是下一个人改坏时会响的东西。验完就把它固化成用例，否则那次验证随会话一起消失。
 - 能进类型层的检查就不放到运行时，能进运行时守卫的就不放到 code review。**每退一步，可靠性掉一个数量级。**
-- `npm run locales:check`: 校验 `zh-CN` / `zh-TW` / `en` 三份 locale 的键集完全一致；缺一个语言不会报错、只会显示原始 key，所以这道门是硬性的（已并入 `npm run test`）。
+- `npm run locales:check`: 校验 `zh-CN` / `zh-TW` / `en` 三份 locale 的键集完全一致，并拒绝同一对象里的重复键（`JSON.parse` 静默取后者，键集比对照样通过）；缺一个语言不会报错、只会显示原始 key，所以这道门是硬性的（已并入 `npm run test`）。
 - `npm run presets:check`: 比对 `presets/opt-team/` 与角色配置包源（默认 `../openclaw-agents`）；不一致退出码 1，发布前卡口。
 - `npm run presets:sync`: 把角色配置包同步进预设，并按 `PARAM_RULES` 把具体值换回 `{{...}}` 占位符。
 - `npm run boundaries:check`: 校验 `backend/src` 的模块边界（跨模块只经 barrel、`core` 不依赖业务模块、服务不引用路由文件、只有入口导入 `bootstrap`）；违规退出码 1。
@@ -66,7 +66,13 @@
 - API 鉴权是**默认全保护 + 白名单放行**（`app.use('/api', ...)`），不是逐路由手挂。手挂的名单必漏——审计时 108 个路由只挂了 15 个，数据面（建会话、发消息、删会话、建群、传文件）全部裸奔。新增路由默认受保护，要公开必须显式加进 `AUTH_PUBLIC_PATHS`。**注意注册顺序同样决定公开性**：注册在 `registerAuthGate` 之前的路由闸门跑不到（`bootstrap/app.ts`），公开面清单由 `test/auth-coverage.test.ts` 逐条匿名请求校验。
 - 登录令牌是**服务端存储的随机会话令牌**（`backend/src/core/auth/auth-store.ts`），带 30 天过期、可吊销、改口令即全部作废；口令用 scrypt 加随机盐存储。不要再回到「令牌 = 口令的哈希」——那样的令牌泄露一次永久有效，且默认口令能被离线算出。
 - Web 端鉴权走 **httpOnly cookie**，不进 localStorage（XSS 能偷）、不进查询串（会进访问日志与浏览器历史）。请求头 `X-ClawOPT-Auth-Token` 保留给 CLI。SSE 的 `EventSource` 设不了自定义头，这也是必须用 cookie 的原因。
-- 凭据只出不进：任何配置接口都不得把 `token` / `password` / `loginPassword` 的**值**回给前端，只报 `hasXxx` 布尔位；写入时空串一律视为「不修改」而不是「清空」。这条来自一次真实泄露——未鉴权的 `GET /api/config` 曾把登录密码明文吐出来。
+- 凭据只出不进：任何配置接口都不得把 `token` / `password` / `loginPassword` 的**值**回给前端，只报 `hasXxx` 布尔位；写入时空串一律视为「不修改」而不是「清空」。这条来自一次真实泄露——未鉴权的 `GET /api/config` 曾把登录密码明文吐出来。P5a 又堵了一处同型的：`GET /api/endpoints` 曾回传每个服务商的明文 `apiKey`，现在只报 `hasApiKey` + 版本号。MCP 配置编辑器里 `env` / `headers` 的值以占位符出、写回时换回原值；频道列表里凭据形状的键一律换成 `hasXxx`。
+- **多用户与授权（P5a）**：角色 `super_admin` > `admin` > `member`。`requireAdminAuth` 是 admin 及以上（它自己完成鉴权，注册在全局闸门之前的路由也能靠它），`requireSuperAdmin` 管用户，`requireAgentAccess` 校验路径参数 `:agentId` 在授权内。**改状态的控制面路由一律挂管理员闸门**，由 `test/control-plane-auth.test.ts` 按登记表逐条校验并用 member 会话真打（新增路由忘挂闸门会红）。登录未开启时请求按「隐式 super_admin」处理，单用户部署行为不变。
+- **没有默认账号与默认口令**：不再回落 123456。用户只经三条路出现：启动一次性任务把管理员设过的口令迁成 `admin`（默认口令只在「登录已开启」时迁出且必须先改口令，改之前其余接口一律 403）、通用设置首次开启登录时设口令、super_admin 在用户页新建。**最后一个启用中的 super_admin 不能降级、停用、删除**；改角色 / 停用 / 删除 / 重置口令会作废该用户全部会话。登录失败按来源 IP 计数锁定（5 次 / 15 分钟），只有 TCP 对端是本机回环时才信转发头。
+- **控制面对引擎的一切操作经 `backend/src/openclaw/cli-runner.ts`**：参数数组（不拼 shell）、`--json` 解析、stderr 脱敏、错误映射为 `openclaw.*` messageCode、写操作进程内串行。设了 `CLAWOPT_OPENCLAW_PROFILE` 就给每次调用注入 `--profile <name>`——验收与测试用它把引擎状态隔离到 `~/.openclaw-<name>`，**不要拿真实 `~/.openclaw` 跑写操作**。注意 `--profile` 下默认工作区仍落在 `~/.openclaw/workspace-<name>`（真实目录下），验收要显式给工作区并在结束后清理。
+- **配置编辑器一律带版本号**：服务商、上下文长度、MCP 服务器、定时任务、工作区身份文件都走「锁内读当前 → 比版本号 → 写」，不符回 412 `REVISION_CONFLICT` + 当前（已脱敏）视图，缺版本号同样拒绝；前端收到 412 提示「已在别处修改」并载入最新内容。锁外比完再写等于没比。
+- **写入审批（write-gate）是 ClawOPT 自建的暂存层**：开关打开后，Agent 工作区里 MEMORY.md / USER.md / SOUL.md 与 `skills/` 下的外部改动被暂存并**还原成已批准基线**；批准要求审阅时的哈希未变、磁盘仍是基线（否则 409），识别空补丁，按解析后的工作区目录串行。机制边界（亚秒级窗口、分不清 Agent 与手改、服务停止期间不拦截）写在界面帮助文本里，改机制时同步改文案。
+- 新增或挪动后端路由后运行 `cd backend && npx ts-node scripts/dump-route-order.ts` 重写 `test/fixtures/route-order.txt`，**逐行审阅 diff** 再提交；同方法同路径的重复路由由 `control-plane-auth` 用例拦下（`GET /api/gateway/status` 撞过一次）。
 - 一切按路径出文件的接口都必须过 `backend/src/core/files/served-paths.ts` 的白名单闸门（统一入口是 `backend/src/core/files/assert-servable-path.ts` 的 `assertServablePath()`，新增出文件的路由复用它，不要各写各的判定）（先 realpath 再判归属，再判文件名），不得只检查「是不是绝对路径」。允许的根只有工作区与上传目录；`~/.openclaw` 根、`agents/**`、凭据与密钥类文件永远拒绝。**修这类洞时必须把同类入口一起过一遍**：上一轮只堵了 `download` 与 `/openclaw`，紧挨着的 `preview` / `preview-data` / `html-preview` 漏了三个月，实测可读 `~/.ssh/id_rsa` 与 `openclaw.json` 里的模型 apiKey。堵一个不堵其余等于没堵。
 - 服务端按用户给的 URL 去拉东西时（导入包等），三道检查缺一不可：协议只允许 http/https、**主机名解析后的地址**不得落在内网段、**重定向后的最终地址**要再查一遍。只查字面量挡不住 `localtest.me` 这类解析到回环的域名，只查首个地址挡不住 302 跳内网。
 - `.clawpack` 是智能体/团队的可移植包（gzip JSON，实现在 `backend/src/control/packs/agent-pack.ts`）。改这块时三道闸门一个都不能松：导入侧的路径白名单（`assertSafeRelPath`，防目录穿越）、远端拉取的内网地址拦截（防 SSRF）、以及「导入只写文件不执行」。包里永远不得出现凭据、`memory/` 每日记录与对话历史。
