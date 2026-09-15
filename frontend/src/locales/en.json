@@ -2524,5 +2524,20 @@
     "truncated": "Truncated for display ({{count}} characters total)",
     "copyFull": "Copy full content",
     "copyFailed": "Copy failed"
+  },
+  "taskPlan": {
+    "title": "Task plan",
+    "progress": "{{completed}} / {{total}} completed",
+    "status": {
+      "pending": "Not started",
+      "in_progress": "In progress",
+      "completed": "Completed"
+    },
+    "banner": {
+      "running": "Running",
+      "unfinished": "Run ended; unfinished steps remain",
+      "interrupted": "Run interrupted",
+      "failed": "Run failed"
+    }
   }
 }

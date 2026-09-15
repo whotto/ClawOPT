@@ -2524,5 +2524,20 @@
     "truncated": "已截断显示（原长 {{count}} 字符）",
     "copyFull": "复制完整内容",
     "copyFailed": "复制失败"
+  },
+  "taskPlan": {
+    "title": "任务计划",
+    "progress": "已完成 {{completed}} / {{total}}",
+    "status": {
+      "pending": "未开始",
+      "in_progress": "进行中",
+      "completed": "已完成"
+    },
+    "banner": {
+      "running": "正在执行",
+      "unfinished": "运行已结束，还有未完成的步骤",
+      "interrupted": "运行被中断",
+      "failed": "运行失败"
+    }
   }
 }

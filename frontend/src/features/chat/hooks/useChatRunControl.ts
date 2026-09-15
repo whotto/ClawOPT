@@ -38,6 +38,8 @@ export function useChatRunControl(c: ChatRunControlContext) {
   const [insertPendingQueueId, setInsertPendingQueueId] = useState<string | null>(null);
   /** 用量可能变了（报了用量、一轮结束）：上下文占用徽标据此重拉。 */
   const [usageTick, setUsageTick] = useState(0);
+  /** 最近一次 task.plan.updated 的快照（计划卡按 revision 合并）。 */
+  const [livePlan, setLivePlan] = useState<unknown>(null);
   /** 助手消息 id → 这一轮的终态事件类型（静默失败判定要区分「正常完成却没输出」与「被停下」）。 */
   const terminalByMessageRef = useRef<Map<number, string>>(new Map());
   const terminalWaitersRef = useRef<Array<{ messageId: number; resolve: (type: string | null) => void }>>([]);
@@ -96,6 +98,10 @@ export function useChatRunControl(c: ChatRunControlContext) {
       const ready = terminalWaitersRef.current.filter((waiter) => waiter.messageId === payload.message_id);
       terminalWaitersRef.current = terminalWaitersRef.current.filter((waiter) => waiter.messageId !== payload.message_id);
       ready.forEach((waiter) => waiter.resolve(type));
+    }
+    if (event.event === 'task.plan.updated') {
+      setLivePlan(payload);
+      return;
     }
     if (event.event === 'chat.user_message') {
       const echo = parseChatTurnEcho(payload);
@@ -192,7 +198,7 @@ export function useChatRunControl(c: ChatRunControlContext) {
 
   return {
     runState, refreshRunState, locallyStreamedRefsRef, attachRequest, requestAttach,
-    cancelQueued, insertQueued, insertPendingQueueId, usageTick, waitForRunTerminal,
+    cancelQueued, insertQueued, insertPendingQueueId, usageTick, waitForRunTerminal, livePlan,
   };
 }
 

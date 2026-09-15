@@ -2524,5 +2524,20 @@
     "truncated": "已截斷顯示（原長 {{count}} 字元）",
     "copyFull": "複製完整內容",
     "copyFailed": "複製失敗"
+  },
+  "taskPlan": {
+    "title": "任務計畫",
+    "progress": "已完成 {{completed}} / {{total}}",
+    "status": {
+      "pending": "未開始",
+      "in_progress": "進行中",
+      "completed": "已完成"
+    },
+    "banner": {
+      "running": "正在執行",
+      "unfinished": "執行已結束，還有未完成的步驟",
+      "interrupted": "執行被中斷",
+      "failed": "執行失敗"
+    }
   }
 }

@@ -37,6 +37,11 @@ export function getToolCallFull(sessionId: string, callRowId: number) {
   return apiFetch(`/chat/${encodeURIComponent(sessionId)}/tool-calls/${callRowId}`);
 }
 
+/** 这些助手消息那一轮的任务计划快照。 */
+export function getChatTaskPlans(sessionId: string, messageIds: string[], signal?: AbortSignal) {
+  return apiFetch(`/chat/${encodeURIComponent(sessionId)}/task-plans?messageIds=${encodeURIComponent(messageIds.join(','))}`, { signal });
+}
+
 /** 上下文占用：运行时报的最近一次模型调用占用 + 模型配置里的窗口。 */
 export function getChatContextUsage(sessionId: string, signal?: AbortSignal) {
   return apiFetch(`/chat/${encodeURIComponent(sessionId)}/context-usage`, { signal });

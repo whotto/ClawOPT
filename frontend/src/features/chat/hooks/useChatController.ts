@@ -21,6 +21,7 @@ import { useComposerActions } from './useComposerActions';
 import { useGroupManagement } from './useGroupManagement';
 import { useWorkspaceChanges } from '../workspace/useWorkspaceChanges';
 import { useToolTraces } from './useToolTraces';
+import { useTaskPlans } from './useTaskPlans';
 
 /**
  * 聊天页控制器：按原 UnifiedChatView 函数体的先后顺序依次调用各段 hook。
@@ -57,6 +58,7 @@ export function useChatController(props: ChatViewProps) {
     ...useWorkspaceChanges({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, isLoading: c14.isLoading }),
     // 按运行分组的工具摘要卡（只在单聊；协调器落库的工具调用）。
     ...useToolTraces({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, isLoading: c14.isLoading }),
+    ...useTaskPlans({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, livePlan: c14.livePlan }),
   };
 }
 
