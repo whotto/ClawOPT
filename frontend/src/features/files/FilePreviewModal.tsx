@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
+import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getFileIconInfo } from '../../utils/fileUtils';
 import { fetchResource } from '../../api/files';
 import { EpubViewer } from './preview/EpubViewer';
@@ -14,6 +15,12 @@ import { PdfCanvasViewer } from './preview/PdfCanvasViewer';
 import { ZoomableWrapper } from './preview/ZoomableWrapper';
 import { TEXT_SELECTION_STYLE, DOCUMENT_PREVIEW_SCROLL_CLASS, DOCUMENT_PREVIEW_SURFACE_CLASS, DOCUMENT_PREVIEW_BODY_CLASS, sanitizeHtmlFragment, buildRenderedHtmlDocument, resolvePreviewErrorMessage, getCapabilities, getFileType, isLibreOfficeHintRelevant, getFileExtension, getDefaultViewMode, buildPreviewUrl, buildPreviewDataUrl, buildHtmlPreviewRenderUrl, decodeBase64ToBytes } from './preview/previewUtils';
 import type { PreviewState } from './preview/previewUtils';
+import { buildSandboxedHtmlDocument } from './preview/htmlSandbox';
+import { resolveHtmlPreviewImages } from './preview/htmlPreviewAssets';
+import { createPreviewRequestGuard, type PreviewRequest } from './preview/previewRequestGuard';
+import { TablePreview } from './preview/table/TablePreview';
+import { createTablePreviewWorker, runTablePreviewWorker, TablePreviewError } from './preview/table/tableWorkerProtocol';
+import { inspectZipArchive, looksLikeZip } from './preview/zipSafety';
 
 interface FilePreviewModalProps {
   url: string;
@@ -21,11 +28,16 @@ interface FilePreviewModalProps {
   onClose: () => void;
 }
 
- export default function FilePreviewModal({ url, filename, onClose }: FilePreviewModalProps) {
+/** 源码高亮的上限：更大的文件用纯文本显示（高亮器在几百 KB 的单行 HTML 上会卡住主线程）。 */
+const SOURCE_HIGHLIGHT_MAX_CHARS = 200_000;
+
+export default function FilePreviewModal({ url, filename, onClose }: FilePreviewModalProps) {
   const [preview, setPreview] = useState<PreviewState>({ status: 'loading' });
   const [viewMode, setViewMode] = useState<'source' | 'render'>(() => getDefaultViewMode(filename));
+  const [sandboxedHtml, setSandboxedHtml] = useState<{ html: string; skippedImages: number } | null>(null);
   const { t } = useTranslation();
   const previewUrl = buildPreviewUrl(url);
+  const guardRef = useRef(createPreviewRequestGuard());
 
   useEffect(() => {
     setViewMode(getDefaultViewMode(filename));
@@ -56,107 +68,126 @@ interface FilePreviewModalProps {
     window.history.back();
   };
 
+  const commit = useCallback((request: PreviewRequest, next: PreviewState) => {
+    if (request.isCurrent()) setPreview(next);
+  }, []);
+
+  // 每次换文件开一个新请求：上一个被中止，它晚到的结果一律丢掉；关闭预览时同样作废。
   useEffect(() => {
-    loadPreview();
+    const guard = guardRef.current;
+    const request = guard.begin();
+    setPreview({ status: 'loading' });
+    void loadPreview(request);
+    return () => guard.cancel();
   }, [url, filename]);
 
-  async function loadPreview() {
+  const fetchOrThrow = async (request: PreviewRequest, target: string) => {
+    const response = await fetchResource(target, { signal: request.signal });
+    if (!response.ok) throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
+    return response;
+  };
+
+  /** OOXML 渲染前的 ZIP 预检。老格式（.doc / .xls）不是 ZIP，交给渲染库自己判。不通过时返回本地化原因。 */
+  const zipSafetyError = (buffer: ArrayBuffer, requireZip: boolean): string | null => {
+    if (!requireZip && !looksLikeZip(buffer)) return null;
+    const verdict = inspectZipArchive(buffer);
+    if (verdict.ok) return null;
+    return t('filePreviewSafety.zipBlocked', { reason: t(`filePreviewSafety.zip.${verdict.reason}`) });
+  };
+
+  async function loadPreview(request: PreviewRequest) {
     try {
       // Proactive check to ensure file exists before attempting any rendering logic
-      const headResponse = await fetchResource(previewUrl, { method: 'HEAD' });
-       if (!headResponse.ok) {
+      const headResponse = await fetchResource(previewUrl, { method: 'HEAD', signal: request.signal });
+      if (!headResponse.ok) {
         if (headResponse.status === 404) {
-          setPreview({ status: 'error', message: t('filePreview.fileNotFound') });
+          commit(request, { status: 'error', message: t('filePreview.fileNotFound') });
           return;
         }
-
-        // If it's another error (like 500), we still let it try the specific loaders 
-         // which might have better error handling, or we can just throw here.
-        // Let's throw to be safe and clear.
         throw new Error(t('filePreview.accessFail', { status: headResponse.status }));
       }
     } catch (err: any) {
-      setPreview({ status: 'error', message: err.message || t('filePreview.networkFail') });
+      commit(request, { status: 'error', message: err.message || t('filePreview.networkFail') });
       return;
     }
-
 
     const fileType = getFileType(filename);
 
     switch (fileType) {
       case 'image':
-        setPreview({ status: 'ready', type: 'image' });
-        return;
       case 'video':
-        setPreview({ status: 'ready', type: 'video' });
-        return;
       case 'audio':
-        setPreview({ status: 'ready', type: 'audio' });
+        commit(request, { status: 'ready', type: fileType });
         return;
       case 'pdf':
-        await loadPdfData('source');
+        await loadPdfData(request, 'source');
         return;
       case 'docx':
       case 'xlsx':
       case 'csv':
       case 'pptx':
-        await loadOfficeFile(fileType);
+        await loadOfficeFile(request, fileType);
         return;
       case 'epub':
-        await loadEpub();
+        await loadEpub(request);
         return;
       case 'text':
       case 'code':
-        await loadText(fileType as 'text' | 'code');
+        await loadText(request, fileType as 'text' | 'code');
         return;
       default:
-        setPreview({ status: 'ready', type: 'unsupported' });
+        commit(request, { status: 'ready', type: 'unsupported' });
     }
   }
 
-  async function loadOfficeFile(fileType: string) {
+  async function loadOfficeFile(request: PreviewRequest, fileType: string) {
     const caps = await getCapabilities();
+    if (!request.isCurrent()) return;
 
     if (caps.libreoffice) {
-      await loadPdfData('converted');
+      await loadPdfData(request, 'converted');
       return;
     }
 
     switch (fileType) {
       case 'docx':
-        await loadDocxFallback();
+        await loadDocxFallback(request);
         return;
       case 'xlsx':
       case 'csv':
-        await loadXlsxFallback();
+        await loadTable(request, fileType);
         return;
       default:
-        setPreview({ status: 'ready', type: 'unsupported' });
+        commit(request, { status: 'ready', type: 'unsupported' });
     }
   }
 
-  async function loadDocxFallback() {
-     try {
-      const response = await fetchResource(previewUrl);
-      if (!response.ok) throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
+  async function loadDocxFallback(request: PreviewRequest) {
+    try {
+      const response = await fetchOrThrow(request, previewUrl);
       const arrayBuffer = await response.arrayBuffer();
+      const blocked = zipSafetyError(arrayBuffer, getFileExtension(filename) === 'docx');
+      if (blocked) {
+        commit(request, { status: 'error', message: blocked });
+        return;
+      }
+      if (!request.isCurrent()) return;
 
       const result = await mammoth.convertToHtml({ arrayBuffer });
-       setPreview({ status: 'ready', type: 'html', content: result.value });
+      commit(request, { status: 'ready', type: 'html', content: result.value });
     } catch (err: any) {
-      setPreview({ status: 'error', message: t('filePreview.previewWordFail', { message: err.message }) });
+      commit(request, { status: 'error', message: t('filePreview.previewWordFail', { message: err.message }) });
     }
-
   }
 
-  async function loadPdfData(mode: 'source' | 'converted') {
+  async function loadPdfData(request: PreviewRequest, mode: 'source' | 'converted') {
     try {
       const dataUrl = buildPreviewDataUrl(url, mode);
       if (!dataUrl) {
         throw new Error(t('filePreview.loadPdfFail'));
       }
 
-      const response = await fetchResource(dataUrl);
+      const response = await fetchResource(dataUrl, { signal: request.signal });
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
         const message = resolvePreviewErrorMessage(payload, t, 'filePreview.loadPdfFail');
@@ -167,47 +198,43 @@ interface FilePreviewModalProps {
         throw new Error(t('filePreview.loadPdfFail'));
       }
 
-      setPreview({
+      commit(request, {
         status: 'ready',
         type: 'pdf',
         pdfData: decodeBase64ToBytes(payload.data),
       });
     } catch (err: any) {
-      setPreview({ status: 'error', message: err.message || t('filePreview.loadPdfFail') });
+      commit(request, { status: 'error', message: err.message || t('filePreview.loadPdfFail') });
     }
   }
 
-  async function loadXlsxFallback() {
-     try {
-      const response = await fetchResource(previewUrl);
-      if (!response.ok) throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
+  /** XLSX / CSV：ZIP 预检（仅 xlsx）之后交给 Worker 解析，带上限与超时；换文件或关闭时 Worker 被 terminate。 */
+  async function loadTable(request: PreviewRequest, fileType: 'xlsx' | 'csv') {
+    try {
+      const response = await fetchOrThrow(request, previewUrl);
       const arrayBuffer = await response.arrayBuffer();
-
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-      
-      const htmlParts: string[] = [];
-      workbook.SheetNames.forEach((name) => {
-        const sheet = workbook.Sheets[name];
-        const html = XLSX.utils.sheet_to_html(sheet, { editable: false });
-        htmlParts.push(
-          `<div class="sheet-tab">${workbook.SheetNames.length > 1 ? `<h3 style="margin: 16px 0 8px; font-size: 14px; font-weight: 700; color: #374151;">📄 ${name}</h3>` : ''}${html}</div>`
-        );
-      });
-
-       setPreview({ status: 'ready', type: 'html', content: htmlParts.join('') });
+      if (fileType === 'xlsx') {
+        const blocked = zipSafetyError(arrayBuffer, getFileExtension(filename) === 'xlsx');
+        if (blocked) {
+          commit(request, { status: 'error', message: blocked });
+          return;
+        }
+      }
+      const table = await runTablePreviewWorker(fileType, arrayBuffer, { createWorker: createTablePreviewWorker, signal: request.signal });
+      commit(request, { status: 'ready', type: 'table', table });
     } catch (err: any) {
-      setPreview({ status: 'error', message: t('filePreview.previewExcelFail', { message: err.message }) });
+      const message = err instanceof TablePreviewError && err.code === 'timeout'
+        ? t('filePreviewSafety.tableTimeout')
+        : t('filePreview.previewExcelFail', { message: err.message });
+      commit(request, { status: 'error', message });
     }
-
   }
 
-  async function loadText(type: 'text' | 'code') {
-     try {
-      const response = await fetchResource(previewUrl);
-      if (!response.ok) throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
+  async function loadText(request: PreviewRequest, type: 'text' | 'code') {
+    try {
+      const response = await fetchOrThrow(request, previewUrl);
       const buffer = await response.arrayBuffer();
 
-      
       let decoder = new TextDecoder('utf-8', { fatal: true });
       let text = '';
       try {
@@ -216,25 +243,20 @@ interface FilePreviewModalProps {
         decoder = new TextDecoder('gbk');
         text = decoder.decode(buffer);
       }
-       
-      setPreview({ status: 'ready', type, content: text });
-    } catch (err: any) {
-      setPreview({ status: 'error', message: t('filePreview.previewTextFail', { message: err.message }) });
-    }
 
+      commit(request, { status: 'ready', type, content: text });
+    } catch (err: any) {
+      commit(request, { status: 'error', message: t('filePreview.previewTextFail', { message: err.message }) });
+    }
   }
 
-  async function loadEpub() {
+  async function loadEpub(request: PreviewRequest) {
     try {
-      const response = await fetchResource(previewUrl);
-      if (!response.ok) {
-        throw new Error(response.status === 404 ? t('filePreview.fileNotFound') : t('filePreview.loadFailStatus', { status: response.status }));
-      }
-
+      const response = await fetchOrThrow(request, previewUrl);
       const arrayBuffer = await response.arrayBuffer();
-      setPreview({ status: 'ready', type: 'epub', epubData: arrayBuffer });
+      commit(request, { status: 'ready', type: 'epub', epubData: arrayBuffer });
     } catch (err: any) {
-      setPreview({ status: 'error', message: t('filePreview.previewEpubFail', { message: err.message }) });
+      commit(request, { status: 'error', message: t('filePreview.previewEpubFail', { message: err.message }) });
     }
   }
 
@@ -253,9 +275,38 @@ interface FilePreviewModalProps {
   const isMarkdownFile = ['md', 'markdown'].includes(normalizedExt);
   const isHtmlFile = ['html', 'htm'].includes(normalizedExt);
   const isRenderedMode = supportsRenderToggle && viewMode === 'render';
-  const htmlRenderUrl = isHtmlFile ? buildHtmlPreviewRenderUrl(url) : null;
+  const htmlSource = isHtmlFile && preview.status === 'ready' ? (preview.content ?? null) : null;
+
+  // HTML 渲染视图：相对图片先经鉴权接口取成 blob:，再消毒、注入 CSP，交给空 sandbox 的 srcdoc iframe。
+  // 自带序号守卫：换文件、切回源码、关闭预览时作废，已取的 blob 地址释放。
+  useEffect(() => {
+    setSandboxedHtml(null);
+    if (htmlSource === null || !isRenderedMode) return;
+    const guard = createPreviewRequestGuard();
+    const request = guard.begin();
+    let revoke = () => {};
+    void (async () => {
+      const images = await resolveHtmlPreviewImages(htmlSource, buildHtmlPreviewRenderUrl(url), {
+        fetchImpl: fetchResource,
+        signal: request.signal,
+        origin: window.location.origin,
+      });
+      if (!request.isCurrent()) {
+        images.revoke();
+        return;
+      }
+      revoke = images.revoke;
+      const built = buildSandboxedHtmlDocument(htmlSource, { resolvedSources: images.sources });
+      setSandboxedHtml({ html: built.html, skippedImages: images.skipped });
+    })();
+    return () => {
+      guard.cancel();
+      revoke();
+    };
+  }, [htmlSource, isRenderedMode, url]);
+
   const fileType = getFileType(filename);
-  const renderedHtmlDocument = buildRenderedHtmlDocument(preview.status === 'ready' ? (preview.content || '') : '');
+  const renderedHtmlDocument = buildRenderedHtmlDocument(preview.status === 'ready' && preview.type === 'html' ? (preview.content || '') : '');
   const { Icon, typeText, bgColor } = getFileIconInfo(filename);
 
   return (
@@ -417,17 +468,18 @@ interface FilePreviewModalProps {
         )}
 
         {preview.status === 'ready' && isHtmlFile && isRenderedMode && (
-          htmlRenderUrl ? (
-            <HtmlFrameViewer src={htmlRenderUrl} />
+          sandboxedHtml ? (
+            <HtmlFrameViewer html={sandboxedHtml.html} skippedImages={sandboxedHtml.skippedImages} />
           ) : (
-            <div className={DOCUMENT_PREVIEW_SCROLL_CLASS}>
-              <div
-                className={`${DOCUMENT_PREVIEW_SURFACE_CLASS} ${DOCUMENT_PREVIEW_BODY_CLASS} overflow-hidden cursor-text`}
-                style={TEXT_SELECTION_STYLE}
-                dangerouslySetInnerHTML={{ __html: sanitizeHtmlFragment(renderedHtmlDocument) }}
-              />
+            <div className="flex flex-col items-center gap-4 text-gray-500">
+              <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+              <p className="text-sm font-medium">{t('filePreviewSafety.htmlPreparing')}</p>
             </div>
           )
+        )}
+
+        {preview.status === 'ready' && preview.type === 'table' && preview.table && (
+          <TablePreview result={preview.table} />
         )}
 
         {preview.status === 'ready' && isMarkdownFile && isRenderedMode && (
@@ -448,12 +500,25 @@ interface FilePreviewModalProps {
         {preview.status === 'ready' && (preview.type === 'text' || preview.type === 'code') && !isRenderedMode && (
           <div className={DOCUMENT_PREVIEW_SCROLL_CLASS}>
             <div className={DOCUMENT_PREVIEW_SURFACE_CLASS}>
-              <pre
-                className={`${DOCUMENT_PREVIEW_BODY_CLASS} leading-relaxed text-slate-800 font-mono whitespace-pre-wrap break-words transition-all duration-200 cursor-text select-text`}
-                style={TEXT_SELECTION_STYLE}
-              >
-                {preview.content}
-              </pre>
+              {isHtmlFile && (preview.content?.length ?? 0) <= SOURCE_HIGHLIGHT_MAX_CHARS ? (
+                <div className={`${DOCUMENT_PREVIEW_BODY_CLASS} cursor-text select-text`} style={TEXT_SELECTION_STYLE}>
+                  <SyntaxHighlighter
+                    language="markup"
+                    style={oneLight}
+                    wrapLongLines
+                    customStyle={{ margin: 0, padding: 0, background: 'transparent', fontSize: 13 }}
+                  >
+                    {preview.content || ''}
+                  </SyntaxHighlighter>
+                </div>
+              ) : (
+                <pre
+                  className={`${DOCUMENT_PREVIEW_BODY_CLASS} leading-relaxed text-slate-800 font-mono whitespace-pre-wrap break-words transition-all duration-200 cursor-text select-text`}
+                  style={TEXT_SELECTION_STYLE}
+                >
+                  {preview.content}
+                </pre>
+              )}
             </div>
           </div>
         )}

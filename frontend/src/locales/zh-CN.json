@@ -341,6 +341,30 @@
     "viewSource": "源码",
     "viewRendered": "渲染"
   },
+  "filePreviewSafety": {
+    "zipBlocked": "文件未通过安全检查，已停止预览：{{reason}}。仍可下载查看。",
+    "zip": {
+      "notZip": "不是有效的 Office（ZIP）文件包",
+      "truncated": "文件包不完整或已损坏",
+      "multiDisk": "不支持分卷压缩包",
+      "zip64": "不支持 ZIP64 格式的文件包",
+      "tooManyEntries": "文件包内的条目超过 10000 个",
+      "entryTooLarge": "有条目解压后超过 64 MB",
+      "totalTooLarge": "文件包解压后合计超过 128 MB",
+      "suspiciousRatio": "有条目的压缩比异常偏高（疑似压缩炸弹）",
+      "inconsistent": "文件包目录结构前后不一致"
+    },
+    "tableTimeout": "表格解析耗时过长，已停止。请下载后查看。",
+    "tableSheetsTruncated": "只显示前 {{shown}} 个工作表，共 {{total}} 个。",
+    "tableTruncated": "显示 {{rows}} 行 × {{cols}} 列，全表共 {{totalRows}} 行 × {{totalCols}} 列。",
+    "tableTruncatedAtLeast": "显示 {{rows}} 行 × {{cols}} 列，全表超过 {{totalRows}} 行、共 {{totalCols}} 列。",
+    "tableCellsClipped": "超过 {{chars}} 个字符的单元格已截断。",
+    "tableEmpty": "这个工作表是空的",
+    "htmlSandboxNotice": "安全预览：已禁用脚本、表单与网络请求",
+    "htmlImagesSkipped": "有 {{count}} 张图片未加载（外部地址、过大或无法读取）",
+    "htmlFrameTitle": "HTML 预览",
+    "htmlPreparing": "正在准备安全预览..."
+  },
   "unifiedChat": {
     "untitledRole": "未命名角色",
     "imageTooLargeAfterCompression": "图片 \"{{name}}\" 过大（{{originalSize}}），压缩后仍超过 {{limit}} 限制",
