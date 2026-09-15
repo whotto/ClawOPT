@@ -75,7 +75,12 @@ export function MessageList(c: MessageListProps) {
               const character = characters.find(c => c.id === session?.characterId);
               const modelId = msg.model || session?.model || character?.model || currentModel;
               const modelInfo = props.availableModels?.find(m => m.id === modelId);
-              modelDisplayName = modelInfo?.alias || modelId || 'OpenClaw';
+              // 外部运行时单聊：标签是「运行时 · 模式」，不是 OpenClaw 的模型名（流式中途消息还没有 model_used）。
+              const externalRuntime = (session as { externalRuntime?: string } | undefined)?.externalRuntime;
+              const externalMode = (session as { externalConfig?: { mode?: string } } | undefined)?.externalConfig?.mode === 'scoped' ? 'scoped' : 'global';
+              modelDisplayName = externalRuntime
+                ? t('externalAgent.badge', { runtime: t(`externalAgent.runtimeName.${externalRuntime}`, { defaultValue: externalRuntime }), mode: t(`groupRuntime.mode_${externalMode}`) })
+                : modelInfo?.alias || modelId || 'OpenClaw';
               agentName = msg.agentName || activeSessionName;
               avatarUrl = '/ai-robot.jpg';
             } else {

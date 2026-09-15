@@ -70,7 +70,7 @@ export type GroupMemberDraft = {
 };
 
 /** 成员运行时选择器的一项（后端 GET /api/runtime/member-runtimes）。 */
-export type MemberRuntimeOption = { id: string; name: string; kind: 'cli' | 'remote'; available: boolean; version: string | null };
+export type MemberRuntimeOption = import('../../components/runtime/runtimeSelection').RuntimeOption;
 
 /** 从群成员行（后端形状）还原编辑草稿里的运行时字段。 */
 export function memberRuntimeDraftFields(member: { runtime?: string | null; external_config?: string | null }): Pick<GroupMemberDraft, 'runtime' | 'externalConfig'> {

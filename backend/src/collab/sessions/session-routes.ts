@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   type AgentProvisioner,
   type AgentSettings,
@@ -22,6 +23,7 @@ import {
 import type { GatewayConnections } from '../../openclaw';
 import { abortOpenClawSessionRuns, buildOpenClawChatSessionKey, ConfigReadError } from '../../openclaw';
 import type { RunCoordinator, RuntimePlatform } from '../../runtime';
+import { normalizeExternalSessionConfig, parseExternalSessionConfig } from './external-chat-turn';
 import type { UploadService } from '../../workspace';
 import type { ChatLifecycle } from './chat-lifecycle';
 import type { ChatRuns } from './chat-run-managers';
@@ -50,7 +52,11 @@ export function registerSessionListRoutes(app: RouteApp, ctx: SessionListRoutesD
 
   app.get('/api/sessions', (_req, res) => {
     const sessions = sessionManager.getAllSessions();
-    const sessionsWithModel = sessions.map(session => {
+    const sessionsWithModel = sessions.map(({ external_session_id: _handle, external_session_resumable: _resumable, ...session }) => {
+      if (session.external_runtime) {
+        // 外部运行时会话：没有 OpenClaw 侧的模型与运行时设置；界面按 externalRuntime / externalConfig 显示。
+        return { ...session, externalRuntime: session.external_runtime, externalConfig: parseExternalSessionConfig(session.external_config), model: '', configReadFailed: false };
+      }
       // 配置读不动时退回旧的降级行为（model 空字符串、运行时设置退回默认值），
       // 不让整条列表 500——这里返回的是数组，没有顶层字段可挂标记位，所以
       // configReadFailed 挂在每一行上。
@@ -81,7 +87,7 @@ export type SessionRoutesDeps = {
   sessionManager: SessionManager;
   chatRuns: ChatRuns;
   runCoordinator: RunCoordinator;
-  runtimePlatform: Pick<RuntimePlatform, 'releaseOwner'>;
+  runtimePlatform: Pick<RuntimePlatform, 'releaseOwner' | 'registry'>;
   chatLifecycle: ChatLifecycle;
   chatMessages: ChatMessages;
   sessionRuntime: SessionRuntime;
@@ -122,6 +128,29 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
 
     if (sessionManager.getSession(normalizedId)) {
       return res.status(400).json(buildStructuredApiError(AGENT_ID_ALREADY_EXISTS_ERROR_CODE, null, { agentId: normalizedId }));
+    }
+
+    // 外部运行时单聊：这个会话的 Agent 是本机的一个编码类外部运行时（Claude Code / Codex / …），
+    // 不在 openclaw.json 里装配任何东西；续话句柄在这里生成。
+    const externalRuntime = typeof req.body?.externalRuntime === 'string' ? req.body.externalRuntime.trim() : '';
+    if (externalRuntime) {
+      const registered = ctx.runtimePlatform.registry.get(externalRuntime);
+      if (!registered || registered.descriptor.kind === 'remote') {
+        return res.status(400).json(buildStructuredApiError('runtime.unknown', `Unknown external runtime: ${externalRuntime}`));
+      }
+      try {
+        const session = sessionManager.createSession({
+          id: normalizedId,
+          agentId: normalizedId,
+          name,
+          external_runtime: externalRuntime,
+          external_config: normalizeExternalSessionConfig(req.body?.externalConfig),
+          external_session_id: randomUUID(),
+        });
+        return res.json({ success: true, session });
+      } catch (err: any) {
+        return res.status(500).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, err?.message));
+      }
     }
 
     // Provide basic default for first session if it doesn't exist
@@ -211,9 +240,18 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     const systemPromptMode = normalizeAgentSystemPromptMode(req.body?.systemPromptMode ?? req.body?.system_prompt_mode);
     const toolMode = normalizeAgentToolMode(req.body?.toolMode ?? req.body?.tool_mode);
     const session = sessionManager.getSession(req.params.id);
-    
+
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+
+    if (session.external_runtime) {
+      // 外部运行时会话只改名字与运行时配置（模式 / 模型 / 推理强度 / 工作目录）；没有 OpenClaw 侧的文件可写。
+      const updated = sessionManager.updateSession(req.params.id, {
+        name: typeof name === 'string' && name.trim() ? name : session.name,
+        ...(req.body?.externalConfig !== undefined ? { external_config: normalizeExternalSessionConfig(req.body.externalConfig) } : {}),
+      });
+      return res.json({ success: true, session: updated });
     }
 
     try {
@@ -259,22 +297,25 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
 
     const agentId = session.agentId;
+    const isExternalRuntimeSession = Boolean(session.external_runtime);
     const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
     bumpSessionInterruptionEpoch(req.params.id);
     localChatOperationManager.abort(req.params.id, interruptedEpoch);
     try {
       await runCoordinator.abort(req.params.id, 'user_stop');
     } catch {}
-    try {
-      const client = await getConnection(req.params.id);
-      await abortOpenClawSessionRuns(
-        client,
-        buildOpenClawChatSessionKey(req.params.id, agentId || 'main'),
-        `session ${req.params.id} delete`,
-        { retryOnMiss: true },
-      );
-    } catch (error) {
-      console.warn(`[chat] Failed to abort orphan OpenClaw runs while deleting session ${req.params.id}:`, error);
+    if (!isExternalRuntimeSession) {
+      try {
+        const client = await getConnection(req.params.id);
+        await abortOpenClawSessionRuns(
+          client,
+          buildOpenClawChatSessionKey(req.params.id, agentId || 'main'),
+          `session ${req.params.id} delete`,
+          { retryOnMiss: true },
+        );
+      } catch (error) {
+        console.warn(`[chat] Failed to abort orphan OpenClaw runs while deleting session ${req.params.id}:`, error);
+      }
     }
     disconnectConnection(req.params.id);
     const success = sessionManager.deleteSession(req.params.id);
@@ -283,7 +324,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
       sessionInterruptionEpochs.delete(req.params.id);
       // P2：这个会话在各外部运行时下的运行时目录一起回收（参考实现从不回收）。
       ctx.runtimePlatform.releaseOwner({ kind: 'session', sessionId: req.params.id });
-      if (agentId && agentId !== 'main') {
+      if (agentId && agentId !== 'main' && !isExternalRuntimeSession) {
         // deprovision() 现在会对「配置读不动」抛 ConfigReadError（原来是静默
         // `return false`，于是这条路由报 200 success 而配置条目、工作区、状态目录、
         // 记忆库一个都没删）。这里必须接住：本路由此前**完全没有 try/catch**，

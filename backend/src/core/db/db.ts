@@ -120,6 +120,17 @@ export type SessionRow = {
   runtime_mode?: AgentRuntimeMode;
   system_prompt_mode?: AgentSystemPromptMode;
   tool_mode?: AgentToolMode;
+  /**
+   * 外部运行时单聊（P2 集成）：这个会话的 Agent 不是 OpenClaw 网关上的 Agent，而是一个编码类外部运行时
+   * （`claude-code` / `codex` / …，与 `group_members.runtime` 同一套取值）。null = 普通 OpenClaw 会话。
+   */
+  external_runtime?: string | null;
+  /** 外部运行时配置（JSON，不含凭据）：mode、scoped 的 model / reasoningEffort、workingDir。 */
+  external_config?: string | null;
+  /** 续话句柄（UUID，交给适配器当 sessionId）；上一轮失败时换新。 */
+  external_session_id?: string | null;
+  /** 上一轮成功，下一轮可以续。 */
+  external_session_resumable?: number | null;
 };
 
 export type CharacterRow = {
@@ -450,6 +461,11 @@ export class DB {
     try {
       this.db.exec("ALTER TABLE sessions ADD COLUMN tool_mode TEXT DEFAULT 'full'");
     } catch (e: any) {}
+    // 外部运行时单聊（P2 集成）：列缺省 null，老会话照旧是 OpenClaw 会话。
+    try { this.db.exec("ALTER TABLE sessions ADD COLUMN external_runtime TEXT"); } catch (e: any) {}
+    try { this.db.exec("ALTER TABLE sessions ADD COLUMN external_config TEXT"); } catch (e: any) {}
+    try { this.db.exec("ALTER TABLE sessions ADD COLUMN external_session_id TEXT"); } catch (e: any) {}
+    try { this.db.exec("ALTER TABLE sessions ADD COLUMN external_session_resumable INTEGER DEFAULT 0"); } catch (e: any) {}
 
     try {
       this.db.exec("ALTER TABLE characters ADD COLUMN model TEXT");
@@ -932,7 +948,7 @@ export class DB {
   // --- Sessions ---
   saveSession(session: SessionRow) {
     this.db
-      .prepare('INSERT INTO sessions (id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, agentId=excluded.agentId, characterId=excluded.characterId, position=excluded.position, updated_at=excluded.updated_at, process_start_tag=excluded.process_start_tag, process_end_tag=excluded.process_end_tag, runtime_mode=excluded.runtime_mode, system_prompt_mode=excluded.system_prompt_mode, tool_mode=excluded.tool_mode')
+      .prepare('INSERT INTO sessions (id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode, external_runtime, external_config, external_session_id, external_session_resumable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, agentId=excluded.agentId, characterId=excluded.characterId, position=excluded.position, updated_at=excluded.updated_at, process_start_tag=excluded.process_start_tag, process_end_tag=excluded.process_end_tag, runtime_mode=excluded.runtime_mode, system_prompt_mode=excluded.system_prompt_mode, tool_mode=excluded.tool_mode, external_runtime=excluded.external_runtime, external_config=excluded.external_config, external_session_id=excluded.external_session_id, external_session_resumable=excluded.external_session_resumable')
       .run(
         session.id,
         session.name,
@@ -946,19 +962,23 @@ export class DB {
         session.runtime_mode || 'configured',
         session.system_prompt_mode || 'system',
         session.tool_mode || 'full',
+        session.external_runtime || null,
+        session.external_config || null,
+        session.external_session_id || null,
+        session.external_session_resumable ? 1 : 0,
       );
   }
 
   getSession(id: string): SessionRow | undefined {
-    return this.db.prepare('SELECT id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode FROM sessions WHERE id = ?').get(id) as SessionRow | undefined;
+    return this.db.prepare('SELECT id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode, external_runtime, external_config, external_session_id, external_session_resumable FROM sessions WHERE id = ?').get(id) as SessionRow | undefined;
   }
 
   getSessionByAgentId(agentId: string): SessionRow | undefined {
-    return this.db.prepare('SELECT id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode FROM sessions WHERE agentId = ? ORDER BY updated_at DESC LIMIT 1').get(agentId) as SessionRow | undefined;
+    return this.db.prepare('SELECT id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode, external_runtime, external_config, external_session_id, external_session_resumable FROM sessions WHERE agentId = ? ORDER BY updated_at DESC LIMIT 1').get(agentId) as SessionRow | undefined;
   }
 
   getSessions(): SessionRow[] {
-    return this.db.prepare('SELECT id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode FROM sessions ORDER BY position ASC, updated_at DESC').all() as SessionRow[];
+    return this.db.prepare('SELECT id, name, agentId, characterId, position, created_at, updated_at, process_start_tag, process_end_tag, runtime_mode, system_prompt_mode, tool_mode, external_runtime, external_config, external_session_id, external_session_resumable FROM sessions ORDER BY position ASC, updated_at DESC').all() as SessionRow[];
   }
 
   updateSessionPositions(orders: { id: string; position: number }[]) {

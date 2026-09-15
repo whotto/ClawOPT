@@ -1753,6 +1753,8 @@ export class GroupChatEngine extends EventEmitter {
         title: member.display_name,
         adapter,
         request,
+        // 仲裁表的用量维度按模式选路（scoped 信代理、global 信 CLI）：不传的话 scoped 成员会记 CLI 的估计值、丢掉代理的真实计费。
+        proxyMode: request.mode,
         projector: (run) => createExternalMemberProjector({
           db: this.db,
           emit: (event, payload) => this.emit(event, payload),

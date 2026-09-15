@@ -130,3 +130,20 @@ export function parseRuntimeQuery(search: string): { runtimeId: string | null; s
     section: section === 'mcp' || section === 'skills' ? section : 'settings',
   };
 }
+
+export type DiagnoseAgent = { id: string; name: string };
+
+/** 某个运行时的诊断单聊固定用一个 id：同一个运行时反复点「让 AI 诊断」复用同一个会话（已存在时创建会报 idAlreadyExists）。 */
+export function diagnoseSessionId(runtime: string): string {
+  return `diagnose-${runtime}`;
+}
+
+/** 诊断目标：`runtime:<id>` = 新开 / 复用该运行时的诊断单聊；其余是已有会话的 id。 */
+export function pickDiagnoseTarget(target: string, agents: DiagnoseAgent[]): { sessionId: string; createRuntime: string | null } {
+  if (target.startsWith('runtime:')) {
+    const runtime = target.slice('runtime:'.length);
+    const sessionId = diagnoseSessionId(runtime);
+    return { sessionId, createRuntime: agents.some((agent) => agent.id === sessionId) ? null : runtime };
+  }
+  return { sessionId: target, createRuntime: null };
+}

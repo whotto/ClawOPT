@@ -89,7 +89,8 @@
     "searchAddAgent": "Search and add agents...",
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
-    "runtimesManage": "Agent Runtimes"
+    "runtimesManage": "Agent Runtimes",
+    "externalAgent": "External agent"
   },
   "common": {
     "details": "Details",
@@ -974,7 +975,11 @@
       "noAgents": "No agents available yet",
       "agent": "Agent",
       "prompt": "Prompt",
-      "open": "Open chat"
+      "open": "Open chat",
+      "sessionName": "{{runtime}} diagnostics",
+      "externalGroup": "Coding agents on this host",
+      "externalOption": "{{runtime}} (diagnostic chat)",
+      "agentsGroup": "Agents"
     },
     "homes": {
       "title": "Runtime directory cleanup",
@@ -1034,7 +1039,23 @@
     "workingDir": "Working directory",
     "model": "Model",
     "modelPlaceholder": "Leave empty for the runtime default",
-    "notInstalledHint": "This runtime is not installed on this host yet; install it under Team → Agent Runtimes"
+    "notInstalledHint": "This runtime is not installed on this host yet; install it under Team → Agent Runtimes",
+    "installedOption": "{{name}} · v{{version}}",
+    "detected": "Detected on this host · v{{version}}",
+    "notDetected": "Not detected on this host",
+    "approvals": "Interactive approvals",
+    "probedAt": "checked {{time}}",
+    "mode": "Mode",
+    "mode_global": "Global",
+    "mode_globalHint": "The CLI uses its own login, config and model",
+    "mode_scoped": "Scoped",
+    "mode_scopedHint": "ClawOPT picks the provider and model; the CLI only talks to the local proxy",
+    "scopedModelPlaceholder": "Choose a model from ClawOPT models",
+    "noEndpoint": "Other",
+    "reasoningEffort": "Reasoning effort",
+    "reasoningDefault": "Runtime default",
+    "noScopedModels": "No models configured in ClawOPT yet. Add a provider in Settings → Models first.",
+    "scopedKeyHint": "The provider key stays on the server; the CLI only gets a per-run proxy token."
   },
   "remoteOpenclaw": {
     "gatewayUrl": "Gateway URL (ws / wss)",
@@ -1128,5 +1149,25 @@
     "statusDone": "Status: model {{model}} · session {{nativeSessionId}} · thinking {{thinkingLevel}} · {{messageCount}} messages · auto-compaction {{autoCompaction}}",
     "usageDone": "Usage: input {{inputTokens}} · output {{outputTokens}} · cache read {{cacheReadTokens}} · cache write {{cacheWriteTokens}} · cost ${{costUsd}} · context {{contextTokens}} / {{contextWindow}} ({{contextPercent}}%)",
     "failed": "/{{command}} failed: {{error}}"
+  },
+  "externalAgent": {
+    "createTitle": "New external agent chat",
+    "editTitle": "External agent settings",
+    "description": "A chat whose agent is a coding CLI on this host (Claude Code, Codex, Pi, …), run by ClawOPT.",
+    "runtime": "Runtime",
+    "name": "Name",
+    "commandsHint": "In the chat, /compact, /status and /usage are sent to the runtime itself.",
+    "confirmDelete": "Confirm delete",
+    "create": "Create",
+    "badge": "{{runtime}} · {{mode}}",
+    "runtimeName": {
+      "claude-code": "Claude Code",
+      "codex": "Codex",
+      "pi": "Pi",
+      "grok": "Grok Build",
+      "opencode": "OpenCode",
+      "dsh": "DeepSeek Harness",
+      "hermes": "Hermes Agent"
+    }
   }
 }

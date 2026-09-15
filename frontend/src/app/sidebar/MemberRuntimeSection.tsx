@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getRemoteMemberSecret, testRemoteOpenClaw } from '../../api/runtime';
+import RuntimeSelectionFields from '../../components/runtime/RuntimeSelectionFields';
+import { runtimeOptionLabel } from '../../components/runtime/runtimeSelection';
 import { MODAL_FIELD_LABEL_CLASS, MODAL_TEXT_INPUT_CLASS, type GroupMemberDraft, type MemberRuntimeOption } from './sidebarTypes';
 
 type TestState = { status: 'idle' | 'running' | 'ok' | 'failed'; message: string };
 
 /**
- * 群成员的运行时：OpenClaw（默认）/ 本机外部 CLI（登记了适配器的）/ 远程 OpenClaw 网关上的 Agent。
+ * 群成员的运行时：OpenClaw（默认）/ 七个本机外部 CLI（带检测状态；模式、模型、推理强度、工作目录）/ 远程 OpenClaw 网关上的 Agent。
  * 远程成员的令牌**只写**：输入框永远是空的，已保存时占位提示「已保存，留空不修改」；保存群之后才写进加密存储。
  */
 export default function MemberRuntimeSection({ member, runtimes, groupId, onChange }: {
@@ -71,25 +73,13 @@ export default function MemberRuntimeSection({ member, runtimes, groupId, onChan
         >
           <option value="openclaw">{t('groupRuntime.openclaw')}</option>
           {runtimes.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.kind === 'remote' ? t('groupRuntime.remoteOption') : item.available ? item.name : t('groupRuntime.notInstalledOption', { name: item.name })}
-            </option>
+            <option key={item.id} value={item.id}>{runtimeOptionLabel(item, t)}</option>
           ))}
         </select>
       </div>
 
       {option && option.kind !== 'remote' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className={MODAL_FIELD_LABEL_CLASS}>{t('groupRuntime.workingDir')}</label>
-            <input className={MODAL_TEXT_INPUT_CLASS} value={String(config.workingDir ?? '')} onChange={(event) => setConfig('workingDir', event.target.value)} placeholder="/srv/project" />
-          </div>
-          <div>
-            <label className={MODAL_FIELD_LABEL_CLASS}>{t('groupRuntime.model')}</label>
-            <input className={MODAL_TEXT_INPUT_CLASS} value={String(config.model ?? '')} onChange={(event) => setConfig('model', event.target.value)} placeholder={t('groupRuntime.modelPlaceholder')} />
-          </div>
-          {!option.available && <p className="sm:col-span-2 text-xs text-amber-700">{t('groupRuntime.notInstalledHint')}</p>}
-        </div>
+        <RuntimeSelectionFields option={option} config={config} onChange={(next) => onChange({ externalConfig: next })} />
       )}
 
       {isRemote && (

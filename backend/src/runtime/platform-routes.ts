@@ -112,9 +112,20 @@ export function registerRuntimePlatformRoutes(app: RouteApp, ctx: RuntimePlatfor
 
   app.get('/api/runtime/member-runtimes', handle(async (_req, res) => {
     const entries = runtimePlatform.registry.list();
-    const runtimes = await Promise.all(entries.map(async ({ descriptor }) => {
+    const runtimes = await Promise.all(entries.map(async ({ descriptor, capabilities }) => {
       const status = manager.cachedStatus(descriptor.id) ?? await manager.status(descriptor.id);
-      return { id: descriptor.id, name: descriptor.name, kind: descriptor.kind ?? 'cli', available: status.installed, version: status.version };
+      return {
+        id: descriptor.id,
+        name: descriptor.name,
+        kind: descriptor.kind ?? 'cli',
+        available: status.installed,
+        version: status.version,
+        probedAt: status.probedAt,
+        // 选择器按能力显示配置项（模式、推理强度），不按运行时名字写 if。
+        modes: capabilities?.proxyMode ?? [],
+        approvals: Boolean(capabilities?.approvals),
+        nativeCompact: Boolean(capabilities?.nativeCompact),
+      };
     }));
     res.json({ success: true, runtimes });
   }));

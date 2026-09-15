@@ -212,6 +212,21 @@ describe('会话生命周期', () => {
     }
   });
 
+  it('成员选了 scoped：请求模式与协调器提交的 proxyMode 都是 scoped（用量才会按仲裁表只信代理），成员配置随请求带给解析器', async () => {
+    // 集成 P2 真机：不传 proxyMode 时 scoped 成员的用量记成了 CLI 的估计值（input 0、model 空），代理的真实计费被仲裁丢掉。
+    const engine = makeEngine();
+    const seen: any[] = [];
+    const adapter = {
+      ...outcomeAdapter({ kind: 'completed', outputText: 'ok' }),
+      start: (context: any) => { seen.push(context); return { done: Promise.resolve({ kind: 'completed', outputText: 'ok' }), interrupt: async () => ({ synced: true }), status: () => ({ phase: 'finished' as const }) }; },
+    };
+    await runExternal(engine, member({ external_config: JSON.stringify({ mode: 'scoped', model: 'deepseek/deepseek-v4', workingDir: '/srv/app' }) }), adapter);
+    expect(seen[0].proxyMode).toBe('scoped');
+    expect(seen[0].request).toMatchObject({ mode: 'scoped', runtimeConfig: { model: 'deepseek/deepseek-v4' }, owner: { kind: 'room-member', groupId: 'g1', memberId: 'm1' } });
+    await runExternal(engine, member(), adapter);
+    expect(seen[1].proxyMode).toBe('global');
+  });
+
   it('库里的运行时没有对应适配器：消息里说清楚，不假装在跑', async () => {
     const engine = makeEngine();
     engine.useRuntimeAdapters(() => null);

@@ -180,6 +180,7 @@ export default function RuntimesPage() {
       {diagnose && (
         <DiagnoseDialog
           agents={shell.sessions.map((session) => ({ id: session.id, name: session.name }))}
+          onSessionsChanged={shell.reloadSessions}
           prompt={diagnose.prompt}
           onClose={() => setDiagnose(null)}
         />

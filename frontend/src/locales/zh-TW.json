@@ -89,7 +89,8 @@
     "searchAddAgent": "搜尋並新增智能體...",
     "addToFavorites": "加入收藏",
     "removeFromFavorites": "取消收藏",
-    "runtimesManage": "Agent 執行時"
+    "runtimesManage": "Agent 執行時",
+    "externalAgent": "外部 Agent"
   },
   "common": {
     "details": "詳情",
@@ -974,7 +975,11 @@
       "noAgents": "還沒有可用的 Agent",
       "agent": "交給哪個 Agent",
       "prompt": "提示詞",
-      "open": "開啟對話"
+      "open": "開啟對話",
+      "sessionName": "{{runtime}} 診斷",
+      "externalGroup": "本機程式碼 Agent",
+      "externalOption": "{{runtime}}（診斷單聊）",
+      "agentsGroup": "智慧體"
     },
     "homes": {
       "title": "執行時目錄回收",
@@ -1034,7 +1039,23 @@
     "workingDir": "工作目錄",
     "model": "模型",
     "modelPlaceholder": "留空使用執行時預設模型",
-    "notInstalledHint": "本機還沒裝這個執行時，可到「團隊 → Agent 執行時」安裝"
+    "notInstalledHint": "本機還沒裝這個執行時，可到「團隊 → Agent 執行時」安裝",
+    "installedOption": "{{name}} · v{{version}}",
+    "detected": "本機已偵測到 · v{{version}}",
+    "notDetected": "本機未偵測到",
+    "approvals": "支援互動審批",
+    "probedAt": "偵測於 {{time}}",
+    "mode": "模式",
+    "mode_global": "全域",
+    "mode_globalHint": "CLI 使用自己的登入、設定與模型",
+    "mode_scoped": "託管",
+    "mode_scopedHint": "由 ClawOPT 選擇服務商與模型，CLI 只連本地代理",
+    "scopedModelPlaceholder": "從 ClawOPT 的模型設定中選擇",
+    "noEndpoint": "其他",
+    "reasoningEffort": "推理強度",
+    "reasoningDefault": "執行環境預設",
+    "noScopedModels": "ClawOPT 裡還沒有設定模型，請先到「設定 → 模型」新增服務商。",
+    "scopedKeyHint": "服務商 key 只留在伺服器端，CLI 每輪只拿到一個代理權杖。"
   },
   "remoteOpenclaw": {
     "gatewayUrl": "閘道器地址（ws / wss）",
@@ -1128,5 +1149,25 @@
     "statusDone": "狀態：模型 {{model}} · 會話 {{nativeSessionId}} · 思考強度 {{thinkingLevel}} · {{messageCount}} 則訊息 · 自動壓縮 {{autoCompaction}}",
     "usageDone": "用量：輸入 {{inputTokens}} · 輸出 {{outputTokens}} · 快取讀 {{cacheReadTokens}} · 快取寫 {{cacheWriteTokens}} · 費用 ${{costUsd}} · 上下文 {{contextTokens}} / {{contextWindow}}（{{contextPercent}}%）",
     "failed": "/{{command}} 執行失敗：{{error}}"
+  },
+  "externalAgent": {
+    "createTitle": "新增外部 Agent 單聊",
+    "editTitle": "外部 Agent 設定",
+    "description": "這個單聊的 Agent 是本機的一個程式碼類 CLI（Claude Code、Codex、Pi……），由 ClawOPT 驅動。",
+    "runtime": "執行環境",
+    "name": "名稱",
+    "commandsHint": "在單聊裡輸入 /compact、/status、/usage 會交給執行環境本身執行。",
+    "confirmDelete": "確認刪除",
+    "create": "建立",
+    "badge": "{{runtime}} · {{mode}}",
+    "runtimeName": {
+      "claude-code": "Claude Code",
+      "codex": "Codex",
+      "pi": "Pi",
+      "grok": "Grok Build",
+      "opencode": "OpenCode",
+      "dsh": "DeepSeek Harness",
+      "hermes": "Hermes Agent"
+    }
   }
 }

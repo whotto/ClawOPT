@@ -64,6 +64,15 @@ export function SessionCard({
             // 外接 Agent（Claude Code 等）是一个模型 ref —— `claude-cli/claude-sonnet-5`，
             // 别名 `Claude Code`。所以这里显示模型别名，对普通 Agent 和外接 Agent
             // 都是对的，不需要第二套显示逻辑。
+            const externalRuntime = (s as any).externalRuntime as string | undefined;
+            if (externalRuntime) {
+              const mode = (s as any).externalConfig?.mode === 'scoped' ? 'scoped' : 'global';
+              return (
+                <div className="text-[11px] font-medium truncate max-w-full text-gray-500" data-testid="external-session-badge">
+                  {t('externalAgent.badge', { runtime: t(`externalAgent.runtimeName.${externalRuntime}`, { defaultValue: externalRuntime }), mode: t(`groupRuntime.mode_${mode}`) })}
+                </div>
+              );
+            }
             const mId = (s as any).model;
             if (!mId) return null;
             const mInfo = availableModels.find(m => m.id === mId);

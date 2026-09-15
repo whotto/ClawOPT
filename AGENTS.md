@@ -15,7 +15,7 @@
   - `runtime/`: 执行平面的唯一入口（P1a 起）。`contract/`（`AgentRuntimeAdapter` 接口、能力声明、Responses 风格规范事件、事实来源仲裁表、文本去重）；`coordinator/`（运行协调器：会话行、run marker、陈旧事件、单会话单运行与队列、中止宽限、重放缓冲、工具调用原子落库、用量去重、终态顺序、审批/澄清注册表、工作区 diff 检查点缝）；`adapters/`（`openclaw` 网关单聊；编码类外部运行时各一个目录，共用件在 `_shared/`：可注入的进程执行器、子进程环境、续话判定、规范事件合成；`registry.ts` 是唯一的编码类运行时清单，见「外部运行时适配器」）；运行时不变量。P2 平台：`proxy/`（本地模型代理，Anthropic ↔ Chat ↔ Responses 互转与 tee）、`mcp/`（托管 MCP 注入、每运行健康隔离、各运行时原生 MCP 配置塑形纯函数、TOML / YAML 子集）、`manager/`（运行时描述符的唯一一份、PATH 发现、子进程环境白名单的唯一一份、输出脱敏规则的唯一一份、安装升级卸载与升级锁、主机能力、原生配置页后端、运行时目录与回收）、`remote-openclaw/`（远程 OpenClaw 网关成员）、`adapter-registry.ts`（`registerAdapter(descriptor, factory)`，七个编码类运行时与远程 OpenClaw 都登记在这里）、`platform.ts` / `platform-routes.ts`（组装与 `/api/runtime/*`）、`net-policy.ts`（出站地址策略；P4a 的 `core/net` 合入时二者取一份）、`platform-store.ts`（运行时平面的私有文件与本机加密）。
   - `control/`: 控制面。agents / characters / models（含生图）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics 的路由与服务。
   - `workspace/`: 上传、文件下载与预览、链接改写、文档与音频工具链。
-  - `collab/sessions/`: 单聊（会话、历史、消息、OpenClaw 运行的投影器 `openclaw-chat-projection.ts`、流出口 `chat-stream.ts`）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账、外部成员运行的投影器 `external-member-run.ts`、群聊帧唯一构造处 `room-frames.ts`）。
+  - `collab/sessions/`: 单聊（会话、历史、消息、OpenClaw 运行的投影器 `openclaw-chat-projection.ts`、流出口 `chat-stream.ts`；外部运行时单聊 `external-chat-turn.ts` + 投影器 `external-chat-projection.ts`，会话命令结果的结构化消息 `chat-command-result.ts`）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账、外部成员运行的投影器 `external-member-run.ts`、群聊帧唯一构造处 `room-frames.ts`）。
   - `bootstrap/realtime.ts`: 把 `/ws` 装到 HTTP 服务上（主题授权、接回快照、交互答复）。
   - 模块之间只经各自的 `index.ts`（barrel）互相导入；`*-routes.ts` 只由 bootstrap 注册，服务不得引用。由 `npm run boundaries:check` 机械校验。
 - `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。`frontend/src/` 下：
@@ -24,7 +24,7 @@
   - `pages/`: 路由页面容器。`chat/`（单聊与群聊共用同一组件实例）、`settings/`（所有页签共用一个挂载实例；状态在 `hooks/`，页签在 `tabs/`，弹窗在 `modals/`，预设库在 `presets/`）、`login/`。
   - `features/`: 页面内功能块。`chat/`（`hooks/` 状态与副作用、`components/` 展示层、`lib/` 纯函数、`message/` 消息气泡与过程块）、`files/`（文件预览，按格式分查看器）。
   - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`，实时通道客户端（`/ws`，重连退避、重新订阅、旧 socket 丢弃）在 `ws.ts`；单聊逐帧读取统一经 `features/chat/lib/chatStream.ts`，SSE 与 WebSocket 给出同一串帧。组件里不要再直接写 `fetch`，也不要自己 `new WebSocket`。
-  - `components/`: 跨页面复用的小组件；`utils/`: 与页面无关的纯逻辑（`message-merge`、`history-window` 等）；`locales/`: 三语文案。
+  - `components/`: 跨页面复用的小组件（`components/runtime/`：外部运行时选择的纯逻辑与配置项组件，群成员运行时与外部运行时单聊共用）；`utils/`: 与页面无关的纯逻辑（`message-merge`、`history-window` 等）；`locales/`: 三语文案。
   - 单个组件文件不超过 800 行；确需超过的在文件头写一行原因（目前只有 `features/chat/message/MessageBubble.tsx`）。
 - `docs/`: 项目截图和文档资源。
 - `install.sh`, `deploy-release.sh`, `clawopt.service`: 安装与部署脚本。
@@ -87,6 +87,7 @@
 - **运行时安装升级不碰系统**：npm 全局安装装 `@latest`（不钉版本，官方源的运行时加 `--registry`）；pip 运行时（hermes-agent）装进 `<数据目录>/runtime/venvs/<id>`，**永远不用系统 pip**；不是 npm 全局、也不是我们 venv 里的安装（Homebrew cask 等）只探测不代管，升级卸载一律 409 `runtime.notManagedByClawopt`。升级锁、准备计数（`beginRun`）、活动版本号、连续空闲 60 秒、上锁前同步复查只在 `runtime/manager/runtime-manager.ts` 里实现一次。测安装卸载只能用隔离的 `npm_config_prefix`。
 - **原生配置页凭据不出服务端**：读出时按键名与值形状把凭据换成 `<clawopt:redacted:N>`，保存时按序号从磁盘当前内容换回，标记对不上 400；认证文件（`auth.json`、`.credentials.json`、`.env`）只报在不在，不读不写；MCP 列表不回 env / headers 的值。改原生 MCP 配置用 `runtime/mcp/config-shapes.ts` 的纯函数：保留用户内容，托管条目（`clawopt-` 前缀或 env `CLAWOPT_MANAGED_MCP=1`，TOML/YAML 另有成对注释标记块）剥掉重生成；读不懂的文件报错，**绝不覆盖**。每次运行前的 MCP 健康隔离只改运行副本，隔离步骤自身失败放行。
 - **远程 OpenClaw 成员**（`runtime/remote-openclaw`）：`external_config` 只放网关地址、远程 Agent、受信任局域网开关；令牌走 `PUT /api/runtime/remote-openclaw/members/:groupId/:agentId/token`（只写，空串不修改）进加密存储，接口只回 `hasToken`；群成员 `external_config` 写入时剥掉凭据类键（`GET /api/groups` 会原样回给前端）。地址只收 ws/wss，内网要打开受信任局域网；失败一律带 `remoteOpenclaw.*` messageCode。
+- **外部运行时单聊**：会话行上 `external_runtime` 非空 = 这个会话的 Agent 是本机的编码类外部运行时（不在 openclaw.json 里装配任何东西）。`external_config` 只放 `{mode, model, reasoningEffort, workingDir}`（scoped 的 model 是 ClawOPT 模型配置里的 `<端点>/<模型>`，key 由服务端解析器取），`external_session_id` / `external_session_resumable` 是续话句柄与「上一轮成功」，失败换新句柄。`/api/chat` 与 `/regenerate` 在网关与内建斜杠命令之前分流；`/compact` `/status` `/usage`（`/context`）交给运行时本身。群成员与单聊都把模式作为协调器提交的 `proxyMode` 传下去——不传的话 scoped 的用量会按 global 仲裁，记成 CLI 的估计值、丢掉代理的真实计费（集成 P2 真机抓到）。界面按 `GET /api/runtime/member-runtimes` 给的能力（`modes`、`approvals`）显示配置项，侧栏「外部 Agent」新建，详情按钮打开它自己的设置弹窗；「让 AI 诊断」在装了 Claude Code / Codex 时默认交给它们的诊断单聊（固定 id `diagnose-<运行时>`，global 模式）。
 - **运行时目录随归属回收**：`<数据目录>/runtime/<runtime>/<hash>`，删会话、删群、移出成员时 `runtimePlatform.releaseOwner(...)`，成员换运行时回收旧运行时下的（`exceptRuntime`），定期清扫按（归属, 运行时）判孤儿并清超期空闲（界面可调）；七个编码类运行时的 home 一律经 `manager.homes.ensureHome` 发，`test/runtime/adapters/shared/runtime-homes-gc.test.ts` 逐个守着；只删带 `.clawopt-home.json` 标记、realpath 在 root 下的真实子目录。新增会删会话或成员的入口时，要一起调 `releaseOwner`。
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
 
