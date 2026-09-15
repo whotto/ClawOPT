@@ -32,8 +32,14 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
     const parsed = parseRealtimeTopic(topic);
     if (!parsed) return false;
     switch (parsed.kind) {
-      case 'session':
-        return canAccessSessionKey(identity, parsed.id);
+      case 'session': {
+        if (!canAccessSessionKey(identity, parsed.id)) return false;
+        // 群成员的会话主题带审批请求的内容（P3）：只给这个 Agent 的主人。管理员经 HTTP 取澄清（不需要订阅会话主题）。
+        const roomMember = /^room:(.+):member:[^:]+$/.exec(parsed.id);
+        return !roomMember || ctx.roomCollab.members(roomMember[1]).some((member) => (
+          `room:${roomMember[1]}:member:${member.id}` === parsed.id && ctx.roomCollab.roomAccess.isAgentOwner(ctx.roomCollab.roomAccess.actorFromIdentity(identity), identity, roomMember[1], member)
+        ));
+      }
       case 'room':
         return access.canAccessRoom(identity, parsed.id);
       case 'workflow':
@@ -61,7 +67,13 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
     if (parsed?.kind === 'session') return { sessions: [runCoordinator.snapshot(parsed.id)] };
     if (parsed?.kind === 'workflow') return { workflow: ctx.automation.hub.snapshot(parsed.id) };
     if (parsed?.kind === 'approvals') return {};
-    return { sessions: runCoordinator.snapshotTopic(topic) };
+    // 房间主题的快照不带待决交互与交互帧：它们只给 Agent 主人 / 管理员（经 HTTP 按身份取，或订阅会话主题）。
+    const interactionEvent = /^(approval|clarify)\./;
+    return {
+      sessions: runCoordinator.snapshotTopic(topic).map((snapshot) => (parsed?.kind === 'room'
+        ? { ...snapshot, pendingInteractions: [], replay: snapshot.replay.filter((event) => !interactionEvent.test(event.type)) }
+        : snapshot)),
+    };
   };
 
   return attachRealtimeWebSocketServer<RequestIdentity>(server, {
@@ -72,7 +84,7 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
     snapshotTopic,
     // 答复审批 / 澄清等同于在那个会话里操作：先判会话可见。
     respondInteraction: (sessionKey, id, response, identity) => (
-      canAccessSessionKey(identity, sessionKey)
+      canAccessSessionKey(identity, sessionKey) && ctx.roomCollab.interactions.canHandleSession(sessionKey, id, identity) !== false
         ? runCoordinator.respondInteraction(sessionKey, id, response)
         : { handled: false, resolved: false, error: 'forbidden' }
     ),

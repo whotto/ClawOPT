@@ -127,7 +127,7 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerSessionRoutes(routes.forModule('collab/sessions'), ctx);
   registerChatRoutes(routes.forModule('collab/sessions'), ctx);
   // 等人答复的运行审批（真审批运行时的单聊 / 群成员）：按用户过滤。
-  registerRunApprovalRoutes(routes.forModule('runtime'), ctx);
+  registerRunApprovalRoutes(routes.forModule('runtime'), { ...ctx, canHandle: (identity, sessionKey, id) => ctx.roomCollab.interactions.canHandleSession(sessionKey, id, identity) });
   registerUploadRoutes(routes.forModule('workspace/uploads'), ctx);
   registerCommandRoutes(routes.forModule('control/commands'), ctx);
   registerFileRoutes(routes.forModule('workspace/files'), ctx);

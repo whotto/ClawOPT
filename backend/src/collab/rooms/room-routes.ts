@@ -521,6 +521,23 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     res.json({ success: true, policy: rest });
   });
 
+  /** 待决的审批与澄清：审批只列 Agent 主人能处理的，澄清只列给管理员（重连后据此恢复卡片，倒计时按剩余时间）。 */
+  app.get('/api/groups/:id/interactions', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    res.json({ success: true, interactions: collab.interactions.list(req.params.id, collab.roomAccess.actorFromIdentity(identity), identity) });
+  });
+
+  app.post('/api/groups/:id/interactions/:interactionId/respond', guardRoom, (req, res) => {
+    const identity = getRequestIdentity(req);
+    const result = collab.interactions.respond(req.params.id, req.params.interactionId, collab.roomAccess.actorFromIdentity(identity), identity, {
+      choice: typeof req.body?.choice === 'string' ? req.body.choice : undefined,
+      text: typeof req.body?.text === 'string' ? req.body.text : undefined,
+    });
+    if (result.status === 'forbidden') return sendResourceForbidden(res);
+    if (result.status === 'notActive') return res.status(409).json(buildStructuredApiError('runApprovals.notActive'));
+    res.json({ success: true, resolved: true, stale: result.status === 'stale' });
+  });
+
   /** 滚动摘要：状态 + 锚点消息预览。看得见群即可读。 */
   app.get('/api/groups/:id/summary', guardRoom, (req, res) => {
     const state = collab.summary.state(req.params.id);

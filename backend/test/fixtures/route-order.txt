@@ -284,6 +284,8 @@ GET /api/groups/:id/handoffs
 POST /api/groups/:id/handoffs/:chainId/continue
 GET /api/groups/:id/policy
 PUT /api/groups/:id/policy
+GET /api/groups/:id/interactions
+POST /api/groups/:id/interactions/:interactionId/respond
 GET /api/groups/:id/summary
 PUT /api/groups/:id/summary
 POST /api/groups/:id/summary/run

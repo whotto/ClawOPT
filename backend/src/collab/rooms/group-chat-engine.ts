@@ -1349,7 +1349,9 @@ export class GroupChatEngine extends EventEmitter implements MemberTurnExecutor 
       const submitted = await coordinator.submit({
         sessionKey,
         surface: 'room',
-        topics: [roomTopic(groupId), agentTopic(senderId)],
+        // 主题顺序有语义：第一个是会话主题，审批 / 澄清请求的内容只发到这里（`/ws` 订阅它要求是 Agent 主人或房间管理员），
+        // 房间主题只收运行生命周期事件；房间里的人经 HTTP 按身份取自己能处理的请求。
+        topics: [`session:${sessionKey}`, roomTopic(groupId), agentTopic(senderId)],
         agentId: senderId,
         title: member.display_name,
         adapter,

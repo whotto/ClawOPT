@@ -11,19 +11,26 @@
  */
 import type express from 'express';
 
-import { getRequestIdentity, type ResourceAccess, sendResourceForbidden } from '../core/auth';
+import { getRequestIdentity, type RequestIdentity, type ResourceAccess, sendResourceForbidden } from '../core/auth';
 import { buildStructuredApiError, type RouteApp } from '../core/http';
 import type { RunCoordinator } from './coordinator';
 
 export type RunApprovalRoutesDeps = {
   runCoordinator: Pick<RunCoordinator, 'pendingApprovals' | 'respondInteraction'>;
   access: ResourceAccess;
+  /**
+   * 表面自己的「谁能处理」判据（P3：群成员的审批只给 Agent 主人）。返回 null = 这个会话不归它管，按会话可见性判。
+   * 不给 = 只按会话可见性判（单聊、工作流）。
+   */
+  canHandle?: (identity: RequestIdentity, sessionKey: string, interactionId: string) => boolean | null;
 };
 
 export function registerRunApprovalRoutes(app: RouteApp, ctx: RunApprovalRoutesDeps): void {
   const visible = (req: express.Request) => {
     const identity = getRequestIdentity(req);
-    return ctx.runCoordinator.pendingApprovals().filter((item) => ctx.access.canAccessRunSession(identity, item.sessionKey));
+    return ctx.runCoordinator.pendingApprovals().filter((item) => (
+      ctx.access.canAccessRunSession(identity, item.sessionKey) && ctx.canHandle?.(identity, item.sessionKey, item.id) !== false
+    ));
   };
 
   app.get('/api/run-approvals', (req, res) => {

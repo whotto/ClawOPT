@@ -206,6 +206,8 @@ export function createAppContext() {
       return { userId: user.id, username: user.username, role: user.role, implicit: false, mustChangePassword: user.mustChangePassword };
     },
     loginEnabled: () => configManager.getConfig().loginEnabled === true,
+    runCoordinator,
+    realtime,
     summaryRunner: createRoomSummaryRunner({
       proxy: providerProxy,
       resolveScopedProvider: createScopedProviderResolver(agentProvisioner),

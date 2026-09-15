@@ -4,6 +4,9 @@
  * bootstrap 在群聊引擎与数据面授权都建好之后调用一次；路由与 `/ws` 只经这里拿到协作服务。
  */
 import type { RequestIdentity, ResourceAccess } from '../../core/auth';
+import type { RealtimeHub } from '../../core/realtime';
+import type { RunCoordinator } from '../../runtime';
+import { createRoomInteractions, parseRoomMemberSessionKey } from './room-interactions';
 import type { DB, GroupMemberRow } from '../../core/db';
 import { createHandoffDispatcher } from './handoff-dispatcher';
 import { createHandoffStore } from './handoff-store';
@@ -26,6 +29,8 @@ export type RoomCollabDeps = {
   rooms: RoomEngine;
   access: ResourceAccess;
   identityForUser: (userId: number) => RequestIdentity | null;
+  runCoordinator: Pick<RunCoordinator, 'respondInteraction' | 'interactions'>;
+  realtime: Pick<RealtimeHub, 'listen'>;
   loginEnabled: () => boolean;
   /** 摘要模型的执行（bootstrap 注入：本地模型代理 / Agent 运行器）；不给则没有摘要。 */
   summaryRunner?: SummaryModelRunner;
@@ -93,6 +98,15 @@ export function createRoomCollab(deps: RoomCollabDeps) {
   });
   summaryPort = summary.port;
   summaryState = (groupId) => summary.current(groupId);
+
+  const interactions = createRoomInteractions({ coordinator: deps.runCoordinator, access: roomAccess, members });
+  // 群成员运行的审批 / 澄清请求变了：给房间发一条不带内容的提醒，界面经 HTTP 按身份取自己能处理的那些。
+  deps.realtime.listen('rooms:interactions', (event) => {
+    if (!/^(approval|clarify)\.(requested|resolved)$/.test(event.type)) return;
+    const sessionKey = event.topic.startsWith('session:') ? event.topic.slice('session:'.length) : '';
+    const parsed = parseRoomMemberSessionKey(sessionKey);
+    if (parsed) publish(parsed.groupId, { type: 'interactions', data: { changed: true } });
+  });
 
   const dispatcherRef: { current: ReturnType<typeof createHandoffDispatcher> | null } = { current: null };
 
@@ -209,6 +223,7 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     publish,
     useRelay(port: RoomRelayPort) { relay = port; },
     summary,
+    interactions,
     /** 清空 / 删除房间时：协作表里这个群的状态一并清掉，摘要失效，会话种子轮换。 */
     clearRoomState(groupId: string) {
       queueStore.deleteForGroup(groupId);
