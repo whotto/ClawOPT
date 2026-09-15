@@ -24,7 +24,7 @@ import type { RealtimeEvent, RealtimeHub } from '../../core/realtime';
 import {
   acceptsAdapterEvent,
   assertHandleMatchesCapabilities,
-  dedupeAppendedText,
+  facetOf,
   type AdapterEvent,
   type AdapterRunHandle,
   type AdapterRunOutcome,
@@ -35,6 +35,7 @@ import { InteractionRegistry, type InteractionOutcome, type PendingInteractionVi
 import { ReplayBuffer, type ReplayPolicy } from './replay-buffer';
 import { SessionRunQueue, snapshotRequest } from './run-queue';
 import { ToolCallGroups } from './tool-call-groups';
+import { TurnTextArbiter } from './turn-text-arbiter';
 import {
   NOOP_WORKSPACE_CHECKPOINTER,
   type AbortResult,
@@ -74,6 +75,9 @@ type ActiveRun = {
   checkpoint: WorkspaceCheckpoint | null;
   toolGroups: ToolCallGroups;
   textByItem: Map<string, string>;
+  /** 两路都收文本 / 推理时按轮次与段比对（不按 item id，两路的 id 永远对不上）。 */
+  textArbiter: TurnTextArbiter;
+  reasoningArbiter: TurnTextArbiter;
   nativeSessionId: string | null;
   aborting: boolean;
   abortReason: InterruptReason | null;
@@ -301,6 +305,8 @@ export class RunCoordinator {
       checkpoint: null,
       toolGroups: null as unknown as ToolCallGroups,
       textByItem: new Map(),
+      textArbiter: new TurnTextArbiter(),
+      reasoningArbiter: new TurnTextArbiter(),
       nativeSessionId: null,
       aborting: false,
       abortReason: null,
@@ -422,6 +428,12 @@ export class RunCoordinator {
       return;
     }
     const { adapter, proxyMode } = run.submission;
+    const twoWayText = adapter.sourceOfTruth.text.length > 1;
+    // 两路文本的段边界要在仲裁之前记：代理那一路的工具事件在工具维度上会被丢，但它仍是这一路「正文分段」的边界。
+    if (twoWayText && facetOf(adapterEvent.event) === 'tools') {
+      run.textArbiter.boundary(adapterEvent.channel);
+      run.reasoningArbiter.boundary(adapterEvent.channel);
+    }
     if (!acceptsAdapterEvent(adapter.sourceOfTruth, proxyMode, adapterEvent)) {
       this.droppedTotal.arbitration += 1;
       return;
@@ -431,9 +443,13 @@ export class RunCoordinator {
     switch (event.type) {
       case 'response.output_text.delta': {
         let delta = event.delta;
-        if (adapter.sourceOfTruth.text.length > 1) {
-          delta = dedupeAppendedText(run.textByItem.get(event.item_id) ?? '', delta);
-          if (!delta) return;
+        if (twoWayText) {
+          // 按轮次与段比对两路（turn-text-arbiter.ts），不按 item id：两路的 id 永远不同，按 id 分桶会把短文本拼两遍。
+          delta = run.textArbiter.accept(adapterEvent.channel, delta);
+          if (!delta) {
+            this.droppedTotal.duplicate += 1;
+            return;
+          }
         }
         run.textByItem.set(event.item_id, (run.textByItem.get(event.item_id) ?? '') + delta);
         this.publish(run, 'message.delta', { item_id: event.item_id, delta });
@@ -444,9 +460,19 @@ export class RunCoordinator {
         run.textByItem.set(event.item_id, event.text);
         this.publish(run, 'message.snapshot', { item_id: event.item_id, text: event.text, authoritative: event.authoritative });
         break;
-      case 'response.reasoning.delta':
-        this.publish(run, 'reasoning.delta', { item_id: event.item_id, delta: event.delta });
-        break;
+      case 'response.reasoning.delta': {
+        let delta = event.delta;
+        if (twoWayText) {
+          delta = run.reasoningArbiter.accept(adapterEvent.channel, delta);
+          if (!delta) {
+            this.droppedTotal.duplicate += 1;
+            return;
+          }
+        }
+        this.publish(run, 'reasoning.delta', { item_id: event.item_id, delta });
+        this.forward(run, delta === event.delta ? event : { ...event, delta });
+        return;
+      }
       case 'response.output_item.added':
       case 'response.output_item.done': {
         const item = event.item;

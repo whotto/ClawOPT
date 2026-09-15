@@ -135,13 +135,6 @@ export interface TurnDriver {
   onStderr?(chunk: string): void;
   /** 协议层取消；之后骨架会停掉进程组。 */
   requestCancel?(): void;
-  /**
-   * 代理 tee 来的事件先给驱动看一眼；返回 true 表示驱动已把它折进自己的输出（不再按 proxy 路转发）。
-   *
-   * 为什么需要：协调器的文本去重按 item id 分桶，而代理与 CLI 的 item id 永远不同——
-   * 「代理增量求快、CLI 终文去重」（Codex）只能在同时看得见两路的适配器里做。
-   */
-  onProxyEvent?(event: CanonicalEvent): boolean;
   /** `close` 之后判终态。**只在这里**决定成败。 */
   finish(input: FinishInput): TurnVerdict;
   resolveApproval?(approvalId: string, decision: ApprovalDecision): boolean;
@@ -313,7 +306,6 @@ export function createCodingAgentAdapter(definition: RuntimeDefinition, deps: Co
               sessionId: context.sessionKey,
             });
             unsubscribeProxy = deps.proxy.onCanonicalEvent(context.runId, (event) => {
-              if (driver?.onProxyEvent?.(event)) return;
               context.emit({ channel: 'proxy', event });
             });
           }

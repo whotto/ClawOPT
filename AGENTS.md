@@ -103,7 +103,7 @@
 | 运行时 | 协议 | 续话 | 审批 | 必须记住的坑 |
 |---|---|---|---|---|
 | Claude Code | `-p --output-format stream-json --verbose --include-partial-messages`，stdin 文本 | `--session-id <预生成>` → `--resume` | `--permission-prompts none`（从不绕过权限） | stream-json 不带 `--verbose` 直接退出；`--append-system-prompt-file` 不在 `--help` 里但存在；hook_response 的 stdout 不是正文 |
-| Codex | `exec --json … -`，压缩走 `app-server` JSON-RPC | `exec resume … <threadId> -`（不收 `--cd`） | bypass | `error` 是临时的（退出码说了算）；丢掉 `exec_command` 回声；代理文本在驱动里折叠（协调器按 item id 去重，跨路对不上） |
+| Codex | `exec --json … -`，压缩走 `app-server` JSON-RPC | `exec resume … <threadId> -`（不收 `--cd`） | bypass | `error` 是临时的（退出码说了算）；丢掉 `exec_command` 回声；scoped 两路都收文本（`text: [proxy, native]`），由协调器按轮次与段比对去重，驱动里不折叠 |
 | Pi | `--mode rpc`，一轮一进程 | 同一个 `--session-id` + `--session-dir` | **真审批**：confirm → once/deny，select/input/editor → 澄清 | 只认 `agent_settled`（重试时先来 `agent_end willRetry`）；严格 LF 分帧 |
 | Grok | `--output-format streaming-json --prompt-file` | `--session-id` 只能新建；`--resume` 前必须确认本地会话目录存在 | `--always-approve` | `--resume <本地没有的 id>` 会进交互式设备码登录挂住；`--no-auto-update` 不在 `--help` 里 |
 | OpenCode | `run --format json --auto --thinking`，prompt 走 stdin | `-s <观察到的 sessionID>` | `--auto` | 没配服务商会悄悄回落免费模型（scoped 用 `enabled_providers`）；配置经 `OPENCODE_CONFIG_CONTENT` |

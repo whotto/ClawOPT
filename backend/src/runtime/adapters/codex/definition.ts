@@ -29,12 +29,12 @@ export const CODEX_CAPABILITIES = defineCapabilities({
 });
 
 /**
- * 文本：scoped 下代理的增量更快，但**折进 native 这一路由驱动去重**（见 driver.ts 的 onProxyEvent）——
- * 协调器的去重按 item id 分桶，跨路永远对不上，所以表里只写 native。
+ * 文本：scoped 下两路都收——代理的增量更快，CLI 的整条 agent_message 兜底；协调器按轮次与段比对去重
+ * （coordinator/turn-text-arbiter.ts，不按 item id：两路的 id 永远对不上）。global 下没有代理这一路。
  * 工具只信 CLI 的 JSONL（代理那一路的工具事件丢掉）；终态等进程 close；用量 scoped 信代理。
  */
 export const CODEX_SOURCE_OF_TRUTH = defineSourceOfTruth({
-  text: ['native'],
+  text: ['proxy', 'native'],
   tools: 'native',
   terminal: 'native',
   usage: { scoped: 'proxy', global: 'native' },

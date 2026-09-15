@@ -10,10 +10,9 @@
  * 三条规矩：
  * 1. `error` 是**临时**的（流重试时也会发），先记着，退出码说了算——退出码 0 就当没发生；
  * 2. `mcp_tool_call` 名为 `exec_command` 的是 `command_execution` 的回声，丢掉，否则一次命令两张卡；
- * 3. scoped 下代理增量先到：CLI 的整条 agent_message 与已流出的文本去重（相等 / 前缀 / 后缀忽略，延伸只补尾，
- *    分叉只在工具边界之后才追加）。
+ * 3. scoped 下代理增量先到、CLI 的整条 agent_message 后到：两路都照发，由协调器按轮次与段比对去重
+ *    （事实来源表 `text: ['proxy', 'native']`，见 coordinator/turn-text-arbiter.ts）。驱动里不再自己折叠。
  */
-import type { CanonicalEvent } from '../../contract';
 import type { FinishInput, TurnDriver, TurnDriverContext, TurnVerdict } from '../_shared/cli-adapter';
 import { looksLikeAuthMissing, looksLikeSessionMissing } from '../_shared/errors';
 import { JsonRpcPeer } from '../_shared/jsonrpc';
@@ -73,23 +72,10 @@ function createExecDriver(ctx: TurnDriverContext): TurnDriver {
   let sawTurnCompleted = false;
   let usageSeq = 0;
   let agentMessages = 0;
-  /** 本段（上一个工具之后）经代理流出的文本。 */
-  let segmentStreamed = '';
-  let proxyReasoning = false;
   let lastWasTool = false;
 
   const emitAgentMessage = (text: string) => {
     if (!text) return;
-    if (segmentStreamed) {
-      const streamed = segmentStreamed;
-      if (text === streamed || streamed.endsWith(text) || streamed.startsWith(text)) return;
-      if (text.startsWith(streamed)) {
-        emitter.textDelta(text.slice(streamed.length));
-        segmentStreamed = text;
-        return;
-      }
-      if (!lastWasTool) return;
-    }
     if (agentMessages > 0 && !lastWasTool) emitter.boundary();
     agentMessages += 1;
     emitter.textDelta(text);
@@ -112,7 +98,6 @@ function createExecDriver(ctx: TurnDriverContext): TurnDriver {
         const item = event.item ?? {};
         const view = codexToolView(item);
         if (!view || (item.type === 'mcp_tool_call' && item.tool === 'exec_command')) return;
-        segmentStreamed = '';
         emitter.toolStarted({ callId: String(item.id), name: view.name, args: view.args });
         return;
       }
@@ -123,7 +108,7 @@ function createExecDriver(ctx: TurnDriverContext): TurnDriver {
           return;
         }
         if (item.type === 'reasoning') {
-          if (!proxyReasoning) emitter.reasoningDelta(typeof item.text === 'string' ? item.text : flattenContent(item.summary ?? item.content));
+          emitter.reasoningDelta(typeof item.text === 'string' ? item.text : flattenContent(item.summary ?? item.content));
           return;
         }
         const view = codexToolView(item);
@@ -131,7 +116,6 @@ function createExecDriver(ctx: TurnDriverContext): TurnDriver {
         const callId = String(item.id);
         emitter.toolCallDone({ callId, name: view.name, args: view.args });
         emitter.toolOutput({ callId, output: view.output, failed: view.failed });
-        segmentStreamed = '';
         lastWasTool = true;
         return;
       }
@@ -171,27 +155,6 @@ function createExecDriver(ctx: TurnDriverContext): TurnDriver {
       let event: any;
       try { event = JSON.parse(trimmed); } catch { return; }
       if (event && typeof event === 'object') handle(event);
-    },
-    onProxyEvent(event: CanonicalEvent) {
-      switch (event.type) {
-        case 'response.output_text.delta':
-          segmentStreamed += event.delta;
-          emitter.textDelta(event.delta);
-          return true;
-        case 'response.reasoning.delta':
-          proxyReasoning = true;
-          emitter.reasoningDelta(event.delta);
-          return true;
-        case 'response.output_text.done':
-        case 'response.output_text.snapshot':
-        case 'response.created':
-          return true;
-        case 'response.output_item.added':
-        case 'response.output_item.done':
-          return event.item.type === 'message' || event.item.type === 'reasoning';
-        default:
-          return false; // 工具 / 终态 / 用量照常交给协调器按表仲裁
-      }
     },
     finish({ exit, stderrTail }: FinishInput): TurnVerdict {
       if (exit.code === 0) {

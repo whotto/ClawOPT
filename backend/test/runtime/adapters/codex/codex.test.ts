@@ -6,11 +6,8 @@
  */
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { RealtimeHub, type RealtimeEvent } from '../../../../src/core/realtime';
-import { defineSourceOfTruth } from '../../../../src/runtime/contract';
-import { RunCoordinator } from '../../../../src/runtime/coordinator';
 import { createCodexAdapter } from '../../../../src/runtime/adapters/codex';
-import { MemoryRunStore, scriptedAdapter } from '../../../helpers/scripted-adapter';
+import { CODEX_SOURCE_OF_TRUTH } from '../../../../src/runtime/adapters/codex/definition';
 import { deltaText, submitThroughCoordinator, toolStartedIds } from '../_helpers/coordinator';
 import {
   DATA_DIR,
@@ -340,18 +337,19 @@ describe('Codex：同轮双路事件仲裁', () => {
     expect(store.usage.map((u) => u.callId)).toEqual(['proxy:resp_1']);
   });
 
-  it('**证明适配器内折叠是必要的**：把两路文本都交给协调器（text: [proxy, native]），短文本会重复', async () => {
-    const hub = new RealtimeHub();
-    const realtime: RealtimeEvent[] = [];
-    hub.listen('t', (e) => realtime.push(e));
-    const coordinator = new RunCoordinator({ hub, store: new MemoryRunStore(), log: () => {} });
-    const { adapter, runs } = scriptedAdapter({ id: 'naive', sourceOfTruth: defineSourceOfTruth({ text: ['proxy', 'native'], tools: 'native', terminal: 'native', usage: { scoped: 'proxy', global: 'native' }, control: 'native' }) });
-    const submitted: any = await coordinator.submit({ sessionKey: 's', surface: 'chat', topics: ['session:s'], agentId: 'a', adapter, request: {}, proxyMode: 'scoped', projector: () => ({ onEvent: () => {}, finish: () => ({}) }) }, 'reject');
-    await flushMicrotasks();
-    runs[0].emit({ type: 'response.output_text.delta', item_id: 'msg_proxy', delta: 'ok' }, 'proxy');
-    runs[0].emit({ type: 'response.output_text.delta', item_id: 'msg_cli', delta: 'ok' }, 'native');
-    runs[0].finish({ kind: 'completed' });
+  it('两路文本交给协调器（表里 text: [proxy, native]，驱动不再自己折叠）：只有一句 ok 时不拼成 okok', async () => {
+    expect(CODEX_SOURCE_OF_TRUTH.text).toEqual(['proxy', 'native']);
+    const h = harness();
+    const adapter = createCodexAdapter(h.deps);
+    const { realtime, submitted, runId } = await submitThroughCoordinator(adapter, baseRequest({ mode: 'scoped', provider: SCOPED_PROVIDER }), 'scoped');
+    const proc = await h.exec.next();
+    proc.line({ type: 'thread.started', thread_id: 't1' });
+    h.proxy.push(runId, { type: 'response.output_item.added', item: { type: 'message', id: 'msg_p1', role: 'assistant' } });
+    h.proxy.push(runId, { type: 'response.output_text.delta', item_id: 'msg_p1', delta: 'ok' });
+    proc.line({ type: 'item.completed', item: { id: 'item_0', type: 'agent_message', text: 'ok' } });
+    proc.line({ type: 'turn.completed', usage: { input_tokens: 10, output_tokens: 1 } });
+    proc.close(0);
     await submitted.completion;
-    expect(deltaText(realtime)).toBe('okok');
+    expect(deltaText(realtime)).toBe('ok');
   });
 });
