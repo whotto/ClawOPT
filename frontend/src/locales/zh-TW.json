@@ -264,7 +264,8 @@
     "sessionBusy": "這個對話正忙，請稍後再傳",
     "queueItemNotFound": "這則排隊訊息已經不在佇列裡了",
     "queueInsertionPending": "已有一則訊息正在插入，請等它開始",
-    "contextWindowTooSmall": "上下文超出了模型視窗：先傳 /compact 壓縮對話，或在模型設定裡調大上下文長度、縮短這則輸入"
+    "contextWindowTooSmall": "上下文超出了模型視窗：先傳 /compact 壓縮對話，或在模型設定裡調大上下文長度、縮短這則輸入",
+    "emptyOutput": "這一輪正常結束了，但 Agent 沒有回傳任何內容。常見原因：服務商金鑰無效、模型不支援目前的輸入、上下文過長。可以重試或檢查模型設定。"
   },
   "group": {
     "maxChainDepthReached": "鏈式轉發已達到最大深度 ({{maxDepth}} 輪)",
@@ -416,7 +417,8 @@
     "sendFailed": "這條訊息沒能發出去。檢查網路或稍後重試。",
     "uploadFailed": "附件上傳失敗，訊息沒有發送——先處理附件再發，免得對方收不到檔案。",
     "historyLoadFailed": "聊天記錄這次沒載入出來（不是記錄丟了）。重新整理或稍後重試。",
-    "replyMayBeIncomplete": "這條回覆可能沒寫完——連線中斷了，而且沒能從歷史裡補回完整版本。重新發一次或讓它繼續。"
+    "replyMayBeIncomplete": "這條回覆可能沒寫完——連線中斷了，而且沒能從歷史裡補回完整版本。重新發一次或讓它繼續。",
+    "resizeComposer": "拖動調整輸入框高度（雙擊恢復）"
   },
   "messageBubble": {
     "processTitle": "執行過程",

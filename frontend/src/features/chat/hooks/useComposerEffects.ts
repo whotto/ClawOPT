@@ -1,5 +1,7 @@
 // 输入框自适应高度与「/」命令面板（快捷命令 + 这个会话的运行时支持的会话命令）。
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { consumeComposerPrefill } from '../../../utils/composerPrefill';
+import { readDraft, writeDraft } from '../lib/composerPrefs';
 import { useRuntimeCapabilityStore } from '../../sessions/runtimeCapabilityStore';
 import { filterSlashCommands, mergeSlashCommands } from '../lib/composerCommands';
 import type { ChatViewState } from './useChatViewState';
@@ -8,14 +10,33 @@ import type { ChatViewState } from './useChatViewState';
 type ComposerEffectsContext = Pick<
   ChatViewState,
   't' | 'isChat' | 'input' | 'showCommands' | 'setShowCommands' | 'allCommands' | 'setFilteredCommands' |
-  'setCommandIndex' | 'textareaRef' | 'commandListRef' | 'currentSession'
+  'setCommandIndex' | 'textareaRef' | 'commandListRef' | 'currentSession' | 'mode' | 'activeKey' | 'setInput'
 >;
 
 export function useComposerEffects(c: ComposerEffectsContext) {
   const {
     t, isChat, input, showCommands, setShowCommands, allCommands, setFilteredCommands,
-    setCommandIndex, textareaRef, commandListRef, currentSession,
+    setCommandIndex, textareaRef, commandListRef, currentSession, mode, activeKey, setInput,
   } = c;
+
+  // ---- 每会话草稿（按浏览器）：切换会话时载入那个会话的草稿；运行时管理页交来的一次性预填优先。 ----
+  const draftKey = activeKey ? `${mode}:${activeKey}` : '';
+  const loadedDraftKeyRef = useRef('');
+  useEffect(() => {
+    if (!draftKey) return;
+    const prefill = mode === 'chat' ? consumeComposerPrefill(activeKey) : null;
+    let draft = '';
+    try { draft = readDraft(window.localStorage, draftKey); } catch {}
+    loadedDraftKeyRef.current = draftKey;
+    setInput(prefill || draft);
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftKey || loadedDraftKeyRef.current !== draftKey) return;
+    const timer = window.setTimeout(() => {
+      try { writeDraft(window.localStorage, draftKey, input); } catch {}
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, input]);
   const { runtimes, ensureLoaded } = useRuntimeCapabilityStore();
   const externalRuntime = (currentSession as { externalRuntime?: string } | null)?.externalRuntime ?? null;
   useEffect(() => { if (isChat) ensureLoaded(); }, [ensureLoaded, isChat]);

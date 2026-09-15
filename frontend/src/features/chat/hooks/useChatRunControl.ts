@@ -38,6 +38,23 @@ export function useChatRunControl(c: ChatRunControlContext) {
   const [insertPendingQueueId, setInsertPendingQueueId] = useState<string | null>(null);
   /** 用量可能变了（报了用量、一轮结束）：上下文占用徽标据此重拉。 */
   const [usageTick, setUsageTick] = useState(0);
+  /** 助手消息 id → 这一轮的终态事件类型（静默失败判定要区分「正常完成却没输出」与「被停下」）。 */
+  const terminalByMessageRef = useRef<Map<number, string>>(new Map());
+  const terminalWaitersRef = useRef<Array<{ messageId: number; resolve: (type: string | null) => void }>>([]);
+
+  /** 等某条助手消息那一轮的终态（会话实时通道与 POST 流是两条连接，先到后到都可能）；超时回 null。 */
+  const waitForRunTerminal = useCallback((messageId: number, timeoutMs: number): Promise<string | null> => {
+    const known = terminalByMessageRef.current.get(messageId);
+    if (known) return Promise.resolve(known);
+    return new Promise((resolve) => {
+      const waiter = { messageId, resolve: (type: string | null) => { window.clearTimeout(timer); resolve(type); } };
+      const timer = window.setTimeout(() => {
+        terminalWaitersRef.current = terminalWaitersRef.current.filter((entry) => entry !== waiter);
+        resolve(null);
+      }, timeoutMs);
+      terminalWaitersRef.current.push(waiter);
+    });
+  }, []);
 
   const requestAttach = useCallback(() => {
     // 本地流正在读（发起方自己）或接回流已经挂着：不重复接回。
@@ -71,6 +88,14 @@ export function useChatRunControl(c: ChatRunControlContext) {
     const payload = event.payload ?? {};
     if (event.event === 'usage.updated' || event.event === 'run.completed' || event.event === 'run.failed' || event.event === 'run.aborted' || event.event === 'session.command') {
       setUsageTick((value) => value + 1);
+    }
+    if ((event.event === 'run.completed' || event.event === 'run.failed' || event.event === 'run.aborted') && typeof payload.message_id === 'number') {
+      const type = isQueueInsertionInterruption(payload) ? 'run.aborted' : event.event;
+      terminalByMessageRef.current.set(payload.message_id, type);
+      if (terminalByMessageRef.current.size > 200) terminalByMessageRef.current.delete(terminalByMessageRef.current.keys().next().value as number);
+      const ready = terminalWaitersRef.current.filter((waiter) => waiter.messageId === payload.message_id);
+      terminalWaitersRef.current = terminalWaitersRef.current.filter((waiter) => waiter.messageId !== payload.message_id);
+      ready.forEach((waiter) => waiter.resolve(type));
     }
     if (event.event === 'chat.user_message') {
       const echo = parseChatTurnEcho(payload);
@@ -167,7 +192,7 @@ export function useChatRunControl(c: ChatRunControlContext) {
 
   return {
     runState, refreshRunState, locallyStreamedRefsRef, attachRequest, requestAttach,
-    cancelQueued, insertQueued, insertPendingQueueId, usageTick,
+    cancelQueued, insertQueued, insertPendingQueueId, usageTick, waitForRunTerminal,
   };
 }
 

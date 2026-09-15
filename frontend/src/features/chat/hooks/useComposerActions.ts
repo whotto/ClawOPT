@@ -23,6 +23,7 @@ import type { MessageActions } from './useMessageActions';
 import type { ChatRunControl } from './useChatRunControl';
 import { createClientTurnId } from '../run/chatRunState';
 import { buildQuotedMessage, quotableContent } from '../lib/composerCommands';
+import { isSilentFailure, shouldSendOnEnter } from '../lib/composerPrefs';
 
 /** 本段读取的、由前面各段产出的值。 */
 type ComposerActionsContext = Pick<
@@ -39,7 +40,7 @@ type ComposerActionsContext = Pick<
   'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
   'moveQueuedMessagePatch' | 'scrollToLatestBottom' | 'prepareLatestHistoryWindowForSubmit' |
   'recoverLatestChatMessages' | 'recoverGroupActiveRun' | 'recoverLatestGroupMessages' |
-  'uploadFiles' | 'locallyStreamedRefsRef' | 'refreshRunState' | 'requestAttach'
+  'uploadFiles' | 'locallyStreamedRefsRef' | 'refreshRunState' | 'requestAttach' | 'waitForRunTerminal'
 >;
 
 export function useComposerActions(c: ComposerActionsContext) {
@@ -54,8 +55,10 @@ export function useComposerActions(c: ComposerActionsContext) {
     resolveGroupMemberDisplayName, isGroupBusy, flushQueuedMessagePatches,
     queueMessagePatch, dropQueuedMessagePatch, moveQueuedMessagePatch, scrollToLatestBottom,
     prepareLatestHistoryWindowForSubmit, recoverLatestChatMessages, recoverGroupActiveRun,
-    recoverLatestGroupMessages, uploadFiles, locallyStreamedRefsRef, refreshRunState, requestAttach,
+    recoverLatestGroupMessages, uploadFiles, locallyStreamedRefsRef, refreshRunState, requestAttach, waitForRunTerminal,
   } = c;
+  /** 用户点了停止：这一轮之后空着的气泡不是「静默失败」。 */
+  const userStoppedRef = React.useRef(false);
   // ---- File handling ----
   const handleFileChange = async (files: File[]) => {
     if (!files.length) return;
@@ -242,6 +245,10 @@ export function useComposerActions(c: ComposerActionsContext) {
         }
         let receivedFinal = false;
         let receivedError = false;
+        let finalFrame: any = null;
+        let accumulatedText = '';
+        let accumulatedProcess = '';
+        userStoppedRef.current = false;
         for await (const evt of stream.events) {
           try {
             if (evt.type === 'ids') {
@@ -264,7 +271,10 @@ export function useComposerActions(c: ComposerActionsContext) {
             } else if (evt.type === 'delta' || evt.type === 'final') {
               if (evt.type === 'final') {
                 receivedFinal = true;
+                finalFrame = evt;
               }
+              if (typeof evt.text === 'string' && evt.text.trim()) accumulatedText = evt.text;
+              if (typeof evt.process_content === 'string' && evt.process_content.trim()) accumulatedProcess = evt.process_content;
               const patch = mapStreamingContentPatch(evt);
               queueAssistantPatch(patch, evt.type === 'final');
             } else if (evt.type === 'error') {
@@ -281,6 +291,16 @@ export function useComposerActions(c: ComposerActionsContext) {
         flushQueuedMessagePatches();
         if (!receivedError) {
           queueAssistantPatch({ processStreaming: false }, true);
+        }
+        const assistantDbId = Number(resolvedAssistantId);
+        if (
+          receivedFinal && !receivedError && Number.isFinite(assistantDbId)
+          && isSilentFailure({ role: finalFrame?.role, messageCode: finalFrame?.messageCode, content: accumulatedText, processContent: accumulatedProcess }, { stopped: userStoppedRef.current || !!abortControllerRef.current?.signal.aborted })
+          && await waitForRunTerminal(assistantDbId, 1500) === 'run.completed'
+        ) {
+          // 正常收尾却什么都没说：不留空气泡，说清楚可能的原因（密钥、模型不支持、上下文超长）。
+          dropAssistantPatches();
+          updateAssistantMessages(message => ({ ...message, role: 'system', content: String(t('chat.emptyOutput')), messageCode: 'chat.emptyOutput', processStreaming: false }));
         }
         if (!receivedFinal && !receivedError && !abortControllerRef.current?.signal.aborted) {
           // 没有终态事件 = 这轮回复没有正常收尾。先回历史对账，
@@ -341,6 +361,7 @@ export function useComposerActions(c: ComposerActionsContext) {
   };
 
   const handleStop = async () => {
+    userStoppedRef.current = true;
     if (isChat && activeKey) {
       try {
         const response = await stopChat(activeKey);
@@ -406,7 +427,7 @@ export function useComposerActions(c: ComposerActionsContext) {
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); setInput(filteredCommands[commandIndex].command + ' '); setShowCommands(false); return; }
       if (e.key === 'Escape') { setShowCommands(false); return; }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (shouldSendOnEnter({ key: e.key, shiftKey: e.shiftKey, isComposing: (e.nativeEvent as KeyboardEvent).isComposing, keyCode: e.keyCode })) {
       if (justSelectedFileRef.current) { justSelectedFileRef.current = false; e.preventDefault(); return; }
       e.preventDefault(); handleSubmit();
     }

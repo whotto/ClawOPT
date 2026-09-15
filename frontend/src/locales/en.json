@@ -264,7 +264,8 @@
     "sessionBusy": "This conversation is busy. Try again in a moment",
     "queueItemNotFound": "This queued message is no longer in the queue",
     "queueInsertionPending": "Another message is already being inserted. Wait for it to start",
-    "contextWindowTooSmall": "The conversation no longer fits the model's context window. Send /compact to compact it, or raise the context length in model settings and shorten this message"
+    "contextWindowTooSmall": "The conversation no longer fits the model's context window. Send /compact to compact it, or raise the context length in model settings and shorten this message",
+    "emptyOutput": "The run finished, but the agent returned no output. Common causes: an invalid provider key, a model that doesn't support this input, or an oversized context. Try again or check the model settings."
   },
   "group": {
     "maxChainDepthReached": "Chain forwarding reached the maximum depth ({{maxDepth}} rounds)",
@@ -416,7 +417,8 @@
     "sendFailed": "This message could not be sent. Check your connection and try again.",
     "uploadFailed": "Attachment upload failed, so the message was not sent — fix the attachment first, otherwise the file never arrives.",
     "historyLoadFailed": "Chat history did not load this time (it is not lost). Refresh or try again.",
-    "replyMayBeIncomplete": "This reply may be cut off — the connection dropped and the full version could not be recovered from history. Send again or ask it to continue."
+    "replyMayBeIncomplete": "This reply may be cut off — the connection dropped and the full version could not be recovered from history. Send again or ask it to continue.",
+    "resizeComposer": "Drag to resize the message box (double-click to reset)"
   },
   "messageBubble": {
     "processTitle": "Execution",

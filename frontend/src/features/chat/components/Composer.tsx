@@ -9,6 +9,17 @@ import {
 import { getAgentColor } from '../lib/agentColors';
 import type { ChatController } from '../hooks/useChatController';
 import { ContextUsageBadge } from './ContextUsageBadge';
+import { useRef, useState } from 'react';
+import { clampComposerHeight, COMPOSER_DEFAULT_MAX_HEIGHT, COMPOSER_HEIGHT_KEY } from '../lib/composerPrefs';
+
+function readComposerHeight(): number {
+  try {
+    const raw = window.localStorage.getItem(COMPOSER_HEIGHT_KEY);
+    return raw ? clampComposerHeight(raw) : COMPOSER_DEFAULT_MAX_HEIGHT;
+  } catch {
+    return COMPOSER_DEFAULT_MAX_HEIGHT;
+  }
+}
 
 type ComposerProps = Pick<
   ChatController,
@@ -35,6 +46,22 @@ export function Composer(c: ComposerProps) {
     textareaRef, commandListRef, currentGroup, currentSession, resolveGroupMemberDisplayName,
     hasDraftToSend, isGroupBusy, activeKey, usageTick,
   } = c;
+  // 输入框最大高度可拖拽调整（拖上边的把手；双击恢复默认），按浏览器记住。
+  const [maxHeight, setMaxHeight] = useState(readComposerHeight);
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const applyMaxHeight = (value: number, persist: boolean) => {
+    const next = clampComposerHeight(value);
+    setMaxHeight(next);
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.dataset.maxHeight = String(next);
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, next)}px`;
+    }
+    if (persist) {
+      try { window.localStorage.setItem(COMPOSER_HEIGHT_KEY, String(next)); } catch {}
+    }
+  };
   return (
     <div className="px-4 sm:px-6 pb-6 sm:pb-4 pt-2 flex-shrink-0 bg-white">
       <div className="max-w-5xl mx-auto flex flex-col gap-3">
@@ -175,11 +202,32 @@ export function Composer(c: ComposerProps) {
               </div>
             )}
 
+            <div
+              className="hidden sm:flex h-2 cursor-row-resize items-center justify-center group/resize"
+              title={t('unifiedChat.resizeComposer')}
+              onPointerDown={(event) => {
+                dragRef.current = { startY: event.clientY, startHeight: maxHeight };
+                (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (!dragRef.current) return;
+                applyMaxHeight(dragRef.current.startHeight + (dragRef.current.startY - event.clientY), false);
+              }}
+              onPointerUp={() => {
+                if (!dragRef.current) return;
+                dragRef.current = null;
+                applyMaxHeight(maxHeight, true);
+              }}
+              onDoubleClick={() => applyMaxHeight(COMPOSER_DEFAULT_MAX_HEIGHT, true)}
+              data-testid="composer-resize-handle"
+            >
+              <span className="h-1 w-10 rounded-full bg-gray-200 group-hover/resize:bg-gray-300" />
+            </div>
             <div className="relative">
-              <textarea ref={textareaRef} rows={1} value={input} onKeyDown={handleKeyDown} onPaste={handlePaste}
+              <textarea ref={textareaRef} rows={1} value={input} onKeyDown={handleKeyDown} onPaste={handlePaste} data-max-height={maxHeight} style={{ maxHeight }}
                 onChange={isGroup ? handleGroupInputChange : (e) => setInput(e.target.value)}
                 placeholder={isChat && isLoading ? t('chatQueue.placeholderWhileRunning') : t('unifiedChat.inputPlaceholder')} disabled={isLoading && !isChat}
-                className={`w-full min-h-[44px] max-h-[200px] py-3 pl-5 pr-8 bg-transparent focus:outline-none text-[16px] font-medium placeholder:text-gray-400 resize-none overflow-y-auto leading-relaxed border-none scrollbar-hide ${inputPreview ? 'invisible' : ''}`} />
+                className={`w-full min-h-[44px] py-3 pl-5 pr-8 bg-transparent focus:outline-none text-[16px] font-medium placeholder:text-gray-400 resize-none overflow-y-auto leading-relaxed border-none scrollbar-hide ${inputPreview ? 'invisible' : ''}`} />
               {inputPreview && (
                 <div
                   className="absolute inset-0 py-3 pl-5 pr-8 overflow-y-auto leading-relaxed text-[16px] font-medium prose prose-sm max-w-none prose-slate cursor-text"
