@@ -25,6 +25,7 @@ import { createClientTurnId } from '../run/chatRunState';
 import { buildQuotedMessage, quotableContent } from '../lib/composerCommands';
 import { isSilentFailure, shouldSendOnEnter } from '../lib/composerPrefs';
 import { attachmentNotesMarkdown, extractVideoFrames, pastedFileName, withoutDuplicates, type PendingAttachment } from '../lib/composerAttachments';
+import { swapMessageIds } from '../lib/messageIds';
 
 /** 本段读取的、由前面各段产出的值。 */
 type ComposerActionsContext = Pick<
@@ -288,14 +289,15 @@ export function useComposerActions(c: ComposerActionsContext) {
               const previousAssistantId = resolvedAssistantId;
               const realUserId = String(evt.userMsgId);
               const realAssistantId = String(evt.assistantMsgId);
-              moveQueuedMessagePatch(resolvedUserMsgId, realUserId);
-              moveQueuedMessagePatch(resolvedAssistantId, realAssistantId);
-              setMessages(prev => prev.map(m => {
-                if (m.id === resolvedUserMsgId) return { ...m, id: realUserId };
-                if (m.id === resolvedAssistantId) return { ...m, id: realAssistantId, parentId: realUserId };
-                return m;
-              }));
-              setActiveLeafId(prev => prev === resolvedAssistantId ? realAssistantId : prev);
+              const previousUserId = resolvedUserMsgId;
+              moveQueuedMessagePatch(previousUserId, realUserId);
+              moveQueuedMessagePatch(previousAssistantId, realAssistantId);
+              // 旧 id 先取成常量：更新函数稍后才执行，那时 resolved* 已经是真 id 了（见 lib/messageIds.ts）。
+              setMessages(prev => swapMessageIds(prev, [
+                { from: previousUserId, to: realUserId },
+                { from: previousAssistantId, to: realAssistantId, parentId: realUserId },
+              ]));
+              setActiveLeafId(prev => prev === previousAssistantId ? realAssistantId : prev);
               resolvedUserMsgId = realUserId;
               resolvedAssistantId = realAssistantId;
               assistantTargetIds.add(previousAssistantId);

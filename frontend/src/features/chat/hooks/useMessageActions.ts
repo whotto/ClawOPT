@@ -19,6 +19,7 @@ import type { ChatPresence } from './useChatPresence';
 import type { MessagePatchQueue } from './useMessagePatchQueue';
 import type { ChatHistoryFetch } from './useChatHistoryFetch';
 import type { GroupEvents } from './useGroupEvents';
+import { swapMessageIds } from '../lib/messageIds';
 
 /** 本段读取的、由前面各段产出的值。 */
 type MessageActionsContext = Pick<
@@ -268,9 +269,10 @@ export function useMessageActions(c: MessageActionsContext) {
           try {
             if (evt.type === 'ids' && evt.assistantMsgId) {
               const previousResolvedId = resolvedId;
-              moveQueuedMessagePatch(resolvedId, String(evt.assistantMsgId));
-              setMessages(prev => prev.map(m => m.id === resolvedId ? { ...m, id: String(evt.assistantMsgId) } : m));
-              setActiveLeafId(prev => prev === resolvedId ? String(evt.assistantMsgId) : prev);
+              const realId = String(evt.assistantMsgId);
+              moveQueuedMessagePatch(previousResolvedId, realId);
+              setMessages(prev => swapMessageIds(prev, [{ from: previousResolvedId, to: realId }]));
+              setActiveLeafId(prev => prev === previousResolvedId ? realId : prev);
               resolvedId = String(evt.assistantMsgId);
               assistantTargetIds.add(previousResolvedId);
               assistantTargetIds.add(resolvedId);
