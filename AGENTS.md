@@ -86,7 +86,7 @@
 - **运行时安装升级不碰系统**：npm 全局安装装 `@latest`（不钉版本，官方源的运行时加 `--registry`）；pip 运行时（hermes-agent）装进 `<数据目录>/runtime/venvs/<id>`，**永远不用系统 pip**；不是 npm 全局、也不是我们 venv 里的安装（Homebrew cask 等）只探测不代管，升级卸载一律 409 `runtime.notManagedByClawopt`。升级锁、准备计数（`beginRun`）、活动版本号、连续空闲 60 秒、上锁前同步复查只在 `runtime/manager/runtime-manager.ts` 里实现一次。测安装卸载只能用隔离的 `npm_config_prefix`。
 - **原生配置页凭据不出服务端**：读出时按键名与值形状把凭据换成 `<clawopt:redacted:N>`，保存时按序号从磁盘当前内容换回，标记对不上 400；认证文件（`auth.json`、`.credentials.json`、`.env`）只报在不在，不读不写；MCP 列表不回 env / headers 的值。改原生 MCP 配置用 `runtime/mcp/config-shapes.ts` 的纯函数：保留用户内容，托管条目（`clawopt-` 前缀或 env `CLAWOPT_MANAGED_MCP=1`，TOML/YAML 另有成对注释标记块）剥掉重生成；读不懂的文件报错，**绝不覆盖**。每次运行前的 MCP 健康隔离只改运行副本，隔离步骤自身失败放行。
 - **远程 OpenClaw 成员**（`runtime/remote-openclaw`）：`external_config` 只放网关地址、远程 Agent、受信任局域网开关；令牌走 `PUT /api/runtime/remote-openclaw/members/:groupId/:agentId/token`（只写，空串不修改）进加密存储，接口只回 `hasToken`；群成员 `external_config` 写入时剥掉凭据类键（`GET /api/groups` 会原样回给前端）。地址只收 ws/wss，内网要打开受信任局域网；失败一律带 `remoteOpenclaw.*` messageCode。
-- **运行时目录随归属回收**：`<数据目录>/runtime/<runtime>/<hash>`，删会话、删群、移出成员时 `runtimePlatform.releaseOwner(...)`，定期清扫孤儿与超期空闲（界面可调）；只删带 `.clawopt-home.json` 标记、realpath 在 root 下的真实子目录。新增会删会话或成员的入口时，要一起调 `releaseOwner`。
+- **运行时目录随归属回收**：`<数据目录>/runtime/<runtime>/<hash>`，删会话、删群、移出成员时 `runtimePlatform.releaseOwner(...)`，成员换运行时回收旧运行时下的（`exceptRuntime`），定期清扫按（归属, 运行时）判孤儿并清超期空闲（界面可调）；七个编码类运行时的 home 一律经 `manager.homes.ensureHome` 发，`test/runtime/adapters/shared/runtime-homes-gc.test.ts` 逐个守着；只删带 `.clawopt-home.json` 标记、realpath 在 root 下的真实子目录。新增会删会话或成员的入口时，要一起调 `releaseOwner`。
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
 
 ## 外部运行时适配器

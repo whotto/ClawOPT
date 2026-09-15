@@ -149,23 +149,28 @@ export class RuntimeHomes {
     return true;
   }
 
-  /** 归属被删时调用：删掉它在所有运行时下的目录。`memberId` / `sessionId` 省略 = 这个群 / 这类归属的全部。 */
-  releaseOwner(owner: Partial<RuntimeHomeOwner> & { kind: RuntimeHomeOwner['kind'] }): number {
+  /**
+   * 归属被删时调用：删掉它在所有运行时下的目录。`memberId` / `sessionId` 省略 = 这个群 / 这类归属的全部。
+   * `exceptRuntime`：只删别的运行时下的（成员换了运行时，旧运行时的目录不再有人用）。
+   */
+  releaseOwner(owner: Partial<RuntimeHomeOwner> & { kind: RuntimeHomeOwner['kind'] }, options: { exceptRuntime?: string } = {}): number {
     let removed = 0;
     for (const home of this.list()) {
+      if (options.exceptRuntime && home.runtime === options.exceptRuntime) continue;
       if (ownerMatches(home.owner, owner) && this.remove(home.path)) removed += 1;
     }
     return removed;
   }
 
-  sweep(ownerExists: (owner: RuntimeHomeOwner) => boolean, settings: RuntimeHomesSettings = this.settings()): Array<{ runtime: string; hash: string; reason: 'orphaned' | 'idle' }> {
+  /** `ownerExists(owner, runtime)`：归属还在、而且还在用这个运行时（成员换了运行时，旧目录算孤儿）。 */
+  sweep(ownerExists: (owner: RuntimeHomeOwner, runtime: string) => boolean, settings: RuntimeHomesSettings = this.settings()): Array<{ runtime: string; hash: string; reason: 'orphaned' | 'idle' }> {
     const removed: Array<{ runtime: string; hash: string; reason: 'orphaned' | 'idle' }> = [];
     const idleMs = settings.idleDays * 24 * 60 * 60 * 1000;
     for (const home of this.list()) {
       let reason: 'orphaned' | 'idle' | null = null;
       let exists = true;
       try {
-        exists = ownerExists(home.owner);
+        exists = ownerExists(home.owner, home.runtime);
       } catch {
         exists = true; // 判不了归属就当它还在：宁可留着，不误删。
       }

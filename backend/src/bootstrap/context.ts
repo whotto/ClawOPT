@@ -103,9 +103,12 @@ export function createAppContext() {
         .map((run) => runCoordinator.abort(run.sessionKey, 'user_stop')));
     },
   });
-  runtimePlatform.manager.homeOwnerExists = (owner) => {
+  // 运行时目录定期清扫的判据：归属还在，而且还在用这个运行时（成员换了运行时，旧运行时的目录算孤儿）。
+  runtimePlatform.manager.homeOwnerExists = (owner, runtime) => {
     if (owner.kind === 'session') return Boolean(db.getSession(owner.sessionId));
-    if (owner.kind === 'room-member') return db.getGroupMembers(owner.groupId).some((member) => member.id === owner.memberId);
+    if (owner.kind === 'room-member') {
+      return db.getGroupMembers(owner.groupId).some((member) => member.id === owner.memberId && member.runtime === runtime);
+    }
     return true;
   };
 

@@ -176,10 +176,15 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
           runtime: m.runtime ?? null,
           externalConfig: sanitizeMemberExternalConfig(m.externalConfig),
         })));
-        // P2：被移出群的成员，它的运行时目录一起回收。
-        const keptIds = new Set(db.getGroupMembers(req.params.id).map((member) => member.id));
-        for (const removed of membersBefore.filter((member) => !keptIds.has(member.id))) {
-          ctx.runtimePlatform.releaseOwner({ kind: 'room-member', groupId: req.params.id, memberId: removed.id });
+        // P2：被移出群的成员，它的运行时目录一起回收；换了运行时的成员，旧运行时下的目录回收（新运行时的留着）。
+        const membersAfter = new Map(db.getGroupMembers(req.params.id).map((member) => [member.id, member]));
+        for (const before of membersBefore) {
+          const after = membersAfter.get(before.id);
+          if (!after) {
+            ctx.runtimePlatform.releaseOwner({ kind: 'room-member', groupId: req.params.id, memberId: before.id });
+          } else if ((after.runtime ?? null) !== (before.runtime ?? null)) {
+            ctx.runtimePlatform.releaseOwner({ kind: 'room-member', groupId: req.params.id, memberId: before.id }, after.runtime ? { exceptRuntime: after.runtime } : {});
+          }
         }
       }
 

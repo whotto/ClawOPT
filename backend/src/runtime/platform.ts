@@ -34,7 +34,7 @@ export interface RuntimePlatform {
   /** 按运行时 id 取适配器；没登记过返回 null（调用方按「不支持的运行时」失败）。 */
   createAdapter(runtime: string, options?: { executor?: ProcessExecutor }): AgentRuntimeAdapter<RuntimeRunRequest> | null;
   /** 归属被删：回收运行时目录（远程成员令牌随定期清扫删除）。 */
-  releaseOwner(owner: Partial<RuntimeHomeOwner> & { kind: RuntimeHomeOwner['kind'] }): void;
+  releaseOwner(owner: Partial<RuntimeHomeOwner> & { kind: RuntimeHomeOwner['kind'] }, options?: { exceptRuntime?: string }): void;
   start(): void;
   stop(): void;
 }
@@ -85,9 +85,9 @@ export function createRuntimePlatform(options: RuntimePlatformOptions): RuntimeP
       }
       return adapter;
     },
-    releaseOwner(owner) {
+    releaseOwner(owner, releaseOptions) {
       try {
-        manager.homes.releaseOwner(owner);
+        manager.homes.releaseOwner(owner, releaseOptions);
       } catch (error) {
         console.warn(`[RuntimePlatform] runtime home cleanup failed: ${(error as NodeJS.ErrnoException)?.code ?? 'Error'}`);
       }

@@ -115,7 +115,7 @@ export class LocalRuntimeManager implements RuntimeManager {
   private host: HostCapabilities | null = null;
   readonly homes: RuntimeHomes;
   /** 定期清扫时判断归属还在不在（bootstrap 注入：查会话表与群成员表）。 */
-  homeOwnerExists: ((owner: RuntimeHomeOwner) => boolean) | null = null;
+  homeOwnerExists: ((owner: RuntimeHomeOwner, runtime: string) => boolean) | null = null;
 
   constructor(private readonly options: RuntimeManagerOptions) {
     this.runner = options.runner ?? defaultProcessRunner;
