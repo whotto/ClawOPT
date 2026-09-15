@@ -12,6 +12,7 @@ import {
   type SidebarSession,
 } from './sidebarTypes';
 import type { GroupEditorState } from './useGroupEditor';
+import { openclawSessionsOnly } from '../../utils/openclawSessions';
 
 /** 新建 / 编辑工作群弹窗。 */
 export default function GroupEditorModal({ groupEditor, sessions }: { groupEditor: GroupEditorState; sessions: SidebarSession[] }) {
@@ -29,6 +30,8 @@ export default function GroupEditorModal({ groupEditor, sessions }: { groupEdito
   const [remoteMemberName, setRemoteMemberName] = useState('');
   const remoteRuntimeAvailable = memberRuntimes.some((runtime) => runtime.kind === 'remote');
   const resolveGroupMemberDisplayName = (member: Parameters<typeof resolveMemberName>[0]) => resolveMemberName(member, sessions);
+  // 成员下拉只列 OpenClaw Agent：外部运行时单聊不是可加进群的 OpenClaw 成员（外部成员用每个成员的运行时选择加）。
+  const openclawSessions = openclawSessionsOnly(sessions);
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGroupDialog(false)} />
@@ -158,10 +161,10 @@ export default function GroupEditorModal({ groupEditor, sessions }: { groupEdito
 
               {isMemberDropdownOpen && (
                 <div className="absolute top-[calc(100%+4px)] left-0 right-0 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-xl z-50 py-1 scrollbar-hide">
-                  {sessions.filter(s => s.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).length === 0 ? (
+                  {openclawSessions.filter(s => s.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).length === 0 ? (
                     <div className="px-4 py-3 text-sm text-gray-400 text-center font-medium">{t('sidebar.noItems')}</div>
                   ) : (
-                    sessions.filter(s => s.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).map(s => {
+                    openclawSessions.filter(s => s.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).map(s => {
                       const memberAgentId = s.agentId || s.id;
                       const isSelected = selectedGroupMembers.some(m => m.agentId === memberAgentId);
                       return (

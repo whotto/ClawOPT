@@ -9,6 +9,7 @@ import { useAccess } from '../../app/access';
 import { readApi, useErrorDisplay } from '../control/useControlApi';
 import WorkspaceFilesEditor from './WorkspaceFilesEditor';
 import WriteGatePanel from './WriteGatePanel';
+import { openclawSessionsOnly } from '../../utils/openclawSessions';
 
 type CloneReport = { copiedFiles: string[]; strippedBindings: Array<{ channel: string | null; accountId: string | null }> | null; skippedPrivate: string[]; credentialWarnings: string[]; avatarCopied: boolean };
 
@@ -76,7 +77,8 @@ export default function AgentsPage() {
   const [engineAgentIds, setEngineAgentIds] = useState<string[]>([]);
 
   // 统一名册：ClawOPT 会话里的 Agent + 只存在于引擎名册里的 Agent（用 `openclaw agents` 建的）。
-  const sessionAgents = shell.sessions.map((session) => ({ id: session.agentId || session.id, name: session.name, engineOnly: false }));
+  // 外部运行时单聊不是 OpenClaw Agent（没有工作区身份文件、头像、写入审批），不列：它们在侧栏里用自己的设置弹窗管理。
+  const sessionAgents = openclawSessionsOnly(shell.sessions).map((session) => ({ id: session.agentId || session.id, name: session.name, engineOnly: false }));
   const known = new Set(sessionAgents.map((agent) => agent.id));
   const agents = [...sessionAgents, ...engineAgentIds.filter((id) => !known.has(id)).map((id) => ({ id, name: id, engineOnly: true }))];
   const current = agents.find((agent) => agent.id === selected) ?? agents[0];

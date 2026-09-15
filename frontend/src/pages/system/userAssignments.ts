@@ -1,6 +1,7 @@
 // 用户页「授权的 Agent」选项：OpenClaw Agent + 外部运行时（伪 Agent id `ext:<运行时>`，与后端 core/auth/agent-ids.ts 同形）。
 // 授权 `ext:claude-code` = 这个 member 能用 Claude Code 的单聊、群里的 Claude Code 成员、工作流里的 Claude Code 节点。
 import type { RuntimeOption } from '../../components/runtime/runtimeSelection';
+import { openclawSessionsOnly } from '../../utils/openclawSessions';
 
 export const EXTERNAL_RUNTIME_AGENT_PREFIX = 'ext:';
 
@@ -21,7 +22,7 @@ export function assignableAgents(
   runtimes: RuntimeOption[],
   assigned: string[] = [],
 ): AssignableAgent[] {
-  const openclaw = [...new Set(sessions.filter((session) => !session.externalRuntime).map((session) => session.agentId || session.id).filter(Boolean))]
+  const openclaw = [...new Set(openclawSessionsOnly(sessions).map((session) => session.agentId || session.id).filter(Boolean))]
     .map((id) => ({ id, label: id, kind: 'openclaw' as const, available: true }));
   const external = runtimes.map((runtime) => ({ id: externalRuntimeAgentId(runtime.id), label: runtime.name, kind: 'external' as const, available: runtime.available }));
   const known = new Set([...openclaw, ...external].map((entry) => entry.id));

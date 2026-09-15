@@ -4,6 +4,7 @@ import {
   MODAL_FORM_FONT_STYLE, MODAL_FIELD_LABEL_CLASS, MODAL_TEXT_INPUT_CLASS, MODAL_TEXTAREA_CLASS,
 } from '../lib/constants';
 import type { ChatController } from '../hooks/useChatController';
+import { openclawSessionsOnly } from '../../../utils/openclawSessions';
 
 export type CreateGroupDialogProps = Pick<
   ChatController,
@@ -72,7 +73,8 @@ export function CreateGroupDialog(c: CreateGroupDialogProps) {
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">👥 {t('unifiedChat.selectMembersLabel', { count: selectedMembers.length })}</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {sessions.map(s => {
+                  {/* 外部运行时单聊不是可加进群的 OpenClaw 成员 */}
+                  {openclawSessionsOnly(sessions).map(s => {
                     const memberAgentId = s.agentId || s.id;
                     const isSelected = selectedMembers.some(m => m.agentId === memberAgentId);
                     return (
