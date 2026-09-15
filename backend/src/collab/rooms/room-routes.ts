@@ -1,6 +1,6 @@
 import type express from 'express';
 
-import { getRequestIdentity, type ResourceAccess, sendResourceForbidden } from '../../core/auth';
+import { getRequestIdentity, groupMemberAccessAgentId, type ResourceAccess, sendResourceForbidden } from '../../core/auth';
 import type { DB } from '../../core/db';
 import {
   AGENT_CONFIG_READ_FAILED_ERROR_CODE,
@@ -75,12 +75,17 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
    */
   const wakePredicateFor = (req: express.Request) => {
     const identity = getRequestIdentity(req);
-    return (agentId: string) => ctx.access.canAccessAgent(identity, agentId);
+    // 外部成员（含远程 OpenClaw）按 `ext:<运行时>` 判：引擎给的是成员的 agent_id，这里按群成员表换成判定用的 id。
+    const members = db.getGroupMembers(String(req.params.id ?? ''));
+    return (agentId: string) => {
+      const member = members.find((item) => item.agent_id === agentId);
+      return ctx.access.canAccessAgent(identity, member ? groupMemberAccessAgentId(member) : agentId);
+    };
   };
   const guardMemberAgents: express.RequestHandler = (req, res, next) => {
     const members = Array.isArray(req.body?.members) ? req.body.members : [];
     const identity = getRequestIdentity(req);
-    if (members.every((member: any) => ctx.access.canAccessAgent(identity, String(member?.agentId ?? '')))) return next();
+    if (members.every((member: any) => ctx.access.canAccessAgent(identity, groupMemberAccessAgentId({ agentId: String(member?.agentId ?? ''), runtime: typeof member?.runtime === 'string' ? member.runtime : null })))) return next();
     return sendResourceForbidden(res);
   };
 

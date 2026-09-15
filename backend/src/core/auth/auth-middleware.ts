@@ -4,6 +4,7 @@ import type { IncomingHttpHeaders } from 'http';
 import type { ConfigManager } from '../config';
 import { AUTH_LOGIN_REQUIRED_ERROR_CODE, StructuredRequestError } from '../http';
 import { normalizeCliText } from '../util';
+import { accessAgentId } from './agent-ids';
 import { AUTH_COOKIE_NAME, type AuthStore, readCookie } from './auth-store';
 import { type AuthRole, roleAtLeast, type UserStore } from './user-store';
 
@@ -198,10 +199,13 @@ export function createAuthMiddleware(ctx: AuthMiddlewareDeps) {
   const requireAdminAuth = requireRole('admin');
   const requireSuperAdmin = requireRole('super_admin');
 
-  /** 当前身份能不能看这个 Agent：admin 及以上全量；member 只看被授权的。 */
+  /**
+   * 当前身份能不能看这个 Agent：admin 及以上全量；member 只看被授权的。
+   * 外部运行时的 id（`ext:<运行时>[:…]`）先归一成可授权的 `ext:<运行时>`（`agent-ids.ts`）。
+   */
   function canAccessAgent(identity: RequestIdentity, agentId: string): boolean {
     if (roleAtLeast(identity.role, 'admin')) return true;
-    return identity.userId !== null && userStore.hasAgent(identity.userId, agentId);
+    return identity.userId !== null && userStore.hasAgent(identity.userId, accessAgentId(agentId));
   }
 
   /**

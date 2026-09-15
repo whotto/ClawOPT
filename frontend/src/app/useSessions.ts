@@ -10,6 +10,8 @@ export type SessionSummary = {
   model?: string;
   process_start_tag?: string;
   process_end_tag?: string;
+  /** 外部运行时单聊（后端 `GET /api/sessions` 回 `externalRuntime`）；普通 OpenClaw 会话没有。 */
+  externalRuntime?: string;
 };
 
 /**

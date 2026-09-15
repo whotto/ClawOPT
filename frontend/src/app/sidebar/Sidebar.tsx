@@ -128,12 +128,12 @@ export default function Sidebar(props: SidebarProps) {
   }
 
   const { isInfoModalOpen, viewingSession, isDeleteModalOpen, isResetModalOpen } = sessionActions;
-  // 外部运行时会话没有 OpenClaw 侧的文件可看：详情按钮打开它自己的编辑弹窗。
+  // 外部运行时会话没有 OpenClaw 侧的文件可看：详情按钮打开它自己的编辑弹窗（改 / 删是管理员的，member 不打开）。
   const handleShowInfo = (e: React.MouseEvent, session: { id: string; name: string }) => {
     const external = session as ExternalSessionSummary;
     if (external.externalRuntime) {
       e.stopPropagation();
-      setExternalDialog(external);
+      if (listsComplete) setExternalDialog(external);
       return;
     }
     void sessionActions.handleShowInfo(e, session);

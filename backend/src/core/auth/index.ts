@@ -1,4 +1,11 @@
 export {
+  accessAgentId,
+  chatSessionAccessAgentId,
+  EXTERNAL_RUNTIME_AGENT_PREFIX,
+  externalRuntimeAgentId,
+  groupMemberAccessAgentId,
+} from './agent-ids';
+export {
   AUTH_AGENT_FORBIDDEN_ERROR_CODE,
   AUTH_FORBIDDEN_ERROR_CODE,
   AUTH_PASSWORD_CHANGE_REQUIRED_ERROR_CODE,

@@ -16,7 +16,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { AuthStore, createAuthMiddleware, createResourceAccess, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
+import { AuthStore, chatSessionAccessAgentId, createAuthMiddleware, createResourceAccess, groupMemberAccessAgentId, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
 import { ConfigManager } from '../core/config';
 import { DB } from '../core/db';
 import { sharedFileStore } from '../core/files';
@@ -180,8 +180,12 @@ export function createAppContext() {
   const access = createResourceAccess({
     canAccessAgent: auth.canAccessAgent,
     lookup: {
-      chatSessionAgentId: (sessionId) => db.getSession(sessionId)?.agentId ?? null,
-      roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map((member) => member.agent_id) : null),
+      // 判定用的 Agent id：外部运行时单聊与外部群成员是 `ext:<运行时>`（可授权的伪 Agent，见 core/auth/agent-ids.ts）。
+      chatSessionAgentId: (sessionId) => {
+        const session = db.getSession(sessionId);
+        return session ? chatSessionAccessAgentId(session) : null;
+      },
+      roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map(groupMemberAccessAgentId) : null),
       runSessionAgentId: (sessionKey) => db.getRunSession(sessionKey)?.agent_id ?? null,
       uploadSessionKey: (storedName) => (db.getFileByStoredName(storedName)?.session_key as string | undefined) || null,
     },

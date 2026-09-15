@@ -74,7 +74,8 @@ export default function NewButtons({ editor, groupEditor, onNewExternal }: { edi
           </button>
         </div>
       </div>
-      {onNewExternal && (
+      {onNewExternal && canCreateAgent && (
+        // 建外部运行时单聊（POST /api/sessions）是管理员的；member 用被授权的运行时（`ext:<运行时>`）已有的单聊。
         // 外部运行时单聊单独一行：三个按钮挤在 256px 的侧栏里会把「智能体」竖着折成三行。
         <div className="flex items-center mt-2">
           <span className="flex items-center gap-1 text-sm flex-shrink-0 mr-2 invisible" aria-hidden="true">

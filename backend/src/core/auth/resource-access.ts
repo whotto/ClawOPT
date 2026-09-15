@@ -6,17 +6,18 @@
  *
  * | 资源 | member 可见的条件 |
  * |---|---|
- * | 单聊会话 | 会话的 Agent 在授权里 |
- * | 群 | 群里至少一个成员的 Agent 在授权里 |
+ * | 单聊会话 | 会话的 Agent 在授权里（外部运行时单聊看 `ext:<运行时>`） |
+ * | 群 | 群里至少一个成员的 Agent 在授权里（外部成员看 `ext:<运行时>`） |
  * | 协调器会话键 `room:<群>:member:<成员>` | 同群 |
  * | 其他协调器会话（工作流节点等） | `run_sessions.agent_id` 在授权里 |
- * | 工作流（列表、读、运行 / 停止 / 重跑、审批、状态流、待审批） | 工作流里**每个**节点的 Agent 都在授权里（外部运行时节点对 member 一律不可见） |
+ * | 工作流（列表、读、运行 / 停止 / 重跑、审批、状态流、待审批） | 工作流里**每个**节点的 Agent 都在授权里（外部运行时节点看 `ext:<运行时>`） |
  * | 按路径出的文件（下载、预览、HTML 预览、`/uploads`、`/openclaw`） | 先过可服务路径闸门；再按归属：Agent 工作区看 Agent、群工作区看群、上传目录看 `files` 表登记的会话 / 群；无主文件只给 admin |
  * | 上传 | 目标会话 / 群看得见；不带上下文（落到默认工作区）只给 admin |
- * | 看板任务（列表、详情、评论、完成 / 阻塞、派活） | 任务的负责 Agent 在授权里（没有负责人、外部运行时负责人对 member 不可见） |
+ * | 看板任务（列表、详情、评论、完成 / 阻塞、派活） | 任务的负责 Agent 在授权里（外部运行时负责人看 `ext:<运行时>`；没有负责人对 member 不可见） |
  *
  * 自动化里「建 / 改 / 删」工作流、定时、钩子、Webhook 端点与看板管理不按资源判，是管理员闸门（`requireAdminAuth`）。
- * 外部运行时（协调器 Agent id 以 `ext:` 开头）不属于任何 member 的授权——即便有人把这样的 id 写进了授权清单。
+ * 外部运行时按伪 Agent id `ext:<运行时>` 授权（`agent-ids.ts`）：表面上带后缀的 id（`ext:<运行时>:workflow` 等）判定前归一；
+ * 查询口（`ResourceLookup`）给出的就是判定用的 id——外部运行时单聊与外部群成员已经换成 `ext:<运行时>`。
  *
  * HTTP 路由（列表过滤、按 id 取、流、停止）与 `/ws` 主题授权都经这一处——两条通道的判据不许分家。
  * 资源不存在时一律返回 false：「不存在」与「无权看」对 member 不可区分，不泄露存在性。
@@ -25,6 +26,7 @@ import type express from 'express';
 
 import type { ServedPathOwner } from '../files';
 import { buildStructuredApiError, StructuredRequestError } from '../http';
+import { externalRuntimeAgentId } from './agent-ids';
 import { AUTH_AGENT_FORBIDDEN_ERROR_CODE, type RequestIdentity } from './auth-middleware';
 import { roleAtLeast } from './user-store';
 
@@ -34,9 +36,9 @@ export function sendResourceForbidden(res: express.Response): void {
 }
 
 export interface ResourceLookup {
-  /** 单聊会话的 Agent；会话不存在返回 null。 */
+  /** 单聊会话的授权 Agent id（外部运行时单聊为 `ext:<运行时>`）；会话不存在返回 null。 */
   chatSessionAgentId(sessionId: string): string | null;
-  /** 群里所有成员的 Agent id；群不存在返回 null。 */
+  /** 群里所有成员的授权 Agent id（外部成员为 `ext:<运行时>`）；群不存在返回 null。 */
   roomAgentIds(groupId: string): string[] | null;
   /** 协调器通用会话行（run_sessions）的 Agent；没有行返回 null。 */
   runSessionAgentId(sessionKey: string): string | null;
@@ -55,8 +57,6 @@ export type ResourceAccessDeps = {
 };
 
 const ROOM_SESSION_KEY = /^room:(.+):member:[^:]+$/;
-/** 协调器给外部运行时起的 Agent id 前缀（`ext:<运行时>:<表面>`）。 */
-const EXTERNAL_AGENT_ID_PREFIX = 'ext:';
 
 /** member 在看板里能做的任务动作；其余（移动、解除阻塞、收回、归档）是管理员的。 */
 export const MEMBER_KANBAN_ACTIONS: ReadonlySet<string> = new Set(['complete', 'block', 'dispatch']);
@@ -97,10 +97,9 @@ export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessD
     return (lookup.roomAgentIds(groupId) ?? []).every((agentId) => canAccessAgent(identity, agentId));
   }
 
-  /** 自动化引用的 Agent（工作流节点、看板负责人）：外部运行时只有 admin 能用。 */
+  /** 自动化引用的 Agent（工作流节点 `workflowAgentId`、看板负责人）：外部运行时按 `ext:<运行时>` 授权（归一在 `canAccessAgent` 里）。 */
   function canUseAutomationAgent(identity: RequestIdentity, agentId: string): boolean {
     if (isAdmin(identity)) return true;
-    if (agentId.startsWith(EXTERNAL_AGENT_ID_PREFIX)) return false;
     return canAccessAgent(identity, agentId);
   }
 
@@ -113,12 +112,12 @@ export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessD
 
   /**
    * 看板任务：`assignee` 为任务的负责人（null = 没有负责人）。
-   * OpenClaw 负责人按 Agent id 判；外部运行时负责人换成 `ext:` id，member 一律不可见。
+   * OpenClaw 负责人按 Agent id 判；外部运行时负责人按 `ext:<运行时>` 判。
    */
   function canAccessKanbanTask(identity: RequestIdentity, assignee: { kind: string; id: string } | null): boolean {
     if (isAdmin(identity)) return true;
     if (!assignee) return false;
-    const agentId = assignee.kind === 'openclaw' ? assignee.id : `${EXTERNAL_AGENT_ID_PREFIX}${assignee.id}`;
+    const agentId = assignee.kind === 'openclaw' ? assignee.id : externalRuntimeAgentId(assignee.id);
     return canUseAutomationAgent(identity, agentId);
   }
 

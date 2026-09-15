@@ -7,12 +7,38 @@ import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorBanner, formatTime
 import { useAccess } from '../../app/access';
 import { useShellContext } from '../../app/shellContext';
 import { readApi, useCurrentUser, useErrorDisplay } from '../control/useControlApi';
+import { listMemberRuntimes } from '../../api/runtime';
+import type { RuntimeOption } from '../../components/runtime/runtimeSelection';
+import { assignableAgents, assignmentLabel, type AssignableAgent } from './userAssignments';
 
 type Role = 'super_admin' | 'admin' | 'member';
 type User = { id: number; username: string; role: Role; status: 'active' | 'disabled'; mustChangePassword: boolean; lastLoginAt: number | null; agentIds: string[] };
 type IpLock = { ip: string; failures: number; lockedUntil: number | null };
 
-function UserModal({ user, agentIds, onClose, onSaved }: { user: User | null; agentIds: string[]; onClose: () => void; onSaved: () => void }) {
+function AssignmentChips({ options, assigned, onToggle }: { options: AssignableAgent[]; assigned: string[]; onToggle: (id: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const active = assigned.includes(option.id);
+        return (
+          <button
+            key={option.id}
+            type="button"
+            title={option.id}
+            onClick={() => onToggle(option.id)}
+            className={`px-3 h-8 rounded-lg text-xs font-medium border inline-flex items-center gap-1.5 ${active ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-600'}`}
+          >
+            {option.label}
+            {!option.available && <span className={active ? 'text-blue-100' : 'text-gray-400'}>· {t('control.users.notInstalled')}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function UserModal({ user, sessions, runtimes, onClose, onSaved }: { user: User | null; sessions: Array<{ id: string; agentId?: string; externalRuntime?: string | null }>; runtimes: RuntimeOption[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation();
   const errors = useErrorDisplay();
   const [username, setUsername] = useState(user?.username ?? '');
@@ -22,6 +48,10 @@ function UserModal({ user, agentIds, onClose, onSaved }: { user: User | null; ag
   const [assigned, setAssigned] = useState<string[]>(user?.agentIds ?? []);
   const [error, setError] = useState<ErrorDisplay | null>(null);
   const [saving, setSaving] = useState(false);
+  const options = assignableAgents(sessions, runtimes, user?.agentIds ?? []);
+  const openclawOptions = options.filter((option) => option.kind === 'openclaw');
+  const externalOptions = options.filter((option) => option.kind === 'external');
+  const toggle = (id: string) => setAssigned(assigned.includes(id) ? assigned.filter((item) => item !== id) : [...assigned, id]);
 
   const save = async () => {
     setSaving(true);
@@ -70,16 +100,16 @@ function UserModal({ user, agentIds, onClose, onSaved }: { user: User | null; ag
       </div>
       <div>
         <div className={labelClass}>{t('control.users.agents')}</div>
-        {role !== 'member' ? <p className="text-xs text-gray-400">{t('control.users.agentsAllForAdmins')}</p> : agentIds.length === 0 ? <p className="text-xs text-gray-400">{t('control.users.noAgents')}</p> : (
-          <div className="flex flex-wrap gap-2">
-            {agentIds.map((agentId) => {
-              const active = assigned.includes(agentId);
-              return (
-                <button key={agentId} type="button" onClick={() => setAssigned(active ? assigned.filter((id) => id !== agentId) : [...assigned, agentId])} className={`px-3 h-8 rounded-lg text-xs font-medium border ${active ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-600'}`}>
-                  {agentId}
-                </button>
-              );
-            })}
+        {role !== 'member' ? <p className="text-xs text-gray-400">{t('control.users.agentsAllForAdmins')}</p> : options.length === 0 ? <p className="text-xs text-gray-400">{t('control.users.noAgents')}</p> : (
+          <div className="space-y-3">
+            {openclawOptions.length > 0 && <AssignmentChips options={openclawOptions} assigned={assigned} onToggle={toggle} />}
+            {externalOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium text-gray-500">{t('control.users.externalRuntimes')}</div>
+                <AssignmentChips options={externalOptions} assigned={assigned} onToggle={toggle} />
+                <p className="text-xs text-gray-400">{t('control.users.externalRuntimesHint')}</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -103,16 +133,19 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState<User | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const agentIds = [...new Set(shell.sessions.map((session) => session.agentId || session.id).filter(Boolean))] as string[];
+  const [runtimes, setRuntimes] = useState<RuntimeOption[]>([]);
 
   const load = useCallback(async () => {
     if (!capabilities) return;
     setError(null);
     try {
-      const [list, locked] = await Promise.all([
+      const [list, locked, runtimeList] = await Promise.all([
         canManageUsers ? readApi<{ users: User[] }>(usersApi.list()) : Promise.resolve(null),
         readApi<{ locks: IpLock[] }>(usersApi.lockedIps()),
+        // 可授权的外部运行时（`ext:<运行时>`）：只有管理用户的人要选。
+        canManageUsers ? readApi<{ runtimes: RuntimeOption[] }>(listMemberRuntimes()) : Promise.resolve(null),
       ]);
+      if (runtimeList?.ok) setRuntimes(runtimeList.data.runtimes ?? []);
       // 403 是「没有权限」，不是「还没有用户」：两种空态不能混。
       setUsersForbidden(!list || list.status === 403);
       if (list?.ok) setUsers(list.data.users);
@@ -175,7 +208,7 @@ export default function UsersPage() {
                 </div>
                 <div className="text-xs text-gray-400 flex flex-wrap gap-x-4">
                   <span>{t('control.users.lastLogin')}: {formatTime(user.lastLoginAt, i18n.language)}</span>
-                  {user.role === 'member' && <span>{t('control.users.agents')}: {user.agentIds.join(', ') || '—'}</span>}
+                  {user.role === 'member' && <span>{t('control.users.agents')}: {user.agentIds.map((id) => assignmentLabel(id, runtimes)).join(', ') || '—'}</span>}
                 </div>
               </div>
               {canManageUsers && (
@@ -203,7 +236,7 @@ export default function UsersPage() {
         ))}
       </Card>
 
-      {editing && <UserModal user={editing === 'new' ? null : editing} agentIds={agentIds} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} />}
+      {editing && <UserModal user={editing === 'new' ? null : editing} sessions={shell.sessions} runtimes={runtimes} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} />}
       {deleting && (
         <ConfirmDialog
           title={t('common.confirmDelete')}

@@ -1,10 +1,10 @@
 /**
  * 自动化 HTTP 接口按「用户 ↔ Agent」授权：真组装的应用、登录开启、库里真用户、确定性假 Runner。
  *
- * 场景：member 被授权 `main`，以及两个外部运行时形状的 id（`ext:claude-code:workflow`、`ext:claude-code`）——
- * 用来证明「外部运行时对 member 一律不算授权」不是靠 id 恰好不在清单里。
- * - 工作流 wf-main（main 节点）/ wf-other（other 节点）/ wf-external（Claude Code 节点）；
- * - 看板任务 t-main（main）/ t-other（other）/ t-ext（外部运行时负责人）/ t-none（无负责人）。
+ * 场景：member 被授权 `main` 与外部运行时伪 Agent `ext:codex`，外加一个带后缀的 `ext:claude-code:workflow`——
+ * 用来证明外部运行时只按归一形状 `ext:<运行时>` 授权，带后缀的 id 写进清单也不授权 Claude Code。
+ * - 工作流 wf-main（main 节点）/ wf-other（other 节点）/ wf-external（Claude Code 节点）/ wf-codex（Codex 节点）；
+ * - 看板任务 t-main（main）/ t-other（other）/ t-ext（Claude Code 负责）/ t-codex（Codex 负责）/ t-none（无负责人）。
  *
  * 矩阵（admin 及以上全部可做）：
  * - 工作流：列表过滤；读 / 导出 / 运行 / 停止 / 重跑 / 审批 / 证据与转录 / 定时与钩子的读按工作流判（403 auth.agentForbidden）；
@@ -22,8 +22,8 @@ import { startAppHarness, waitUntil, type AppHarness } from './helpers/app-harne
 
 let h: AppHarness;
 const previousFakeRunner = process.env.CLAWOPT_WORKFLOW_FAKE_RUNNER;
-const wf = { main: '', other: '', external: '' };
-const task = { main: '', mainReady: '', other: '', ext: '', none: '' };
+const wf = { main: '', other: '', external: '', codex: '' };
+const task = { main: '', mainReady: '', other: '', ext: '', codex: '', none: '' };
 const tokens: Record<'owner' | 'admin' | 'member', string> = { owner: '', admin: '', member: '' };
 /** 实时中枢上发出的主题（这个套件不挂 WS，没有任何订阅者）。 */
 const realtimeTopics: string[] = [];
@@ -38,7 +38,7 @@ beforeAll(async () => {
   const owner = ctx.userStore.create({ username: 'owner', password: 'owner-pass-1234', role: 'super_admin' });
   const admin = ctx.userStore.create({ username: 'admin2', password: 'admin-pass-1234', role: 'admin' });
   const member = ctx.userStore.create({ username: 'member', password: 'member-pass-1234', role: 'member' });
-  ctx.userStore.update(member.id, { agentIds: ['main', 'ext:claude-code:workflow', 'ext:claude-code'] });
+  ctx.userStore.update(member.id, { agentIds: ['main', 'ext:codex', 'ext:claude-code:workflow'] });
   tokens.owner = ctx.authStore.issue('web', owner.id).token;
   tokens.admin = ctx.authStore.issue('web', admin.id).token;
   tokens.member = ctx.authStore.issue('web', member.id).token;
@@ -54,6 +54,7 @@ beforeAll(async () => {
   wf.main = createWorkflow('wf-main', { kind: 'openclaw', id: 'main' });
   wf.other = createWorkflow('wf-other', { kind: 'openclaw', id: 'other' });
   wf.external = createWorkflow('wf-external', { kind: 'external', id: 'claude-code', runtime: 'claude-code' });
+  wf.codex = createWorkflow('wf-codex', { kind: 'external', id: 'codex', runtime: 'codex' });
 
   const createTask = (title: string, assignee: Record<string, string> | null, status = 'ready') =>
     ctx.automation.kanban.createTask(DEFAULT_BOARD_ID, { title, assignee, status }).id;
@@ -61,6 +62,7 @@ beforeAll(async () => {
   task.mainReady = createTask('t-main-dispatch', { kind: 'openclaw', id: 'main' });
   task.other = createTask('t-other', { kind: 'openclaw', id: 'other' });
   task.ext = createTask('t-ext', { kind: 'external', id: 'claude-code' });
+  task.codex = createTask('t-codex', { kind: 'external', id: 'codex' });
   task.none = createTask('t-none', null);
 });
 
@@ -127,19 +129,19 @@ describe('工作流', () => {
     ['DELETE', `/api/workflows/${id}/hooks/hk1`],
   ];
 
-  it('列表与节点名册：member 只见全部节点都授权的工作流、只列自己的 Agent（外部运行时不列）；admin 全部', async () => {
+  it('列表与节点名册：member 只见全部节点都授权的工作流、只列自己的 Agent（外部运行时按 ext:<运行时>）；admin 全部', async () => {
     const member = await call(tokens.member, ['GET', '/api/workflows']);
-    expect(member.body.workflows.map((item: any) => item.id)).toEqual([wf.main]);
+    expect(member.body.workflows.map((item: any) => item.id).sort()).toEqual([wf.main, wf.codex].sort());
     const admin = await call(tokens.admin, ['GET', '/api/workflows']);
-    expect(admin.body.workflows.map((item: any) => item.id).sort()).toEqual([wf.main, wf.other, wf.external].sort());
+    expect(admin.body.workflows.map((item: any) => item.id).sort()).toEqual([wf.main, wf.other, wf.external, wf.codex].sort());
 
     const memberAgents = await call(tokens.member, ['GET', '/api/workflows/agents']);
-    expect(memberAgents.body.agents.map((entry: any) => `${entry.ref.kind}:${entry.ref.id}`)).toEqual(['openclaw:main']);
+    expect(memberAgents.body.agents.map((entry: any) => `${entry.ref.kind}:${entry.ref.id}`)).toEqual(['openclaw:main', 'external:codex']);
     const adminAgents = await call(tokens.admin, ['GET', '/api/workflows/agents']);
     expect(adminAgents.body.agents.map((entry: any) => `${entry.ref.kind}:${entry.ref.id}`)).toEqual(expect.arrayContaining(['openclaw:main', 'openclaw:other', 'external:claude-code']));
   });
 
-  it('member 读 / 运行 / 审批含未授权 Agent 或外部运行时节点的工作流一律 403 auth.agentForbidden，不留运行行', async () => {
+  it('member 读 / 运行 / 审批含未授权 Agent 或未授权外部运行时节点的工作流一律 403 auth.agentForbidden，不留运行行', async () => {
     for (const id of [wf.other, wf.external, 'missing']) {
       const calls = readAndRun(id);
       expect(await verdicts(tokens.member, calls)).toEqual(expectAll(calls, 403, 'auth.agentForbidden'));
@@ -152,7 +154,12 @@ describe('工作流', () => {
     const calls = adminOnly(wf.main);
     expect(await verdicts(tokens.member, calls)).toEqual(expectAll(calls, 403, 'auth.forbidden'));
     expect(h.ctx.automation.workflows.get(wf.main).name).toBe('wf-main');
-    expect(h.ctx.automation.workflows.list()).toHaveLength(3);
+    expect(h.ctx.automation.workflows.list()).toHaveLength(4);
+  });
+
+  it('member 对授权外部运行时节点的工作流可读（节点按 ext:<运行时> 算授权）', async () => {
+    expect((await call(tokens.member, ['GET', `/api/workflows/${wf.codex}`])).code).toBe(200);
+    expect((await call(tokens.member, ['GET', `/api/workflows/${wf.codex}/runs`])).code).toBe(200);
   });
 
   it('member 对自己的工作流：读、运行、审批、看证据照常', async () => {
@@ -187,16 +194,17 @@ describe('工作流', () => {
 });
 
 describe('看板', () => {
-  it('任务列表与看板计数：member 只见负责 Agent 授权给自己的任务（无负责人 / 外部运行时负责人不见）', async () => {
+  it('任务列表与看板计数：member 只见负责 Agent 授权给自己的任务（无负责人 / 未授权外部运行时负责人不见）', async () => {
     const tasks = await call(tokens.member, ['GET', `/api/kanban/boards/${DEFAULT_BOARD_ID}/tasks`]);
-    expect(tasks.body.tasks.map((item: any) => item.title).sort()).toEqual(['t-main', 't-main-dispatch']);
+    expect(tasks.body.tasks.map((item: any) => item.title).sort()).toEqual(['t-codex', 't-main', 't-main-dispatch']);
     const boards = await call(tokens.member, ['GET', '/api/kanban/boards']);
-    expect(boards.body.boards.find((board: any) => board.id === DEFAULT_BOARD_ID)).toMatchObject({ total: 2, counts: { ready: 2 } });
+    expect(boards.body.boards.find((board: any) => board.id === DEFAULT_BOARD_ID)).toMatchObject({ total: 3, counts: { ready: 3 } });
+    expect((await call(tokens.member, ['GET', `/api/kanban/tasks/${task.codex}`])).code).toBe(200);
 
     const adminTasks = await call(tokens.admin, ['GET', `/api/kanban/boards/${DEFAULT_BOARD_ID}/tasks`]);
-    expect(adminTasks.body.tasks).toHaveLength(5);
+    expect(adminTasks.body.tasks).toHaveLength(6);
     const adminBoards = await call(tokens.admin, ['GET', '/api/kanban/boards']);
-    expect(adminBoards.body.boards.find((board: any) => board.id === DEFAULT_BOARD_ID).total).toBe(5);
+    expect(adminBoards.body.boards.find((board: any) => board.id === DEFAULT_BOARD_ID).total).toBe(6);
   });
 
   it('member 对别人的任务：详情 / 评论 / 动作一律 403 auth.agentForbidden，任务不变', async () => {
