@@ -175,6 +175,27 @@ describe('每次运行前的健康隔离', () => {
     expect(open.servers.map((s) => s.name)).toEqual(['github', 'broken']);
     expect(open.excluded).toEqual([]);
   });
+
+  it('P6：托管服务提供者拿到这次运行的上下文；提供者异步、或自己出错时按「没有托管服务」放行', async () => {
+    const seen: unknown[] = [];
+    const run = { runId: 'r1', sessionKey: 's1', agentId: 'main', runtime: 'claude-code' };
+    const injector = createMcpInjector({
+      childEnv: () => ({}),
+      log: () => {},
+      probe: async () => ({ ok: true, tools: [], error: null }),
+      managedServers: async (_runtime, context) => {
+        seen.push(context);
+        return [{ name: 'clawopt-tools', transport: 'stdio', command: 'node', env: { CLAWOPT_MANAGED_MCP: '1' } }];
+      },
+    });
+    const result = await injector.resolveForRun({ runtime: 'claude-code', userServers: [{ name: 'github', transport: 'stdio', command: 'npx' }], run });
+    expect(result.servers.map((server) => server.name)).toEqual(['clawopt-tools', 'github']);
+    expect(seen).toEqual([run]);
+
+    const broken = createMcpInjector({ childEnv: () => ({}), log: () => {}, probe: async () => ({ ok: true, tools: [], error: null }), managedServers: () => { throw new Error('token store down'); } });
+    const fallback = await broken.resolveForRun({ runtime: 'claude-code', userServers: [{ name: 'github', transport: 'stdio', command: 'npx' }], run });
+    expect(fallback.servers.map((server) => server.name)).toEqual(['github']);
+  });
 });
 
 describe('真实探测', () => {

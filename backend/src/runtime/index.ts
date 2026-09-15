@@ -138,6 +138,8 @@ export type {
   RuntimeStatus,
 } from './manager';
 export {
+  CLAWOPT_MANAGED_MCP_ENV,
+  CLAWOPT_MANAGED_MCP_PREFIX,
   createMcpInjector,
   isManagedMcpServer,
   shapeClaudeMcpConfig,

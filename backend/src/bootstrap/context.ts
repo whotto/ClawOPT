@@ -234,6 +234,15 @@ export function createAppContext() {
     events,
     runtimePlatform,
     publicBaseUrl: () => `http://127.0.0.1:${Number(process.env.PORT) || 3100}`,
+    // chat_run：与工作流节点同一条协调器路径。`ext:<运行时>` 走外部运行时（global 模式），其余是 OpenClaw Agent。
+    delegateTurn: ({ agentId, prompt, markDelegated }) => automation.delegateTurn({
+      agentRef: agentId.startsWith('ext:')
+        ? { kind: 'external', id: agentId.slice('ext:'.length).split(':')[0], runtime: agentId.slice('ext:'.length).split(':')[0], mode: 'global' }
+        : { kind: 'openclaw', id: agentId },
+      prompt,
+      timeoutMs: 10 * 60 * 1000,
+      onSessionKey: markDelegated,
+    }),
   });
   // 托管 MCP：外部运行时每次运行前按运行上下文签发范围令牌并注入（运行时平台的钩子，P2 起一直为空）。
   runtimePlatform.setManagedMcpServers((runtime, run) => mcpServer.managedServersFor(runtime, run));

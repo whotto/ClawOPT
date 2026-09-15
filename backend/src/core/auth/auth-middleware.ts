@@ -72,6 +72,11 @@ export const AUTH_PUBLIC_PATHS = new Set([
   '/api/runtime-proxy/anthropic/:key/v1/messages',
   '/api/runtime-proxy/responses/:key/v1/models',
   '/api/runtime-proxy/responses/:key/v1/responses',
+  // P6：ClawOPT 作为 MCP 服务的桥接口（mcp-server）。调用方是 ClawOPT 给外部运行时注入的 MCP 子进程，带不了登录 cookie，
+  // 只拿得到这一次运行签发的**范围令牌**。安全性在处理器里：只收本机回环、只认 Bearer 范围令牌（不读 cookie、不认登录会话），
+  // 哈希常数时间比较、过期 / 吊销 401、操作白名单与范围 403；运行结束即吊销。
+  '/api/mcp-bridge/tools',
+  '/api/mcp-bridge/call',
 ]);
 
 /**
