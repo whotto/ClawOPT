@@ -15,6 +15,7 @@ export default function PackExportSection({ ctx }: { ctx: PresetLibraryControlle
     includeAutomations,
     includeMemory,
     includeModelConfig,
+    exportWorkflowIds,
     runExport,
     runShare,
     section,
@@ -24,8 +25,10 @@ export default function PackExportSection({ ctx }: { ctx: PresetLibraryControlle
     setIncludeAutomations,
     setIncludeMemory,
     setIncludeModelConfig,
+    setExportWorkflowIds,
     shareResult,
     t,
+    workflowOptions,
   } = ctx;
 
   return (
@@ -85,6 +88,24 @@ export default function PackExportSection({ ctx }: { ctx: PresetLibraryControlle
                 <span>{t('settings.presets.includeModel')}<span className="block text-xs text-gray-400 mt-0.5">{t('settings.presets.includeModelHint')}</span></span>
               </label>
               <p className="text-xs text-gray-400 pt-1">{t('settings.presets.neverIncluded')}</p>
+            </div>
+
+            <div className="space-y-2 border-t border-gray-100 pt-4">
+              <p className="text-sm font-medium text-gray-900">{t('settings.presets.includeWorkflows')}</p>
+              <p className="text-xs text-gray-500">{t('settings.presets.includeWorkflowsHint')}</p>
+              {workflowOptions.length === 0 && <p className="text-xs text-gray-400">{t('settings.presets.noWorkflows')}</p>}
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {workflowOptions.map(workflow => (
+                  <label key={workflow.id} className="inline-flex items-center gap-2 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={exportWorkflowIds.includes(workflow.id)}
+                      onChange={e => setExportWorkflowIds(e.target.checked ? [...exportWorkflowIds, workflow.id] : exportWorkflowIds.filter(id => id !== workflow.id))}
+                    />
+                    <span>{workflow.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
