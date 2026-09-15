@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom';
+import PendingApprovalsTray from '../features/workflow/components/PendingApprovalsTray';
 import Sidebar from './sidebar/Sidebar';
 import type { ShellContext } from './shellContext';
 import { useAppNavigation } from './useAppNavigation';
@@ -20,6 +21,9 @@ export default function AppShell() {
     activeSessionId: nav.activeSessionId,
     activeGroupId: nav.activeGroupId,
     settingsTab: nav.settingsTab,
+    automationSection: nav.automationSection,
+    activeWorkflowId: nav.activeWorkflowId,
+    openAutomation: nav.openAutomation,
     openMobileMenu: nav.openMobileMenu,
     selectGroup: (id) => {
       nav.setActiveGroupId(id);
@@ -48,10 +52,16 @@ export default function AppShell() {
         availableModels={availableModels}
         activeGroupId={nav.activeGroupId}
         onSelectGroup={nav.setActiveGroupId}
+        automationSection={nav.automationSection}
+        onOpenAutomation={nav.openAutomation}
       />
       <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden md:overflow-visible md:relative md:z-[60]">
         <Outlet context={context} />
       </main>
+      <PendingApprovalsTray
+        visibleWorkflowId={nav.currentView === 'automation' && nav.automationSection === 'workflows' ? nav.activeWorkflowId : null}
+        onOpen={(workflowId) => nav.openAutomation('workflows', workflowId)}
+      />
     </div>
   );
 }

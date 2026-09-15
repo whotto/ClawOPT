@@ -116,10 +116,61 @@ describe('legacyHashToPath', () => {
 describe('storedSelectionToState', () => {
   it('sanitizes remembered values', () => {
     expect(storedSelectionToState({ view: 'bogus', settingsTab: 'bogus', sessionId: null, groupId: '' })).toEqual({
-      view: 'chat', settingsTab: 'gateway', sessionId: '', groupId: null,
+      view: 'chat', settingsTab: 'gateway', sessionId: '', groupId: null, automationSection: 'workflows', workflowId: null,
     });
     expect(storedSelectionToState({ view: 'groups', settingsTab: 'about', sessionId: 's', groupId: 'g' })).toEqual({
-      view: 'groups', settingsTab: 'about', sessionId: 's', groupId: 'g',
+      view: 'groups', settingsTab: 'about', sessionId: 's', groupId: 'g', automationSection: 'workflows', workflowId: null,
     });
+    expect(storedSelectionToState({ view: 'automation', settingsTab: null, sessionId: null, groupId: null, automationSection: 'kanban', workflowId: 'w1' })).toMatchObject({
+      view: 'automation', automationSection: 'kanban', workflowId: 'w1',
+    });
+    expect(storedSelectionToState({ view: 'automation', settingsTab: null, sessionId: null, groupId: null, automationSection: 'nope' }).automationSection).toBe('workflows');
+  });
+});
+
+describe('automation routes', () => {
+  it('parses every automation section and the workflow id', () => {
+    expect(parseAppPath('/automation')).toEqual({ view: 'automation', section: null, workflowId: null });
+    expect(parseAppPath('/automation/workflows')).toEqual({ view: 'automation', section: 'workflows', workflowId: null });
+    expect(parseAppPath('/automation/workflows/wf%201')).toEqual({ view: 'automation', section: 'workflows', workflowId: 'wf 1' });
+    expect(parseAppPath('/automation/kanban')).toEqual({ view: 'automation', section: 'kanban', workflowId: null });
+    expect(parseAppPath('/automation/webhooks')).toEqual({ view: 'automation', section: 'webhooks', workflowId: null });
+    expect(parseAppPath('/automation/nope')).toEqual({ view: 'automation', section: null, workflowId: null });
+  });
+
+  it('rejects ids on sections that have none and too-deep paths', () => {
+    expect(parseAppPath('/automation/kanban/x')).toBeNull();
+    expect(parseAppPath('/automation/workflows/a/b')).toBeNull();
+  });
+
+  it('formats and round-trips', () => {
+    const states: AppRouteState[] = [
+      { ...base, view: 'automation', automationSection: 'workflows', workflowId: 'w/1' },
+      { ...base, view: 'automation', automationSection: 'workflows', workflowId: null },
+      { ...base, view: 'automation', automationSection: 'kanban', workflowId: 'ignored' },
+      { ...base, view: 'automation', automationSection: 'webhooks' },
+    ];
+    expect(formatAppPath(states[0])).toBe('/automation/workflows/w%2F1');
+    expect(formatAppPath(states[2])).toBe('/automation/kanban');
+    for (const state of states) {
+      const resolved = resolveRouteState(parseAppPath(formatAppPath(state)), base);
+      expect(formatAppPath(resolved)).toBe(formatAppPath(state));
+    }
+  });
+
+  it('fills a bare /automation from the remembered section and workflow', () => {
+    const remembered = { ...base, automationSection: 'workflows' as const, workflowId: 'w-remembered' };
+    expect(resolveRouteState(parseAppPath('/automation'), remembered)).toMatchObject({ view: 'automation', automationSection: 'workflows', workflowId: 'w-remembered' });
+    expect(resolveRouteState(parseAppPath('/automation'), { ...base, automationSection: 'kanban' })).toMatchObject({ automationSection: 'kanban', workflowId: null });
+    expect(resolveRouteState(parseAppPath('/automation/workflows'), remembered).workflowId).toBeNull();
+  });
+
+  it('replaces history only when filling or clearing the workflow selection', () => {
+    const next = { ...base, view: 'automation' as const, automationSection: 'workflows' as const, workflowId: 'w1' };
+    expect(shouldReplaceHistory({ view: 'automation', section: null, workflowId: null }, next)).toBe(true);
+    expect(shouldReplaceHistory({ view: 'automation', section: 'workflows', workflowId: 'w0' }, next)).toBe(false);
+    expect(shouldReplaceHistory({ view: 'automation', section: 'kanban', workflowId: null }, next)).toBe(false);
+    expect(shouldReplaceHistory({ view: 'automation', section: 'workflows', workflowId: 'w0' }, { ...next, workflowId: null })).toBe(true);
+    expect(shouldReplaceHistory({ view: 'chat', sessionId: 'a' }, next)).toBe(false);
   });
 });

@@ -1,0 +1,44 @@
+/* 工作流画布：只引 React Flow 的 base.css（结构样式，不带阴影），视觉在这里按全局 token 补齐。无阴影。 */
+@keyframes workflow-dash {
+  to { stroke-dashoffset: -20; }
+}
+
+.workflow-canvas .react-flow__edge-path {
+  stroke-dasharray: none;
+}
+
+.workflow-canvas .react-flow__controls {
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: white;
+  box-shadow: none;
+}
+
+.workflow-canvas .react-flow__controls-button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-bottom: 1px solid var(--color-gray-100);
+  background: white;
+  color: var(--color-gray-600);
+}
+
+.workflow-canvas .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.workflow-canvas .react-flow__controls-button svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.workflow-canvas .react-flow__node {
+  box-shadow: none;
+}
+
+.workflow-canvas .react-flow__attribution {
+  background: transparent;
+  color: var(--color-gray-400);
+}

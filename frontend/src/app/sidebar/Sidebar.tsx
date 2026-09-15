@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SettingsTab, ViewType } from '../routeState';
+import type { AutomationSection, SettingsTab, ViewType } from '../routeState';
+import AutomationNav from './AutomationNav';
 import AgentEditorModal from './AgentEditorModal';
 import AgentInfoModal from './AgentInfoModal';
 import AgentList from './AgentList';
@@ -38,6 +39,8 @@ export interface SidebarProps {
   availableModels: any[];
   activeGroupId: string | null;
   onSelectGroup: (id: string) => void;
+  automationSection: AutomationSection;
+  onOpenAutomation: (section: AutomationSection) => void;
 }
 
 /**
@@ -59,6 +62,8 @@ export default function Sidebar(props: SidebarProps) {
     availableModels,
     activeGroupId,
     onSelectGroup,
+    automationSection,
+    onOpenAutomation,
   } = props;
   const { t, i18n } = useTranslation();
   const appVersionInfo = useAppVersionInfo();
@@ -92,7 +97,7 @@ export default function Sidebar(props: SidebarProps) {
   const groupEditor = useGroupEditor({ t, groups, reloadGroups, onSelectGroup, navigateTo, settingsTab, activeGroupId, currentView });
   usePruneSidebarFavorites(favorites, sessions, sessionsLoaded, groups, groupsLoaded);
 
-  if (currentView === 'settings') {
+  if (currentView === 'settings' || currentView === 'automation') {
     return (
       <>
         {/* Mobile Backdrop */}
@@ -107,7 +112,9 @@ export default function Sidebar(props: SidebarProps) {
             openclawVersion={appVersionInfo?.openclawVersion || ''}
             appVersion={appVersionInfo?.version || ''}
           />
-          <SettingsNav settingsTab={settingsTab} navigateTo={navigateTo} />
+          {currentView === 'automation'
+            ? <AutomationNav section={automationSection} onOpen={onOpenAutomation} />
+            : <SettingsNav settingsTab={settingsTab} navigateTo={navigateTo} />}
           <SidebarFooter mode="settings" onReturnToConversation={onReturnToConversation} />
         </aside>
       </>
@@ -155,7 +162,7 @@ export default function Sidebar(props: SidebarProps) {
               )}
         </div>
 
-        <SidebarFooter mode="conversation" onOpenSettings={() => navigateTo('settings')} />
+        <SidebarFooter mode="conversation" onOpenSettings={() => navigateTo('settings')} onOpenAutomation={() => onOpenAutomation(automationSection)} />
       </aside>
 
       {/* Create Agent Modal - outside aside to center properly */}

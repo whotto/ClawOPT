@@ -5,8 +5,17 @@
 // 的 GET 回 index.html，vite dev / preview 默认也有 SPA 回退。旧版 `#settings/models`
 // 这类书签由 legacyHashToPath 一次性换成新路径。
 
-export type ViewType = 'chat' | 'settings' | 'groups';
+export type ViewType = 'chat' | 'settings' | 'groups' | 'automation';
 export type SettingsTab = 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about';
+/** 自动化区的页面：`/automation/workflows[/:id]`、`/automation/kanban`、`/automation/webhooks`。 */
+export type AutomationSection = 'workflows' | 'kanban' | 'webhooks';
+
+const AUTOMATION_SECTIONS: readonly AutomationSection[] = ['workflows', 'kanban', 'webhooks'];
+const DEFAULT_AUTOMATION_SECTION: AutomationSection = 'workflows';
+
+function isAutomationSection(value: unknown): value is AutomationSection {
+  return typeof value === 'string' && (AUTOMATION_SECTIONS as readonly string[]).includes(value);
+}
 
 const SETTINGS_TABS: readonly SettingsTab[] = ['gateway', 'general', 'models', 'presets', 'commands', 'about'];
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'gateway';
@@ -21,13 +30,18 @@ function isSettingsTab(value: unknown): value is SettingsTab {
 type ParsedAppPath =
   | { view: 'chat'; sessionId: string | null }
   | { view: 'groups'; groupId: string | null }
-  | { view: 'settings'; tab: SettingsTab | null };
+  | { view: 'settings'; tab: SettingsTab | null }
+  | { view: 'automation'; section: AutomationSection | null; workflowId: string | null };
 
 export type AppRouteState = {
   view: ViewType;
   settingsTab: SettingsTab;
   sessionId: string;
   groupId: string | null;
+  /** 自动化区当前页；不在自动化区时保留上次的值，回来时补齐缺段用。 */
+  automationSection?: AutomationSection;
+  /** 工作流画布上选中的工作流（仅 `workflows` 页）。 */
+  workflowId?: string | null;
 };
 
 function decodeSegment(segment: string | undefined): string | null {
@@ -40,9 +54,19 @@ function decodeSegment(segment: string | undefined): string | null {
   }
 }
 
-/** `/chat/:sessionId?`、`/groups/:groupId?`、`/settings/:tab?`；其余（含 `/`）返回 null。 */
+/** `/chat/:sessionId?`、`/groups/:groupId?`、`/settings/:tab?`、`/automation/:section?/:workflowId?`；其余（含 `/`）返回 null。 */
 export function parseAppPath(pathname: string): ParsedAppPath | null {
   const segments = pathname.split('/').filter(Boolean);
+  if (segments[0] === 'automation') {
+    if (segments.length > 3) return null;
+    const section = decodeSegment(segments[1]);
+    if (segments.length === 3 && section !== 'workflows') return null;
+    return {
+      view: 'automation',
+      section: isAutomationSection(section) ? section : null,
+      workflowId: section === 'workflows' ? decodeSegment(segments[2]) : null,
+    };
+  }
   if (segments.length === 0 || segments.length > 2) return null;
   const [head, param] = segments;
   if (head === 'chat') return { view: 'chat', sessionId: decodeSegment(param) };
@@ -56,6 +80,12 @@ export function parseAppPath(pathname: string): ParsedAppPath | null {
 
 export function formatAppPath(state: AppRouteState): string {
   if (state.view === 'settings') return `/settings/${state.settingsTab}`;
+  if (state.view === 'automation') {
+    const section = state.automationSection ?? DEFAULT_AUTOMATION_SECTION;
+    return section === 'workflows' && state.workflowId
+      ? `/automation/workflows/${encodeURIComponent(state.workflowId)}`
+      : `/automation/${section}`;
+  }
   if (state.view === 'groups') return state.groupId ? `/groups/${encodeURIComponent(state.groupId)}` : '/groups';
   return state.sessionId ? `/chat/${encodeURIComponent(state.sessionId)}` : '/chat';
 }
@@ -77,6 +107,11 @@ export function resolveRouteState(parsed: ParsedAppPath | null, fallback: AppRou
   if (parsed.view === 'settings') {
     return { ...fallback, view: 'settings', settingsTab: parsed.tab ?? DEFAULT_SETTINGS_TAB };
   }
+  if (parsed.view === 'automation') {
+    const section = parsed.section ?? fallback.automationSection ?? DEFAULT_AUTOMATION_SECTION;
+    const workflowId = section !== 'workflows' ? null : parsed.section ? parsed.workflowId : (fallback.workflowId ?? null);
+    return { ...fallback, view: 'automation', settingsTab: DEFAULT_SETTINGS_TAB, automationSection: section, workflowId };
+  }
   if (parsed.view === 'groups') {
     return { ...fallback, view: 'groups', settingsTab: DEFAULT_SETTINGS_TAB, groupId: parsed.groupId ?? fallback.groupId };
   }
@@ -92,6 +127,10 @@ export function resolveRouteState(parsed: ParsedAppPath | null, fallback: AppRou
 export function shouldReplaceHistory(current: ParsedAppPath | null, next: AppRouteState): boolean {
   if (!current || current.view !== next.view) return !current;
   if (current.view === 'settings') return current.tab === null;
+  if (current.view === 'automation') {
+    if (current.section === null) return true;
+    return current.section === next.automationSection && current.workflowId !== null && !next.workflowId;
+  }
   if (current.view === 'groups') return !current.groupId || !next.groupId;
   return !current.sessionId || !next.sessionId;
 }
@@ -117,6 +156,8 @@ export const NAV_STORAGE_KEYS = {
   activeSession: 'clawopt_active_session',
   activeGroup: 'clawopt_active_group',
   lastConversationView: 'clawopt_last_conversation_view',
+  automationSection: 'clawopt_automation_section',
+  activeWorkflow: 'clawopt_active_workflow',
 } as const;
 
 type StoredNavSelection = {
@@ -124,13 +165,17 @@ type StoredNavSelection = {
   settingsTab: string | null;
   sessionId: string | null;
   groupId: string | null;
+  automationSection?: string | null;
+  workflowId?: string | null;
 };
 
 export function storedSelectionToState(stored: StoredNavSelection): AppRouteState {
   return {
-    view: stored.view === 'settings' || stored.view === 'groups' ? stored.view : 'chat',
+    view: stored.view === 'settings' || stored.view === 'groups' || stored.view === 'automation' ? stored.view : 'chat',
     settingsTab: isSettingsTab(stored.settingsTab) ? stored.settingsTab : DEFAULT_SETTINGS_TAB,
     sessionId: stored.sessionId || '',
     groupId: stored.groupId || null,
+    automationSection: isAutomationSection(stored.automationSection) ? stored.automationSection : DEFAULT_AUTOMATION_SECTION,
+    workflowId: stored.workflowId || null,
   };
 }
