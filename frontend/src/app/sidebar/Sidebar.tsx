@@ -6,6 +6,7 @@ import AutomationNav from './AutomationNav';
 import AgentEditorModal from './AgentEditorModal';
 import AgentInfoModal from './AgentInfoModal';
 import AgentList from './AgentList';
+import { OrganizedSessionList } from '../../features/sessions/OrganizedSessionList';
 import ExternalAgentDialog, { type ExternalSessionSummary } from './ExternalAgentDialog';
 import FavoritesList from './FavoritesList';
 import { DeleteGroupModal, ResetGroupModal } from './GroupConfirmModals';
@@ -190,7 +191,13 @@ export default function Sidebar(props: SidebarProps) {
         <div className="flex-1 overflow-y-auto px-4 py-1 min-h-0 scrollbar-hide">
           <ListTabs sidebarListTab={sidebarListTab} setSidebarListTab={setSidebarListTab} />
           {sidebarListTab === 'agents'
-            ? <AgentList sidebar={props} enableReorder={enableReorder} onShowInfo={handleShowInfo} />
+            ? (
+              <OrganizedSessionList
+                sidebar={props}
+                onShowInfo={handleShowInfo}
+                renderFlat={(renderRowAction) => <AgentList sidebar={props} enableReorder={enableReorder} onShowInfo={handleShowInfo} renderRowAction={renderRowAction} />}
+              />
+            )
             : sidebarListTab === 'groups'
               ? <GroupList sidebar={props} enableReorder={enableReorder} groups={groups} reorderGroups={reorderGroups} groupDetails={groupDetails} />
               : (

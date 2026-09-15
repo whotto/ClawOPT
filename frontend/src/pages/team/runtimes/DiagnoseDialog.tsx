@@ -60,6 +60,8 @@ export default function DiagnoseDialog({ agents, prompt, onClose, onSessionsChan
           name: t('runtimes.diagnose.sessionName', { runtime: option?.name ?? resolved.createRuntime }),
           externalRuntime: resolved.createRuntime,
           externalConfig: { mode: 'global' },
+          // 会话来历：「只看人建的」筛选据此隐藏诊断会话。
+          origin: 'diagnosis',
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok && data.errorCode !== 'agents.idAlreadyExists') {

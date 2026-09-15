@@ -33,6 +33,48 @@ export function reorderSessions(ids: string[]) {
   return apiFetch('/sessions/reorder', jsonInit('POST', { ids }));
 }
 
+/** 会话组织视图（按用户）：分类、每个看得见的会话的分类 / 归档 / 对话标题 / 来历 / 分叉血缘 / 最近活动。 */
+export function getSessionOrganization(signal?: AbortSignal) {
+  return apiFetch('/session-organization', { signal });
+}
+
+export function createSessionCategory(name: string) {
+  return apiFetch('/session-categories', jsonInit('POST', { name }));
+}
+
+export function renameSessionCategory(categoryId: number, name: string) {
+  return apiFetch(`/session-categories/${categoryId}`, jsonInit('PUT', { name }));
+}
+
+export function deleteSessionCategory(categoryId: number) {
+  return apiFetch(`/session-categories/${categoryId}`, { method: 'DELETE' });
+}
+
+export function moveSessionToCategory(sessionId: string, categoryId: number | null) {
+  return apiFetch(`/sessions/${encodeURIComponent(sessionId)}/category`, jsonInit('PUT', { categoryId }));
+}
+
+export function setSessionArchived(sessionId: string, archived: boolean) {
+  return apiFetch(`/sessions/${encodeURIComponent(sessionId)}/archive`, jsonInit('PUT', { archived }));
+}
+
+export function renameSessionTitle(sessionId: string, title: string) {
+  return apiFetch(`/sessions/${encodeURIComponent(sessionId)}/title`, jsonInit('PUT', { title }));
+}
+
+export function batchDeleteSessions(ids: string[]) {
+  return apiFetch('/sessions/batch-delete', jsonInit('POST', { ids }));
+}
+
+export function forkSession(sessionId: string, title?: string) {
+  return apiFetch(`/sessions/${encodeURIComponent(sessionId)}/fork`, jsonInit('POST', title ? { title } : {}));
+}
+
+/** 导出地址（浏览器按附件下载；鉴权走同源 cookie）。 */
+export function sessionExportUrl(sessionId: string, format: 'json' | 'markdown') {
+  return `/api/sessions/${encodeURIComponent(sessionId)}/export?format=${format}`;
+}
+
 /** 看得见的单聊会话是否在跑、上一轮怎么结束（完成提醒的轮询兜底）。 */
 export function getSessionActivity() {
   return apiFetch('/sessions/activity');

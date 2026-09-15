@@ -26,14 +26,22 @@ export default function AgentList({
   sidebar,
   enableReorder,
   onShowInfo,
+  renderRowAction,
 }: {
   sidebar: SidebarProps;
   enableReorder: boolean;
   onShowInfo: (e: React.MouseEvent, session: { id: string; name: string }) => void;
+  /** 行上的附加操作（会话组织的行菜单），渲染在卡片右侧、详情按钮左边。 */
+  renderRowAction?: (session: SidebarProps['sessions'][number]) => React.ReactNode;
 }) {
   const { t } = useTranslation();
   const { sessionsLoaded, sessions, reorderSessions } = sidebar;
-  const renderSessionCard = (s: { id: string; name: string }) => <SessionCard s={s} sidebar={sidebar} onShowInfo={onShowInfo} />;
+  const renderSessionCard = (s: SidebarProps['sessions'][number]) => (
+    <div className="relative group/row">
+      <SessionCard s={s} sidebar={sidebar} onShowInfo={onShowInfo} />
+      {renderRowAction?.(s)}
+    </div>
+  );
   return (
     !sessionsLoaded ? (
       <SessionSkeleton />
