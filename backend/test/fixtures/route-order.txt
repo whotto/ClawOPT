@@ -266,6 +266,15 @@ DELETE /api/plugins/:id
 GET /api/usage/summary
 GET /api/logs
 GET /api/gateway/service-status
+GET /api/theme
+GET /api/performance/runtime
+GET /api/agents/:agentId/journey
+GET /api/memory/cards
+GET /api/mcp-server/settings
+GET /api/voice/status
+GET /api/voice/settings
+GET /api/terminal/status
+GET /api/fs/roots
 USE /assets
 USE *
 GET /api/groups

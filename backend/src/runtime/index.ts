@@ -148,7 +148,7 @@ export {
   shapeOpenCodeMcpConfig,
   shapePiMcpConfig,
 } from './mcp';
-export type { ManagedMcpServer, McpInjector } from './mcp';
+export type { ManagedMcpServer, McpInjector, McpRunContext } from './mcp';
 export {
   REMOTE_OPENCLAW_CAPABILITIES,
   REMOTE_OPENCLAW_DESCRIPTOR,

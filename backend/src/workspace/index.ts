@@ -63,3 +63,25 @@ export type {
   UploadService,
   UploadServiceDeps,
 } from './uploads/upload-service';
+export {
+  TERMINAL_WS_PATH,
+  attachTerminalWebSocketServer,
+  createTerminalService,
+  registerTerminalRoutes,
+} from './terminal';
+export type {
+  TerminalAvailability,
+  TerminalRoutesDeps,
+  TerminalService,
+  TerminalServiceDeps,
+  TerminalWsOptions,
+} from './terminal';
+export {
+  createFileManagerService,
+  registerFileManagerRoutes,
+} from './files/manager';
+export type {
+  FileManagerRoutesDeps,
+  FileManagerService,
+  FileManagerServiceDeps,
+} from './files/manager';

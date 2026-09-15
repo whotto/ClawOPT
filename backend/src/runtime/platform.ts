@@ -10,7 +10,7 @@ import type { AgentRuntimeAdapter } from './contract';
 import { createRuntimeManager, type LocalRuntimeManager, type RuntimeHomeOwner, type RuntimeManagerOptions } from './manager';
 import { readUserMcpServersForRun } from './manager/native-config';
 import { createMcpInjector } from './mcp';
-import type { McpInjector } from './mcp';
+import type { ManagedMcpServer, McpInjector, McpRunContext } from './mcp';
 import type { ProviderProxy } from './proxy';
 import { RemoteMemberSecretStore } from './remote-openclaw';
 
@@ -35,6 +35,11 @@ export interface RuntimePlatform {
   createAdapter(runtime: string, options?: { executor?: ProcessExecutor }): AgentRuntimeAdapter<RuntimeRunRequest> | null;
   /** 归属被删：回收运行时目录（远程成员令牌随定期清扫删除）。 */
   releaseOwner(owner: Partial<RuntimeHomeOwner> & { kind: RuntimeHomeOwner['kind'] }, options?: { exceptRuntime?: string }): void;
+  /**
+   * 托管 MCP 服务的提供者（P6：ClawOPT 作为 MCP 服务）。bootstrap 在 MCP 服务装配好之后设一次；
+   * 没设时没有托管服务。每次运行前按运行上下文调用。
+   */
+  setManagedMcpServers(provider: (runtime: string, run?: McpRunContext) => ManagedMcpServer[] | Promise<ManagedMcpServer[]>): void;
   start(): void;
   stop(): void;
 }
@@ -49,7 +54,8 @@ export function createRuntimePlatform(options: RuntimePlatformOptions): RuntimeP
   registerBuiltinAdapters(registry);
   const manager = createRuntimeManager(options);
   const unsubscribe = registry.subscribe((entry) => manager.register(entry.descriptor));
-  const mcp = createMcpInjector({ childEnv: () => manager.childEnv({}), managedServers: () => [] });
+  let managedServersProvider: (runtime: string, run?: McpRunContext) => ManagedMcpServer[] | Promise<ManagedMcpServer[]> = () => [];
+  const mcp = createMcpInjector({ childEnv: () => manager.childEnv({}), managedServers: (runtime, run) => managedServersProvider(runtime, run) });
   const remoteSecrets = new RemoteMemberSecretStore(options.dataDir);
   const defaultExecutor = options.executor ?? createLocalProcessExecutor();
 
@@ -91,6 +97,9 @@ export function createRuntimePlatform(options: RuntimePlatformOptions): RuntimeP
       } catch (error) {
         console.warn(`[RuntimePlatform] runtime home cleanup failed: ${(error as NodeJS.ErrnoException)?.code ?? 'Error'}`);
       }
+    },
+    setManagedMcpServers(provider) {
+      managedServersProvider = provider;
     },
     start() {
       manager.start();

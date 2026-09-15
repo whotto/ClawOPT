@@ -102,7 +102,15 @@
     "usage": "Usage",
     "logs": "Logs",
     "runtimesManage": "Agent Runtimes",
-    "externalAgent": "External agent"
+    "externalAgent": "External agent",
+    "memory": "Memory",
+    "journey": "Growth journey",
+    "performance": "Performance",
+    "files": "Files",
+    "terminal": "Terminal",
+    "voice": "Voice",
+    "mcpServer": "ClawOPT MCP server",
+    "theme": "Theme"
   },
   "common": {
     "details": "Details",
@@ -1337,7 +1345,15 @@
       "channels": "Settings - Channels",
       "plugins": "Settings - Plugins",
       "usage": "Settings - Usage",
-      "logs": "Settings - Logs"
+      "logs": "Settings - Logs",
+      "memory": "Settings - Memory",
+      "journey": "Settings - Growth journey",
+      "performance": "Settings - Performance",
+      "files": "Settings - Files",
+      "terminal": "Settings - Terminal",
+      "voice": "Settings - Voice",
+      "mcpserver": "Settings - ClawOPT MCP server",
+      "theme": "Settings - Theme"
     },
     "common": {
       "loading": "Loading…",
@@ -2303,5 +2319,31 @@
     },
     "notFound": "This approval request no longer exists",
     "notActive": "This approval request was already answered or is not active yet"
+  },
+  "hostFeature": {
+    "unavailableTitle": "Unavailable on this host",
+    "reasonLabel": "Reason",
+    "howToLabel": "How to enable",
+    "reason": {
+      "nodePtyMissing": "node-pty cannot be loaded on this host (the optional native dependency is not installed or not built).",
+      "nodePtyBroken": "node-pty is installed but cannot open a pseudo-terminal here (usually spawn-helper lacks the execute bit, or the native addon does not match this Node version).",
+      "sshMissing": "The ssh or ssh-keyscan command is not available on this host.",
+      "dockerMissing": "The docker command is not available on this host.",
+      "gitMissing": "git is not available on this host, so version-control decorations are hidden.",
+      "localSttNotIncluded": "Local offline speech recognition (sherpa-onnx) is not included in this release.",
+      "platformUnsupported": "This feature is not supported on the current operating system.",
+      "insufficientMemory": "This host does not have enough free memory."
+    },
+    "howTo": {
+      "nodePtyMissing": "In the backend directory run npm install --include=optional, then npm rebuild node-pty (Linux needs python3, make and g++), and restart ClawOPT.",
+      "nodePtyBroken": "In the backend directory run npm rebuild node-pty and restart ClawOPT; on macOS you can also add the execute bit to node_modules/node-pty/prebuilds/*/spawn-helper.",
+      "sshMissing": "Install the OpenSSH client (for example apt install openssh-client), then check again.",
+      "dockerMissing": "Install the Docker CLI and make sure the account running ClawOPT can run docker ps, then check again.",
+      "gitMissing": "Install git and reload the page.",
+      "localSttNotIncluded": "Choose a cloud recognizer (OpenAI-compatible, Groq, ElevenLabs, Doubao) or browser recognition in Voice settings. The model is about 200 MB and uses several hundred MB of memory once loaded, which is not suitable for 2 GB hosts.",
+      "platformUnsupported": "Use a supported Linux or macOS host.",
+      "insufficientMemory": "Free some memory or use an execution host with more memory."
+    },
+    "refresh": "Check again"
   }
 }

@@ -12,6 +12,7 @@ import { buildApp } from './app';
 import { createAppContext } from './context';
 import { createReadiness } from './health';
 import { attachRealtimeServer } from './realtime';
+import { attachTerminalServer } from './terminal';
 import { createShutdownRegistry } from './shutdown';
 import { runStartupSteps } from './startup-steps';
 import { buildStartupTasks, runStartupTasks } from './startup-tasks';
@@ -44,6 +45,8 @@ export async function startServer() {
   const { app, routes } = buildApp(ctx, { readiness });
   const server = createServer(app);
   const realtimeServer = attachRealtimeServer(server, ctx);
+  // Web 终端的 WebSocket（`/ws/terminal`，一次性票据）：与 /ws 同一个 HTTP 服务，按升级路径分流。
+  const terminalServer = attachTerminalServer(server, ctx);
 
   shutdown.register({
     name: 'openclaw-gateway-connections',
@@ -72,6 +75,16 @@ export async function startServer() {
     name: 'realtime-websocket',
     close: () => realtimeServer.close(),
   });
+  // P6：终端会话（整棵进程树收掉）、MCP 范围令牌、记忆库连接。
+  shutdown.register({
+    name: 'terminal',
+    close: async () => {
+      await terminalServer.close();
+      await ctx.terminal.stop();
+    },
+  });
+  shutdown.register({ name: 'mcp-server', close: () => ctx.mcpServer.stop() });
+  shutdown.register({ name: 'memory', close: () => ctx.memory.close() });
   shutdown.register({
     name: 'runtime-platform',
     close: () => ctx.runtimePlatform.stop(),

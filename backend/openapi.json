@@ -37,6 +37,9 @@
       "name": "control/gateway"
     },
     {
+      "name": "control/journey"
+    },
+    {
       "name": "control/logs"
     },
     {
@@ -47,6 +50,9 @@
     },
     {
       "name": "control/packs"
+    },
+    {
+      "name": "control/performance"
     },
     {
       "name": "control/plugins"
@@ -61,6 +67,9 @@
       "name": "control/skills"
     },
     {
+      "name": "control/theme"
+    },
+    {
       "name": "control/update"
     },
     {
@@ -73,10 +82,22 @@
       "name": "core/auth"
     },
     {
+      "name": "mcp-server"
+    },
+    {
+      "name": "memory"
+    },
+    {
       "name": "runtime"
     },
     {
+      "name": "voice"
+    },
+    {
       "name": "workspace/files"
+    },
+    {
+      "name": "workspace/terminal"
     },
     {
       "name": "workspace/uploads"
@@ -8361,6 +8382,268 @@
         "x-clawopt-order": 267
       }
     },
+    "/api/theme": {
+      "get": {
+        "operationId": "getApiTheme",
+        "tags": [
+          "control/theme"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/theme",
+        "x-clawopt-order": 268
+      }
+    },
+    "/api/performance/runtime": {
+      "get": {
+        "operationId": "getApiPerformanceRuntime",
+        "tags": [
+          "control/performance"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/performance/runtime",
+        "x-clawopt-order": 269
+      }
+    },
+    "/api/agents/{agentId}/journey": {
+      "get": {
+        "operationId": "getApiAgentsAgentIdJourney",
+        "tags": [
+          "control/journey"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/agents/:agentId/journey",
+        "x-clawopt-order": 270
+      }
+    },
+    "/api/memory/cards": {
+      "get": {
+        "operationId": "getApiMemoryCards",
+        "tags": [
+          "memory"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/memory/cards",
+        "x-clawopt-order": 271
+      }
+    },
+    "/api/mcp-server/settings": {
+      "get": {
+        "operationId": "getApiMcpServerSettings",
+        "tags": [
+          "mcp-server"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/mcp-server/settings",
+        "x-clawopt-order": 272
+      }
+    },
+    "/api/voice/status": {
+      "get": {
+        "operationId": "getApiVoiceStatus",
+        "tags": [
+          "voice"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/voice/status",
+        "x-clawopt-order": 273
+      }
+    },
+    "/api/voice/settings": {
+      "get": {
+        "operationId": "getApiVoiceSettings",
+        "tags": [
+          "voice"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/voice/settings",
+        "x-clawopt-order": 274
+      }
+    },
+    "/api/terminal/status": {
+      "get": {
+        "operationId": "getApiTerminalStatus",
+        "tags": [
+          "workspace/terminal"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/terminal/status",
+        "x-clawopt-order": 275
+      }
+    },
+    "/api/fs/roots": {
+      "get": {
+        "operationId": "getApiFsRoots",
+        "tags": [
+          "workspace/files"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/fs/roots",
+        "x-clawopt-order": 276
+      }
+    },
     "/api/groups": {
       "get": {
         "operationId": "getApiGroups",
@@ -8386,7 +8669,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 270
+        "x-clawopt-order": 279
       },
       "post": {
         "operationId": "postApiGroups",
@@ -8412,7 +8695,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 271
+        "x-clawopt-order": 280
       }
     },
     "/api/groups/{id}": {
@@ -8450,7 +8733,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 272
+        "x-clawopt-order": 281
       },
       "delete": {
         "operationId": "deleteApiGroupsId",
@@ -8486,7 +8769,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 274
+        "x-clawopt-order": 283
       }
     },
     "/api/groups/reorder": {
@@ -8514,7 +8797,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/reorder",
-        "x-clawopt-order": 273
+        "x-clawopt-order": 282
       }
     },
     "/api/groups/{id}/reset": {
@@ -8552,7 +8835,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/reset",
-        "x-clawopt-order": 275
+        "x-clawopt-order": 284
       }
     },
     "/api/groups/{id}/messages": {
@@ -8590,7 +8873,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 276
+        "x-clawopt-order": 285
       },
       "post": {
         "operationId": "postApiGroupsIdMessages",
@@ -8626,7 +8909,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 279
+        "x-clawopt-order": 288
       }
     },
     "/api/groups/{id}/active-run": {
@@ -8664,7 +8947,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/active-run",
-        "x-clawopt-order": 277
+        "x-clawopt-order": 286
       }
     },
     "/api/groups/{id}/messages/search": {
@@ -8702,7 +8985,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/search",
-        "x-clawopt-order": 278
+        "x-clawopt-order": 287
       }
     },
     "/api/groups/{id}/stop": {
@@ -8740,7 +9023,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/stop",
-        "x-clawopt-order": 280
+        "x-clawopt-order": 289
       }
     },
     "/api/groups/{id}/messages/{msgId}": {
@@ -8786,7 +9069,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 281
+        "x-clawopt-order": 290
       },
       "delete": {
         "operationId": "deleteApiGroupsIdMessagesMsgId",
@@ -8830,7 +9113,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 282
+        "x-clawopt-order": 291
       }
     },
     "/api/groups/{id}/messages/regenerate": {
@@ -8868,7 +9151,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/regenerate",
-        "x-clawopt-order": 283
+        "x-clawopt-order": 292
       }
     },
     "/api/groups/{id}/events": {
@@ -8906,7 +9189,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/events",
-        "x-clawopt-order": 284
+        "x-clawopt-order": 293
       }
     }
   },

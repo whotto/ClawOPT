@@ -33,7 +33,7 @@ const argv = process.argv.slice(2);
 const rootArg = argv.includes('--root') ? argv[argv.indexOf('--root') + 1] : null;
 const SRC = path.resolve(rootArg ? path.resolve(process.cwd(), rootArg) : path.join(REPO, 'backend', 'src'));
 
-const BUSINESS_MODULES = new Set(['openclaw', 'runtime', 'control', 'workspace', 'collab', 'automation', 'bootstrap']);
+const BUSINESS_MODULES = new Set(['openclaw', 'runtime', 'control', 'workspace', 'collab', 'automation', 'bootstrap', 'voice', 'memory', 'mcp-server']);
 
 function listTs(dir) {
   const out = [];

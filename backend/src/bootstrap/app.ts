@@ -39,8 +39,14 @@ import {
   registerSettingsRoutes,
   registerUpdateRoutes,
   registerVersionRoutes,
+  registerJourneyRoutes,
+  registerPerformanceRoutes,
+  registerThemeRoutes,
 } from '../control';
-import { registerFileRoutes, registerUploadRoutes } from '../workspace';
+import { registerFileManagerRoutes, registerFileRoutes, registerTerminalRoutes, registerUploadRoutes } from '../workspace';
+import { registerMemoryRoutes } from '../memory';
+import { registerMcpServerRoutes } from '../mcp-server';
+import { registerVoiceRoutes } from '../voice';
 import { registerChatRoutes, registerSessionListRoutes, registerSessionRoutes } from '../collab/sessions';
 import { registerRoomRoutes } from '../collab/rooms';
 import { registerAutomationRoutes, registerWorkflowRoutes } from '../automation';
@@ -145,6 +151,16 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerMcpRoutes(routes.forModule('control/mcp'), ctx);
   registerPluginsRoutes(routes.forModule('control/plugins'), ctx);
   registerObservabilityRoutes(routes.forModule('control/logs'), ctx);
+
+  // P6 工作区与外围。全部在闸门之后、SPA 兜底之前；MCP 桥接口有意公开（见 AUTH_PUBLIC_PATHS），令牌在处理器里校验。
+  registerThemeRoutes(routes.forModule('control/theme'), ctx);
+  registerPerformanceRoutes(routes.forModule('control/performance'), ctx);
+  registerJourneyRoutes(routes.forModule('control/journey'), ctx);
+  registerMemoryRoutes(routes.forModule('memory'), ctx);
+  registerMcpServerRoutes(routes.forModule('mcp-server'), ctx);
+  registerVoiceRoutes(routes.forModule('voice'), ctx);
+  registerTerminalRoutes(routes.forModule('workspace/terminal'), ctx);
+  registerFileManagerRoutes(routes.forModule('workspace/files'), ctx);
 
   // Serve hashed static assets with long-lived cache (JS/CSS filenames include content hash)
   bootstrapApp.use('/assets', express.static(path.join(FRONTEND_DIST_DIR, 'assets'), {

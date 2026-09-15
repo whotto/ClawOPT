@@ -102,7 +102,15 @@
     "usage": "用量",
     "logs": "日志",
     "runtimesManage": "Agent 运行时",
-    "externalAgent": "外部 Agent"
+    "externalAgent": "外部 Agent",
+    "memory": "记忆",
+    "journey": "成长轨迹",
+    "performance": "性能监控",
+    "files": "文件",
+    "terminal": "终端",
+    "voice": "语音",
+    "mcpServer": "ClawOPT MCP 服务",
+    "theme": "主题"
   },
   "common": {
     "details": "详情",
@@ -1337,7 +1345,15 @@
       "channels": "设置 - 频道",
       "plugins": "设置 - 插件",
       "usage": "设置 - 用量",
-      "logs": "设置 - 日志"
+      "logs": "设置 - 日志",
+      "memory": "设置 - 记忆",
+      "journey": "设置 - 成长轨迹",
+      "performance": "设置 - 性能监控",
+      "files": "设置 - 文件",
+      "terminal": "设置 - 终端",
+      "voice": "设置 - 语音",
+      "mcpserver": "设置 - ClawOPT MCP 服务",
+      "theme": "设置 - 主题"
     },
     "common": {
       "loading": "加载中…",
@@ -2303,5 +2319,31 @@
     },
     "notFound": "这条审批请求已不存在",
     "notActive": "这条审批请求已被答复，或还没轮到它"
+  },
+  "hostFeature": {
+    "unavailableTitle": "本机不可用",
+    "reasonLabel": "原因",
+    "howToLabel": "怎么开启",
+    "reason": {
+      "nodePtyMissing": "本机加载不了 node-pty（可选的原生依赖没有装上或没有编译）。",
+      "nodePtyBroken": "node-pty 已安装，但在本机起不来伪终端（常见于 spawn-helper 没有执行权限或原生插件与 Node 版本不匹配）。",
+      "sshMissing": "本机没有 ssh 或 ssh-keyscan 命令。",
+      "dockerMissing": "本机没有 docker 命令。",
+      "gitMissing": "本机没有 git 命令，不显示版本状态标注。",
+      "localSttNotIncluded": "本地离线语音识别（sherpa-onnx）不随本版本提供。",
+      "platformUnsupported": "当前操作系统不支持这个功能。",
+      "insufficientMemory": "本机可用内存不足。"
+    },
+    "howTo": {
+      "nodePtyMissing": "在后端目录执行 npm install --include=optional 后再执行 npm rebuild node-pty（Linux 需要 python3、make、g++），然后重启 ClawOPT。",
+      "nodePtyBroken": "在后端目录执行 npm rebuild node-pty，然后重启 ClawOPT；macOS 上也可以给 node_modules/node-pty/prebuilds/*/spawn-helper 加执行权限。",
+      "sshMissing": "安装 OpenSSH 客户端（如 apt install openssh-client），然后重新检测。",
+      "dockerMissing": "安装 Docker CLI 并确认运行 ClawOPT 的账号能执行 docker ps，然后重新检测。",
+      "gitMissing": "安装 git 后刷新页面。",
+      "localSttNotIncluded": "请在语音设置里选用云端识别（OpenAI 兼容、Groq、ElevenLabs、豆包）或浏览器识别。模型约 200 MB、加载后占用数百 MB 内存，2 GB 主机上不宜开启。",
+      "platformUnsupported": "换到受支持的 Linux 或 macOS 主机上使用。",
+      "insufficientMemory": "释放内存或换到内存更大的执行主机。"
+    },
+    "refresh": "重新检测"
   }
 }

@@ -102,7 +102,15 @@
     "usage": "用量",
     "logs": "日誌",
     "runtimesManage": "Agent 執行時",
-    "externalAgent": "外部 Agent"
+    "externalAgent": "外部 Agent",
+    "memory": "記憶",
+    "journey": "成長軌跡",
+    "performance": "效能監控",
+    "files": "檔案",
+    "terminal": "終端",
+    "voice": "語音",
+    "mcpServer": "ClawOPT MCP 服務",
+    "theme": "主題"
   },
   "common": {
     "details": "詳情",
@@ -1337,7 +1345,15 @@
       "channels": "設置 - 頻道",
       "plugins": "設置 - 插件",
       "usage": "設置 - 用量",
-      "logs": "設置 - 日誌"
+      "logs": "設置 - 日誌",
+      "memory": "設定 - 記憶",
+      "journey": "設定 - 成長軌跡",
+      "performance": "設定 - 效能監控",
+      "files": "設定 - 檔案",
+      "terminal": "設定 - 終端",
+      "voice": "設定 - 語音",
+      "mcpserver": "設定 - ClawOPT MCP 服務",
+      "theme": "設定 - 主題"
     },
     "common": {
       "loading": "加載中…",
@@ -2303,5 +2319,31 @@
     },
     "notFound": "這條審批請求已不存在",
     "notActive": "這條審批請求已被答覆，或還沒輪到它"
+  },
+  "hostFeature": {
+    "unavailableTitle": "本機不可用",
+    "reasonLabel": "原因",
+    "howToLabel": "如何開啟",
+    "reason": {
+      "nodePtyMissing": "本機載入不了 node-pty（可選的原生相依套件沒有安裝或沒有編譯）。",
+      "nodePtyBroken": "node-pty 已安裝，但在本機起不了偽終端（常見於 spawn-helper 沒有執行權限或原生外掛與 Node 版本不相符）。",
+      "sshMissing": "本機沒有 ssh 或 ssh-keyscan 指令。",
+      "dockerMissing": "本機沒有 docker 指令。",
+      "gitMissing": "本機沒有 git 指令，不顯示版本狀態標註。",
+      "localSttNotIncluded": "本地離線語音辨識（sherpa-onnx）不隨本版本提供。",
+      "platformUnsupported": "目前的作業系統不支援這個功能。",
+      "insufficientMemory": "本機可用記憶體不足。"
+    },
+    "howTo": {
+      "nodePtyMissing": "在後端目錄執行 npm install --include=optional 後再執行 npm rebuild node-pty（Linux 需要 python3、make、g++），然後重新啟動 ClawOPT。",
+      "nodePtyBroken": "在後端目錄執行 npm rebuild node-pty，然後重新啟動 ClawOPT；macOS 上也可以給 node_modules/node-pty/prebuilds/*/spawn-helper 加上執行權限。",
+      "sshMissing": "安裝 OpenSSH 用戶端（如 apt install openssh-client），然後重新檢測。",
+      "dockerMissing": "安裝 Docker CLI 並確認執行 ClawOPT 的帳號能執行 docker ps，然後重新檢測。",
+      "gitMissing": "安裝 git 後重新整理頁面。",
+      "localSttNotIncluded": "請在語音設定裡選用雲端辨識（OpenAI 相容、Groq、ElevenLabs、豆包）或瀏覽器辨識。模型約 200 MB、載入後佔用數百 MB 記憶體，2 GB 主機上不宜開啟。",
+      "platformUnsupported": "換到受支援的 Linux 或 macOS 主機上使用。",
+      "insufficientMemory": "釋放記憶體或換到記憶體更大的執行主機。"
+    },
+    "refresh": "重新檢測"
   }
 }

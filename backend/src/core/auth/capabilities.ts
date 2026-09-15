@@ -27,6 +27,9 @@ export const CAPABILITY_RULES: readonly CapabilityRule[] = [
   { id: 'settings.mcp', minRole: 'admin', route: 'PUT /api/mcp/servers/:name' },
   // Agent 运行时管理（安装 / 升级 / 原生配置 / MCP / 运行时目录）：全部管理员。
   { id: 'settings.runtimes', minRole: 'admin', route: 'GET /api/runtime/runtimes' },
+  // P6：记忆浏览（管理员）、成长轨迹（按 Agent 授权读）。
+  { id: 'settings.memory', minRole: 'admin', route: 'GET /api/memory/cards' },
+  { id: 'settings.journey', minRole: 'member', route: 'GET /api/agents/:agentId/journey' },
   // 自动化
   { id: 'settings.cron', minRole: 'admin', route: 'POST /api/cron/jobs' },
   { id: 'automation.workflows', minRole: 'member', route: 'GET /api/workflows' },
@@ -41,6 +44,14 @@ export const CAPABILITY_RULES: readonly CapabilityRule[] = [
   { id: 'settings.users', minRole: 'admin', route: 'GET /api/auth/locked-ips' },
   { id: 'settings.usage', minRole: 'admin', route: 'GET /api/usage/summary' },
   { id: 'settings.logs', minRole: 'admin', route: 'GET /api/logs' },
+  // P6：性能监控与 Web 终端只给 super_admin；文件管理器按资源授权读（member 只见自己 Agent 的工作区）；
+  // 语音服务商与 ClawOPT MCP 服务的配置是管理员的；主题改的是自己。
+  { id: 'settings.performance', minRole: 'super_admin', route: 'GET /api/performance/runtime' },
+  { id: 'settings.files', minRole: 'member', route: 'GET /api/fs/roots' },
+  { id: 'settings.terminal', minRole: 'super_admin', route: 'GET /api/terminal/status' },
+  { id: 'settings.voice', minRole: 'admin', route: 'GET /api/voice/settings' },
+  { id: 'settings.mcpserver', minRole: 'admin', route: 'GET /api/mcp-server/settings' },
+  { id: 'settings.theme', minRole: 'member', route: 'GET /api/theme' },
   { id: 'settings.general', minRole: 'admin', route: 'POST /api/config' },
   { id: 'settings.commands', minRole: 'admin', route: 'POST /api/commands' },
   { id: 'settings.about', minRole: 'member' },

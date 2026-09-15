@@ -357,3 +357,40 @@ export type {
 export {
   registerWriteGateRoutes,
 } from './write-gate/write-gate-routes';
+export {
+  createJourneyService,
+} from './journey/journey-service';
+export type {
+  JourneyGraph,
+  JourneyService,
+} from './journey/journey-service';
+export {
+  registerJourneyRoutes,
+} from './journey/journey-routes';
+export type {
+  JourneyRoutesDeps,
+} from './journey/journey-routes';
+export {
+  createThemeService,
+} from './theme/theme-service';
+export type {
+  ThemeService,
+} from './theme/theme-service';
+export {
+  registerThemeRoutes,
+} from './theme/theme-routes';
+export type {
+  ThemeRoutesDeps,
+} from './theme/theme-routes';
+export {
+  createPerformanceService,
+} from './performance/performance-service';
+export type {
+  PerformanceService,
+} from './performance/performance-service';
+export {
+  registerPerformanceRoutes,
+} from './performance/performance-routes';
+export type {
+  PerformanceRoutesDeps,
+} from './performance/performance-routes';
