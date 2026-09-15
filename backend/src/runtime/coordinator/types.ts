@@ -179,6 +179,24 @@ export interface AbortResult {
   outcome?: AdapterRunOutcome;
 }
 
+/** 等人答复的审批请求 `approvals:runs` 主题只提醒「变了」，列表经 HTTP 按用户过滤取。 */
+export const RUN_APPROVALS_TOPIC = 'approvals:runs';
+
+export interface PendingApprovalView {
+  id: string;
+  sessionKey: string;
+  runId: string;
+  agentId: string;
+  agentName: string | null;
+  surface: string;
+  runtime: string;
+  title: string;
+  description: string | null;
+  command: string | null;
+  choices: Array<'once' | 'session' | 'always' | 'deny'>;
+  remainingTimeoutMs: number | null;
+}
+
 export interface SessionSnapshot {
   sessionKey: string;
   activeRun: RunView | null;

@@ -85,3 +85,12 @@ export function setRemoteMemberToken(groupId: string, agentId: string, token: st
 export function testRemoteOpenClaw(body: { gatewayUrl: string; token?: string; trustedLan: boolean; remoteAgentId?: string; groupId?: string; agentId?: string }) {
   return apiFetch('/runtime/remote-openclaw/test', jsonInit('POST', body));
 }
+
+/** 等人答复的运行审批（真审批运行时的单聊 / 群成员），服务端按用户过滤。 */
+export function listRunApprovals() {
+  return apiFetch('/run-approvals');
+}
+
+export function respondRunApproval(id: string, choice: string) {
+  return apiFetch(`/run-approvals/${encodeURIComponent(id)}/respond`, jsonInit('POST', { choice }));
+}

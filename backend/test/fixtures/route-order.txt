@@ -126,6 +126,8 @@ POST /api/chat/regenerate
 GET /api/chat/attach/:sessionId
 POST /api/chat/stop
 POST /api/chat/silent
+GET /api/run-approvals
+POST /api/run-approvals/:id/respond
 POST /api/files/upload
 GET /api/files
 GET /api/commands

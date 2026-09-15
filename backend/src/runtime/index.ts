@@ -55,10 +55,12 @@ export type {
   UsageReport,
 } from './contract';
 export {
+  RUN_APPROVALS_TOPIC,
   RunCoordinator,
 } from './coordinator';
 export type {
   AbortResult,
+  PendingApprovalView,
   BusyPolicy,
   ProjectorFinish,
   ProjectorRunContext,
@@ -116,6 +118,8 @@ export { sanitizeMemberExternalConfig } from './member-config';
 export { createRuntimePlatform } from './platform';
 export type { RuntimePlatform, RuntimePlatformOptions } from './platform';
 export { registerRuntimePlatformRoutes } from './platform-routes';
+export { registerRunApprovalRoutes } from './run-approval-routes';
+export type { RunApprovalRoutesDeps } from './run-approval-routes';
 export {
   BUILTIN_RUNTIME_DESCRIPTORS,
   CHILD_ENV_ALLOWLIST,

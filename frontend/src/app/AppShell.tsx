@@ -64,6 +64,18 @@ export default function AppShell() {
         <PendingApprovalsTray
           visibleWorkflowId={nav.currentView === 'automation' && nav.automationSection === 'workflows' ? nav.activeWorkflowId : null}
           onOpen={(workflowId) => nav.openAutomation('workflows', workflowId)}
+          visibleConversation={nav.currentView === 'chat' && nav.activeSessionId
+            ? { kind: 'chat', id: nav.activeSessionId }
+            : nav.currentView === 'groups' && nav.activeGroupId ? { kind: 'group', id: nav.activeGroupId } : null}
+          onOpenConversation={(context) => {
+            if (context.kind === 'group') {
+              nav.setActiveGroupId(context.id);
+              nav.navigateTo('groups', undefined, false);
+            } else {
+              nav.setActiveSessionId(context.id);
+              nav.navigateTo('chat', undefined, false);
+            }
+          }}
         />
       </div>
     </AccessProvider>

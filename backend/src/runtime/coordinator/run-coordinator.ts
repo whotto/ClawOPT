@@ -30,6 +30,7 @@ import {
   type AdapterEvent,
   type AdapterRunHandle,
   type AdapterRunOutcome,
+  type ApprovalRequestInput,
   type InterruptReason,
   type WorkspaceRunChangeSummary,
 } from '../contract';
@@ -52,6 +53,8 @@ import {
   type SubmitResult,
   type WorkspaceCheckpoint,
   type WorkspaceCheckpointer,
+  RUN_APPROVALS_TOPIC,
+  type PendingApprovalView,
 } from './types';
 
 export const DEFAULT_ABORT_GRACE_MS = 5000;
@@ -157,9 +160,13 @@ export class RunCoordinator {
     this.interactions = new InteractionRegistry({
       onActivated: (view) => {
         this.publishInteraction(view, 'requested');
+        this.notifyPendingChanged(view);
         this.autoAnswerInteraction(view);
       },
-      onResolved: (view, outcome) => this.publishInteraction(view, 'resolved', outcome),
+      onResolved: (view, outcome) => {
+        this.publishInteraction(view, 'resolved', outcome);
+        this.notifyPendingChanged(view);
+      },
     });
   }
 
@@ -304,6 +311,45 @@ export class RunCoordinator {
       const result = this.interactions.respond(view.sessionKey, view.id, { choice });
       if (!result.resolved) this.log(`[RunCoordinator] auto-approval (${choice}) not applied for ${view.id}: ${result.error ?? 'unknown'}`);
     });
+  }
+
+  /**
+   * 待决审批集合变了：在 `approvals:runs` 主题发一条**不带内容**的提醒（`run.approvals.changed`），
+   * 待办中心与聊天里的审批卡据此经 HTTP 重新拉自己看得见的列表（`GET /api/run-approvals`，按用户过滤）。
+   * 无人值守（`autoApprove`）的运行不提醒——它的请求一露面就被自动答掉。
+   */
+  private notifyPendingChanged(view: PendingInteractionView): void {
+    if (view.kind !== 'approval') return;
+    if (this.runsById.get(view.runId)?.submission.autoApprove) return;
+    this.hub.publish({ topic: RUN_APPROVALS_TOPIC, type: 'run.approvals.changed', payload: {} });
+  }
+
+  /**
+   * 等人答复的审批（排到队首的；无人值守运行的除外），带上表面、运行时与 Agent 名，给待办中心与聊天审批卡用。
+   * 调用方负责按用户过滤（`ResourceAccess.canAccessRunSession`）。
+   */
+  pendingApprovals(): PendingApprovalView[] {
+    return this.interactions.pendingAll()
+      .filter((view) => view.kind === 'approval' && view.activatedAt !== null)
+      .flatMap((view) => {
+        const submission = this.runsById.get(view.runId)?.submission;
+        if (!submission || submission.autoApprove) return [];
+        const request = view.request as ApprovalRequestInput;
+        return [{
+          id: view.id,
+          sessionKey: view.sessionKey,
+          runId: view.runId,
+          agentId: view.agentId,
+          agentName: submission.title ?? null,
+          surface: submission.surface,
+          runtime: submission.adapter.id,
+          title: request.title,
+          description: request.description ?? null,
+          command: request.command ?? null,
+          choices: [...request.choices],
+          remainingTimeoutMs: view.remainingTimeoutMs,
+        }];
+      });
   }
 
   /** 交互请求 id → 发起它的运行的主题。 */

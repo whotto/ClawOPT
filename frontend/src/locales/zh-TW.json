@@ -2291,5 +2291,17 @@
       "auth_forbidden": "只有管理員可以這樣做",
       "auth_agentForbidden": "涉及沒有指派給你的 Agent"
     }
+  },
+  "runApprovals": {
+    "heading": "{{agent}} · {{runtime}} 請求審批",
+    "remaining": "約 {{minutes}} 分鐘內不答覆將自動拒絕",
+    "choice": {
+      "once": "允許一次",
+      "session": "本會話允許",
+      "always": "總是允許",
+      "deny": "拒絕"
+    },
+    "notFound": "這條審批請求已不存在",
+    "notActive": "這條審批請求已被答覆，或還沒輪到它"
   }
 }

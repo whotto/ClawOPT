@@ -6,6 +6,9 @@ export {
 export type {
   RunCoordinatorOptions,
 } from './run-coordinator';
+export type {
+  PendingApprovalView,
+} from './types';
 export {
   APPROVAL_CHOICES,
   CLARIFY_RESPONSE_MAX_CHARS,
@@ -37,6 +40,7 @@ export type {
 } from './tool-call-groups';
 export {
   NOOP_WORKSPACE_CHECKPOINTER,
+  RUN_APPROVALS_TOPIC,
 } from './types';
 export type {
   AbortResult,

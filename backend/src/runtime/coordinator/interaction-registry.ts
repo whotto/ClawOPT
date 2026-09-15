@@ -199,6 +199,11 @@ export class InteractionRegistry {
     for (const pending of [...this.byId.values()]) this.finish(pending, endOutcome(pending, 'shutdown'));
   }
 
+  /** 全部待决请求（含排队中的），按请求时间排。待办中心按用户过滤后列出。 */
+  pendingAll(): PendingInteractionView[] {
+    return [...this.byId.values()].sort((a, b) => a.queuedAt - b.queuedAt).map((pending) => this.view(pending));
+  }
+
   pendingForSession(sessionKey: string): PendingInteractionView[] {
     return [...this.byId.values()].filter((pending) => pending.sessionKey === sessionKey).map((pending) => this.view(pending));
   }

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { useChatController } from '../../features/chat/hooks/useChatController';
 import type { ChatViewProps } from '../../features/chat/lib/types';
 import { ChatHeader } from '../../features/chat/components/ChatHeader';
+import ChatRunApprovals from '../../features/approvals/ChatRunApprovals';
 import { Composer } from '../../features/chat/components/Composer';
 import { DeleteMessageDialog } from '../../features/chat/components/DeleteMessageDialog';
 import { DragOverlay } from '../../features/chat/components/DragOverlay';
@@ -43,6 +44,9 @@ export default function ChatView(props: ChatViewProps) {
         <HistoryPagingPrompts {...c} canShowHistoryPagingUi={canShowHistoryPagingUi} />
         <MessageList {...c} showMessageListSkeleton={showMessageListSkeleton} showOlderHistorySkeleton={showOlderHistorySkeleton} />
       </div>
+
+      {/* 真审批运行时（Pi、Hermes）在这个对话里等人答复的请求 */}
+      <ChatRunApprovals isGroup={c.isGroup} activeKey={c.activeKey} />
 
       <Composer {...c} />
 

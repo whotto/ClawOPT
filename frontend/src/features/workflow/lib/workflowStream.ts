@@ -84,10 +84,11 @@ export function subscribeWorkflowStream(workflowId: string, handlers: WorkflowSt
 }
 
 /**
- * 待办中心的变更提醒：订阅 `approvals:workflows`（不带内容），每次提醒与每次（重新）订阅成功都调 `onChange` 重新拉列表。
- * 订阅不到就退回轮询。返回取消函数。
+ * 待办中心的变更提醒：订阅 `approvals:workflows`（工作流审批）或 `approvals:runs`（真审批运行时在单聊 / 群里的审批），
+ * 都不带内容；每次提醒与每次（重新）订阅成功都调 `onChange` 重新拉列表。订阅不到就退回轮询。返回取消函数。
  */
 export function watchPendingApprovals(onChange: () => void, deps: {
+  topic?: 'approvals:workflows' | 'approvals:runs';
   realtime?: Pick<RealtimeClient, 'subscribe'>;
   pollMs?: number;
   readyTimeoutMs?: number;
@@ -103,7 +104,7 @@ export function watchPendingApprovals(onChange: () => void, deps: {
   let polling = false;
   let pollTimer: unknown = null;
 
-  const subscription = realtime.subscribe('approvals:workflows', {
+  const subscription = realtime.subscribe(deps.topic ?? 'approvals:workflows', {
     onEvent: () => { if (!closed && !polling) onChange(); },
     onSnapshot: () => { if (!closed && !polling) onChange(); },
   });

@@ -2291,5 +2291,17 @@
       "auth_forbidden": "Only administrators can do this",
       "auth_agentForbidden": "This involves an agent that is not assigned to you"
     }
+  },
+  "runApprovals": {
+    "heading": "{{agent}} · {{runtime}} needs approval",
+    "remaining": "Auto-denied in about {{minutes}} min if unanswered",
+    "choice": {
+      "once": "Allow once",
+      "session": "Allow this session",
+      "always": "Always allow",
+      "deny": "Deny"
+    },
+    "notFound": "This approval request no longer exists",
+    "notActive": "This approval request was already answered or is not active yet"
   }
 }

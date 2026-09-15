@@ -2291,5 +2291,17 @@
       "auth_forbidden": "只有管理员可以这样做",
       "auth_agentForbidden": "涉及没有分配给你的 Agent"
     }
+  },
+  "runApprovals": {
+    "heading": "{{agent}} · {{runtime}} 请求审批",
+    "remaining": "约 {{minutes}} 分钟内不答复将自动拒绝",
+    "choice": {
+      "once": "允许一次",
+      "session": "本会话允许",
+      "always": "总是允许",
+      "deny": "拒绝"
+    },
+    "notFound": "这条审批请求已不存在",
+    "notActive": "这条审批请求已被答复，或还没轮到它"
   }
 }

@@ -1,18 +1,31 @@
-// 待办中心（工作流审批来源）：应用级常驻，列出所有工作流里挂起的审批，可直接批准 / 拒绝或跳到画布。
-// 当前正在看的那个工作流的审批不重复显示（画布侧栏里已经有）。窄屏贴底。
-// 刷新由 `/ws` 的 approvals:workflows 提醒驱动（不带内容，列表经 HTTP 按用户过滤）；订阅不到退回 5 秒轮询。
+// 待办中心：应用级常驻，两个来源——
+// - 工作流审批闸门（`approvals:workflows`，列表 GET /api/workflows/pending-approvals），可批准 / 拒绝或跳到画布；
+// - 运行审批（`approvals:runs`，列表 GET /api/run-approvals）：Pi、Hermes 这类真审批运行时在单聊 / 群里等人答复的请求，
+//   按请求给的选项答复或跳到对话。
+// 当前正在看的那个工作流 / 对话里的审批不重复显示（画布侧栏、聊天页输入区上方已经有）。窄屏贴底。
+// 两个列表都经 HTTP 按用户过滤；提醒不带内容，订阅不到退回 5 秒轮询。
 import { Check, ExternalLink, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listPendingWorkflowApprovals, resolveNodeApproval } from '../../../api/automation';
 import { requestJson } from '../lib/request';
 import { watchPendingApprovals } from '../lib/workflowStream';
+import RunApprovalCard from '../../approvals/RunApprovalCard';
+import { approvalContext, approvalsOutsideContext, type ApprovalContext } from '../../approvals/runApprovals';
+import { useRunApprovals } from '../../approvals/useRunApprovals';
 
 type PendingApproval = { workflowId: string; workflowName: string; runId: string; nodeId: string; nodeTitle: string; executionId: string };
 
 
-export default function PendingApprovalsTray({ visibleWorkflowId, onOpen }: { visibleWorkflowId: string | null; onOpen: (workflowId: string) => void }) {
+export default function PendingApprovalsTray({ visibleWorkflowId, onOpen, visibleConversation, onOpenConversation }: {
+  visibleWorkflowId: string | null;
+  onOpen: (workflowId: string) => void;
+  /** 正在看的单聊 / 群：它的运行审批在聊天页里显示，这里不重复。 */
+  visibleConversation: ApprovalContext | null;
+  onOpenConversation: (context: Exclude<ApprovalContext, { kind: 'other' }>) => void;
+}) {
   const { t } = useTranslation();
+  const runApprovals = useRunApprovals();
   const [items, setItems] = useState<PendingApproval[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -33,7 +46,8 @@ export default function PendingApprovalsTray({ visibleWorkflowId, onOpen }: { vi
   }, []);
 
   const visible = items.filter((item) => item.workflowId !== visibleWorkflowId);
-  if (!visible.length) return null;
+  const visibleRuns = approvalsOutsideContext(runApprovals.approvals, visibleConversation);
+  if (!visible.length && !visibleRuns.length) return null;
 
   const resolve = async (item: PendingApproval, approved: boolean) => {
     const key = `${item.runId}:${item.executionId}`;
@@ -44,7 +58,19 @@ export default function PendingApprovalsTray({ visibleWorkflowId, onOpen }: { vi
   };
 
   return (
-    <div className="fixed z-[150] bottom-0 inset-x-0 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-80 space-y-2 p-2 sm:p-0">
+    <div className="fixed z-[150] bottom-0 inset-x-0 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-80 space-y-2 p-2 sm:p-0 max-h-[70dvh] overflow-y-auto">
+      {visibleRuns.slice(0, 5).map((approval) => {
+        const context = approvalContext(approval);
+        return (
+          <RunApprovalCard
+            key={approval.id}
+            approval={approval}
+            busy={runApprovals.busyId === approval.id}
+            onRespond={(choice) => void runApprovals.respond(approval, choice)}
+            onOpen={context.kind === 'other' ? undefined : () => onOpenConversation(context)}
+          />
+        );
+      })}
       {visible.slice(0, 5).map((item) => {
         const key = `${item.runId}:${item.executionId}`;
         return (

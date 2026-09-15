@@ -16,7 +16,7 @@ import path from 'path';
 
 import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
-import { registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
+import { registerRunApprovalRoutes, registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
 import {
   registerAgentRosterRoutes,
   registerAgentRoutes,
@@ -126,6 +126,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerPresetRoutes(routes.forModule('control/presets'), ctx);
   registerSessionRoutes(routes.forModule('collab/sessions'), ctx);
   registerChatRoutes(routes.forModule('collab/sessions'), ctx);
+  // 等人答复的运行审批（真审批运行时的单聊 / 群成员）：按用户过滤。
+  registerRunApprovalRoutes(routes.forModule('runtime'), ctx);
   registerUploadRoutes(routes.forModule('workspace/uploads'), ctx);
   registerCommandRoutes(routes.forModule('control/commands'), ctx);
   registerFileRoutes(routes.forModule('workspace/files'), ctx);

@@ -19,7 +19,7 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
    * - `room:<id>`：admin，或能看群里至少一个 Agent；
    * - `agent:<id>`：名册里（单聊会话 / 群成员 / 角色）出现过，且能看这个 Agent（外部成员 `ext:<运行时>:<id>` 与外部运行时单聊按 `ext:<运行时>` 判）；
  * - `workflow:<id>`：admin，或工作流里每个节点的 Agent 都能看；
- * - `approvals:workflows`：任何已登录用户（事件不带内容）。
+ * - `approvals:workflows` / `approvals:runs`：任何已登录用户（事件不带内容，列表经 HTTP 按用户过滤）。
    */
   const canAccessSessionKey = (identity: RequestIdentity, sessionKey: string): boolean => {
     if (access.canAccessRunSession(identity, sessionKey)) return true;
@@ -40,7 +40,7 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
         return access.canAccessWorkflow(identity, ctx.automation.workflowAgentIds(parsed.id));
       case 'approvals':
         // 只是「待审批集合变了」的提醒，不带内容；列表本身经 HTTP 按用户过滤。
-        return parsed.id === 'workflows';
+        return parsed.id === 'workflows' || parsed.id === 'runs';
       case 'agent': {
         // 判定用的 id：外部成员 `ext:<运行时>:<成员>` 与外部运行时单聊都按 `ext:<运行时>` 判（core/auth/agent-ids.ts）。
         const external = parseExternalSenderId(parsed.id);
