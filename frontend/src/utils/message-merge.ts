@@ -28,6 +28,15 @@ export interface ChatMessage {
   messageCode?: string;
   messageParams?: StructuredMessageParams;
   rawDetail?: string;
+  /** 群协作元数据（P3）：发送人身份、附件、挂在回复上的工作区 diff。只由群历史 / 群事件映射填，单聊没有。 */
+  room?: {
+    senderGuestId?: string | null;
+    senderMemberId?: string | null;
+    mentionDepth?: number;
+    messageKind?: string;
+    attachments?: Array<{ id: string; name: string; mediaType: string; size: number; url: string; kind: 'image' | 'file' }>;
+    workspaceChanges?: any[];
+  };
 }
 
 export function parsePositiveCursorValue(value: unknown): number | null {
