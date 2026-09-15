@@ -1,5 +1,3 @@
-import express from 'express';
-
 import type { AgentSettings } from '../../control';
 import type { DB } from '../../core/db';
 import type { StructuredMessageParams } from '../../core/http';
@@ -15,14 +13,10 @@ import {
   stripProcessBlocks,
 } from '../sessions';
 import { createAgentResponseFailedMessage, getStructuredGroupMessage } from './group-chat-engine';
-import { getGroupRuntimeSessionKey, getGroupWorkspacePath } from './group-workspace';
+import { getGroupRuntimeSessionKey } from './group-workspace';
 import type { RoomEngine } from './room-engine';
 import { withStructuredGroupMessage } from './room-messages';
 import { getGroupRuntimeContext, type RoomRuntime } from './room-runtime';
-
-export function getGroupWorkspaceForDisplay(groupId: string): string {
-  return getGroupWorkspacePath(groupId);
-}
 
 type GroupReconciliationAction =
   | { type: 'delete'; id: number; parent_id: number | null }
@@ -88,7 +82,7 @@ export type RoomReconciliationDeps = {
 
 export function createRoomReconciliation(ctx: RoomReconciliationDeps) {
   const { db } = ctx;
-  const { groupChatEngine, groupSSEClients } = ctx.rooms;
+  const { groupChatEngine, publishRoomFrame } = ctx.rooms;
   const { prepareGroupRuntimeAgent } = ctx.roomRuntime;
   const { readAgentModelForDisplay } = ctx.agentSettings;
   const { getConnection } = ctx.gatewayConnections;
@@ -357,21 +351,11 @@ export function createRoomReconciliation(ctx: RoomReconciliationDeps) {
     return actions.concat(reconciliationActions);
   }
 
-  function broadcastGroupReconciliationActions(groupId: string, actions: GroupReconciliationAction[], targetClients?: Iterable<express.Response>) {
-    if (actions.length === 0) return;
-
-    const clients = targetClients ? Array.from(targetClients) : Array.from(groupSSEClients.get(groupId) || []);
+  function broadcastGroupReconciliationActions(groupId: string, actions: GroupReconciliationAction[]) {
     for (const action of actions) {
-      const payload = action.type === 'delete'
+      publishRoomFrame(groupId, action.type === 'delete'
         ? { type: 'delete', id: action.id, parent_id: action.parent_id }
-        : { type: 'edit', ...withStructuredGroupMessage(action.data, { groupId }) };
-      const data = JSON.stringify(payload);
-
-      for (const client of clients) {
-        try {
-          client.write(`data: ${data}\n\n`);
-        } catch {}
-      }
+        : { type: 'edit', ...withStructuredGroupMessage(action.data, { groupId }) });
     }
   }
 

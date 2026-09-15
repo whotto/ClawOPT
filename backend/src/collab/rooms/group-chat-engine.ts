@@ -1,7 +1,11 @@
 import crypto from 'crypto';
 import { randomUUID } from 'crypto';
-import { ClaudeCodeAdapter } from '../../runtime';
-import { runExternalAgent } from '../../runtime';
+import {
+  createClaudeCodeRuntimeAdapter,
+  runExternalAgent,
+  type CommandExecutor,
+  type RunCoordinator,
+} from '../../runtime';
 import fs from 'fs';
 import { ConfigReadError, readJsonConfigSafe } from '../../openclaw';
 import os from 'os';
@@ -37,6 +41,13 @@ import {
   type WorkspaceUploadLink,
 } from '../../workspace';
 import { rewriteVisibleFileLinks } from '../../workspace';
+import {
+  agentTopic,
+  createExternalMemberProjector,
+  describeExternalFailure,
+  externalMemberSessionKey,
+  roomTopic,
+} from './external-member-run';
 import { getGroupRuntimeSessionKey } from './group-workspace';
 import { selectPreferredTextSnapshot } from '../sessions';
 import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
@@ -948,6 +959,17 @@ export class GroupChatEngine extends EventEmitter {
   private buildImageGenerationStartProcessContent?: GroupDirectImageGenerationStartProcessBuilder;
   private pendingRuns = new Map<string, PendingGroupRun>();
   private activeRuns = new Map<string, ActiveGroupRun>();
+  /** 外部成员的运行由协调器驱动（room-engine.ts 组装时注入）。 */
+  private runCoordinator: RunCoordinator | null = null;
+
+  useRunCoordinator(coordinator: RunCoordinator): void {
+    this.runCoordinator = coordinator;
+  }
+
+  private requireRunCoordinator(): RunCoordinator {
+    if (!this.runCoordinator) throw new Error('GroupChatEngine: run coordinator is not attached');
+    return this.runCoordinator;
+  }
 
   constructor(
     db: DB,
@@ -1612,7 +1634,7 @@ export class GroupChatEngine extends EventEmitter {
       resetEpoch?: number;
       remainingDepth?: number;
     },
-    runner: typeof runExternalAgent = runExternalAgent,
+    runner: CommandExecutor = runExternalAgent,
   ): Promise<number | undefined> {
     const { groupId, groupName, member, allMembers, triggerMsg, triggerSenderName, depth, parentId } = opts;
     const runtime = member.runtime || 'claude-code';
@@ -1657,16 +1679,15 @@ export class GroupChatEngine extends EventEmitter {
     this.emit('message', { ...basePayload, content: '', process_content: '', process_streaming: false });
     this.emit('typing', { groupId, agentId: member.agent_id, displayName: member.display_name });
 
-    const adapter = new ClaudeCodeAdapter();
-    const built = adapter.buildCommand({
+    // 复用网关那条路的 prompt 组装：团队名册、群设定、最近历史、@ 协议、剩余深度
+    // 全在里面。此前这里只有一行 `${发言人}：${内容}`——外部成员既不知道群里有谁，
+    // 也看不见上文，**就算想 @ 别人也不知道该 @ 谁**。
+    //
+    // 不另写一套：两套 prompt 组装迟早分家，而这个仓库为「两处判据分家」栽过不止一次。
+    // 过程标签传 undefined —— 外部 Agent 不产出过程标签，不该被要求去写。
+    const request = {
       sessionId,
       resume,
-      // 复用网关那条路的 prompt 组装：团队名册、群设定、最近历史、@ 协议、剩余深度
-      // 全在里面。此前这里只有一行 `${发言人}：${内容}`——外部成员既不知道群里有谁，
-      // 也看不见上文，**就算想 @ 别人也不知道该 @ 谁**。
-      //
-      // 不另写一套：两套 prompt 组装迟早分家，而这个仓库为「两处判据分家」栽过不止一次。
-      // 过程标签传 undefined —— 外部 Agent 不产出过程标签，不该被要求去写。
       prompt: this.buildAgentPrompt(
         groupName,
         this.db.getGroupChat(groupId)?.system_prompt || '',
@@ -1690,25 +1711,44 @@ export class GroupChatEngine extends EventEmitter {
       allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
       maxBudgetUsd: typeof config.maxBudgetUsd === 'number' ? config.maxBudgetUsd : undefined,
       appendSystemPrompt: config.appendSystemPrompt,
-    });
+    };
 
-    let accumulated = '';
     try {
-      const result = await runner(built, adapter, {
-        onEvent: (event) => {
-          if (event.kind !== 'delta' || !event.text) return;
-          accumulated += event.text;
-          this.emit('delta', { ...basePayload, content: accumulated, process_content: '', process_streaming: true });
-        },
-      });
+      // 运行交给协调器：会话行、run marker、陈旧事件、中止、用量去重、工具调用落库、终态顺序都在那里。
+      // 这里只剩外部成员自己的约定：消息行（投影器）、续话会话（external_sessions）、链式转发。
+      // 成员锁仍在 sendToAgent 里取；协调器按 (群, 成员) 会话键再挡一次并发。
+      const modelTag = config.model || runtime;
+      const submitted = await this.requireRunCoordinator().submit({
+        sessionKey: externalMemberSessionKey(groupId, member.id),
+        surface: 'room',
+        topics: [roomTopic(groupId), agentTopic(senderId)],
+        agentId: senderId,
+        title: member.display_name,
+        adapter: createClaudeCodeRuntimeAdapter({ executor: runner }),
+        request,
+        projector: (run) => createExternalMemberProjector({
+          db: this.db,
+          emit: (event, payload) => this.emit(event, payload),
+          run,
+          basePayload,
+          displayName: member.display_name,
+          modelTag,
+        }),
+        workspacePath: config.workingDir,
+        meta: { groupId, memberId: member.id, messageId: msgId },
+      }, 'reject');
+      if (submitted.status !== 'started') {
+        const message = `${member.display_name} 执行失败（busy）`;
+        this.db.updateGroupMessage(msgId, message, modelTag, undefined, '');
+        this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
+        return msgId;
+      }
+      const { outcome, projection } = await submitted.completion;
 
-      const finalText = result.finalText ?? accumulated;
-
-      if (result.ok) {
+      if (outcome.kind === 'completed') {
+        const finalText = projection.output ?? '';
         // 只有成功才把会话记下来。
         this.db.setExternalSession(groupId, member.id, sessionId);
-        this.db.updateGroupMessage(msgId, finalText, config.model || runtime, undefined, '');
-        this.emit('edit', { ...basePayload, content: finalText, process_content: '', process_streaming: false });
 
         // 链式转发：外部成员 @ 了别人，那个人要真的被叫起来。
         // 此前这里是叶子节点——外部 Agent 说「@情报调研 帮我查一下」，那句话只作为
@@ -1726,23 +1766,20 @@ export class GroupChatEngine extends EventEmitter {
           if (next !== undefined) lastMsgId = next;
         }
         return lastMsgId;
+      }
+
+      // 失败不删行，只标状态——行留着，排障才看得到「上次为什么失败」。
+      // 超时分成两种记：硬超时与中断的处置本来就不同。
+      const failureStatus = outcome.kind === 'aborted' ? 'cancelled'
+        : outcome.stopReason === 'hard_timeout' ? 'hard_timeout'
+        : 'failed';
+      const detail = describeExternalFailure(outcome);
+      if (resume) {
+        this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
       } else {
-        // 失败不删行，只标状态——行留着，排障才看得到「上次为什么失败」。
-        // 超时分成两种记：硬超时与中断的处置本来就不同。
-        const failureStatus = result.aborted ? 'cancelled'
-          : result.timedOut ? 'hard_timeout'
-          : 'failed';
-        const detail = result.errorDetail || 'unknown';
-        if (resume) {
-          this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
-        } else {
-          // 首轮就失败：先把行建出来再标，否则没有行可标，那次失败不留痕迹。
-          this.db.setExternalSession(groupId, member.id, sessionId);
-          this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
-        }
-        const message = `${member.display_name} 执行失败（${detail}）`;
-        this.db.updateGroupMessage(msgId, message, config.model || runtime, undefined, '');
-        this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
+        // 首轮就失败：先把行建出来再标，否则没有行可标，那次失败不留痕迹。
+        this.db.setExternalSession(groupId, member.id, sessionId);
+        this.db.markExternalSessionUnusable(groupId, member.id, failureStatus, detail);
       }
     } finally {
       this.emit('typing_done', { groupId, agentId: member.agent_id });

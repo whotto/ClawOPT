@@ -48,6 +48,13 @@ export async function startServer() {
     }),
     forceClose: () => server.closeAllConnections(),
   });
+  shutdown.register({
+    name: 'run-coordinator',
+    // 逆序关闭，所以它最先关：先把正在跑的运行按「停机」中止（外部 Agent 子进程整组收掉、
+    // 待决审批按拒绝收尾、SSE 流收到终帧后结束），HTTP 才关得干净；
+    // 网关连接最后关——中止 OpenClaw 运行还要用它。
+    close: () => ctx.runCoordinator.shutdown(),
+  });
 
   // Start server
   const PORT = Number(process.env.PORT) || 3100;

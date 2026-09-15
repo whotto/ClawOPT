@@ -51,12 +51,12 @@ export function resolveBetterSqliteBinaryPath(): string | null {
 
 export function inspectBetterSqliteNativeBuild(
   binaryPath: string | null = resolveBetterSqliteBinaryPath(),
-  readFile: (file: string) => Buffer = (file) => fs.readFileSync(file),
+  read: (file: string) => Buffer = (file) => fs.readFileSync(file),
 ): NativeBuildInspection {
   if (!binaryPath) return { status: 'unknown', reason: 'binaryNotFound' };
   let binary: Buffer;
   try {
-    binary = readFile(binaryPath);
+    binary = read(binaryPath);
   } catch {
     return { status: 'unknown', reason: 'binaryUnreadable' };
   }

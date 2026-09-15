@@ -2,6 +2,43 @@ export {
   resolveBinaryOnPath,
 } from './binary-lookup';
 export {
+  CLAUDE_CODE_CAPABILITIES,
+  CLAUDE_CODE_SOURCE_OF_TRUTH,
+  createClaudeCodeRuntimeAdapter,
+} from './adapters/claude-code';
+export type {
+  CommandExecutor,
+} from './adapters/claude-code';
+export type {
+  AdapterEvent,
+  AdapterRunContext,
+  AdapterRunHandle,
+  AdapterRunOutcome,
+  AgentRuntimeAdapter,
+  CanonicalEvent,
+  InterruptReason,
+  ProxyMode,
+  RuntimeCapabilities,
+  SourceOfTruthTable,
+  UsageReport,
+} from './contract';
+export {
+  RunCoordinator,
+} from './coordinator';
+export type {
+  AbortResult,
+  BusyPolicy,
+  ProjectorFinish,
+  ProjectorRunContext,
+  RunProjector,
+  RunStore,
+  RunSubmission,
+  RunTerminal,
+  RunView,
+  SessionSnapshot,
+  SubmitResult,
+} from './coordinator';
+export {
   ClaudeCodeAdapter,
   PROMPT_STDIN_THRESHOLD_BYTES,
 } from './external-agents/claude-code';

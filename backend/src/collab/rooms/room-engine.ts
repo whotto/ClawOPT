@@ -6,16 +6,20 @@ import {
   type ImageGenerationService,
 } from '../../control';
 import type { ConfigManager } from '../../core/config';
+import { parseRealtimeTopic, type RealtimeHub } from '../../core/realtime';
 import type { DB } from '../../core/db';
 import type { GatewayConnections } from '../../openclaw';
+import type { RunCoordinator } from '../../runtime';
 import { ConfigReadError } from '../../openclaw';
-import { rewriteOpenClawMediaPaths, type SessionManager } from '../sessions';
+import type { SessionManager } from '../sessions';
 import { GroupChatEngine } from './group-chat-engine';
-import { withStructuredGroupMessage } from './room-messages';
-import { getGroupWorkspaceForDisplay } from './room-reconciliation';
+import { roomTopic } from './external-member-run';
+import { buildRoomFrame, ROOM_ENGINE_EVENTS, ROOM_FRAME_EVENT } from './room-frames';
 import type { RoomRuntime } from './room-runtime';
 
 export type RoomEngineDeps = {
+  realtime: RealtimeHub;
+  runCoordinator: RunCoordinator;
   agentProvisioner: AgentProvisioner;
   configManager: ConfigManager;
   db: DB;
@@ -73,97 +77,40 @@ export function createRoomEngine(ctx: RoomEngineDeps) {
     return shouldInjectHostTakeoverInstruction(sessionInfo, agentId);
   });
 
+  groupChatEngine.useRunCoordinator(ctx.runCoordinator);
+
   // SSE clients per group
   const groupSSEClients = new Map<string, Set<express.Response>>();
 
-  groupChatEngine.on('message', (msg: any) => {
-    const clients = groupSSEClients.get(msg.groupId);
-    if (clients) {
-      const data = JSON.stringify({
-        type: 'message',
-        data: withStructuredGroupMessage(msg, { groupId: msg.groupId }),
-      });
-      for (const client of clients) {
-        try { client.write(`data: ${data}\n\n`); } catch {}
-      }
-    }
-  });
+  /**
+   * 群聊帧一律先进实时中枢（主题 room:<群>），SSE 与 WebSocket 都从那里取。
+   * 引擎事件、停止时的清理删除、对账修正都走这一个出口——以前是四五处各自 `res.write`，
+   * 加一条通道就得每处再抄一遍。
+   */
+  function publishRoomFrame(groupId: string, frame: Record<string, unknown>): void {
+    ctx.realtime.publish({ topic: roomTopic(groupId), type: ROOM_FRAME_EVENT, payload: frame });
+  }
 
-  groupChatEngine.on('delete', (info: any) => {
-    const clients = groupSSEClients.get(info.groupId);
-    if (clients) {
-      const data = JSON.stringify({ type: 'delete', id: info.id, parent_id: info.parent_id ?? null });
-      for (const client of clients) {
-        try { client.write(`data: ${data}\n\n`); } catch {}
-      }
-    }
-  });
+  for (const event of ROOM_ENGINE_EVENTS) {
+    groupChatEngine.on(event, (info: any) => publishRoomFrame(info.groupId, buildRoomFrame(event, info)));
+  }
 
-  groupChatEngine.on('delta', (info: any) => {
-    const clients = groupSSEClients.get(info.groupId);
-    if (clients) {
-      const data = JSON.stringify({
-        type: 'delta',
-        ...info,
-        content: typeof info.content === 'string'
-          ? rewriteOpenClawMediaPaths(info.content, getGroupWorkspaceForDisplay(info.groupId))
-          : info.content,
-      });
-      for (const client of clients) {
-        try { client.write(`data: ${data}\n\n`); } catch {}
-      }
-    }
-  });
-
-  groupChatEngine.on('edit', (info: any) => {
-    const clients = groupSSEClients.get(info.groupId);
-    if (clients) {
-      const data = JSON.stringify({
-        type: 'edit',
-        ...info,
-        content: typeof info.content === 'string'
-          ? rewriteOpenClawMediaPaths(info.content, getGroupWorkspaceForDisplay(info.groupId))
-          : info.content,
-      });
-      for (const client of clients) {
-        try { client.write(`data: ${data}\n\n`); } catch {}
-      }
-    }
-  });
-
-  groupChatEngine.on('typing', (info: any) => {
-    const clients = groupSSEClients.get(info.groupId);
-    if (clients) {
-      const data = JSON.stringify({ type: 'typing', data: info });
-      for (const client of clients) {
-        try { client.write(`data: ${data}\n\n`); } catch {}
-      }
-    }
-  });
-
-  groupChatEngine.on('typing_done', (info: any) => {
-    const clients = groupSSEClients.get(info.groupId);
-    if (clients) {
-      const data = JSON.stringify({ type: 'typing_done', data: info });
-      for (const client of clients) {
-        try { client.write(`data: ${data}\n\n`); } catch {}
-      }
-    }
-  });
-
-  groupChatEngine.on('run_state', (info: any) => {
-    const clients = groupSSEClients.get(info.groupId);
-    if (clients) {
-      const data = JSON.stringify({ type: 'run_state', data: info });
-      for (const client of clients) {
-        try { client.write(`data: ${data}\n\n`); } catch {}
-      }
+  ctx.realtime.listen('sse:rooms', (event) => {
+    if (event.type !== ROOM_FRAME_EVENT) return;
+    const parsed = parseRealtimeTopic(event.topic);
+    if (!parsed || parsed.kind !== 'room') return;
+    const clients = groupSSEClients.get(parsed.id);
+    if (!clients) return;
+    const data = JSON.stringify(event.payload);
+    for (const client of clients) {
+      try { client.write(`data: ${data}\n\n`); } catch {}
     }
   });
 
   return {
     groupChatEngine,
     groupSSEClients,
+    publishRoomFrame,
   };
 }
 export type RoomEngine = ReturnType<typeof createRoomEngine>;

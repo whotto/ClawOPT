@@ -18,6 +18,7 @@ import fs from 'fs';
 import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword } from '../core/auth';
 import { ConfigManager } from '../core/config';
 import { DB } from '../core/db';
+import { RealtimeHub } from '../core/realtime';
 import { uploadDir } from '../core/paths';
 import { createGatewayConnections, createGatewayService, type OpenClawClient } from '../openclaw';
 import {
@@ -29,6 +30,7 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
+import { RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import {
   createChatCommands,
@@ -72,7 +74,12 @@ export function createAppContext() {
   const agentProvisioner = new AgentProvisioner();
   const connections = new Map<string, OpenClawClient>();
 
-  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections };
+  /** 实时事件中枢：SSE 与 WebSocket 两条通道都从这里取事件。 */
+  const realtime = new RealtimeHub();
+  /** 运行协调器：所有运行时（OpenClaw 网关、外部 Agent）的运行都经它；适配器只翻译事件。 */
+  const runCoordinator = new RunCoordinator({ hub: realtime, store: db });
+
+  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);
