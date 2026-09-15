@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 
+import { applyChatSearchSchema } from './chat-search-schema';
 import { applyControlPlaneSchema } from './control-plane-schema';
 import { warnIfBetterSqliteNativeBuildHazard } from './native-build-check';
 
@@ -495,6 +496,7 @@ export class DB {
     try { this.db.exec("ALTER TABLE group_messages ADD COLUMN parent_id INTEGER REFERENCES group_messages(id)"); } catch (e: any) {}
 
     this.initRunTables(addColumn);
+    applyChatSearchSchema(this.db);
   }
 
   /**

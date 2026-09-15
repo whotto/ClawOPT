@@ -277,6 +277,21 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
     expect((await status(tokens.admin, '/api/history/s-other/search?q=secret')).code).toBe(200);
   });
 
+  it('Ctrl/Cmd+K 搜索（/api/search/chat）：member 只搜得到授权 Agent 的会话，看不见的不占 limit；最近会话同样过滤', async () => {
+    h.ctx.db.saveMessage({ session_key: 's-main', role: 'user', content: 'quasar rollout plan' });
+    for (let i = 0; i < 3; i += 1) h.ctx.db.saveMessage({ session_key: 's-other', role: 'user', content: `quasar rollout secret ${i}` });
+    const member = await status(tokens.member, '/api/search/chat?q=quasar&limit=1');
+    expect(member.code).toBe(200);
+    expect(member.body.results.map((r: any) => r.sessionId)).toEqual(['s-main']);
+    expect((await status(tokens.member, '/api/search/chat?q=Other')).body.results).toEqual([]);
+    const recent = await status(tokens.member, '/api/search/chat?q=');
+    expect(recent.body.mode).toBe('recent');
+    expect(recent.body.results.map((r: any) => r.sessionId)).not.toContain('s-other');
+    const admin = await status(tokens.admin, '/api/search/chat?q=quasar');
+    expect(admin.body.results.map((r: any) => r.sessionId).sort()).toEqual(['s-main', 's-other']);
+    expect((await fetch(`${h.baseUrl}/api/search/chat?q=quasar`)).status).toBe(401);
+  });
+
   it('群：member 只见含授权 Agent 的群；看不见的群取 / 流 / 发 / 停 403；改结构要求群里每个 Agent 都授权', async () => {
     const memberGroups = await status(tokens.member, '/api/groups');
     expect(memberGroups.body.groups.map((group: any) => group.id)).toEqual(['g-main']);
