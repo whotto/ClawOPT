@@ -2395,5 +2395,21 @@
       "askAdminMessage": "还没有可用的模型服务商，发出的消息不会有回复。请联系管理员配置模型服务商。",
       "openSettings": "去配置模型"
     }
+  },
+  "sessionSearch": {
+    "title": "搜索对话",
+    "placeholder": "搜索对话名称与消息内容…",
+    "sidebarButton": "搜索对话",
+    "recent": "最近的对话",
+    "results": "{{count}} 条结果",
+    "loading": "正在搜索…",
+    "error": "搜索失败，请稍后重试",
+    "noRecent": "还没有对话",
+    "noResults": "没有找到匹配的对话或消息",
+    "youPrefix": "你：",
+    "hintNavigate": "↑↓ 选择",
+    "hintOpen": "Enter 打开",
+    "hintClose": "Esc 关闭",
+    "hintShortcuts": "{{search}} 搜索 · {{newChat}} 新建 · {{settings}} 设置"
   }
 }

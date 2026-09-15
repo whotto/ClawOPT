@@ -2395,5 +2395,21 @@
       "askAdminMessage": "還沒有可用的模型服務商，送出的訊息不會有回覆。請聯絡管理員設定模型服務商。",
       "openSettings": "前往設定模型"
     }
+  },
+  "sessionSearch": {
+    "title": "搜尋對話",
+    "placeholder": "搜尋對話名稱與訊息內容…",
+    "sidebarButton": "搜尋對話",
+    "recent": "最近的對話",
+    "results": "{{count}} 筆結果",
+    "loading": "正在搜尋…",
+    "error": "搜尋失敗，請稍後再試",
+    "noRecent": "還沒有對話",
+    "noResults": "找不到符合的對話或訊息",
+    "youPrefix": "你：",
+    "hintNavigate": "↑↓ 選擇",
+    "hintOpen": "Enter 開啟",
+    "hintClose": "Esc 關閉",
+    "hintShortcuts": "{{search}} 搜尋 · {{newChat}} 新增 · {{settings}} 設定"
   }
 }

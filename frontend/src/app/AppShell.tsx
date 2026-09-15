@@ -8,6 +8,7 @@ import type { ShellContext } from './shellContext';
 import { useAppNavigation } from './useAppNavigation';
 import { useConnectionStatus } from './useConnectionStatus';
 import { useModels } from './useModels';
+import GlobalSearch from '../features/search/GlobalSearch';
 import { useSessions } from './useSessions';
 
 /** 侧栏 + 主区域。主区域由路由表决定渲染哪一页，页面通过 Outlet context 拿壳层状态。 */
@@ -86,6 +87,11 @@ export default function AppShell() {
           />
           <Outlet context={context} />
         </main>
+        {/* Ctrl/Cmd+K 会话搜索与全局快捷键（Ctrl/Cmd+N、Ctrl/Cmd+,、Esc）。只在登录后的壳层里挂载。 */}
+        <GlobalSearch
+          onOpenSession={(sessionId) => { nav.setActiveSessionId(sessionId); nav.navigateTo('chat', undefined, false); }}
+          onOpenSettings={() => nav.navigateTo('settings', nav.settingsTab, false)}
+        />
         <PendingApprovalsTray
           visibleWorkflowId={nav.currentView === 'automation' && nav.automationSection === 'workflows' ? nav.activeWorkflowId : null}
           onOpen={(workflowId) => nav.openAutomation('workflows', workflowId)}

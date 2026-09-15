@@ -2395,5 +2395,21 @@
       "askAdminMessage": "No model provider is available yet, so messages will not get a reply. Ask an administrator to configure a model provider.",
       "openSettings": "Configure models"
     }
+  },
+  "sessionSearch": {
+    "title": "Search conversations",
+    "placeholder": "Search conversation names and messages…",
+    "sidebarButton": "Search",
+    "recent": "Recent conversations",
+    "results": "{{count}} results",
+    "loading": "Searching…",
+    "error": "Search failed. Try again later",
+    "noRecent": "No conversations yet",
+    "noResults": "No matching conversations or messages",
+    "youPrefix": "You: ",
+    "hintNavigate": "↑↓ to select",
+    "hintOpen": "Enter to open",
+    "hintClose": "Esc to close",
+    "hintShortcuts": "{{search}} search · {{newChat}} new · {{settings}} settings"
   }
 }
