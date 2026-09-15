@@ -84,6 +84,11 @@ export class RuntimeHomes {
     return { idleDays };
   }
 
+  /** 某个归属在某个运行时下的目录路径，不创建、不记使用（只读查询用，例如分叉前看父会话有没有可续的原生会话）。 */
+  pathFor(runtime: string, owner: RuntimeHomeOwner): string {
+    return runtimeHomePath(this.root, runtime, owner);
+  }
+
   /** 拿（必要时创建）某个归属在某个运行时下的目录，并记一次使用。适配器准备运行时调用。 */
   ensureHome(runtime: string, owner: RuntimeHomeOwner): string {
     const dir = runtimeHomePath(this.root, runtime, owner);

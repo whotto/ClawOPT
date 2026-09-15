@@ -61,6 +61,7 @@ import {
   createDirectChatService,
   createSessionRuntime,
   SessionManager,
+  SessionOrgStore,
 } from '../collab/sessions';
 import {
   createRoomEngine,
@@ -77,6 +78,9 @@ export function createAppContext() {
   const db = new DB();
   const configManager = new ConfigManager();
   const sessionManager = new SessionManager(db);
+  /** 单聊会话的组织（按用户的分类 / 归档）与元数据（对话标题、来历、分叉血缘）；会话删了跟着清。 */
+  const sessionOrg = new SessionOrgStore(db.connection());
+  sessionManager.on('sessionDeleted', (session: { id: string }) => sessionOrg.removeSession(session.id));
   /** 会话令牌存储：随机、可过期、可吊销。 */
   const authStore = new AuthStore(db);
   /** 用户 / 角色 / Agent 授权与登录 IP 锁（P5a）。 */
@@ -148,6 +152,7 @@ export function createAppContext() {
     db,
     configManager,
     sessionManager,
+    sessionOrg,
     authStore,
     userStore,
     loginLocks,

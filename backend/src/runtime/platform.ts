@@ -4,6 +4,8 @@
  */
 import { runtimeAdapterRegistry, type RuntimeAdapterDeps, type RuntimeAdapterRegistry, type RuntimeRunRequest } from './adapter-registry';
 import { createLocalProcessExecutor, type ProcessExecutor } from './adapters/_shared/process';
+import { createNodeRuntimeFs } from './adapters/_shared/runtime-fs';
+import { readSessionState } from './adapters/_shared/session-state';
 import type { AdapterLogger, ScopedProviderResolver } from './adapters/_shared/types';
 import { registerBuiltinAdapters } from './builtin-adapters';
 import type { AgentRuntimeAdapter } from './contract';
@@ -35,6 +37,8 @@ export interface RuntimePlatform {
   createAdapter(runtime: string, options?: { executor?: ProcessExecutor }): AgentRuntimeAdapter<RuntimeRunRequest> | null;
   /** 归属被删：回收运行时目录（远程成员令牌随定期清扫删除）。 */
   releaseOwner(owner: Partial<RuntimeHomeOwner> & { kind: RuntimeHomeOwner['kind'] }, options?: { exceptRuntime?: string }): void;
+  /** 这个归属在这个运行时下有没有 CLI 确认过的原生会话（只读 home 里的续话状态，不建目录）。分叉前的判据。 */
+  hasConfirmedNativeSession(runtime: string, owner: RuntimeHomeOwner): boolean;
   start(): void;
   stop(): void;
 }
@@ -84,6 +88,14 @@ export function createRuntimePlatform(options: RuntimePlatformOptions): RuntimeP
         cached.set(runtime, adapter);
       }
       return adapter;
+    },
+    hasConfirmedNativeSession(runtime, owner) {
+      try {
+        const state = readSessionState(createNodeRuntimeFs(), manager.homes.pathFor(runtime, owner));
+        return Boolean(state?.confirmed && state.nativeSessionId);
+      } catch {
+        return false;
+      }
     },
     releaseOwner(owner, releaseOptions) {
       try {

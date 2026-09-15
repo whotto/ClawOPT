@@ -125,6 +125,8 @@ export function registerRuntimePlatformRoutes(app: RouteApp, ctx: RuntimePlatfor
         modes: capabilities?.proxyMode ?? [],
         approvals: Boolean(capabilities?.approvals),
         nativeCompact: Boolean(capabilities?.nativeCompact),
+        // 单聊「分叉对话」只对能分叉原生会话的运行时显示。
+        nativeFork: Boolean(capabilities?.nativeFork),
       };
     }));
     res.json({ success: true, runtimes });

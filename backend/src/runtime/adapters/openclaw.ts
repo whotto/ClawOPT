@@ -63,6 +63,7 @@ export const OPENCLAW_IDLE_TIMEOUT_WITHOUT_TEXT = 'Response timed out (no connec
 export const OPENCLAW_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  nativeFork: false,
   approvals: false,
   clarify: false,
   hostCompression: false,

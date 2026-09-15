@@ -1183,7 +1183,8 @@
     "protocolError": "Communication with the external runtime failed (protocol error).",
     "commandUnsupported": "This runtime does not support that session command.",
     "launchFailed": "The external runtime failed to start.",
-    "capabilityUnsupported": "The installed version of the external runtime lacks a required capability."
+    "capabilityUnsupported": "The installed version of the external runtime lacks a required capability.",
+    "forkSourceUnavailable": "The conversation this one was forked from has no resumable session in the runtime anymore, so the fork cannot continue."
   },
   "runtimeConfig": {
     "redactionMismatch": "Hidden credentials no longer match the file on disk; reload",

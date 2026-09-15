@@ -7,6 +7,7 @@
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { createClaudeCodeAdapter } from '../../../../src/runtime/adapters/claude-code';
+import { createPiAdapter } from '../../../../src/runtime/adapters/pi';
 import { SESSION_STATE_FILE } from '../../../../src/runtime/adapters/_shared/session-state';
 import {
   DATA_DIR,
@@ -324,6 +325,59 @@ describe('Claude Code：续话兼容性', () => {
     const h = harness();
     const run = await secondTurn(h, baseRequest({ resume: true }));
     expect(run.proc.spec.args[run.proc.spec.args.indexOf('--resume') + 1]).toBe('11111111-1111-4111-8111-111111111111');
+  });
+});
+
+describe('Claude Code：分叉原生会话（单聊「分叉对话」）', () => {
+  const PARENT_OWNER = { kind: 'session' as const, sessionId: 'parent-session' };
+  const CHILD_HANDLE = '22222222-2222-4222-8222-222222222222';
+  const writeParentState = (h: ReturnType<typeof harness>, over: Record<string, unknown> = {}) => {
+    h.fs.writeFile(path.join(homeFor('claude-code', PARENT_OWNER), SESSION_STATE_FILE), JSON.stringify({
+      version: 1, sessionId: 'parent-handle', nativeSessionId: 'parent-native', confirmed: true,
+      fingerprint: { runtime: 'claude-code', mode: 'global' }, updatedAt: '', ...over,
+    }), 0o600);
+  };
+  const forkRequest = () => baseRequest({ sessionId: CHILD_HANDLE, forkFrom: PARENT_OWNER });
+
+  it('首轮：--resume 父会话的原生 id + --fork-session + --session-id 子句柄', async () => {
+    const h = harness();
+    writeParentState(h);
+    const { proc } = await launched(h, forkRequest());
+    const args = proc.spec.args;
+    expect(args[args.indexOf('--resume') + 1]).toBe('parent-native');
+    expect(args).toContain('--fork-session');
+    expect(args[args.indexOf('--session-id') + 1]).toBe(CHILD_HANDLE);
+  });
+
+  it('子会话确认过之后：按自己的原生 id 普通续话，不再分叉', async () => {
+    const h = harness();
+    writeParentState(h);
+    const first = await launched(h, forkRequest());
+    first.proc.line(resultLine({ session_id: CHILD_HANDLE }));
+    first.proc.close(0);
+    await first.run.done;
+    const second = await launched(h, { ...forkRequest(), resume: true });
+    expect(second.proc.spec.args[second.proc.spec.args.indexOf('--resume') + 1]).toBe(CHILD_HANDLE);
+    expect(second.proc.spec.args).not.toContain('--fork-session');
+  });
+
+  it('父会话没有确认过的原生会话（或坐标不兼容）：明说失败，不起进程、不悄悄开新会话', async () => {
+    for (const over of [{ confirmed: false }, { fingerprint: { runtime: 'claude-code', mode: 'scoped', provider: 'p', model: 'm', apiMode: 'x' } }]) {
+      const h = harness();
+      writeParentState(h, over);
+      const run = startRun(createClaudeCodeAdapter(h.deps), forkRequest());
+      expect(await run.done).toMatchObject({ kind: 'failed', code: 'runtime.forkSourceUnavailable' });
+      expect(h.exec.processes).toHaveLength(0);
+    }
+  });
+
+  it('**能力闸门**：没声明 nativeFork 的运行时（Pi）忽略 forkFrom，照常起一轮', async () => {
+    const h = harness();
+    const run = startRun(createPiAdapter(h.deps), baseRequest({ forkFrom: PARENT_OWNER }));
+    const proc = await h.exec.next();
+    expect(proc.spec.args).not.toContain('--fork-session');
+    proc.close(1);
+    expect(await run.done).not.toMatchObject({ code: 'runtime.forkSourceUnavailable' });
   });
 });
 

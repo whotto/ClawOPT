@@ -19,6 +19,7 @@ export const GROK_DESCRIPTOR: RuntimeDescriptor = builtinRuntimeDescriptor('grok
 export const GROK_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  nativeFork: false,
   // --always-approve：headless 下没有审批通道。
   approvals: false,
   clarify: false,

@@ -45,6 +45,7 @@ import { createNodeRuntimeFs, materializeFiles, type PlannedFile, type RuntimeFs
 import { sanitizeRuntimeText, tailLines } from './sanitize';
 import {
   decideResume,
+  fingerprintsCompatible,
   fingerprintFor,
   readSessionState,
   writeSessionState,
@@ -278,12 +279,24 @@ export function createCodingAgentAdapter(definition: RuntimeDefinition, deps: Co
           homeDir = deps.homes.ensureHome(runtimeId, request.owner);
           runtimeFs.mkdirp(homeDir);
           fingerprint = fingerprintFor(runtimeId, request, mode);
+          const ownState = readSessionState(runtimeFs, homeDir);
+          let forkSource: { nativeSessionId: string } | null = null;
+          if (request.forkFrom && definition.capabilities.nativeFork && !(ownState?.confirmed && ownState.nativeSessionId)) {
+            // 分叉来源必须是父归属里 CLI 确认过、坐标兼容的原生会话；没有就明说失败——
+            // 悄悄开个新会话，界面上带着拷来的历史而运行时什么都不记得，是假分叉。
+            const parent = readSessionState(runtimeFs, deps.homes.ensureHome(runtimeId, request.forkFrom));
+            if (!parent?.confirmed || !parent.nativeSessionId || !fingerprintsCompatible(parent.fingerprint, fingerprint)) {
+              return failedOutcome('runtime.forkSourceUnavailable', `${definition.descriptor.name}: the parent conversation has no resumable native session to fork from`);
+            }
+            forkSource = { nativeSessionId: parent.nativeSessionId };
+          }
           decision = decideResume({
             policy: definition.nativeSessionIds,
-            state: readSessionState(runtimeFs, homeDir),
+            state: ownState,
             request,
             fingerprint,
             randomUUID: makeUUID,
+            forkSource,
           });
           if (decision.resumeNativeId) nativeRunId = decision.resumeNativeId;
           if (decision.createNativeId) {

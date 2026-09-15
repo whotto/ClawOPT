@@ -89,6 +89,8 @@ export type ExternalChatTurnDeps = {
   runCoordinator: RunCoordinator;
   createAdapter: (runtime: string) => AgentRuntimeAdapter<RuntimeRunRequest> | null;
   defaultWorkspace: (sessionId: string) => string;
+  /** 这个会话是从哪个单聊分叉出来的（没有返回 null）。 */
+  forkSource?: (sessionId: string) => string | null;
 };
 
 export async function runExternalChatTurn(deps: ExternalChatTurnDeps, turn: {
@@ -142,6 +144,8 @@ export async function runExternalChatTurn(deps: ExternalChatTurnDeps, turn: {
     runtimeConfig: { ...config },
     command,
   };
+  const forkParent = deps.forkSource?.(session.id);
+  if (forkParent) request.forkFrom = { kind: 'session', sessionId: forkParent };
 
   const submitted = await deps.runCoordinator.submit({
     sessionKey: session.id,

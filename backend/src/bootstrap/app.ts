@@ -41,7 +41,7 @@ import {
   registerVersionRoutes,
 } from '../control';
 import { registerFileRoutes, registerUploadRoutes } from '../workspace';
-import { registerChatRoutes, registerSessionListRoutes, registerSessionRoutes } from '../collab/sessions';
+import { registerChatRoutes, registerSessionListRoutes, registerSessionOrgRoutes, registerSessionRoutes } from '../collab/sessions';
 import { registerRoomRoutes } from '../collab/rooms';
 import { registerAutomationRoutes, registerWorkflowRoutes } from '../automation';
 import type { AppContext } from './context';
@@ -125,6 +125,7 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerPackRoutes(routes.forModule('control/packs'), ctx);
   registerPresetRoutes(routes.forModule('control/presets'), ctx);
   registerSessionRoutes(routes.forModule('collab/sessions'), ctx);
+  registerSessionOrgRoutes(routes.forModule('collab/sessions'), ctx);
   registerChatRoutes(routes.forModule('collab/sessions'), ctx);
   // 等人答复的运行审批（真审批运行时的单聊 / 群成员）：按用户过滤。
   registerRunApprovalRoutes(routes.forModule('runtime'), ctx);

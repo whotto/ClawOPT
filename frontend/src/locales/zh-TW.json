@@ -1183,7 +1183,8 @@
     "protocolError": "與外部執行環境的通訊協定出錯。",
     "commandUnsupported": "這個執行環境不支援該工作階段指令。",
     "launchFailed": "外部執行環境啟動失敗。",
-    "capabilityUnsupported": "所安裝版本的外部執行環境缺少所需能力。"
+    "capabilityUnsupported": "所安裝版本的外部執行環境缺少所需能力。",
+    "forkSourceUnavailable": "分叉來源對話在執行環境裡已經沒有可續的原生工作階段，這個分叉無法繼續。"
   },
   "runtimeConfig": {
     "redactionMismatch": "隱藏的憑據與磁碟上的檔案對不上，請重新載入",

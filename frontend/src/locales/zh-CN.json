@@ -1183,7 +1183,8 @@
     "protocolError": "与外部运行时的通信协议出错。",
     "commandUnsupported": "这个运行时不支持该会话命令。",
     "launchFailed": "外部运行时启动失败。",
-    "capabilityUnsupported": "所装版本的外部运行时缺少所需能力。"
+    "capabilityUnsupported": "所装版本的外部运行时缺少所需能力。",
+    "forkSourceUnavailable": "分叉来源对话在运行时里已经没有可续的原生会话，这个分叉无法继续。"
   },
   "runtimeConfig": {
     "redactionMismatch": "隐藏的凭据与磁盘上的文件对不上，请重新加载",

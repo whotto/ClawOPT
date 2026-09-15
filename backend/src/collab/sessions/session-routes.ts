@@ -38,6 +38,7 @@ import {
   getHistoryPageQueryParams,
 } from './chat-messages';
 import type { SessionManager } from './session-manager';
+import type { SessionOrgStore, SessionOrigin } from './session-org-store';
 import {
   resetAgentWorkspaceToInitialState,
   type SessionRuntime,
@@ -113,7 +114,13 @@ export type SessionRoutesDeps = {
   uploads: UploadService;
   access: ResourceAccess;
   auth: Pick<AuthMiddleware, 'requireAdminAuth'>;
+  sessionOrg: Pick<SessionOrgStore, 'setOrigin' | 'clearGeneratedTitle'>;
 };
+
+/** 建会话时记下来历：只认 `diagnosis`（运行时管理页「让 AI 诊断」），其余一律当人建的。 */
+export function normalizeSessionOrigin(raw: unknown): SessionOrigin {
+  return raw === 'diagnosis' ? 'diagnosis' : 'human';
+}
 
 export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): void {
   const { agentProvisioner, db, sessionManager } = ctx;
@@ -170,6 +177,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
           external_config: normalizeExternalSessionConfig(req.body?.externalConfig),
           external_session_id: randomUUID(),
         });
+        ctx.sessionOrg.setOrigin(session.id, normalizeSessionOrigin(req.body?.origin));
         return res.json({ success: true, session });
       } catch (err: any) {
         return res.status(500).json(buildStructuredApiError(MODEL_UPDATE_FAILED_ERROR_CODE, err?.message));
@@ -218,6 +226,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
 
       // Update session record with the auto-generated agentId
       sessionManager.updateSession(newSession.id, { agentId });
+      ctx.sessionOrg.setOrigin(newSession.id, normalizeSessionOrigin(req.body?.origin));
       const finalSession = sessionManager.getSession(newSession.id);
 
       res.json({ success: true, session: finalSession });
@@ -309,75 +318,114 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     }
   });
 
-  app.delete('/api/sessions/:id', requireAdminAuth, async (req, res) => {
-    const session = sessionManager.getSession(req.params.id);
+  type DeleteOutcome = { status: number; body: Record<string, unknown> };
+
+  /**
+   * 删一个单聊会话：停运行、清网关孤儿 run、断连接、删行（协调器通用表随之清）、回收运行时目录、撤销 Agent。
+   * 单个删除与批量删除共用这一条路径——批量删不许走捷径漏掉任何一步。
+   */
+  async function deleteChatSession(sessionId: string): Promise<DeleteOutcome> {
+    const session = sessionManager.getSession(sessionId);
     if (!session) {
-      return res.status(404).json({ success: false, error: 'Session not found' });
+      return { status: 404, body: { success: false, error: 'Session not found' } };
     }
 
     if (session.id === 'main' || session.agentId === 'main') {
-      return res.status(400).json({ success: false, error: 'Cannot delete the main agent session' });
+      return { status: 400, body: { success: false, error: 'Cannot delete the main agent session' } };
     }
 
     const agentId = session.agentId;
     const isExternalRuntimeSession = Boolean(session.external_runtime);
-    const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
-    bumpSessionInterruptionEpoch(req.params.id);
-    localChatOperationManager.abort(req.params.id, interruptedEpoch);
+    const interruptedEpoch = getSessionInterruptionEpoch(sessionId);
+    bumpSessionInterruptionEpoch(sessionId);
+    localChatOperationManager.abort(sessionId, interruptedEpoch);
     try {
-      await runCoordinator.abort(req.params.id, 'user_stop');
+      await runCoordinator.abort(sessionId, 'user_stop');
     } catch {}
     if (!isExternalRuntimeSession) {
       try {
-        const client = await getConnection(req.params.id);
+        const client = await getConnection(sessionId);
         await abortOpenClawSessionRuns(
           client,
-          buildOpenClawChatSessionKey(req.params.id, agentId || 'main'),
-          `session ${req.params.id} delete`,
+          buildOpenClawChatSessionKey(sessionId, agentId || 'main'),
+          `session ${sessionId} delete`,
           { retryOnMiss: true },
         );
       } catch (error) {
-        console.warn(`[chat] Failed to abort orphan OpenClaw runs while deleting session ${req.params.id}:`, error);
+        console.warn(`[chat] Failed to abort orphan OpenClaw runs while deleting session ${sessionId}:`, error);
       }
     }
-    disconnectConnection(req.params.id);
-    const success = sessionManager.deleteSession(req.params.id);
-    
-    if (success) {
-      sessionInterruptionEpochs.delete(req.params.id);
-      // P2：这个会话在各外部运行时下的运行时目录一起回收（参考实现从不回收）。
-      ctx.runtimePlatform.releaseOwner({ kind: 'session', sessionId: req.params.id });
-      if (agentId && agentId !== 'main' && !isExternalRuntimeSession) {
-        // deprovision() 现在会对「配置读不动」抛 ConfigReadError（原来是静默
-        // `return false`，于是这条路由报 200 success 而配置条目、工作区、状态目录、
-        // 记忆库一个都没删）。这里必须接住：本路由此前**完全没有 try/catch**，
-        // 一个异步抛错会变成未处理的 Promise 拒绝，请求悬着、进程可能被带崩。
-        try {
-          const configChanged = await agentProvisioner.deprovision(agentId);
-          if (configChanged) {
-            // Gateway auto-reloads config
-          }
-        } catch (error) {
-          if (error instanceof ConfigReadError) {
-            // session 行已经删掉了，但 openclaw.json 里的条目还在——如实说出来，
-            // 不要报成完全成功。用户需要知道去修配置，否则那个 agentId 再也建不回来。
-            console.error(
-              `[DELETE /api/sessions/:id] session 已删除，但清理 openclaw.json 失败（${error.reason}）：`,
-              req.params.id,
-            );
-            return res.status(500).json(
-              buildStructuredApiError(AGENT_CONFIG_READ_FAILED_ERROR_CODE, error.detail, {
-                reason: error.reason,
-              }),
-            );
-          }
-          throw error;
+    disconnectConnection(sessionId);
+    const success = sessionManager.deleteSession(sessionId);
+
+    if (!success) {
+      return { status: 404, body: { success: false, error: 'Session not found' } };
+    }
+    sessionInterruptionEpochs.delete(sessionId);
+    // P2：这个会话在各外部运行时下的运行时目录一起回收（参考实现从不回收）。
+    ctx.runtimePlatform.releaseOwner({ kind: 'session', sessionId });
+    if (agentId && agentId !== 'main' && !isExternalRuntimeSession) {
+      // deprovision() 现在会对「配置读不动」抛 ConfigReadError（原来是静默
+      // `return false`，于是这条路由报 200 success 而配置条目、工作区、状态目录、
+      // 记忆库一个都没删）。这里必须接住：此前**完全没有 try/catch**，
+      // 一个异步抛错会变成未处理的 Promise 拒绝，请求悬着、进程可能被带崩。
+      try {
+        await agentProvisioner.deprovision(agentId);
+      } catch (error) {
+        if (error instanceof ConfigReadError) {
+          // session 行已经删掉了，但 openclaw.json 里的条目还在——如实说出来，
+          // 不要报成完全成功。用户需要知道去修配置，否则那个 agentId 再也建不回来。
+          console.error(
+            `[DELETE /api/sessions/:id] session 已删除，但清理 openclaw.json 失败（${error.reason}）：`,
+            sessionId,
+          );
+          return {
+            status: 500,
+            body: buildStructuredApiError(AGENT_CONFIG_READ_FAILED_ERROR_CODE, error.detail, { reason: error.reason }),
+          };
         }
+        throw error;
       }
-      res.json({ success: true });
-    } else {
-      res.status(404).json({ success: false, error: 'Session not found' });
     }
+    return { status: 200, body: { success: true } };
+  }
+
+  app.delete('/api/sessions/:id', requireAdminAuth, async (req, res) => {
+    try {
+      const outcome = await deleteChatSession(req.params.id);
+      res.status(outcome.status).json(outcome.body);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error?.message || 'Failed to delete session' });
+    }
+  });
+
+  /**
+   * 批量删除（侧栏批量模式）。逐个走 `deleteChatSession`，一个失败不影响其余，结果如实报：
+   * `{ deleted, failed, errors: [{ id, status, errorCode?, error? }] }`。删会话本身就是管理员的，
+   * 这里仍逐个过会话可见性（与单个删除同一判据的上界：admin 全部可见，保留判定免得以后放宽闸门时漏掉）。
+   */
+  app.post('/api/sessions/batch-delete', requireAdminAuth, async (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? [...new Set((req.body.ids as unknown[]).map(String).filter(Boolean))] : null;
+    if (!ids || ids.length === 0 || ids.length > 200) {
+      return res.status(400).json(buildStructuredApiError('sessionOrg.errors.batchIdsInvalid'));
+    }
+    const identity = getRequestIdentity(req);
+    const deleted: string[] = [];
+    const errors: Array<{ id: string; status: number; errorCode?: string | null; error?: string | null }> = [];
+    for (const id of ids) {
+      if (!ctx.access.canAccessChatSession(identity, id)) {
+        errors.push({ id, status: 403, errorCode: 'auth.agentForbidden' });
+        continue;
+      }
+      try {
+        const outcome = await deleteChatSession(id);
+        if (outcome.status === 200) deleted.push(id);
+        else errors.push({ id, status: outcome.status, errorCode: (outcome.body.errorCode as string) ?? null, error: (outcome.body.error as string) ?? null });
+      } catch (error: any) {
+        errors.push({ id, status: 500, error: error?.message || 'Failed to delete session' });
+      }
+    }
+    res.json({ success: errors.length === 0, deleted, failed: errors.map((entry) => entry.id), errors });
   });
 
   // Reset session back to its initialized runtime state while keeping the session entity.
@@ -411,6 +459,8 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
 
       // Clear database records
       db.deleteMessagesBySession(req.params.id);
+      // 历史清空了，从第一条消息推出来的标题也跟着作废（手动标题保留）。
+      ctx.sessionOrg.clearGeneratedTitle(req.params.id);
       clearStoredFilesBySessionKey(req.params.id);
 
       // Clear agent workspace uploads directory

@@ -84,6 +84,12 @@ export {
   SessionManager,
 } from './session-manager';
 export {
+  SessionOrgStore,
+} from './session-org-store';
+export {
+  registerSessionOrgRoutes,
+} from './session-org-routes';
+export {
   registerSessionListRoutes,
   registerSessionRoutes,
 } from './session-routes';
