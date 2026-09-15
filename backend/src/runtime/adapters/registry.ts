@@ -11,6 +11,7 @@ import { CLAUDE_CODE_DEFINITION } from './claude-code';
 import { CODEX_DEFINITION } from './codex';
 import { DSH_DEFINITION } from './dsh';
 import { GROK_DEFINITION } from './grok';
+import { HERMES_DEFINITION } from './hermes';
 import { OPENCODE_DEFINITION } from './opencode';
 import { PI_DEFINITION } from './pi';
 
@@ -21,6 +22,7 @@ export const CODING_AGENT_DEFINITIONS: readonly RuntimeDefinition[] = [
   GROK_DEFINITION,
   OPENCODE_DEFINITION,
   DSH_DEFINITION,
+  HERMES_DEFINITION,
 ];
 
 export type CodingAgentAdapterLookup = (runtime: string) => CodingAgentRuntimeAdapter | undefined;

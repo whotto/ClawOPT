@@ -72,25 +72,38 @@ export function replayAcp(proc: FakeProcess, recorded: Recorded[], overrides: Re
     return null;
   };
 
+  /** 回放到对端发起的请求（例如权限请求）就停下，等适配器答复了再继续——和真对端一样。 */
+  const waitingForAnswer = new Map<string, () => void>();
+  const emit = (replies: any[]) => {
+    for (let index = 0; index < replies.length; index += 1) {
+      const reply = replies[index];
+      proc.line(reply);
+      if (reply.method && reply.id !== undefined) {
+        serverRequestIds.add(String(reply.id));
+        const rest = replies.slice(index + 1);
+        if (rest.length) waitingForAnswer.set(String(reply.id), () => setImmediate(() => emit(rest)));
+        return;
+      }
+    }
+  };
+
   proc.onWrite((data) => {
     for (const line of data.split('\n').filter(Boolean)) {
       const msg = JSON.parse(line);
       sent.push(msg);
       if (!msg.method && msg.id !== undefined && serverRequestIds.has(String(msg.id))) {
         answers.push(msg);
+        const resume = waitingForAnswer.get(String(msg.id));
+        waitingForAnswer.delete(String(msg.id));
+        resume?.();
         continue;
       }
       if (!msg.method || msg.id === undefined) continue;
       const override = overrides[msg.method];
       const custom = override ? override(msg) : null;
       const found = custom ? { batch: custom, responseIndex: custom.length - 1 } : batchFor(msg.method);
-      const replies = found ? found.batch.map((reply, index) => (index === found.responseIndex ? { ...reply, id: msg.id } : reply)) : [{ jsonrpc: '2.0', id: msg.id, result: {} }];
-      setImmediate(() => {
-        for (const reply of replies) {
-          if (reply.method && reply.id !== undefined) serverRequestIds.add(String(reply.id));
-          proc.line(reply);
-        }
-      });
+      const replies = found ? found.batch.map((reply, index) => (index === found.responseIndex && !reply.method ? { ...reply, id: msg.id } : reply)) : [{ jsonrpc: '2.0', id: msg.id, result: {} }];
+      setImmediate(() => emit(replies));
     }
   });
   return { sent, answers };
