@@ -208,7 +208,7 @@ describe('createAuthMiddleware', () => {
     const member = users.create({ username: 'mem', password: 'member-password', role: 'member' });
     users.update(member.id, { agentIds: ['writer'] });
     const token = authStore.issue('web', member.id).token;
-    const guard = auth.requireAgentAccess();
+    const guard = auth.requireAgentAccess;
     expect(await run(guard, request(token, '/api/x', { agentId: 'writer' }))).toEqual({ status: null, code: null });
     expect(await run(guard, request(token, '/api/x', { agentId: 'coder' }))).toEqual({ status: 403, code: 'auth.agentForbidden' });
     const root = users.findByUsername('root')!;

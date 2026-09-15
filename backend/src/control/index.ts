@@ -17,6 +17,25 @@ export type {
   ProvisionOptions,
 } from './agents/agent-provisioner';
 export {
+  createAgentAvatarStore,
+  decodeAvatarDataUrl,
+  sniffImageMime,
+} from './agents/agent-avatar-store';
+export type {
+  AgentAvatarStore,
+} from './agents/agent-avatar-store';
+export {
+  createAgentCloneService,
+  normalizeBindings,
+} from './agents/agent-clone';
+export type {
+  AgentCloneService,
+  CloneReport,
+} from './agents/agent-clone';
+export {
+  registerAgentRosterRoutes,
+} from './agents/agent-roster-routes';
+export {
   registerAgentRoutes,
 } from './agents/agent-routes';
 export type {
@@ -224,3 +243,117 @@ export {
 export type {
   UpdateRoutesDeps,
 } from './update/update-routes';
+export {
+  createChannelsService,
+} from './channels/channels-service';
+export type {
+  ChannelsService,
+} from './channels/channels-service';
+export {
+  registerChannelsRoutes,
+} from './channels/channels-routes';
+export {
+  createCronService,
+} from './cron/cron-service';
+export type {
+  CronService,
+} from './cron/cron-service';
+export {
+  registerCronRoutes,
+} from './cron/cron-routes';
+export {
+  createGatewayStatusCache,
+} from './logs/gateway-status-cache';
+export type {
+  GatewayStatusCache,
+} from './logs/gateway-status-cache';
+export {
+  createLogsService,
+} from './logs/logs-service';
+export type {
+  LogsService,
+} from './logs/logs-service';
+export {
+  registerObservabilityRoutes,
+} from './logs/observability-routes';
+export {
+  createMcpService,
+} from './mcp/mcp-service';
+export type {
+  McpService,
+} from './mcp/mcp-service';
+export {
+  registerMcpRoutes,
+} from './mcp/mcp-routes';
+export {
+  createModelCatalogStore,
+  createModelPrefsStore,
+} from './models/model-catalog';
+export type {
+  ModelCatalogStore,
+  ModelPrefsStore,
+} from './models/model-catalog';
+export {
+  createProviderAudit,
+} from './models/provider-audit';
+export type {
+  ProviderAudit,
+} from './models/provider-audit';
+export {
+  createProviderEditor,
+} from './models/provider-editor';
+export type {
+  ProviderEditor,
+} from './models/provider-editor';
+export {
+  registerProviderRoutes,
+} from './models/provider-routes';
+export {
+  createPluginsService,
+} from './plugins/plugins-service';
+export type {
+  PluginsService,
+} from './plugins/plugins-service';
+export {
+  registerPluginsRoutes,
+} from './plugins/plugins-routes';
+export {
+  createEngineRoster,
+} from './shared/engine-roster';
+export type {
+  EngineAgent,
+  EngineRoster,
+} from './shared/engine-roster';
+export {
+  createSkillsService,
+} from './skills/skills-service';
+export type {
+  SkillsService,
+} from './skills/skills-service';
+export {
+  registerSkillsRoutes,
+} from './skills/skills-routes';
+export {
+  createUsageService,
+} from './usage/usage-service';
+export type {
+  UsageService,
+} from './usage/usage-service';
+export {
+  createWorkspaceFilesService,
+} from './workspace-files/workspace-files-service';
+export type {
+  WorkspaceFilesService,
+} from './workspace-files/workspace-files-service';
+export {
+  registerWorkspaceFilesRoutes,
+} from './workspace-files/workspace-files-routes';
+export {
+  createWriteGateService,
+} from './write-gate/write-gate-service';
+export type {
+  WriteGateService,
+} from './write-gate/write-gate-service';
+export {
+  registerWriteGateRoutes,
+} from './write-gate/write-gate-routes';

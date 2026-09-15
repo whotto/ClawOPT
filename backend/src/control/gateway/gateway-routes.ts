@@ -1,3 +1,4 @@
+import type { AuthMiddleware } from '../../core/auth';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
@@ -43,6 +44,7 @@ import { safeReadHostTakeoverStatus } from './host-takeover';
 import { configureMaxPermissionsState, readMaxPermissionsEnabled } from './max-permissions';
 
 export type GatewayRoutesDeps = {
+  auth: AuthMiddleware;
   browser: BrowserService;
   gatewayConnections: GatewayConnections;
   gatewayService: GatewayService;
@@ -51,6 +53,8 @@ export type GatewayRoutesDeps = {
 export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): void {
   const { ensureBrowserTaskIdle, getBrowserTaskSnapshot, resetBrowserTaskSnapshot, runBrowserHealthCheck, updateBrowserTaskSnapshot, waitForBrowserGatewayReady } = ctx.browser;
   const { getActiveGatewayConnectionStatus } = ctx.gatewayConnections;
+  // P5a：网关重启、浏览器自愈、最大权限、设备配对都是改主机状态的动作——多用户之后只给 admin。
+  const { requireAdminAuth } = ctx.auth;
   const { buildGatewayStatusProbeParams, getGatewayRestartSnapshot, reconcileGatewayRestartSnapshot, resetGatewayRestartSnapshot, restartGatewayService, runTrackedGatewayRestart } = ctx.gatewayService;
 
   app.get('/api/gateway/status', async (_req, res) => {
@@ -75,7 +79,7 @@ export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): vo
     }
   });
 
-  app.post('/api/config/test', async (req, res) => {
+  app.post('/api/config/test', requireAdminAuth, async (req, res) => {
     const { gatewayUrl, token, password } = req.body;
 
     if (!gatewayUrl) {
@@ -194,7 +198,7 @@ export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): vo
     });
   });
 
-  app.post('/api/config/restart/status/reset', (_req, res) => {
+  app.post('/api/config/restart/status/reset', requireAdminAuth, (_req, res) => {
     if (getGatewayRestartSnapshot().status === 'restarting') {
       return res.status(409).json({
         ...buildStructuredApiError(
@@ -212,7 +216,7 @@ export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): vo
     });
   });
 
-  app.post('/api/config/browser-headed-mode', (req, res) => {
+  app.post('/api/config/browser-headed-mode', requireAdminAuth, (req, res) => {
     const { headedModeEnabled } = req.body ?? {};
     if (typeof headedModeEnabled !== 'boolean') {
       return res.status(400).json(buildStructuredApiError(
@@ -258,7 +262,7 @@ export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): vo
     })();
   });
 
-  app.post('/api/config/browser-health/self-heal', async (_req, res) => {
+  app.post('/api/config/browser-health/self-heal', requireAdminAuth, async (_req, res) => {
     let taskStarted = false;
     try {
       const lastKnownIssue = _req.body?.lastKnownIssue;
@@ -344,7 +348,7 @@ export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): vo
     res.json({ enabled, hostTakeover, devicePairing });
   });
 
-  app.post('/api/config/max-permissions', async (req, res) => {
+  app.post('/api/config/max-permissions', requireAdminAuth, async (req, res) => {
     const requestedEnabled = Boolean(req.body?.enabled);
     const systemPassword = normalizeCliText(req.body?.systemPassword) || null;
 
@@ -387,7 +391,7 @@ export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): vo
     }
   });
 
-  app.post('/api/config/max-permissions/device-pairing/approve', async (_req, res) => {
+  app.post('/api/config/max-permissions/device-pairing/approve', requireAdminAuth, async (_req, res) => {
     try {
       const result = await approveLatestDevicePairingRequest();
       res.json({
@@ -409,7 +413,7 @@ export function registerGatewayRoutes(app: RouteApp, ctx: GatewayRoutesDeps): vo
     }
   });
 
-  app.post('/api/config/restart', async (_req, res) => {
+  app.post('/api/config/restart', requireAdminAuth, async (_req, res) => {
     try {
       const previousRuntimeState = await readOpenClawGatewayServiceRuntimeState();
       const restart = runTrackedGatewayRestart({

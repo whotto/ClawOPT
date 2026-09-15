@@ -1665,28 +1665,6 @@ export class AgentProvisioner {
   }
 
   /**
-   * Add or update an endpoint provider in openclaw.json
-   */
-  async saveEndpoint(id: string, endpointConfig: { baseUrl: string, apiKey: string, api: string }): Promise<boolean> {
-    const config = this.readConfigFile();
-    if (!config) return false;
-    if (!config.models) config.models = {};
-    if (!config.models.providers) config.models.providers = {};
-
-    const existing = config.models.providers[id];
-    config.models.providers[id] = {
-      ...existing, // preserve existing models array or other metadata
-      baseUrl: endpointConfig.baseUrl.trim(),
-      apiKey: endpointConfig.apiKey.trim(),
-      api: endpointConfig.api,
-      models: existing?.models || []
-    };
-
-    this.writeConfigFile(config);
-    return true;
-  }
-
-  /**
    * Update the model for an existing agent in openclaw.json
    * For 'main' agent: updates agents.defaults.model.primary
    * For other agents: updates agents.list[].model

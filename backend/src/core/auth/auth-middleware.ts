@@ -159,18 +159,19 @@ export function createAuthMiddleware(ctx: AuthMiddlewareDeps) {
     return identity.userId !== null && userStore.hasAgent(identity.userId, agentId);
   }
 
-  /** Agent 作用域的路由：`:agentId`（或自定义取值）必须在当前用户的授权里。 */
-  function requireAgentAccess(pick: (req: express.Request) => string = (req) => String(req.params.agentId || '')) {
-    return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      requireSessionAuth(req, res, (error?: unknown) => {
-        if (error) return next(error);
-        const agentId = pick(req);
-        if (!agentId || !canAccessAgent(getRequestIdentity(req), agentId)) {
-          return next(new StructuredRequestError(403, AUTH_AGENT_FORBIDDEN_ERROR_CODE, 'This agent is not assigned to you.'));
-        }
-        return next();
-      });
-    };
+  /**
+   * Agent 作用域的路由：路径参数 `:agentId` 必须在当前用户的授权里。
+   * 是中间件本身而不是工厂——路由登记期（OpenAPI 生成、鉴权覆盖测试）不允许调用上下文里的函数。
+   */
+  function requireAgentAccess(req: express.Request, res: express.Response, next: express.NextFunction) {
+    requireSessionAuth(req, res, (error?: unknown) => {
+      if (error) return next(error);
+      const agentId = String(req.params.agentId || '');
+      if (!agentId || !canAccessAgent(getRequestIdentity(req), agentId)) {
+        return next(new StructuredRequestError(403, AUTH_AGENT_FORBIDDEN_ERROR_CODE, 'This agent is not assigned to you.'));
+      }
+      return next();
+    });
   }
 
   return {

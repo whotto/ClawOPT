@@ -1,3 +1,4 @@
+import type { AuthMiddleware } from '../../core/auth';
 import type { DB } from '../../core/db';
 import {
   buildStructuredApiError,
@@ -10,10 +11,13 @@ import { withConfigReadFallback } from './agent-settings';
 export type CharacterRoutesDeps = {
   agentProvisioner: AgentProvisioner;
   db: DB;
+  auth: AuthMiddleware;
 };
 
 export function registerCharacterRoutes(app: RouteApp, ctx: CharacterRoutesDeps): void {
   const { agentProvisioner, db } = ctx;
+  // P5a：建 / 删角色会改 openclaw.json 与工作区，改 USER.md 是改工作区——多用户之后只给 admin。
+  const { requireAdminAuth } = ctx.auth;
 
   app.get('/api/characters', (_req, res) => {
     let configReadFailed = false;
@@ -37,7 +41,7 @@ export function registerCharacterRoutes(app: RouteApp, ctx: CharacterRoutesDeps)
     res.json({ success: true, characters, configReadFailed });
   });
 
-  app.post('/api/characters', async (req, res) => {
+  app.post('/api/characters', requireAdminAuth, async (req, res) => {
     try {
       const char = req.body;
       if (!char.id) char.id = 'char_' + Date.now();
@@ -86,7 +90,7 @@ export function registerCharacterRoutes(app: RouteApp, ctx: CharacterRoutesDeps)
     }
   });
 
-  app.delete('/api/characters/:id', async (req, res) => {
+  app.delete('/api/characters/:id', requireAdminAuth, async (req, res) => {
     try {
       const character = db.getCharacters().find(c => c.id === req.params.id);
       if (!character) {
@@ -116,7 +120,7 @@ export function registerCharacterRoutes(app: RouteApp, ctx: CharacterRoutesDeps)
     res.json({ success: true, content });
   });
 
-  app.put('/api/characters/:agentId/user-md', (req, res) => {
+  app.put('/api/characters/:agentId/user-md', requireAdminAuth, (req, res) => {
     const { content } = req.body;
     if (typeof content !== 'string') {
       return res.status(400).json({ success: false, error: 'Missing content' });

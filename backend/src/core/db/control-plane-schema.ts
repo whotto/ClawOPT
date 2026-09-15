@@ -72,6 +72,14 @@ export function applyControlPlaneSchema(db: Database.Database): void {
       updated_at INTEGER NOT NULL
     );
 
+    -- Agent 头像：存在 ClawOPT 自己的库里、按 Agent id 取，不写引擎目录，也不走按路径出文件。
+    CREATE TABLE IF NOT EXISTS agent_avatars (
+      agent_id TEXT PRIMARY KEY,
+      mime TEXT NOT NULL,
+      data BLOB NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS write_gate_settings (
       agent_id TEXT PRIMARY KEY,
       enabled INTEGER NOT NULL DEFAULT 0,

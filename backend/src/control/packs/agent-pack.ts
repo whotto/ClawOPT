@@ -36,7 +36,13 @@ const OPTIONAL_AUTOMATION_FILE = 'automations.sh';
 /** 允许进包的子目录。memory/ 不在其中——那是私人日志。 */
 const DIR_WHITELIST = ['skills', 'reference', 'avatars'];
 
-const SKIP_NAMES = new Set(['node_modules', '.git', '__pycache__', '.DS_Store', 'auth-profiles.json']);
+// 凭据文件按名字跳过：导出与克隆（agent-clone.ts）共用这份判据。`.env*`、`.npmrc`、SSH 私钥
+// 放在技能目录里并不罕见（技能自带配置），过去只挡了 auth-profiles.json。
+const SKIP_NAMES = new Set([
+  'node_modules', '.git', '__pycache__', '.DS_Store',
+  'auth-profiles.json', 'auth.json', 'credentials.json', '.npmrc', '.netrc', 'id_rsa', 'id_ed25519',
+]);
+const SKIP_NAME_PATTERN = /^\.env(\..*)?$/;
 const SKIP_EXT = new Set(['.sqlite', '.key', '.pem', '.p12', '.log']);
 const TEXT_EXT = new Set(['.md', '.sh', '.py', '.js', '.mjs', '.json', '.txt', '.html', '.css', '.yml', '.yaml', '.csv', '.mmd']);
 
@@ -120,7 +126,7 @@ function collectDir(rootDir: string, relDir: string, out: PackFile[], warnings: 
   const absDir = path.join(rootDir, relDir);
   if (!fs.existsSync(absDir)) return;
   for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
-    if (SKIP_NAMES.has(entry.name)) continue;
+    if (SKIP_NAMES.has(entry.name) || SKIP_NAME_PATTERN.test(entry.name)) continue;
     const rel = path.posix.join(relDir, entry.name);
     if (entry.isDirectory()) {
       collectDir(rootDir, rel, out, warnings);

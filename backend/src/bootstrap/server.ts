@@ -39,6 +39,7 @@ export async function startServer() {
       }
     },
   });
+  shutdown.register({ name: 'write-gate-watchers', close: () => ctx.writeGate.stop() });
   shutdown.register({
     name: 'http-server',
     close: () => new Promise<void>((resolve, reject) => {
@@ -55,6 +56,8 @@ export async function startServer() {
     console.log(`ClawOPT backend listening on http://0.0.0.0:${PORT}`);
     readiness.markListening();
     ctx.imageGeneration.scheduleOpenClawImageProviderCacheRefresh('startup');
+    // 写入审批：给已开启的 Agent 恢复文件监听（解析不到工作区的只记日志，不影响启动）。
+    void ctx.writeGate.start();
     if (consumeBrowserWarmupRequest()) {
       console.log('[BrowserWarmup] Scheduling deferred browser warmup after restart.');
       void ctx.browser.scheduleDeferredBrowserWarmup();
