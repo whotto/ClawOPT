@@ -40,12 +40,12 @@ export function resolveGroupMemberDisplayName(
 export function formatCompactCount(count: number, language: string): string {
   if (language.startsWith('zh')) {
     if (count >= 10000) {
-      return `${(count / 10000).toFixed(1).replace(/\\.0$/, '')}万`;
+      return `${(count / 10000).toFixed(1).replace(/\.0$/, '')}万`;
     }
     return count.toLocaleString();
   }
   if (count >= 1000) {
-    return `${(count / 1000).toFixed(1).replace(/\\.0$/, '')}k`;
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
   }
   return count.toLocaleString();
 }
