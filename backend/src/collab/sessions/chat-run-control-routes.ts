@@ -21,9 +21,12 @@ import type { RunCoordinator } from '../../runtime';
 import { buildStructuredChatHttpError } from './chat-messages';
 import { chatSessionTopic, openSseResponse, writeSseFrame } from './chat-stream';
 import { CHAT_USER_MESSAGE_EVENT } from './chat-turn-rows';
+import type { ContextUsage } from './context-usage';
 
 export type ChatRunControlDeps = {
   db: Pick<DB, 'getSession'>;
+  /** 上下文占用徽标（最近一次模型调用的占用 + 模型配置里的窗口）。 */
+  contextUsage: (sessionId: string) => ContextUsage;
   realtime: RealtimeHub;
   runCoordinator: Pick<RunCoordinator, 'snapshot' | 'cancelQueued' | 'insertNow' | 'pendingApprovals'>;
   access: ResourceAccess;
@@ -93,6 +96,11 @@ export function registerChatRunControlRoutes(app: RouteApp, deps: ChatRunControl
 
   app.get('/api/chat/:sessionId/state', deps.guardParamSession, (req, res) => {
     res.json(buildChatRunState(deps, req.params.sessionId, getRequestIdentity(req)));
+  });
+
+  app.get('/api/chat/:sessionId/context-usage', deps.guardParamSession, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ success: true, ...deps.contextUsage(req.params.sessionId) });
   });
 
   app.delete('/api/chat/:sessionId/queue/:queueId', deps.guardParamSession, (req, res) => {

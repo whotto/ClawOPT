@@ -25,6 +25,15 @@ export class FakeGatewayClient extends EventEmitter {
   private settledPromises = new Map<string, Promise<void>>();
   /** 下一次 chat.send 之前等它（用来卡住「准备阶段」）。 */
   sendGate: Promise<void> | null = null;
+  /** 通用 RPC（`client.call`）：记下调用，回 `rpcResponses[method]`（没有则抛 unknown method）。 */
+  calls: Array<{ method: string; params: any }> = [];
+  rpcResponses: Record<string, unknown> = {};
+
+  async call(method: string, params?: any): Promise<any> {
+    this.calls.push({ method, params });
+    if (!(method in this.rpcResponses)) throw new Error(`unknown method: ${method}`);
+    return this.rpcResponses[method];
+  }
 
   isConnected(): boolean {
     return this.connected;

@@ -265,6 +265,7 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
       ['/api/chat/attach/s-other'],
       // P1b 运行控制：状态快照、会话实时通道、取消排队、立即插入
       ['/api/chat/s-other/state'],
+      ['/api/chat/s-other/context-usage'],
       ['/api/chat/s-other/events'],
       ['/api/chat/s-other/queue/q-1', { method: 'DELETE' }],
       ['/api/chat/s-other/queue/q-1/insert', { method: 'POST' }],

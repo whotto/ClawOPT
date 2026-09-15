@@ -9,12 +9,14 @@ import {
   MAX_HISTORY_PAGE_LIMIT,
 } from './chat-constants';
 import { parseCommandResultContent } from './chat-command-result';
+import { CONTEXT_WINDOW_TOO_SMALL_CODE, isContextWindowTooSmallError } from './context-usage';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionRuntime } from './session-runtime';
 
 export function createStructuredChatError(rawDetail?: string | null, forcedCode?: string) {
   const detail = typeof rawDetail === 'string' && rawDetail.trim() ? rawDetail.trim() : 'Unknown error';
-  const messageCode = forcedCode
+  const messageCode = (isContextWindowTooSmallError(detail) ? CONTEXT_WINDOW_TOO_SMALL_CODE : null)
+    || forcedCode
     || (detail === CHAT_GATEWAY_DISCONNECTED_DETAIL
       ? CHAT_GATEWAY_DISCONNECTED_CODE
       : CHAT_RUN_ERROR_CODE);
@@ -91,7 +93,7 @@ function getStructuredChatMessage(content?: string | null) {
   return {
     messageCode: detail === CHAT_GATEWAY_DISCONNECTED_DETAIL
       ? CHAT_GATEWAY_DISCONNECTED_CODE
-      : CHAT_RUN_ERROR_CODE,
+      : isContextWindowTooSmallError(detail) ? CONTEXT_WINDOW_TOO_SMALL_CODE : CHAT_RUN_ERROR_CODE,
     messageParams: undefined as StructuredMessageParams | undefined,
     rawDetail: detail,
     role: 'system' as const,

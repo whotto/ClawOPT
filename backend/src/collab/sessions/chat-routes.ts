@@ -16,6 +16,7 @@ import type { RealtimeHub } from '../../core/realtime';
 import {
   abortOpenClawSessionRuns,
   buildOpenClawChatSessionKey,
+  readOpenClawConfigSafe,
   type GatewayChatClient,
   type GatewayConnections,
   type OpenClawClient,
@@ -58,7 +59,7 @@ import {
 import { ChatTurnRows, persistChatTurnRows, publishChatTurnEcho, readClientTurnId } from './chat-turn-rows';
 import type { DirectChatService } from './direct-chat-service';
 import { chatSessionParamGuard } from './session-routes';
-import { buildExternalChatSubmission, externalModelTag, runExternalChatTurn } from './external-chat-turn';
+import { buildExternalChatSubmission, externalModelTag, parseExternalSessionConfig, runExternalChatTurn } from './external-chat-turn';
 import {
   createLocalChatTaskProjection,
   localChatTaskAdapter,
@@ -67,6 +68,8 @@ import {
 } from './local-chat-task';
 import { externalSessionDefaultWorkspace } from './external-workspace';
 import type { SessionOrgStore } from './session-org-store';
+import { buildCommandResultFrame, serializeCommandResultContent } from './chat-command-result';
+import { compactCommandResult, computeContextUsage, resolveContextWindow, usageCommandResult } from './context-usage';
 import { createOpenClawChatProjection } from './openclaw-chat-projection';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
@@ -138,6 +141,37 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
   const { getConnection } = ctx.gatewayConnections;
   const { clearStoredFilesBySessionKey } = ctx.uploads;
   const streamDeps = { realtime: ctx.realtime, runCoordinator };
+
+  /** 这个会话当前模型的上下文窗口（查不到为 null：global 模式的外部 CLI 用自己的模型配置）。 */
+  function sessionContextWindow(sessionId: string): number | null {
+    const session = sessionManager.getSession(sessionId);
+    if (!session) return null;
+    let modelRef: string | null = null;
+    if (session.external_runtime) {
+      const config = parseExternalSessionConfig(session.external_config);
+      modelRef = config.mode === 'scoped' ? config.model ?? null : null;
+    } else {
+      modelRef = agentProvisioner.readAgentModel(session.agentId || 'main') || agentProvisioner.readAvailableModels().find((m) => m.primary)?.id || null;
+    }
+    return resolveContextWindow(readOpenClawConfigSafe(), modelRef);
+  }
+
+  /**
+   * OpenClaw 会话的 `/compact` `/usage` `/context`：压缩交给网关自己的 `sessions.compact`（ClawOPT 不做宿主侧摘要），
+   * 用量与上下文占用按协调器落的 `session_usage` 算。结果与外部运行时的会话命令同一个结构化形状。
+   */
+  async function runOpenClawSessionCommand(command: '/compact' | '/usage' | '/context', sessionId: string, agentId: string) {
+    if (command === '/compact') {
+      try {
+        const client = await getConnection(sessionId);
+        const response = await client.call('sessions.compact', { key: buildOpenClawChatSessionKey(sessionId, agentId), agentId }, 300_000);
+        return compactCommandResult(response);
+      } catch (error) {
+        return { command: 'compact' as const, ok: false, error: (error as Error)?.message || String(error) };
+      }
+    }
+    return usageCommandResult(db.listSessionUsage(sessionId), sessionContextWindow(sessionId));
+  }
 
   /**
    * 单聊数据面授权：发送、重新生成、接回流、停止、静默发送都在「这个会话看得见」之后。
@@ -490,7 +524,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
   }
 
   async function isBuiltinChatCommand(command: string): Promise<boolean> {
-    return ['/status', '/help', '/models', '/clear'].includes(command)
+    return ['/status', '/help', '/models', '/clear', '/compact', '/usage', '/context'].includes(command)
       || (db.getQuickCommands() as Array<{ command?: unknown }>).some((entry) => String(entry.command || '').trim().toLowerCase() === command);
   }
 
@@ -572,6 +606,20 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
 
       const plan = planChatTurn(normalizedSessionId, sessionInfo, rawMessage);
       const { agentId, agentName, modelUsed } = plan;
+
+      if (parsedCommand && ['/compact', '/usage', '/context'].includes(parsedCommand.command)) {
+        const result = await runOpenClawSessionCommand(parsedCommand.command as '/compact' | '/usage' | '/context', normalizedSessionId, agentId);
+        const saved = persistChatTurnRows(db, { sessionId: normalizedSessionId, content: rawMessage, agentId, agentName, modelUsed, parentId: parentId ? Number(parentId) : undefined });
+        userMsgId = saved.userMessageId;
+        assistantMsgId = saved.assistantMessageId;
+        db.updateMessage(assistantMsgId, serializeCommandResultContent(result), modelUsed, null, false);
+        db.updateMessageEnvelope(assistantMsgId, 'system', agentId, agentName);
+        openTurnStream(res, transport, { userMsgId, assistantMsgId });
+        sink = createChatStreamSink(streamDeps, { transport, sessionId: normalizedSessionId, res, origin, messageId: assistantMsgId });
+        sink.frame(buildCommandResultFrame(result));
+        sink.end();
+        return;
+      }
 
       if (parsedCommand) {
         const commandResult = await resolveChatCommandResult(parsedCommand, normalizedSessionId);
@@ -851,6 +899,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
 
   registerChatRunControlRoutes(app, {
     db,
+    contextUsage: (sessionId) => computeContextUsage(db.listSessionUsage(sessionId), sessionContextWindow(sessionId)),
     realtime: ctx.realtime,
     runCoordinator,
     access: ctx.access,
