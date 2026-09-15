@@ -265,7 +265,8 @@
     "queueItemNotFound": "這則排隊訊息已經不在佇列裡了",
     "queueInsertionPending": "已有一則訊息正在插入，請等它開始",
     "contextWindowTooSmall": "上下文超出了模型視窗：先傳 /compact 壓縮對話，或在模型設定裡調大上下文長度、縮短這則輸入",
-    "emptyOutput": "這一輪正常結束了，但 Agent 沒有回傳任何內容。常見原因：服務商金鑰無效、模型不支援目前的輸入、上下文過長。可以重試或檢查模型設定。"
+    "emptyOutput": "這一輪正常結束了，但 Agent 沒有回傳任何內容。常見原因：服務商金鑰無效、模型不支援目前的輸入、上下文過長。可以重試或檢查模型設定。",
+    "toolCallNotFound": "這筆工具呼叫記錄不存在"
   },
   "group": {
     "maxChainDepthReached": "鏈式轉發已達到最大深度 ({{maxDepth}} 輪)",
@@ -2512,5 +2513,16 @@
     "models": "查看可用模型",
     "help": "查看說明",
     "clear": "清空這個對話的歷史"
+  },
+  "toolTrace": {
+    "count": "{{count}} 個工具",
+    "failedBadge": "{{count}} 個失敗",
+    "interruptedBadge": "{{count}} 個中斷",
+    "interrupted": "已中斷",
+    "arguments": "參數",
+    "result": "結果",
+    "truncated": "已截斷顯示（原長 {{count}} 字元）",
+    "copyFull": "複製完整內容",
+    "copyFailed": "複製失敗"
   }
 }

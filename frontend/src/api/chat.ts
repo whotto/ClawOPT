@@ -27,6 +27,16 @@ export function deleteMessage(messageId: string) {
   return apiFetch(`/messages/${messageId}`, { method: 'DELETE' });
 }
 
+/** 这些助手消息所在运行的工具调用摘要（线上截断）。 */
+export function getChatToolCalls(sessionId: string, messageIds: string[], signal?: AbortSignal) {
+  return apiFetch(`/chat/${encodeURIComponent(sessionId)}/tool-calls?messageIds=${encodeURIComponent(messageIds.join(','))}`, { signal });
+}
+
+/** 单个工具调用的完整参数与结果（复制完整内容）。 */
+export function getToolCallFull(sessionId: string, callRowId: number) {
+  return apiFetch(`/chat/${encodeURIComponent(sessionId)}/tool-calls/${callRowId}`);
+}
+
 /** 上下文占用：运行时报的最近一次模型调用占用 + 模型配置里的窗口。 */
 export function getChatContextUsage(sessionId: string, signal?: AbortSignal) {
   return apiFetch(`/chat/${encodeURIComponent(sessionId)}/context-usage`, { signal });

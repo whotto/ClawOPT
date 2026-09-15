@@ -20,6 +20,7 @@ import { useMessageActions } from './useMessageActions';
 import { useComposerActions } from './useComposerActions';
 import { useGroupManagement } from './useGroupManagement';
 import { useWorkspaceChanges } from '../workspace/useWorkspaceChanges';
+import { useToolTraces } from './useToolTraces';
 
 /**
  * 聊天页控制器：按原 UnifiedChatView 函数体的先后顺序依次调用各段 hook。
@@ -51,7 +52,12 @@ export function useChatController(props: ChatViewProps) {
   const c13 = { ...c12, ...useComposerActions(c12) };
   const c14 = { ...c13, ...useGroupManagement(c13) };
   // 每次运行的工作区改动卡片与 diff 面板（只在单聊）。
-  return { ...c14, ...useWorkspaceChanges({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, isLoading: c14.isLoading }) };
+  return {
+    ...c14,
+    ...useWorkspaceChanges({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, isLoading: c14.isLoading }),
+    // 按运行分组的工具摘要卡（只在单聊；协调器落库的工具调用）。
+    ...useToolTraces({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, isLoading: c14.isLoading }),
+  };
 }
 
 export type ChatController = ReturnType<typeof useChatController>;

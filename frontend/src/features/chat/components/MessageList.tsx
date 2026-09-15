@@ -3,6 +3,7 @@ import { Users } from 'lucide-react';
 import { Fragment } from 'react';
 import { MessageBubble } from '../message';
 import { WorkspaceChangeCard } from '../workspace/WorkspaceChangeCard';
+import { ToolRunSummaryCard } from './ToolRunSummaryCard';
 import { GROUP_MAX_CHAIN_DEPTH_MESSAGE_CODE } from '../lib/constants';
 import { resolveStructuredMessageContent } from '../lib/messageMapping';
 import { resolveProcessTagPair } from '../lib/processTags';
@@ -20,7 +21,7 @@ type MessageListProps = Pick<
   'messagesEndRef' | 'scrollContainerRef' | 'currentGroup' | 'currentSession' |
   'activeSessionName' | 'findSessionByAgentId' | 'visibleMessages' | 'isGroupBusy' |
   'formatMessageDate' | 'handleCopy' | 'resetEditComposer' | 'handleQuote' | 'handleDeleteMessage' |
-  'handleSaveEdit' | 'handleRegenerate' | 'workspaceChangesByMessage' | 'openWorkspaceChange'
+  'handleSaveEdit' | 'handleRegenerate' | 'workspaceChangesByMessage' | 'openWorkspaceChange' | 'toolTracesByMessage'
 > & { showMessageListSkeleton: boolean; showOlderHistorySkeleton: boolean };
 
 export function MessageList(c: MessageListProps) {
@@ -32,7 +33,7 @@ export function MessageList(c: MessageListProps) {
     currentModel, characters, messagesEndRef, scrollContainerRef, currentGroup, currentSession,
     activeSessionName, findSessionByAgentId, visibleMessages, isGroupBusy, formatMessageDate,
     handleCopy, resetEditComposer, handleQuote, handleDeleteMessage, handleSaveEdit,
-    handleRegenerate, showMessageListSkeleton, showOlderHistorySkeleton, workspaceChangesByMessage, openWorkspaceChange,
+    handleRegenerate, showMessageListSkeleton, showOlderHistorySkeleton, workspaceChangesByMessage, openWorkspaceChange, toolTracesByMessage,
   } = c;
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:px-8 sm:py-4 space-y-6 bg-white pb-0 relative">
@@ -138,6 +139,7 @@ export function MessageList(c: MessageListProps) {
                 );
 
             const workspaceChanges = isChat && msg.role === 'assistant' ? workspaceChangesByMessage.get(msg.id) : undefined;
+            const toolTraces = isChat && msg.role !== 'user' ? toolTracesByMessage.get(msg.id) : undefined;
             return (
               <Fragment key={msg.id}>
               <MessageBubble
@@ -171,6 +173,7 @@ export function MessageList(c: MessageListProps) {
                 isLatest={msg.role === 'user' ? msg.id === lastUserMsgId : index === visibleMessages.length - 1}
                 preserveProcessExpansionWhenNotLatest={isGroup && msg.role === 'assistant'}
               />
+              {toolTraces && <ToolRunSummaryCard sessionId={activeKey} runs={toolTraces} />}
               {workspaceChanges && <WorkspaceChangeCard changes={workspaceChanges} onOpen={openWorkspaceChange} />}
               </Fragment>
             );

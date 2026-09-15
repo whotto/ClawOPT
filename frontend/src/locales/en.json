@@ -265,7 +265,8 @@
     "queueItemNotFound": "This queued message is no longer in the queue",
     "queueInsertionPending": "Another message is already being inserted. Wait for it to start",
     "contextWindowTooSmall": "The conversation no longer fits the model's context window. Send /compact to compact it, or raise the context length in model settings and shorten this message",
-    "emptyOutput": "The run finished, but the agent returned no output. Common causes: an invalid provider key, a model that doesn't support this input, or an oversized context. Try again or check the model settings."
+    "emptyOutput": "The run finished, but the agent returned no output. Common causes: an invalid provider key, a model that doesn't support this input, or an oversized context. Try again or check the model settings.",
+    "toolCallNotFound": "This tool call record doesn't exist"
   },
   "group": {
     "maxChainDepthReached": "Chain forwarding reached the maximum depth ({{maxDepth}} rounds)",
@@ -2512,5 +2513,16 @@
     "models": "List available models",
     "help": "Show help",
     "clear": "Clear this conversation's history"
+  },
+  "toolTrace": {
+    "count": "{{count}} tools",
+    "failedBadge": "{{count}} failed",
+    "interruptedBadge": "{{count}} interrupted",
+    "interrupted": "Interrupted",
+    "arguments": "Arguments",
+    "result": "Result",
+    "truncated": "Truncated for display ({{count}} characters total)",
+    "copyFull": "Copy full content",
+    "copyFailed": "Copy failed"
   }
 }

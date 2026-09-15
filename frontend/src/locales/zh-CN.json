@@ -265,7 +265,8 @@
     "queueItemNotFound": "这条排队消息已经不在队列里了",
     "queueInsertionPending": "已有一条消息正在插入，请等它开始",
     "contextWindowTooSmall": "上下文超出了模型窗口：先发 /compact 压缩对话，或在模型设置里调大上下文长度、缩短这条输入",
-    "emptyOutput": "这一轮正常结束了，但 Agent 没有返回任何内容。常见原因：服务商密钥无效、模型不支持当前输入、上下文超长。可以重试或检查模型设置。"
+    "emptyOutput": "这一轮正常结束了，但 Agent 没有返回任何内容。常见原因：服务商密钥无效、模型不支持当前输入、上下文超长。可以重试或检查模型设置。",
+    "toolCallNotFound": "这条工具调用记录不存在"
   },
   "group": {
     "maxChainDepthReached": "链式转发已达到最大深度 ({{maxDepth}} 轮)",
@@ -2512,5 +2513,16 @@
     "models": "查看可用模型",
     "help": "查看帮助",
     "clear": "清空这个对话的历史"
+  },
+  "toolTrace": {
+    "count": "{{count}} 个工具",
+    "failedBadge": "{{count}} 个失败",
+    "interruptedBadge": "{{count}} 个中断",
+    "interrupted": "已中断",
+    "arguments": "参数",
+    "result": "结果",
+    "truncated": "已截断显示（原长 {{count}} 字符）",
+    "copyFull": "复制完整内容",
+    "copyFailed": "复制失败"
   }
 }
