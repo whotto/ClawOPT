@@ -134,6 +134,9 @@ export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessD
     switch (owner.kind) {
       case 'agent': return canAccessAgent(identity, owner.agentId);
       case 'group': return canAccessRoom(identity, owner.groupId);
+      // 外部运行时单聊的缺省工作区：目录名按会话 id 判（id 被转义过、对不上任何会话的目录无主，只给 admin）。
+      case 'chatSession':
+        return lookup.chatSessionAgentId(owner.sessionDir) !== null && canAccessChatSession(identity, owner.sessionDir);
       case 'upload': {
         const key = lookup.uploadSessionKey(owner.storedName);
         return key ? canAccessSessionOrRoom(identity, key) : false;

@@ -8,7 +8,7 @@
  * - `response.output_text.snapshot`：OpenClaw 网关推的是**累计快照**而不是增量，
  *   而且终态文本可能比已推的快照短（网关会剥掉内部标记）。硬转成增量会丢掉「权威替换」这层语义。
  * - `response.function_call.updated`：网关的工具 `update` 阶段只刷新参数、不结束调用。
- * - 控制事件（用量、审批、澄清、计划、工作区 diff、原生会话 id）：它们不属于任何一个 output item。
+ * - 控制事件（用量、审批、澄清、计划、工作区 diff、原生会话 id、运行时提议的会话标题）：它们不属于任何一个 output item。
  *
  * 每个事件都带 `channel`：同一轮次可能同时从 CLI 输出与本地代理 tee 两路到达，
  * 协调器按适配器声明的事实来源表（source-of-truth.ts）只收一路。
@@ -71,8 +71,22 @@ export interface ClarifyRequestInput {
 
 export interface WorkspaceRunChangeSummary {
   changeId: string;
-  files: Array<{ path: string; changeType: 'added' | 'modified' | 'deleted' | 'renamed'; additions: number; deletions: number }>;
+  files: Array<{
+    path: string;
+    changeType: 'added' | 'modified' | 'deleted' | 'renamed';
+    additions: number;
+    deletions: number;
+    /** P1b 起：改名前的路径、二进制、patch 被截断。 */
+    oldPath?: string | null;
+    binary?: boolean;
+    truncated?: boolean;
+  }>;
   truncated: boolean;
+  /** P1b 起：挂在哪条消息上、改动文件总数（可能多于 files）、增删行合计。 */
+  messageId?: string | null;
+  fileCount?: number;
+  additions?: number;
+  deletions?: number;
 }
 
 /**
@@ -139,7 +153,12 @@ export type ControlEvent =
   | { type: 'session.command'; result: SessionCommandResult }
   | { type: 'workspace.diff'; change: WorkspaceRunChangeSummary }
   | { type: 'runtime.init'; model?: string; runtimeVersion?: string }
-  | { type: 'runtime.native_session'; nativeSessionId: string };
+  | { type: 'runtime.native_session'; nativeSessionId: string }
+  /**
+   * 运行时自己给会话起的标题（ACP `session_info_update.title`，Hermes 实测每轮都发）。
+   * 只是**提议**：表面按「手动 > 运行时 > 自动」决定收不收（`collab/sessions/session-title.ts`），适配器不判。
+   */
+  | { type: 'session.title'; title: string };
 
 export type CanonicalEvent = ResponseEvent | ControlEvent;
 

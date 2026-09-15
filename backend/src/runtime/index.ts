@@ -55,13 +55,23 @@ export type {
   UsageReport,
 } from './contract';
 export {
+  NATIVE_ONLY_SOURCE_OF_TRUTH,
+  defineCapabilities,
+  previewToolArguments,
+  truncateForWire,
+} from './contract';
+export {
+  QUEUE_INSERTION_EVENT,
   RUN_APPROVALS_TOPIC,
   RunCoordinator,
+  createWorkspaceDiffCheckpointer,
 } from './coordinator';
 export type {
   AbortResult,
   PendingApprovalView,
   BusyPolicy,
+  InsertNowResult,
+  QueueInsertionView,
   ProjectorFinish,
   ProjectorRunContext,
   RunProjector,

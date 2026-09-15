@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { createCommand, listCommands, updateCommand } from '../../../api/commands';
 import type { useSettingsShared } from './useSettingsShared';
 
-export function useCommandSettings(deps: Pick<ReturnType<typeof useSettingsShared>, 'setDeleteModalMessage' | 'setDeleteTarget' | 'setIsDeleteModalOpen' | 'setIsLoading' | 't'>) {
-  const { setDeleteModalMessage, setDeleteTarget, setIsDeleteModalOpen, setIsLoading, t } = deps;
+export function useCommandSettings(deps: Pick<ReturnType<typeof useSettingsShared>, 'setDeleteModalMessage' | 'setDeleteTarget' | 'setIsDeleteModalOpen' | 'setAreaLoading' | 't'>) {
+  const { setDeleteModalMessage, setDeleteTarget, setIsDeleteModalOpen, setAreaLoading, t } = deps;
+  const setIsLoading = (loading: boolean) => setAreaLoading('commands', loading);
 
   // --- Quick Commands state ---
   const [commands, setCommands] = useState<{ id: number; command: string; description: string }[]>([]);

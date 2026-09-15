@@ -9,21 +9,22 @@ import { mapStreamingContentPatch, mapStreamingErrorUpdate, createClientStructur
 import type { ChatViewState } from './useChatViewState';
 import type { MessagePatchQueue } from './useMessagePatchQueue';
 import type { ChatHistoryFetch } from './useChatHistoryFetch';
+import type { ChatRunControl } from './useChatRunControl';
 
 /** 本段读取的、由前面各段产出的值。 */
 type ChatAttachRunContext = Pick<
-  ChatViewState & MessagePatchQueue & ChatHistoryFetch,
+  ChatViewState & MessagePatchQueue & ChatHistoryFetch & ChatRunControl,
   't' | 'isChat' | 'activeKey' | 'setMessages' | 'setIsLoading' | 'setSubmitError' |
   'isInitialLoading' | 'attachedRunControllerRef' | 'messagesRef' | 'activeLeafIdRef' |
   'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
-  'recoverLatestChatMessages'
+  'recoverLatestChatMessages' | 'attachRequest'
 >;
 
 export function useChatAttachRun(c: ChatAttachRunContext) {
   const {
     t, isChat, activeKey, setMessages, setIsLoading, setSubmitError, isInitialLoading,
     attachedRunControllerRef, messagesRef, activeLeafIdRef, flushQueuedMessagePatches,
-    queueMessagePatch, dropQueuedMessagePatch, recoverLatestChatMessages,
+    queueMessagePatch, dropQueuedMessagePatch, recoverLatestChatMessages, attachRequest,
   } = c;
   useEffect(() => {
     if (!isChat || !activeKey || isInitialLoading) return;
@@ -156,5 +157,6 @@ export function useChatAttachRun(c: ChatAttachRunContext) {
         attachedRunControllerRef.current = null;
       }
     };
-  }, [activeKey, dropQueuedMessagePatch, flushQueuedMessagePatches, isChat, isInitialLoading, queueMessagePatch, recoverLatestChatMessages, t]);
+    // attachRequest：会话实时通道看到别处开始的一轮（另一个标签页、出队的排队消息、回到前台时仍在跑）就再接一次。
+  }, [activeKey, attachRequest, dropQueuedMessagePatch, flushQueuedMessagePatches, isChat, isInitialLoading, queueMessagePatch, recoverLatestChatMessages, t]);
 }

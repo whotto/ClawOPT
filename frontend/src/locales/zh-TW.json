@@ -259,7 +259,14 @@
     "gatewayDisconnected": "網關連線已中斷",
     "configuredRuntimeStalled": "OpenClaw 執行階段無回應，已停止本次執行以便檢查",
     "audioTranscriptionUnavailable": "目前未設定可用的音訊轉寫能力",
-    "audioTranscriptionFailed": "音訊轉寫失敗"
+    "audioTranscriptionFailed": "音訊轉寫失敗",
+    "commandWhileRunning": "回覆進行中，內建命令要等這一輪結束再用",
+    "sessionBusy": "這個對話正忙，請稍後再傳",
+    "queueItemNotFound": "這則排隊訊息已經不在佇列裡了",
+    "queueInsertionPending": "已有一則訊息正在插入，請等它開始",
+    "contextWindowTooSmall": "上下文超出了模型視窗：先傳 /compact 壓縮對話，或在模型設定裡調大上下文長度、縮短這則輸入",
+    "emptyOutput": "這一輪正常結束了，但 Agent 沒有回傳任何內容。常見原因：服務商金鑰無效、模型不支援目前的輸入、上下文過長。可以重試或檢查模型設定。",
+    "toolCallNotFound": "這筆工具呼叫記錄不存在"
   },
   "group": {
     "maxChainDepthReached": "鏈式轉發已達到最大深度 ({{maxDepth}} 輪)",
@@ -337,6 +344,30 @@
     "viewSource": "原始碼",
     "viewRendered": "渲染"
   },
+  "filePreviewSafety": {
+    "zipBlocked": "檔案未通過安全檢查，已停止預覽：{{reason}}。仍可下載查看。",
+    "zip": {
+      "notZip": "不是有效的 Office（ZIP）檔案包",
+      "truncated": "檔案包不完整或已損壞",
+      "multiDisk": "不支援分卷壓縮檔",
+      "zip64": "不支援 ZIP64 格式的檔案包",
+      "tooManyEntries": "檔案包內的項目超過 10000 個",
+      "entryTooLarge": "有項目解壓縮後超過 64 MB",
+      "totalTooLarge": "檔案包解壓縮後合計超過 128 MB",
+      "suspiciousRatio": "有項目的壓縮比異常偏高（疑似壓縮炸彈）",
+      "inconsistent": "檔案包目錄結構前後不一致"
+    },
+    "tableTimeout": "表格解析耗時過長，已停止。請下載後查看。",
+    "tableSheetsTruncated": "只顯示前 {{shown}} 個工作表，共 {{total}} 個。",
+    "tableTruncated": "顯示 {{rows}} 列 × {{cols}} 欄，全表共 {{totalRows}} 列 × {{totalCols}} 欄。",
+    "tableTruncatedAtLeast": "顯示 {{rows}} 列 × {{cols}} 欄，全表超過 {{totalRows}} 列、共 {{totalCols}} 欄。",
+    "tableCellsClipped": "超過 {{chars}} 個字元的儲存格已截斷。",
+    "tableEmpty": "這個工作表是空的",
+    "htmlSandboxNotice": "安全預覽：已停用指令碼、表單與網路請求",
+    "htmlImagesSkipped": "有 {{count}} 張圖片未載入（外部位址、過大或無法讀取）",
+    "htmlFrameTitle": "HTML 預覽",
+    "htmlPreparing": "正在準備安全預覽..."
+  },
   "unifiedChat": {
     "untitledRole": "未命名角色",
     "imageTooLargeAfterCompression": "圖片 \"{{name}}\" 過大（{{originalSize}}），壓縮後仍超過 {{limit}} 限制",
@@ -387,7 +418,12 @@
     "sendFailed": "這條訊息沒能發出去。檢查網路或稍後重試。",
     "uploadFailed": "附件上傳失敗，訊息沒有發送——先處理附件再發，免得對方收不到檔案。",
     "historyLoadFailed": "聊天記錄這次沒載入出來（不是記錄丟了）。重新整理或稍後重試。",
-    "replyMayBeIncomplete": "這條回覆可能沒寫完——連線中斷了，而且沒能從歷史裡補回完整版本。重新發一次或讓它繼續。"
+    "replyMayBeIncomplete": "這條回覆可能沒寫完——連線中斷了，而且沒能從歷史裡補回完整版本。重新發一次或讓它繼續。",
+    "resizeComposer": "拖動調整輸入框高度（雙擊恢復）",
+    "attachmentNote": "替這個附件加說明（會一起傳給 Agent）",
+    "attachmentNoteShort": "說明",
+    "attachmentNotePlaceholder": "關於 {{name}} 的說明，按 Enter 完成",
+    "videoFramesAttached": "已從影片擷取 {{count}} 張代表影格一起傳送"
   },
   "messageBubble": {
     "processTitle": "執行過程",
@@ -1183,7 +1219,8 @@
     "protocolError": "與外部執行環境的通訊協定出錯。",
     "commandUnsupported": "這個執行環境不支援該工作階段指令。",
     "launchFailed": "外部執行環境啟動失敗。",
-    "capabilityUnsupported": "所安裝版本的外部執行環境缺少所需能力。"
+    "capabilityUnsupported": "所安裝版本的外部執行環境缺少所需能力。",
+    "forkSourceUnavailable": "分叉來源對話在執行環境裡已經沒有可續的原生工作階段，這個分叉無法繼續。"
   },
   "runtimeConfig": {
     "redactionMismatch": "隱藏的憑據與磁碟上的檔案對不上，請重新載入",
@@ -2303,5 +2340,213 @@
     },
     "notFound": "這條審批請求已不存在",
     "notActive": "這條審批請求已被答覆，或還沒輪到它"
+  },
+  "chatQueue": {
+    "title": "排隊中 {{count}} 則",
+    "queue": "排隊傳送",
+    "queueHint": "不打斷目前回覆，排進佇列依序傳送",
+    "placeholderWhileRunning": "回覆進行中，繼續輸入會排隊傳送",
+    "sendNow": "立即插入",
+    "sendNowHint": "打斷目前回覆，馬上傳送這一則",
+    "sendNowIdleHint": "排到佇列最前面，馬上傳送",
+    "cancel": "取消排隊",
+    "hiddenItem": "（系統續跑）",
+    "queueFailed": "排隊傳送失敗",
+    "cancelFailed": "取消排隊失敗",
+    "insertFailed": "立即插入失敗",
+    "interrupted": "已被插入的訊息打斷",
+    "phase": {
+      "requesting": "正在請求插入…",
+      "waiting_for_tool_batch": "等目前工具跑完…",
+      "stopping_current_turn": "正在停下目前回覆…",
+      "starting_queued_message": "正在傳送插入的訊息…"
+    }
+  },
+  "notifications": {
+    "unnamedConversation": "對話",
+    "unreadDot": "在你離開時已完成",
+    "os": {
+      "runCompletedTitle": "{{name}} 已完成",
+      "runCompletedBody": "回覆已經好了。",
+      "runFailedTitle": "{{name}} 執行失敗",
+      "runFailedBody": "這一輪沒有完成，打開對話查看詳情。",
+      "approvalTitle": "{{name}} 在等你核准",
+      "approvalBody": "打開對話查看請求。"
+    },
+    "settings": {
+      "title": "提醒",
+      "hint": "只儲存在目前瀏覽器。系統通知只在本分頁處於背景時彈出；正在看的對話不會提醒。",
+      "completionSound": "回覆完成時播放提示音",
+      "completionOs": "回覆完成時發系統通知",
+      "approvalSound": "有核准請求時播放提示音",
+      "approvalOs": "有核准請求時發系統通知",
+      "test": "試一下",
+      "testName": "ClawOPT",
+      "permissionLabel": "系統通知權限",
+      "permission": {
+        "granted": "已允許",
+        "denied": "已封鎖",
+        "default": "尚未詢問",
+        "unsupported": "此瀏覽器不支援"
+      },
+      "requestPermission": "允許通知",
+      "permissionDeniedHint": "請在瀏覽器的網站設定裡允許通知，然後重新整理頁面。"
+    }
+  },
+  "onboarding": {
+    "staleClient": {
+      "message": "ClawOPT 已更新，目前頁面仍是舊版本。重新整理後使用新版本（未送出的輸入會遺失）。",
+      "reload": "重新整理頁面",
+      "later": "稍後"
+    },
+    "noProvider": {
+      "manageMessage": "還沒有可用的模型服務商：OpenClaw 未設定任何模型，本機也沒有可用的外部 Agent 執行環境，送出的訊息不會有回覆。",
+      "askAdminMessage": "還沒有可用的模型服務商，送出的訊息不會有回覆。請聯絡管理員設定模型服務商。",
+      "openSettings": "前往設定模型"
+    }
+  },
+  "sessionSearch": {
+    "title": "搜尋對話",
+    "placeholder": "搜尋對話名稱與訊息內容…",
+    "sidebarButton": "搜尋對話",
+    "recent": "最近的對話",
+    "results": "{{count}} 筆結果",
+    "loading": "正在搜尋…",
+    "error": "搜尋失敗，請稍後再試",
+    "noRecent": "還沒有對話",
+    "noResults": "找不到符合的對話或訊息",
+    "youPrefix": "你：",
+    "hintNavigate": "↑↓ 選擇",
+    "hintOpen": "Enter 開啟",
+    "hintClose": "Esc 關閉",
+    "hintShortcuts": "{{search}} 搜尋 · {{newChat}} 新增 · {{settings}} 設定"
+  },
+  "workspaceDiff": {
+    "filesChanged": "{{count}} 個檔案變更",
+    "changeType": {
+      "added": "新增",
+      "modified": "修改",
+      "deleted": "刪除",
+      "renamed": "重新命名"
+    },
+    "renamedFrom": "由 {{path}} 重新命名",
+    "binaryShort": "二進位",
+    "showAll": "顯示全部 {{count}} 個",
+    "showLess": "收合",
+    "moreFilesNotRecorded": "另有 {{count}} 個檔案超出記錄上限",
+    "changeTruncated": "變更較多，部分內容已截斷",
+    "panelTitle": "本輪工作區變更",
+    "loadingPatch": "正在載入差異…",
+    "patchLoadFailed": "差異載入失敗",
+    "binaryUnavailable": "二進位檔案，無法顯示差異",
+    "patchNotRecorded": "這個檔案的差異超出記錄上限，沒有儲存",
+    "patchTruncated": "差異過長，已截斷",
+    "unchangedLines": "展開 {{count}} 行未變更內容",
+    "notFound": "這筆變更記錄不存在",
+    "openFile": "查看檔案"
+  },
+  "sessionOrg": {
+    "organize": "整理",
+    "recent": "最近",
+    "allSessions": "全部對話",
+    "archived": "已封存",
+    "uncategorized": "未分類",
+    "archive": "封存",
+    "unarchive": "取消封存",
+    "moveTo": "移到分類",
+    "rowMenu": "整理這個對話",
+    "addCategory": "新增",
+    "newCategoryPlaceholder": "新分類名稱",
+    "renameCategory": "重新命名分類",
+    "deleteCategory": "刪除分類（對話回到未分類）",
+    "showRecent": "顯示最近的對話",
+    "recentCount": "最近對話數量",
+    "humanOnly": "只看人建立的對話（隱藏診斷與自動化工作階段）",
+    "humanOnlyActive": "只看人建立的",
+    "prefsHint": "整理偏好（摺疊、Recent 數量、只看人建立的）只儲存在目前瀏覽器；分類、置頂與歸檔依帳號儲存。",
+    "pinned": "置頂",
+    "pin": "置頂",
+    "unpin": "取消置頂",
+    "batch": "批次",
+    "exitBatch": "退出批次",
+    "selectSession": "選取 {{name}}",
+    "selectedCount": "已選 {{count}} 個",
+    "deleteSelected": "刪除所選",
+    "confirmDelete": "確認刪除 {{count}} 個",
+    "batchDeleted": "已刪除 {{count}} 個對話",
+    "batchPartial": "已刪除 {{count}} 個；以下沒有刪除：{{names}}",
+    "batchFailed": "沒有刪除任何對話：{{names}}",
+    "actionFailed": "操作失敗，請稍後再試",
+    "untitled": "未命名對話",
+    "titleLabel": "對話標題",
+    "renameTitle": "重新命名對話",
+    "titleSource": {
+      "auto": "自動標題（點擊重新命名）",
+      "runtime": "Agent 提議的標題（點擊重新命名）",
+      "manual": "手動標題（點擊重新命名）"
+    },
+    "conversationMenu": "對話操作",
+    "exportMarkdown": "匯出為 Markdown",
+    "exportJson": "匯出為 JSON",
+    "fork": "分叉對話",
+    "forkFailed": "分叉失敗",
+    "forkedFrom": "分叉自 {{name}}",
+    "errors": {
+      "categoryNameEmpty": "分類名稱不能為空",
+      "categoryNameTooLong": "分類名稱不能超過 40 個字元",
+      "categoryNameTaken": "已有同名分類",
+      "categoryNotFound": "分類不存在",
+      "sessionNotFound": "對話不存在",
+      "titleInvalid": "標題不能為空，且不超過 120 個字元",
+      "exportFormatInvalid": "不支援的匯出格式",
+      "forkUnsupported": "這個執行環境不支援分叉原生工作階段",
+      "forkBusy": "回覆進行中，結束後再分叉",
+      "forkNothingToFork": "還沒有可以分叉的原生工作階段（先成功對話一輪）",
+      "batchIdsInvalid": "請選取 1–200 個對話"
+    }
+  },
+  "contextUsage": {
+    "usedOfWindow": "上下文 {{used}} / {{window}} · 剩餘 {{remaining}}",
+    "usedOnly": "上下文 {{used}}",
+    "approximate": "（約）",
+    "hint": "執行環境回報的最近一次模型呼叫佔用（含快取）",
+    "compactHint": "上下文快滿了：傳 /compact 讓執行環境壓縮對話",
+    "suggestCompact": "建議 /compact"
+  },
+  "slashCommands": {
+    "title": "命令",
+    "compact": "壓縮對話上下文（交給執行環境自己的壓縮）",
+    "usage": "查看用量與上下文佔用",
+    "context": "查看上下文佔用（同 /usage）",
+    "status": "查看執行環境工作階段狀態",
+    "models": "查看可用模型",
+    "help": "查看說明",
+    "clear": "清空這個對話的歷史"
+  },
+  "toolTrace": {
+    "count": "{{count}} 個工具",
+    "failedBadge": "{{count}} 個失敗",
+    "interruptedBadge": "{{count}} 個中斷",
+    "interrupted": "已中斷",
+    "arguments": "參數",
+    "result": "結果",
+    "truncated": "已截斷顯示（原長 {{count}} 字元）",
+    "copyFull": "複製完整內容",
+    "copyFailed": "複製失敗"
+  },
+  "taskPlan": {
+    "title": "任務計畫",
+    "progress": "已完成 {{completed}} / {{total}}",
+    "status": {
+      "pending": "未開始",
+      "in_progress": "進行中",
+      "completed": "已完成"
+    },
+    "banner": {
+      "running": "正在執行",
+      "unfinished": "執行已結束，還有未完成的步驟",
+      "interrupted": "執行被中斷",
+      "failed": "執行失敗"
+    }
   }
 }

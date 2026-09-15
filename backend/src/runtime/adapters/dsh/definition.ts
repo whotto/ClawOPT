@@ -20,6 +20,7 @@ export const DSH_DESCRIPTOR: RuntimeDescriptor = builtinRuntimeDescriptor('dsh')
 export const DSH_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  nativeFork: false,
   // DSH_PERMISSION_MODE=danger-full-access（approval=never）；万一还来 request_permission 就自动「允许一次」。
   approvals: false,
   clarify: false,

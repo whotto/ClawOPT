@@ -42,16 +42,22 @@ export type {
 export {
   registerChatRoutes,
 } from './chat-routes';
+export {
+  rebuildChatSearchIndex,
+} from './chat-search';
+export {
+  registerChatSearchRoutes,
+} from './chat-search-routes';
+export type {
+  ChatSearchRoutesDeps,
+} from './chat-search-routes';
 export type {
   ChatRoutesDeps,
 } from './chat-routes';
 export {
-  LocalChatOperationManager,
-  createChatRuns,
   isStreamingClientOpen,
 } from './chat-run-managers';
 export type {
-  ChatRuns,
   SplitChatProcessOutputResult,
 } from './chat-run-managers';
 export {
@@ -84,6 +90,15 @@ export {
   SessionManager,
 } from './session-manager';
 export {
+  TaskPlanStore,
+} from './task-plans';
+export {
+  SessionOrgStore,
+} from './session-org-store';
+export {
+  registerSessionOrgRoutes,
+} from './session-org-routes';
+export {
   registerSessionListRoutes,
   registerSessionRoutes,
 } from './session-routes';
@@ -101,3 +116,9 @@ export type {
   SessionRuntime,
   SessionRuntimeDeps,
 } from './session-runtime';
+export {
+  registerWorkspaceChangeRoutes,
+} from './workspace-change-routes';
+export type {
+  WorkspaceChangeRoutesDeps,
+} from './workspace-change-routes';

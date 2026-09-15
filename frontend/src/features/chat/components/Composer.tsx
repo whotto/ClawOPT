@@ -8,32 +8,61 @@ import {
 } from '../../../utils/markdownMath';
 import { getAgentColor } from '../lib/agentColors';
 import type { ChatController } from '../hooks/useChatController';
+import { ContextUsageBadge } from './ContextUsageBadge';
+import { useRef, useState } from 'react';
+import { clampComposerHeight, COMPOSER_DEFAULT_MAX_HEIGHT, COMPOSER_HEIGHT_KEY } from '../lib/composerPrefs';
+
+function readComposerHeight(): number {
+  try {
+    const raw = window.localStorage.getItem(COMPOSER_HEIGHT_KEY);
+    return raw ? clampComposerHeight(raw) : COMPOSER_DEFAULT_MAX_HEIGHT;
+  } catch {
+    return COMPOSER_DEFAULT_MAX_HEIGHT;
+  }
+}
 
 type ComposerProps = Pick<
   ChatController,
-  'handleFileChange' | 'removePendingFile' | 'handlePaste' | 'handleSubmit' | 'handleStop' |
+  'handleFileChange' | 'removePendingFile' | 'setPendingFileNote' | 'handlePaste' | 'handleSubmit' | 'handleStop' |
   'handleGroupInputChange' | 'getFilteredMembers' | 'insertMention' | 'handleKeyDown' | 't' |
   'isChat' | 'isGroup' | 'input' | 'setInput' | 'isLoading' | 'submitError' | 'setSubmitError' |
   'submitNotice' | 'setSubmitNotice' |
   'inputPreview' | 'setInputPreview' | 'pendingFiles' | 'quotedMessage' | 'setQuotedMessage' |
-  'showCommands' | 'setShowCommands' | 'allCommands' | 'filteredCommands' | 'setFilteredCommands' |
+  'showCommands' | 'setShowCommands' | 'slashCommands' | 'filteredCommands' | 'setFilteredCommands' |
   'commandIndex' | 'setCommandIndex' | 'showMentionPopup' | 'setShowMentionPopup' |
   'setMentionFilter' | 'mentionIndex' | 'setMentionIndex' | 'fileInputRef' | 'textareaRef' |
   'commandListRef' | 'currentGroup' | 'currentSession' | 'resolveGroupMemberDisplayName' |
-  'hasDraftToSend' | 'isGroupBusy'
+  'hasDraftToSend' | 'isGroupBusy' | 'activeKey' | 'usageTick'
 >;
 
 export function Composer(c: ComposerProps) {
   const {
-    handleFileChange, removePendingFile, handlePaste, handleSubmit, handleStop,
+    handleFileChange, removePendingFile, setPendingFileNote, handlePaste, handleSubmit, handleStop,
     handleGroupInputChange, getFilteredMembers, insertMention, handleKeyDown, t, isChat, isGroup,
     input, setInput, isLoading, submitError, setSubmitError, submitNotice, setSubmitNotice, inputPreview, setInputPreview,
-    pendingFiles, quotedMessage, setQuotedMessage, showCommands, setShowCommands, allCommands,
+    pendingFiles, quotedMessage, setQuotedMessage, showCommands, setShowCommands, slashCommands,
     filteredCommands, setFilteredCommands, commandIndex, setCommandIndex, showMentionPopup,
     setShowMentionPopup, setMentionFilter, mentionIndex, setMentionIndex, fileInputRef,
     textareaRef, commandListRef, currentGroup, currentSession, resolveGroupMemberDisplayName,
-    hasDraftToSend, isGroupBusy,
+    hasDraftToSend, isGroupBusy, activeKey, usageTick,
   } = c;
+  // 输入框最大高度可拖拽调整（拖上边的把手；双击恢复默认），按浏览器记住。
+  const [maxHeight, setMaxHeight] = useState(readComposerHeight);
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const [notingIndex, setNotingIndex] = useState<number | null>(null);
+  const applyMaxHeight = (value: number, persist: boolean) => {
+    const next = clampComposerHeight(value);
+    setMaxHeight(next);
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.dataset.maxHeight = String(next);
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, next)}px`;
+    }
+    if (persist) {
+      try { window.localStorage.setItem(COMPOSER_HEIGHT_KEY, String(next)); } catch {}
+    }
+  };
   return (
     <div className="px-4 sm:px-6 pb-6 sm:pb-4 pt-2 flex-shrink-0 bg-white">
       <div className="max-w-5xl mx-auto flex flex-col gap-3">
@@ -70,7 +99,7 @@ export function Composer(c: ComposerProps) {
         {/* Pending file previews */}
         {pendingFiles.length > 0 && (
           <div className="flex flex-wrap gap-3 pb-2 animate-in slide-in-from-bottom-2 duration-300">
-            {pendingFiles.map((pf, idx) => (
+            {pendingFiles.map((pf, idx) => pf.frameOf ? null : (
               <div key={idx} className={`relative group ${pf.preview ? 'w-24 h-24' : 'w-max min-w-[120px] max-w-[200px] h-14 pl-2 pr-3 flex items-center gap-2'} rounded-xl overflow-hidden bg-white border border-gray-300 flex-shrink-0 transition-all hover:scale-[1.02] active:scale-95 hover:bg-blue-50/50 hover:border-blue-200`}>
                 {pf.preview ? (
                   <img src={pf.preview} className="w-full h-full object-cover" alt="preview" />
@@ -85,12 +114,35 @@ export function Composer(c: ComposerProps) {
                     </>
                   ); })()
                 )}
+                <button
+                  type="button"
+                  onClick={() => setNotingIndex(notingIndex === idx ? null : idx)}
+                  className={`absolute bottom-1.5 right-1.5 rounded-full px-1.5 text-[10px] transition-all border ${pf.note ? 'bg-blue-600 text-white border-blue-600 opacity-100' : 'bg-white/90 text-gray-600 border-gray-300 opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}
+                  title={t('unifiedChat.attachmentNote')}
+                >
+                  {t('unifiedChat.attachmentNoteShort')}
+                </button>
                 <button onClick={() => removePendingFile(idx)} className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all border border-transparent hover:border-white/20">
                   <Plus className="w-3.5 h-3.5 rotate-45" />
                 </button>
               </div>
             ))}
+            {pendingFiles.some((pf) => pf.frameOf) && (
+              <span className="self-end text-[11px] text-gray-400">{t('unifiedChat.videoFramesAttached', { count: pendingFiles.filter((pf) => pf.frameOf).length })}</span>
+            )}
           </div>
+        )}
+        {notingIndex !== null && pendingFiles[notingIndex] && (
+          <input
+            autoFocus
+            value={pendingFiles[notingIndex].note ?? ''}
+            onChange={(event) => setPendingFileNote(notingIndex, event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); setNotingIndex(null); } }}
+            onBlur={() => setNotingIndex(null)}
+            maxLength={500}
+            placeholder={t('unifiedChat.attachmentNotePlaceholder', { name: pendingFiles[notingIndex].file.name })}
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
         )}
 
         <div className="relative">
@@ -158,7 +210,7 @@ export function Composer(c: ComposerProps) {
             {isChat && showCommands && filteredCommands.length > 0 && (
               <div ref={commandListRef} className="absolute bottom-full left-0 mb-4 w-72 bg-white rounded-2xl border border-gray-300 z-[100] py-2 overflow-hidden animate-in fade-in slide-in-from-bottom-2">
                 <div className="px-4 py-2.5 text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 mb-1 flex justify-between items-center">
-                  <span>{t('unifiedChat.quickCommands')}</span><span>{t('unifiedChat.resultsCount', { count: filteredCommands.length })}</span>
+                  <span>{t('slashCommands.title')}</span><span>{t('unifiedChat.resultsCount', { count: filteredCommands.length })}</span>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
                   {filteredCommands.map((cmd, idx) => (
@@ -174,11 +226,32 @@ export function Composer(c: ComposerProps) {
               </div>
             )}
 
+            <div
+              className="hidden sm:flex h-2 cursor-row-resize items-center justify-center group/resize"
+              title={t('unifiedChat.resizeComposer')}
+              onPointerDown={(event) => {
+                dragRef.current = { startY: event.clientY, startHeight: maxHeight };
+                (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (!dragRef.current) return;
+                applyMaxHeight(dragRef.current.startHeight + (dragRef.current.startY - event.clientY), false);
+              }}
+              onPointerUp={() => {
+                if (!dragRef.current) return;
+                dragRef.current = null;
+                applyMaxHeight(maxHeight, true);
+              }}
+              onDoubleClick={() => applyMaxHeight(COMPOSER_DEFAULT_MAX_HEIGHT, true)}
+              data-testid="composer-resize-handle"
+            >
+              <span className="h-1 w-10 rounded-full bg-gray-200 group-hover/resize:bg-gray-300" />
+            </div>
             <div className="relative">
-              <textarea ref={textareaRef} rows={1} value={input} onKeyDown={handleKeyDown} onPaste={handlePaste}
+              <textarea ref={textareaRef} rows={1} value={input} onKeyDown={handleKeyDown} onPaste={handlePaste} data-max-height={maxHeight} style={{ maxHeight }}
                 onChange={isGroup ? handleGroupInputChange : (e) => setInput(e.target.value)}
-                placeholder={t('unifiedChat.inputPlaceholder')} disabled={isLoading}
-                className={`w-full min-h-[44px] max-h-[200px] py-3 pl-5 pr-8 bg-transparent focus:outline-none text-[16px] font-medium placeholder:text-gray-400 resize-none overflow-y-auto leading-relaxed border-none scrollbar-hide ${inputPreview ? 'invisible' : ''}`} />
+                placeholder={isChat && isLoading ? t('chatQueue.placeholderWhileRunning') : t('unifiedChat.inputPlaceholder')} disabled={isLoading && !isChat}
+                className={`w-full min-h-[44px] py-3 pl-5 pr-8 bg-transparent focus:outline-none text-[16px] font-medium placeholder:text-gray-400 resize-none overflow-y-auto leading-relaxed border-none scrollbar-hide ${inputPreview ? 'invisible' : ''}`} />
               {inputPreview && (
                 <div
                   className="absolute inset-0 py-3 pl-5 pr-8 overflow-y-auto leading-relaxed text-[16px] font-medium prose prose-sm max-w-none prose-slate cursor-text"
@@ -223,7 +296,7 @@ export function Composer(c: ComposerProps) {
                   <Plus className="w-5 h-5" />
                 </button>
                 {isChat && (
-                  <button type="button" onClick={() => { if (showCommands) setShowCommands(false); else { setFilteredCommands(allCommands); setCommandIndex(0); setShowCommands(true); } }}
+                  <button type="button" onClick={() => { if (showCommands) setShowCommands(false); else { setFilteredCommands(slashCommands); setCommandIndex(0); setShowCommands(true); } }}
                     className="h-9 px-2 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all font-bold text-base">/</button>
                 )}
                 {isGroup && (
@@ -245,9 +318,16 @@ export function Composer(c: ComposerProps) {
                 </button>
               </div>
               {(isChat && isLoading) || (isGroup && isGroupBusy) ? (
-                <button type="button" onClick={handleStop} className="px-4 h-9 flex items-center gap-1.5 justify-center rounded-lg transition-all font-bold text-sm bg-red-100 text-red-600 hover:bg-red-200 active:scale-95">
-                  <span className="w-3 h-3 rounded-sm bg-red-600 inline-block flex-shrink-0" />{t('common.stop')}
-                </button>
+                <div className="flex items-center gap-2">
+                  {isChat && hasDraftToSend && (
+                    <button type="submit" className="px-4 h-9 flex items-center justify-center rounded-lg transition-all font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 active:scale-95" title={t('chatQueue.queueHint')}>
+                      {t('chatQueue.queue')}
+                    </button>
+                  )}
+                  <button type="button" onClick={handleStop} className="px-4 h-9 flex items-center gap-1.5 justify-center rounded-lg transition-all font-bold text-sm bg-red-100 text-red-600 hover:bg-red-200 active:scale-95">
+                    <span className="w-3 h-3 rounded-sm bg-red-600 inline-block flex-shrink-0" />{t('common.stop')}
+                  </button>
+                </div>
               ) : (
                 <button type="submit" disabled={!hasDraftToSend || isLoading || isGroupBusy}
                   className={`px-4 h-9 flex items-center justify-center rounded-lg transition-all font-bold text-sm ${hasDraftToSend && !isLoading && !isGroupBusy ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
@@ -256,6 +336,11 @@ export function Composer(c: ComposerProps) {
               )}
             </div>
           </form>
+          {isChat && activeKey && (
+            <div className="mt-1.5 flex justify-end px-1">
+              <ContextUsageBadge sessionId={activeKey} refreshKey={usageTick} />
+            </div>
+          )}
         </div>
       </div>
     </div>

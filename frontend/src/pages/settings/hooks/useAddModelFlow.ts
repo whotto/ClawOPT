@@ -7,8 +7,9 @@ import { resolveStructuredErrorDisplay } from '../shared/settingsHelpers';
 import type { useModelSettings } from './useModelSettings';
 import type { useSettingsShared } from './useSettingsShared';
 
-export function useAddModelFlow(deps: Pick<ReturnType<typeof useModelSettings> & ReturnType<typeof useSettingsShared>, 'fetchModels' | 'modelSupportsImageGeneration' | 'models' | 'setIsAddModelModalOpen' | 'setIsLoading' | 't'>) {
-  const { fetchModels, modelSupportsImageGeneration, models, setIsAddModelModalOpen, setIsLoading, t } = deps;
+export function useAddModelFlow(deps: Pick<ReturnType<typeof useModelSettings> & ReturnType<typeof useSettingsShared>, 'fetchModels' | 'modelSupportsImageGeneration' | 'models' | 'setIsAddModelModalOpen' | 'setAreaLoading' | 't'>) {
+  const { fetchModels, modelSupportsImageGeneration, models, setIsAddModelModalOpen, setAreaLoading, t } = deps;
+  const setIsLoading = (loading: boolean) => setAreaLoading('models', loading);
 
   const [newModelEndpoint, setNewModelEndpoint] = useState('');
   const [newModelName, setNewModelName] = useState('');

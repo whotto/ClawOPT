@@ -127,13 +127,14 @@ export function createClientStructuredChatError(detail: string): Partial<ChatMes
 }
 
 export function resolveSubmitError(
-  data: { errorCode?: string; errorParams?: Record<string, string | number | boolean | null> | null; errorDetail?: string | null; error?: string; message?: string },
+  data: { errorCode?: string; errorParams?: Record<string, string | number | boolean | null> | null; errorDetail?: string | null; error?: string; message?: string; messageCode?: string; messageParams?: Record<string, string | number | boolean | null> | null },
   t: TFunction,
   fallbackKey: string
 ): string {
-  if (data.errorCode) {
-    const translated = t(data.errorCode, (data.errorParams || {}) as any);
-    if (translated !== data.errorCode) {
+  for (const [code, params] of [[data.errorCode, data.errorParams], [data.messageCode, data.messageParams]] as const) {
+    if (!code) continue;
+    const translated = t(code, (params || {}) as any);
+    if (translated !== code) {
       return String(translated);
     }
   }

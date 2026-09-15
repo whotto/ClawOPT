@@ -132,6 +132,16 @@ export function createExternalChatProjection(deps: ExternalChatProjectionDeps): 
           run.publish(CHAT_STREAM_END_EVENT, { messageId });
           return { messageId: null };
         }
+        if (!text.trim() && toolLines.length === 0) {
+          // 运行中被停（含被「立即插入」让出）却一个字没出、一个工具没调：不留空的助手行，流直接结束。
+          try {
+            db.deleteMessage(messageId);
+          } catch (error) {
+            console.warn(`[chat] Failed to delete empty interrupted assistant message ${messageId} for session ${run.sessionKey}:`, error);
+          }
+          run.publish(CHAT_STREAM_END_EVENT, { messageId });
+          return { messageId: null };
+        }
         db.updateMessage(messageId, text, modelUsed, processContent(), false);
         writeFrame({ type: 'final', text, process_content: processContent(), process_streaming: false }, true);
         return { messageId, output: text };

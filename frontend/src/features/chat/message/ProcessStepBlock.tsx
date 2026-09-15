@@ -11,8 +11,27 @@ import { EXTERNAL_LINK_CLASS_NAME, normalizeNavigableHref } from './links';
 import { isInlineMarkdownCodeNode, getMarkdownNodePlainText, createStableContentKey, getCodeLanguage, shouldRenderEmbeddedFilesAsMarkdown } from './markdownContent';
 import { sanitizeConfiguredProcessText, normalizeProcessPreviewablePathLines, splitProcessContent } from './processContent';
 import { highlightSearchNodes } from './searchHighlight';
+import { formatLiveDuration } from '../lib/toolTrace';
 
 const EXECUTING_PLACEHOLDER_DOT_COUNTS = [1, 2, 3, 4, 5, 6];
+
+/** 从 active 变 true 那一刻开始计时（挂载时已经是 active 也算开始）；active 变 false 后停住。没观察到过开始返回 null。 */
+function useLiveDuration(active: boolean): number | null {
+  const startedAtRef = React.useRef<number | null>(null);
+  const [elapsed, setElapsed] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!active) return;
+    if (startedAtRef.current === null) startedAtRef.current = Date.now();
+    const tick = () => setElapsed(Date.now() - (startedAtRef.current ?? Date.now()));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => {
+      window.clearInterval(timer);
+      tick();
+    };
+  }, [active]);
+  return elapsed;
+}
 
 export const AnimatedExecutingPlaceholder: React.FC<{ label: string }> = ({ label }) => {
   const [dotIndex, setDotIndex] = React.useState(0);
@@ -69,6 +88,8 @@ export const ProcessStepBlock = ({
     isExtractingProcess && (!normalizedContent.trim() || sanitizedProcessContent.hasTrailingPlaceholder)
   );
   const isProcessActive = Boolean(isExtractingProcess || shouldRenderInlineExecutingPlaceholder);
+  // 过程 / 思考块的实时计时：只在这次页面里观察到它开始时计，每秒走一次，结束时停在最后的值；不落库（历史里不显示时长）。
+  const liveDurationMs = useLiveDuration(isProcessActive);
   const hasRenderableProcessContent = hasToolSteps || hasModelContent || shouldRenderInlineExecutingPlaceholder;
 
   React.useEffect(() => {
@@ -364,7 +385,10 @@ export const ProcessStepBlock = ({
              )}
           </div>
           <div className="flex min-w-0 flex-col items-start">
-            <span className="text-[13.5px] font-medium text-gray-700 leading-tight">{t('messageBubble.processTitle')}</span>
+            <span className="text-[13.5px] font-medium text-gray-700 leading-tight">
+              {t('messageBubble.processTitle')}
+              {liveDurationMs !== null && <span className="ml-1.5 text-[12px] font-normal text-gray-400" data-testid="process-live-duration">{formatLiveDuration(liveDurationMs)}</span>}
+            </span>
           </div>
         </div>
         <div className="text-gray-400 flex-shrink-0">

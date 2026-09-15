@@ -28,6 +28,8 @@ export interface ChatMessage {
   messageCode?: string;
   messageParams?: StructuredMessageParams;
   rawDetail?: string;
+  /** 这一轮被「立即插入」的消息打断（不是错误）。只在本次页面生命周期里标，历史里不存。 */
+  interrupted?: boolean;
 }
 
 export function parsePositiveCursorValue(value: unknown): number | null {

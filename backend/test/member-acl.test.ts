@@ -240,6 +240,21 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
     expect(admin.body.map((session: any) => session.id)).toEqual(expect.arrayContaining(['s-main', 's-other']));
   });
 
+  it('会话活动（完成提醒的轮询兜底）：member 只见授权 Agent 的会话；结束标记与运行计数照实回', async () => {
+    h.ctx.db.ensureRunSession({ sessionKey: 's-other', surface: 'chat', runtime: 'openclaw', agentId: 'other' });
+    h.ctx.db.markRunSessionEnded('s-other', 'complete');
+    h.ctx.db.ensureRunSession({ sessionKey: 's-main', surface: 'chat', runtime: 'openclaw', agentId: 'main' });
+    h.ctx.db.markRunSessionEnded('s-main', 'abort');
+    const member = await status(tokens.member, '/api/sessions/activity');
+    const admin = await status(tokens.admin, '/api/sessions/activity');
+    expect(member.code).toBe(200);
+    const memberIds = member.body.activity.map((row: any) => row.sessionId);
+    expect(memberIds).toContain('s-main');
+    expect(memberIds).not.toContain('s-other');
+    expect(member.body.activity.find((row: any) => row.sessionId === 's-main')).toMatchObject({ running: false, runCount: 1, endReason: 'abort' });
+    expect(admin.body.activity.map((row: any) => row.sessionId)).toEqual(expect.arrayContaining(['s-main', 's-other']));
+  });
+
   it('member 取 / 流 / 停 / 发 / 改别人的会话一律 403，自己的照常；不留下任何写入', async () => {
     const otherMessage = Number(h.ctx.db.saveMessage({ session_key: 's-other', role: 'user', content: 'secret' }));
     const mineMessage = Number(h.ctx.db.saveMessage({ session_key: 's-main', role: 'user', content: 'mine' }));
@@ -248,7 +263,26 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
       ['/api/history/s-other/search?q=secret'],
       ['/api/chat/s-other/active-run'],
       ['/api/chat/attach/s-other'],
+      // P1b 运行控制：状态快照、会话实时通道、取消排队、立即插入
+      ['/api/chat/s-other/state'],
+      ['/api/chat/s-other/context-usage'],
+      ['/api/chat/s-other/tool-calls?messageIds=1'],
+      ['/api/chat/s-other/tool-calls/1'],
+      ['/api/chat/s-other/task-plans?messageIds=1'],
+      ['/api/chat/s-other/events'],
+      ['/api/chat/s-other/queue/q-1', { method: 'DELETE' }],
+      ['/api/chat/s-other/queue/q-1/insert', { method: 'POST' }],
+      // P1b 会话组织：挪分类、置顶、归档、改标题、导出按会话判；分叉与批量删除是管理员的
+      ['/api/sessions/s-other/category', { method: 'PUT', body: JSON.stringify({ categoryId: null }) }],
+      ['/api/sessions/s-other/archive', { method: 'PUT', body: JSON.stringify({ archived: true }) }],
+      ['/api/sessions/s-other/pin', { method: 'PUT', body: JSON.stringify({ pinned: true }) }],
+      ['/api/sessions/s-other/title', { method: 'PUT', body: JSON.stringify({ title: 'x' }) }],
+      ['/api/sessions/s-other/export?format=json'],
+      ['/api/sessions/s-main/fork', post({})],
+      ['/api/sessions/batch-delete', post({ ids: ['s-main'] })],
       ['/api/sessions/s-other/configs'],
+      ['/api/sessions/s-other/workspace-changes?messageIds=1'],
+      ['/api/sessions/s-other/workspace-changes/wc-other/files/1'],
       ['/api/sessions/s-other/reset', { method: 'POST' }],
       ['/api/chat', post({ sessionId: 's-other', message: 'hi' })],
       ['/api/chat/regenerate', post({ sessionId: 's-other', message: 'hi', parentId: otherMessage })],
@@ -269,12 +303,43 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
 
     expect((await status(tokens.member, '/api/history/s-main')).code).toBe(200);
     expect((await status(tokens.member, '/api/chat/s-main/active-run')).code).toBe(200);
+    expect((await status(tokens.member, '/api/chat/s-main/state')).code).toBe(200);
+    const organization = await status(tokens.member, '/api/session-organization');
+    expect(Object.keys(organization.body.sessions)).toContain('s-main');
+    expect(Object.keys(organization.body.sessions)).not.toContain('s-other');
+    expect((await status(tokens.member, '/api/chat/s-main/queue/q-missing', { method: 'DELETE' })).code).toBe(404);
+    // 工作区改动（P1b）：自己会话的摘要照常；拿自己会话的路径读别人会话的变更集按不存在（404），不串会话
+    h.ctx.db.workspaceRunChanges.save({
+      id: 'wc-other', sessionKey: 's-other', surface: 'chat', runId: 'r', runMarker: 'm', assistantMessageId: String(otherMessage), mode: 'scan',
+      fileCount: 1, additions: 1, deletions: 0, patchBytes: 3, truncated: false, createdAt: Date.now(),
+      files: [{ path: 'secret.txt', oldPath: null, changeType: 'added', additions: 1, deletions: 0, oldSize: null, newSize: 2, patch: '+s\n', patchBytes: 3, truncated: false, binary: false }],
+    });
+    const otherFileId = h.ctx.db.workspaceRunChanges.listForMessages('s-other', [String(otherMessage)])[0].files[0].id;
+    expect((await status(tokens.member, `/api/sessions/s-main/workspace-changes?messageIds=${otherMessage}`)).body.changes).toEqual([]);
+    expect((await status(tokens.member, `/api/sessions/s-main/workspace-changes/wc-other/files/${otherFileId}`)).code).toBe(404);
+    expect((await status(tokens.member, `/api/sessions/s-other/workspace-changes/wc-other/files/${otherFileId}`)).code).toBe(403);
+    expect((await status(tokens.admin, `/api/sessions/s-other/workspace-changes/wc-other/files/${otherFileId}`)).body.file.patch).toBe('+s\n');
     expect((await status(tokens.member, `/api/messages/${mineMessage}`, { method: 'PUT', body: JSON.stringify({ content: 'edited' }) })).code).toBe(200);
 
     // admin 不受影响
     expect((await status(tokens.admin, '/api/history/s-other')).code).toBe(200);
     expect((await status(tokens.admin, '/api/chat/s-other/active-run')).code).toBe(200);
     expect((await status(tokens.admin, '/api/history/s-other/search?q=secret')).code).toBe(200);
+  });
+
+  it('Ctrl/Cmd+K 搜索（/api/search/chat）：member 只搜得到授权 Agent 的会话，看不见的不占 limit；最近会话同样过滤', async () => {
+    h.ctx.db.saveMessage({ session_key: 's-main', role: 'user', content: 'quasar rollout plan' });
+    for (let i = 0; i < 3; i += 1) h.ctx.db.saveMessage({ session_key: 's-other', role: 'user', content: `quasar rollout secret ${i}` });
+    const member = await status(tokens.member, '/api/search/chat?q=quasar&limit=1');
+    expect(member.code).toBe(200);
+    expect(member.body.results.map((r: any) => r.sessionId)).toEqual(['s-main']);
+    expect((await status(tokens.member, '/api/search/chat?q=Other')).body.results).toEqual([]);
+    const recent = await status(tokens.member, '/api/search/chat?q=');
+    expect(recent.body.mode).toBe('recent');
+    expect(recent.body.results.map((r: any) => r.sessionId)).not.toContain('s-other');
+    const admin = await status(tokens.admin, '/api/search/chat?q=quasar');
+    expect(admin.body.results.map((r: any) => r.sessionId).sort()).toEqual(['s-main', 's-other']);
+    expect((await fetch(`${h.baseUrl}/api/search/chat?q=quasar`)).status).toBe(401);
   });
 
   it('群：member 只见含授权 Agent 的群；看不见的群取 / 流 / 发 / 停 403；改结构要求群里每个 Agent 都授权', async () => {

@@ -26,6 +26,11 @@ export function attachChatRun(sessionId: string, signal?: AbortSignal) {
   return apiFetch(`/chat/attach/${sessionId}`, { signal });
 }
 
+/** 单聊会话实时通道（控制事件：运行开始 / 排队 / 终态 / 插入 / 用户消息回声…，不含正文帧）。 */
+export function openChatLiveEvents(sessionId: string): EventSource {
+  return new EventSource(`${API_BASE}/chat/${encodeURIComponent(sessionId)}/events`);
+}
+
 export function openGroupEvents(groupId: string): EventSource {
   return new EventSource(`${API_BASE}/groups/${groupId}/events`);
 }

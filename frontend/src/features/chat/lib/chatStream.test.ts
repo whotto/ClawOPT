@@ -51,7 +51,7 @@ describe('openChatTurnStream（WebSocket）', () => {
     });
     expect(realtime.subscribedTopic).toBe('session:s1');
     expect(sentHeaders).toEqual({ 'X-ClawOPT-Stream': 'ws', 'X-ClawOPT-WS-Connection': 'conn-1' });
-    if (!result.ok) throw new Error('expected ok');
+    if (result.ok !== true) throw new Error('expected ok');
     setTimeout(() => {
       realtime.frame(42, { type: 'final', text: 'done' }, true);
       realtime.frame(42, { type: 'final', text: 'after end' }, true);
@@ -70,7 +70,7 @@ describe('openChatTurnStream（WebSocket）', () => {
       transport: 'ws', sessionId: 's1', client: () => realtime as unknown as RealtimeClient,
       post: async () => jsonResponse({ userMsgId: 1, assistantMsgId: 2 }),
     });
-    if (!result.ok) throw new Error('expected ok');
+    if (result.ok !== true) throw new Error('expected ok');
     setTimeout(() => {
       realtime.listener?.onSnapshot?.({ sessions: [{ activeRun: { meta: { messageId: 2 } }, attach: [{ type: 'chat.frame', payload: { frame: { type: 'final', text: 'resumed' } } }] }] }, { resubscribe: true });
       realtime.listener?.onSnapshot?.({ sessions: [{ activeRun: null, attach: [] }] }, { resubscribe: true });
@@ -90,7 +90,7 @@ describe('openChatTurnStream（WebSocket）', () => {
       post: async (h) => { headers = h; return new Response('data: {"type":"final","text":"via sse"}\n\n'); },
     });
     expect(headers).toEqual({});
-    if (!result.ok) throw new Error('expected ok');
+    if (result.ok !== true) throw new Error('expected ok');
     expect(await collect(result.events)).toEqual([{ type: 'final', text: 'via sse' }]);
   });
 
@@ -102,6 +102,22 @@ describe('openChatTurnStream（WebSocket）', () => {
     });
     expect(result.ok).toBe(false);
     expect(realtime.unsubscribed).toBe(true);
+  });
+
+  it('会话在忙、服务端把这一条排进队列：两种通道都回 queued，不当成失败、不等帧', async () => {
+    const realtime = new FakeRealtime();
+    const queuedBody = { success: true, queued: true, queueId: 'q-1', position: 2, clientTurnId: 'turn-abc123' };
+    const overWs = await openChatTurnStream({
+      transport: 'ws', sessionId: 's1', client: () => realtime as unknown as RealtimeClient,
+      post: async () => jsonResponse(queuedBody),
+    });
+    expect(overWs).toEqual({ ok: 'queued', queued: { queueId: 'q-1', position: 2, clientTurnId: 'turn-abc123' } });
+    expect(realtime.unsubscribed).toBe(true);
+    const overSse = await openChatTurnStream({
+      transport: 'sse', sessionId: 's1', client: () => realtime as unknown as RealtimeClient,
+      post: async () => jsonResponse(queuedBody),
+    });
+    expect(overSse.ok).toBe('queued');
   });
 });
 
@@ -120,7 +136,7 @@ describe('SSE 形态', () => {
       post: async (h) => { headers = h; return new Response('data: {"type":"final"}\n\n'); },
     });
     expect(headers).toEqual({});
-    if (!result.ok) throw new Error('expected ok');
+    if (result.ok !== true) throw new Error('expected ok');
     expect(await collect(result.events)).toEqual([{ type: 'final' }]);
   });
 });

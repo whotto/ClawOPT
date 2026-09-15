@@ -13,6 +13,7 @@ export interface QueuedRunView {
   position: number;
   display: string | null;
   enqueuedAt: number;
+  ref: string | null;
 }
 
 export interface QueuedRun<TPayload> {
@@ -20,6 +21,7 @@ export interface QueuedRun<TPayload> {
   payload: TPayload;
   display: string | null;
   enqueuedAt: number;
+  ref?: string | null;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -81,6 +83,15 @@ export class SessionRunQueue<TPayload> {
       position: index + 1,
       display: item.display,
       enqueuedAt: item.enqueuedAt,
+      ref: item.ref ?? null,
     }));
+  }
+
+  has(queueId: string): boolean {
+    return this.items.some((item) => item.queueId === queueId);
+  }
+
+  get headId(): string | null {
+    return this.items[0]?.queueId ?? null;
   }
 }

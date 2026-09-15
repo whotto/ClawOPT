@@ -31,6 +31,13 @@ describe('formatCompactCount', () => {
     expect(formatCompactCount(2500, 'en')).toBe('2.5k');
     expect(formatCompactCount(999, 'en')).toBe((999).toLocaleString());
   });
+
+  it('strips a trailing .0 (1000 → 1k, 10000 → 1万) but keeps real decimals', () => {
+    expect(formatCompactCount(1000, 'en')).toBe('1k');
+    expect(formatCompactCount(20000, 'en')).toBe('20k');
+    expect(formatCompactCount(10000, 'zh-CN')).toBe('1万');
+    expect(formatCompactCount(1500, 'en')).toBe('1.5k');
+  });
 });
 
 describe('buildLocalAgentPromptChars', () => {

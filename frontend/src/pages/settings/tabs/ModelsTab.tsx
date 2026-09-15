@@ -41,7 +41,7 @@ export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
     imageGenerationModelError,
     imageGenerationModelId,
     imageGenerationModels,
-    isLoading,
+    isModelsLoading,
     isSavingDefaultModel,
     isSavingImageGenerationModel,
     knownEndpoints,
@@ -281,7 +281,7 @@ export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
                                     <div className="flex items-center justify-end gap-1">
                                       <button
                                         onClick={handleSaveModelAlias}
-                                        disabled={isLoading}
+                                        disabled={isModelsLoading}
                                         className="p-1.5 text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
                                         title={t('common.save')}
                                       >

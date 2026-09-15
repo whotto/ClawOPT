@@ -3,9 +3,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { normalizeLanguage } from '../../../i18n';
 import { readChatHistoryPageRounds } from '../../../utils/historyPagination';
-import { consumeComposerPrefill } from '../../../utils/composerPrefill';
 import { getGroupIdValidationKey } from '../../../utils/groupId';
 import type { ChatMessage } from '../../../utils/message-merge';
+import type { PendingAttachment } from '../lib/composerAttachments';
 import {
   HISTORY_FETCH_BATCH_MIN_LIMIT, type HistoryPageInfo, type HistoryPageSnapshot,
   createEmptyHistoryPageInfo, buildLinearHistoryWindowSnapshot,
@@ -26,12 +26,6 @@ export function useChatViewState(props: ChatViewProps) {
   // ---- Shared State ----
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  // 别的页面交给这个单聊的一次性预填（运行时管理页「让 AI 诊断」）：只放进输入框，不自动发送。
-  useEffect(() => {
-    if (!isChat || !activeKey) return;
-    const prefill = consumeComposerPrefill(activeKey);
-    if (prefill) setInput(prefill);
-  }, [isChat, activeKey]);
   const [isLoading, setIsLoading] = useState(false);
   // 发送/上传/加载失败时说人话。此前这些路径只把输入退回输入框、
   // 或者 catch {} 了事——用户看到消息弹回来却不知道为什么，只能反复重试。
@@ -46,7 +40,12 @@ export function useChatViewState(props: ChatViewProps) {
   const [editIsDragging] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [inputPreview, setInputPreview] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<{file: File, preview: string}[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([]);
+  /** 待发附件的最新值（视频抽帧是异步的：发送前要等抽帧完成，再读最新列表）。 */
+  const pendingFilesRef = useRef<PendingAttachment[]>([]);
+  pendingFilesRef.current = pendingFiles;
+  /** 进行中的视频抽帧（按视频文件名）。 */
+  const frameJobsRef = useRef<Map<string, Promise<void>>>(new Map());
   const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<{url: string, filename: string} | null>(null);
   const [quotedMessage, setQuotedMessage] = useState<ChatMessage | null>(null);
@@ -228,7 +227,7 @@ export function useChatViewState(props: ChatViewProps) {
     submitNotice, setSubmitNotice, activeLeafId, setActiveLeafId, editingMessageId, setEditingMessageId, editContent,
     setEditContent, editExistingAttachments, setEditExistingAttachments, editPendingFiles,
     setEditPendingFiles, editIsDragging, copiedId, setCopiedId, inputPreview, setInputPreview,
-    pendingFiles, setPendingFiles, isDragging, setIsDragging, previewFile, setPreviewFile,
+    pendingFiles, setPendingFiles, pendingFilesRef, frameJobsRef, isDragging, setIsDragging, previewFile, setPreviewFile,
     quotedMessage, setQuotedMessage, activeHighlightId, setActiveHighlightId, isDeleteModalOpen,
     setIsDeleteModalOpen, messageToDelete, setMessageToDelete, deleteErrorMessage,
     setDeleteErrorMessage, fileErrorModalOpen, setFileErrorModalOpen, fileErrorMessage,

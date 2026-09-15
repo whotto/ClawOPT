@@ -91,7 +91,9 @@ export function useHistoryPaging(c: HistoryPagingContext) {
         setIsInitialLoading(false);
       }
     }
-  }, [activeKey, clearHistoryEdgePrompt, clearQueuedMessagePatches, loadHistoryWindow, mode]);
+  // t（失败提示的语言）与 historyFetchBatchLimit（清空时的空页信息）此前漏在依赖外，闭包会拿到旧值。
+  // 加进来不会多拉一次历史：调用 loadHistory 的 effect 各自有守卫（轮数比对、陈旧重载键、首屏只看 activeKey / mode）。
+  }, [activeKey, clearHistoryEdgePrompt, clearQueuedMessagePatches, historyFetchBatchLimit, loadHistoryWindow, mode, t]);
 
   useEffect(() => {
     const previousRounds = lastAppliedHistoryPageRoundsRef.current;

@@ -12,11 +12,16 @@ import { useChatModeBootstrap } from './useChatModeBootstrap';
 import { useChatHistoryFetch } from './useChatHistoryFetch';
 import { useMessageSearch } from './useMessageSearch';
 import { useHistoryPaging } from './useHistoryPaging';
+import { useGlobalSearchFocus } from './useGlobalSearchFocus';
 import { useChatAttachRun } from './useChatAttachRun';
+import { useChatRunControl } from './useChatRunControl';
 import { useGroupEvents } from './useGroupEvents';
 import { useMessageActions } from './useMessageActions';
 import { useComposerActions } from './useComposerActions';
 import { useGroupManagement } from './useGroupManagement';
+import { useWorkspaceChanges } from '../workspace/useWorkspaceChanges';
+import { useToolTraces } from './useToolTraces';
+import { useTaskPlans } from './useTaskPlans';
 
 /**
  * 聊天页控制器：按原 UnifiedChatView 函数体的先后顺序依次调用各段 hook。
@@ -33,17 +38,28 @@ export function useChatController(props: ChatViewProps) {
   const c4 = { ...c3, ...useHistoryEdgePrompt(c3) };
   useSearchQueryDebounce(c4);
   const c5 = { ...c4, ...useHistoryScroll(c4) };
-  useComposerEffects(c5);
-  const c6 = { ...c5, ...useHistoryPageRounds(c5) };
+  const c5e = { ...c5, ...useComposerEffects(c5) };
+  const c6 = { ...c5e, ...useHistoryPageRounds(c5e) };
   const c7 = { ...c6, ...useChatModeBootstrap(c6) };
   const c8 = { ...c7, ...useChatHistoryFetch(c7) };
   const c9 = { ...c8, ...useMessageSearch(c8) };
   const c10 = { ...c9, ...useHistoryPaging(c9) };
-  useChatAttachRun(c10);
-  const c11 = { ...c10, ...useGroupEvents(c10) };
+  // 全局搜索（Ctrl/Cmd+K）交来的「跳到这条消息」：排在首屏加载之后，只读前面各段的值。
+  useGlobalSearchFocus(c10);
+  const cRun = { ...c10, ...useChatRunControl(c10) };
+  useChatAttachRun(cRun);
+  const c11 = { ...cRun, ...useGroupEvents(cRun) };
   const c12 = { ...c11, ...useMessageActions(c11) };
   const c13 = { ...c12, ...useComposerActions(c12) };
-  return { ...c13, ...useGroupManagement(c13) };
+  const c14 = { ...c13, ...useGroupManagement(c13) };
+  // 每次运行的工作区改动卡片与 diff 面板（只在单聊）。
+  return {
+    ...c14,
+    ...useWorkspaceChanges({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, isLoading: c14.isLoading }),
+    // 按运行分组的工具摘要卡（只在单聊；协调器落库的工具调用）。
+    ...useToolTraces({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, isLoading: c14.isLoading }),
+    ...useTaskPlans({ enabled: c14.isChat, sessionId: c14.activeKey, messages: c14.messages, livePlan: c14.livePlan }),
+  };
 }
 
 export type ChatController = ReturnType<typeof useChatController>;

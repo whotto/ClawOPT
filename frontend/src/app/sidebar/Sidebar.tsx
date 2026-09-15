@@ -6,6 +6,7 @@ import AutomationNav from './AutomationNav';
 import AgentEditorModal from './AgentEditorModal';
 import AgentInfoModal from './AgentInfoModal';
 import AgentList from './AgentList';
+import { OrganizedSessionList } from '../../features/sessions/OrganizedSessionList';
 import ExternalAgentDialog, { type ExternalSessionSummary } from './ExternalAgentDialog';
 import FavoritesList from './FavoritesList';
 import { DeleteGroupModal, ResetGroupModal } from './GroupConfirmModals';
@@ -13,7 +14,9 @@ import GroupEditorModal from './GroupEditorModal';
 import GroupInfoModal from './GroupInfoModal';
 import GroupList from './GroupList';
 import ListTabs from './ListTabs';
-import NewButtons from './NewButtons';
+import NewButtons, { openNewAgentEditor } from './NewButtons';
+import { NEW_CHAT_SHORTCUT_EVENT, OPEN_SESSION_SEARCH_EVENT } from '../../features/search/lib/searchLib';
+import { Search } from 'lucide-react';
 import { DeleteSessionModal, ResetSessionModal } from './SessionConfirmModals';
 import SettingsNav from './SettingsNav';
 import SidebarFooter from './SidebarFooter';
@@ -43,6 +46,8 @@ export interface SidebarProps {
   onSelectGroup: (id: string) => void;
   automationSection: AutomationSection;
   onOpenAutomation: (section: AutomationSection) => void;
+  /** 在后台完成、还没打开看过的单聊（features/notifications）。 */
+  unreadSessionIds?: ReadonlySet<string>;
 }
 
 /**
@@ -99,6 +104,16 @@ export default function Sidebar(props: SidebarProps) {
   const groupEditor = useGroupEditor({ t, groups, reloadGroups, onSelectGroup, navigateTo, settingsTab, activeGroupId, currentView });
   // 只有看得到全部会话与群的角色（能管理 Agent）才按列表清理收藏；member 的列表是过滤过的。
   const listsComplete = useAccess().can('agents.manage');
+  // Ctrl/Cmd+N：与「新建智能体」按钮同一个入口，没有 agents.manage 能力时什么也不做。
+  useEffect(() => {
+    const handleNewChat = () => {
+      if (!listsComplete) return;
+      navigateTo('chat', undefined, false);
+      void openNewAgentEditor(agentEditor);
+    };
+    window.addEventListener(NEW_CHAT_SHORTCUT_EVENT, handleNewChat);
+    return () => window.removeEventListener(NEW_CHAT_SHORTCUT_EVENT, handleNewChat);
+  }, [agentEditor, listsComplete, navigateTo]);
   usePruneSidebarFavorites(favorites, sessions, sessionsLoaded, groups, groupsLoaded, listsComplete);
   // 外部运行时单聊的新建 / 编辑弹窗：null = 关；{} = 新建；带 externalRuntime 的会话 = 编辑。
   const [externalDialog, setExternalDialog] = useState<ExternalSessionSummary | null>(null);
@@ -155,6 +170,20 @@ export default function Sidebar(props: SidebarProps) {
           appVersion={appVersionInfo?.version || ''}
         />
 
+        {/* 会话搜索入口（与 Ctrl/Cmd+K 同一个面板） */}
+        <div className="px-4 pb-2">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SESSION_SEARCH_EVENT))}
+            className="w-full h-9 px-3 flex items-center gap-2 rounded-xl border border-gray-300 bg-white text-sm text-gray-400 hover:border-orange-300 hover:text-gray-600 transition-colors"
+            data-testid="sidebar-search-button"
+          >
+            <Search className="w-4 h-4" />
+            <span className="flex-1 text-left">{t('sessionSearch.sidebarButton')}</span>
+            <span className="text-[11px] text-gray-400">{/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent) ? '⌘K' : 'Ctrl+K'}</span>
+          </button>
+        </div>
+
         {/* + 新建 按钮组 */}
         <NewButtons editor={agentEditor} groupEditor={groupEditor} onNewExternal={() => setExternalDialog({ id: '', name: '' })} />
 
@@ -162,7 +191,13 @@ export default function Sidebar(props: SidebarProps) {
         <div className="flex-1 overflow-y-auto px-4 py-1 min-h-0 scrollbar-hide">
           <ListTabs sidebarListTab={sidebarListTab} setSidebarListTab={setSidebarListTab} />
           {sidebarListTab === 'agents'
-            ? <AgentList sidebar={props} enableReorder={enableReorder} onShowInfo={handleShowInfo} />
+            ? (
+              <OrganizedSessionList
+                sidebar={props}
+                onShowInfo={handleShowInfo}
+                renderFlat={(renderRowAction) => <AgentList sidebar={props} enableReorder={enableReorder} onShowInfo={handleShowInfo} renderRowAction={renderRowAction} />}
+              />
+            )
             : sidebarListTab === 'groups'
               ? <GroupList sidebar={props} enableReorder={enableReorder} groups={groups} reorderGroups={reorderGroups} groupDetails={groupDetails} />
               : (
@@ -183,7 +218,7 @@ export default function Sidebar(props: SidebarProps) {
 
       {/* Create Agent Modal - outside aside to center properly */}
       {agentEditor.isModalOpen && (
-        <AgentEditorModal editor={agentEditor} availableModels={availableModels} memberDropdownRef={groupEditor.memberDropdownRef} />
+        <AgentEditorModal editor={agentEditor} availableModels={availableModels} />
       )}
 
       {externalDialog && (

@@ -9,7 +9,7 @@ export default function CommandsTab({ ctx }: { ctx: SettingsController }) {
     handleAddCommand,
     handleDeleteCommand,
     handleUpdateCommand,
-    isLoading,
+    isCommandsLoading,
     newCommand,
     newDescription,
     setEditingId,
@@ -51,7 +51,7 @@ export default function CommandsTab({ ctx }: { ctx: SettingsController }) {
             <div className="flex w-full sm:w-auto gap-2">
               <button
                 onClick={editingId ? handleUpdateCommand : handleAddCommand}
-                disabled={isLoading || !newCommand || !newDescription}
+                disabled={isCommandsLoading || !newCommand || !newDescription}
                 className="h-[42px] px-6 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 flex-1 sm:flex-none flex items-center justify-center gap-2"
               >
                 {editingId ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}

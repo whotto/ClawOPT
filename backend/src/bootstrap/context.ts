@@ -50,17 +50,18 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
-import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
+import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, createWorkspaceDiffCheckpointer, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import { createScopedProviderResolver } from './scoped-provider-resolver';
 import {
   createChatCommands,
   createChatLifecycle,
   createChatMessages,
-  createChatRuns,
   createDirectChatService,
   createSessionRuntime,
   SessionManager,
+  SessionOrgStore,
+  TaskPlanStore,
 } from '../collab/sessions';
 import {
   createRoomEngine,
@@ -77,6 +78,12 @@ export function createAppContext() {
   const db = new DB();
   const configManager = new ConfigManager();
   const sessionManager = new SessionManager(db);
+  /** 单聊会话的组织（按用户的分类 / 归档）与元数据（对话标题、来历、分叉血缘）；会话删了跟着清。 */
+  const sessionOrg = new SessionOrgStore(db.connection());
+  sessionManager.on('sessionDeleted', (session: { id: string }) => sessionOrg.removeSession(session.id));
+  /** 单聊的任务计划卡（每轮最新快照 + revision）；会话删了跟着清。 */
+  const taskPlans = new TaskPlanStore(db.connection());
+  sessionManager.on('sessionDeleted', (session: { id: string }) => taskPlans.deleteBySession(session.id));
   /** 会话令牌存储：随机、可过期、可吊销。 */
   const authStore = new AuthStore(db);
   /** 用户 / 角色 / Agent 授权与登录 IP 锁（P5a）。 */
@@ -107,7 +114,13 @@ export function createAppContext() {
    * 运行协调器：所有运行时（OpenClaw 网关、外部 Agent）的运行都经它；适配器只翻译事件。
    * 运行 / 工具 / 审批的业务事件（`chat.run.*` 等）也只在这里发一次，覆盖所有表面。
    */
-  const runCoordinator = new RunCoordinator({ hub: realtime, store: db, events });
+  const runCoordinator = new RunCoordinator({
+    hub: realtime,
+    store: db,
+    events,
+    // 每次运行的工作区 diff（P1b）：有工作区的运行在开始时打检查点、结束时比对并落库，挂到最终消息上。
+    checkpointer: createWorkspaceDiffCheckpointer({ store: db.workspaceRunChanges }),
+  });
 
   /** OpenClaw 网关运行时适配器（单聊）。无状态，整个进程一个。 */
   const openclawAdapter = createOpenClawRuntimeAdapter();
@@ -148,6 +161,8 @@ export function createAppContext() {
     db,
     configManager,
     sessionManager,
+    sessionOrg,
+    taskPlans,
     authStore,
     userStore,
     loginLocks,
@@ -193,8 +208,7 @@ export function createAppContext() {
   });
   const uploads = createUploadService({ ...base, access });
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
-  const chatRuns = createChatRuns();
-  const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
+  const chatLifecycle = createChatLifecycle({ ...base, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
 
   // ---- P5a 控制面：一切引擎侧操作经同一个 CLI 调用口（写操作在进程内串行） ----
@@ -238,7 +252,6 @@ export function createAppContext() {
     auth,
     access,
     packs,
-    chatRuns,
     chatLifecycle,
     chatCommands,
     openclawCli,

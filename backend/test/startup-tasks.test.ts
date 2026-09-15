@@ -25,8 +25,11 @@ afterEach(() => {
 
 describe('runStartupTasks', () => {
   it('登记表的 id 清单与顺序（只追加，不改不删）', () => {
-    const tasks = buildStartupTasks({ db: { getConfig: () => undefined }, userStore: {} as any, log });
-    expect(tasks.map((task) => `${task.id}@${task.scope}`)).toEqual(['auth.login-password-to-super-admin@clawopt-data']);
+    const tasks = buildStartupTasks({ db: { getConfig: () => undefined, connection: () => { throw new Error('not used'); } }, userStore: {} as any, log });
+    expect(tasks.map((task) => `${task.id}@${task.scope}`)).toEqual([
+      'auth.login-password-to-super-admin@clawopt-data',
+      'search.chat-fts-backfill@clawopt-data',
+    ]);
   });
 
   it('零任务时不创建记录文件', async () => {

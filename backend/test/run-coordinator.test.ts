@@ -145,7 +145,7 @@ describe('单会话单运行与服务端队列', () => {
     await flush();
     await coordinator.submit(submission({ display: 'later' }), 'queue');
     const urgent = await coordinator.submit(submission({ display: 'urgent' }), 'queue') as any;
-    expect(await coordinator.insertNow('s1', urgent.queueId)).toEqual({ status: 'immediate' });
+    expect(await coordinator.insertNow('s1', urgent.queueId)).toMatchObject({ status: 'immediate' });
     await flush();
     await flush();
     const aborted = events.find((e) => e.type === 'run.aborted' && e.topic === 'session:s1')!;

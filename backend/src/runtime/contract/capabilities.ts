@@ -13,6 +13,11 @@ export interface RuntimeCapabilities {
   readonly boundaryInterrupt: boolean;
   /** 能用运行时自己的会话 id 续话（Claude Code 的 `--resume`）。 */
   readonly nativeResume: boolean;
+  /**
+   * 能从一个已确认的原生会话**分叉**出新的原生会话（原会话不动），例如 Claude Code 的 `--resume <id> --fork-session`。
+   * 单聊「分叉对话」只对声明了它的运行时显示——拷一份文字记录而运行时并不记得，是假分叉。
+   */
+  readonly nativeFork: boolean;
   /** 会发出需要人批准的工具调用请求。 */
   readonly approvals: boolean;
   /** 会向人提澄清问题。 */
@@ -34,6 +39,7 @@ export interface RuntimeCapabilities {
 export const CAPABILITY_KEYS = [
   'boundaryInterrupt',
   'nativeResume',
+  'nativeFork',
   'approvals',
   'clarify',
   'hostCompression',

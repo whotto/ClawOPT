@@ -2,13 +2,16 @@
 import { Menu, X, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import { getAgentColor } from '../lib/agentColors';
 import type { ChatController } from '../hooks/useChatController';
+import { ConversationTitleBar } from '../../sessions/ConversationTitleBar';
+import { useShellContext } from '../../../app/shellContext';
 
 type ChatHeaderProps = Pick<
   ChatController,
   'props' | 't' | 'onMenuClick' | 'isChat' | 'isGroup' | 'isLoading' | 'showMobileSearch' |
   'setShowMobileSearch' | 'messageSearchQuery' | 'setMessageSearchQuery' | 'searchMatches' |
   'currentMatchIndex' | 'aiName' | 'currentGroup' | 'resolveGroupMemberDisplayName' |
-  'activeProcessingAgents' | 'isGroupBusy' | 'handleNextSearch' | 'handlePrevSearch'
+  'activeProcessingAgents' | 'isGroupBusy' | 'handleNextSearch' | 'handlePrevSearch' |
+  'activeKey' | 'currentSession' | 'sessions' | 'setSubmitError'
 >;
 
 export function ChatHeader(c: ChatHeaderProps) {
@@ -16,8 +19,9 @@ export function ChatHeader(c: ChatHeaderProps) {
     props, t, onMenuClick, isChat, isGroup, isLoading, showMobileSearch, setShowMobileSearch,
     messageSearchQuery, setMessageSearchQuery, searchMatches, currentMatchIndex, aiName,
     currentGroup, resolveGroupMemberDisplayName, activeProcessingAgents, isGroupBusy,
-    handleNextSearch, handlePrevSearch,
+    handleNextSearch, handlePrevSearch, activeKey, currentSession, sessions, setSubmitError,
   } = c;
+  const shell = useShellContext();
   const headerTitle = isChat ? aiName : currentGroup?.name;
   const headerStatus = (() => {
     if (isChat) {
@@ -67,6 +71,16 @@ export function ChatHeader(c: ChatHeaderProps) {
                 </div>
               )}
             </div>
+            {isChat && activeKey && (
+              <ConversationTitleBar
+                sessionId={activeKey}
+                externalRuntime={(currentSession as { externalRuntime?: string } | null)?.externalRuntime ?? null}
+                sessionName={(id) => sessions.find((s) => s.id === id)?.name ?? null}
+                isLoading={isLoading}
+                onForked={() => shell.reloadSessions()}
+                onError={(message) => setSubmitError(message)}
+              />
+            )}
           </div>
         </div>
       )}

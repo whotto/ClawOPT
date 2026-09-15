@@ -170,7 +170,10 @@ describe('单聊运行：中止', () => {
     expect(stop).toEqual({ success: true, aborted: true, runIds: [] });
     release();
     await sse.end();
-    await waitUntil(() => gw.aborts.some((a) => a.runId === 'gw-run-1'));
+    // P1b 起协调器先打工作区检查点再启动适配器：停止若落在检查点期间，适配器根本不启动、网关一条也没收到（更好）；
+    // 落在适配器准备段里，则与迁移前一致——晚到的网关 run 被 abort。两种都不能留下「发出去却没人停」的 run。
+    await waitUntil(() => gw.sent.length === 0 || gw.aborts.some((a) => a.runId === 'gw-run-1'));
+    if (gw.sent.length > 0) await waitUntil(() => gw.aborts.some((a) => a.runId === 'gw-run-1'));
 
     const [userRow] = rows(sessionId);
     expect(sse.frames.map((f) => f.type)).toEqual(['ids', 'attached']);

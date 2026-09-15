@@ -2,8 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 
+import { applyChatSearchSchema } from './chat-search-schema';
 import { applyControlPlaneSchema } from './control-plane-schema';
 import { warnIfBetterSqliteNativeBuildHazard } from './native-build-check';
+import { applyWorkspaceRunChangesSchema, WorkspaceRunChangeRepository } from './workspace-run-changes';
 
 /** 原生插件构建隐患只在进程里查一次（ConfigManager 与应用上下文各开一个 DB）。 */
 let nativeBuildChecked = false;
@@ -212,6 +214,8 @@ export type SessionUsageDbRow = {
 
 export class DB {
   private db: Database.Database;
+  /** 每次运行的工作区改动（P1b，表与仓储在 `workspace-run-changes.ts`）。 */
+  readonly workspaceRunChanges: WorkspaceRunChangeRepository;
 
   constructor() {
     if (!nativeBuildChecked) {
@@ -236,6 +240,7 @@ export class DB {
     }
 
     this.init();
+    this.workspaceRunChanges = new WorkspaceRunChangeRepository(this.db);
   }
 
   /**
@@ -258,6 +263,7 @@ export class DB {
 
   private init() {
     applyControlPlaneSchema(this.db);
+    applyWorkspaceRunChangesSchema(this.db);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
@@ -495,6 +501,7 @@ export class DB {
     try { this.db.exec("ALTER TABLE group_messages ADD COLUMN parent_id INTEGER REFERENCES group_messages(id)"); } catch (e: any) {}
 
     this.initRunTables(addColumn);
+    applyChatSearchSchema(this.db);
   }
 
   /**
@@ -612,6 +619,7 @@ export class DB {
       this.db.prepare('DELETE FROM run_tool_calls WHERE session_key = ?').run(sessionKey);
       this.db.prepare('DELETE FROM run_sessions WHERE session_key = ?').run(sessionKey);
     })();
+    this.workspaceRunChanges.deleteBySession(sessionKey);
   }
 
   listRunToolCalls(sessionKey: string): RunToolCallRow[] {
@@ -806,6 +814,8 @@ export class DB {
       }
 
       const placeholders = ids.map(() => '?').join(', ');
+      const owner = this.db.prepare('SELECT session_key FROM chat_messages WHERE id = ?').get(messageId) as { session_key: string } | undefined;
+      if (owner) this.workspaceRunChanges.deleteByMessages(owner.session_key, ids.map(String));
       this.db.prepare(`DELETE FROM chat_messages WHERE id IN (${placeholders})`).run(...ids);
       return ids;
     });
@@ -1022,6 +1032,7 @@ export class DB {
     // 协调器的通用表跟着会话走；session_usage 保留——用量是账，会话删了账不该跟着消失。
     this.db.prepare('DELETE FROM run_tool_calls WHERE session_key = ?').run(id);
     this.db.prepare('DELETE FROM run_sessions WHERE session_key = ?').run(id);
+    this.workspaceRunChanges.deleteBySession(id);
   }
 
   // --- Group Chats ---
@@ -1060,6 +1071,7 @@ export class DB {
     const roomPrefix = `room:${id}:member:`;
     this.db.prepare('DELETE FROM run_tool_calls WHERE substr(session_key, 1, ?) = ?').run(roomPrefix.length, roomPrefix);
     this.db.prepare('DELETE FROM run_sessions WHERE substr(session_key, 1, ?) = ?').run(roomPrefix.length, roomPrefix);
+    this.workspaceRunChanges.deleteBySessionPrefix(roomPrefix);
     this.db.prepare('DELETE FROM group_chats WHERE id = ?').run(id);
   }
 
@@ -1392,6 +1404,8 @@ export class DB {
 
   // --- Reset Methods ---
   deleteMessagesBySession(sessionId: string) {
+    // 改动卡片挂在助手消息上：消息清空了，变更集也没有落点了。
+    this.workspaceRunChanges.deleteBySession(sessionId);
     return this.db.prepare('DELETE FROM chat_messages WHERE session_key = ?').run(sessionId);
   }
 

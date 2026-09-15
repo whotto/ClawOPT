@@ -22,6 +22,7 @@ import { createWorkflowEngine } from '../../src/automation/workflow/engine';
 const APPROVAL_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: false,
+  nativeFork: false,
   approvals: true,
   clarify: false,
   hostCompression: false,

@@ -56,6 +56,11 @@ beforeAll(async () => {
   write('uploadMine', path.join(uploads, '1-mine.html'), '<p>up mine</p>');
   write('uploadOther', path.join(uploads, '2-other.html'), '<p>up other</p>');
   write('uploadUnregistered', path.join(uploads, '3-orphan.html'), '<p>orphan</p>');
+  // 外部运行时单聊的缺省工作区（工作区 diff 面板「查看文件」走的就是这里）：目录名 = 会话 id
+  const externalRoot = path.join(home, '.clawopt-test', 'workspaces', 'external');
+  write('externalMine', path.join(externalRoot, 's-main', 'notes.md'), '# mine');
+  write('externalOther', path.join(externalRoot, 's-other', 'notes.md'), '# other');
+  write('externalOrphan', path.join(externalRoot, 'no-such-session', 'notes.md'), '# orphan');
   write('credential', path.join(openclaw, 'workspace-other', '.env'), 'SECRET=1');
   ctx.db.saveFile({ sessionKey: 's-main', originalName: 'mine.html', storedPath: files.uploadMine });
   ctx.db.saveFile({ sessionKey: 's-other', originalName: 'other.html', storedPath: files.uploadOther });
@@ -111,7 +116,7 @@ async function matrix(token: string, urls: string[]) {
 
 describe('按路径出文件：可服务路径闸门在前，数据面授权在后', () => {
   it('member：自己 Agent 的工作区、看得见的群工作区、自己会话登记的上传照常', async () => {
-    const urls = [...exits(files.agentMine), ...exits(files.groupVisible), ...exits(files.uploadMine), ...uploadExits(files.uploadMine)];
+    const urls = [...exits(files.agentMine), ...exits(files.groupVisible), ...exits(files.uploadMine), ...uploadExits(files.uploadMine), ...exits(files.externalMine)];
     expect(await matrix(tokens.member, urls)).toEqual(urls.map((url) => `${url} → 200`));
   });
 
@@ -125,6 +130,8 @@ describe('按路径出文件：可服务路径闸门在前，数据面授权在�
       ...exits(files.uploadUnregistered),
       ...uploadExits(files.uploadUnregistered),
       ...exits(files.unowned),
+      ...exits(files.externalOther),
+      ...exits(files.externalOrphan),
     ];
     expect(await matrix(tokens.member, urls)).toEqual(urls.map((url) => `${url} → 403 auth.agentForbidden`));
   });
@@ -133,6 +140,7 @@ describe('按路径出文件：可服务路径闸门在前，数据面授权在�
     const urls = [
       ...exits(files.agentOther), ...exits(files.groupHidden), ...exits(files.uploadOther),
       ...uploadExits(files.uploadOther), ...exits(files.uploadUnregistered), ...exits(files.unowned),
+      ...exits(files.externalOther), ...exits(files.externalOrphan),
     ];
     expect(await matrix(tokens.admin, urls)).toEqual(urls.map((url) => `${url} → 200`));
   });

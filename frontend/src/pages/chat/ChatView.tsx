@@ -4,6 +4,8 @@ import type { ChatViewProps } from '../../features/chat/lib/types';
 import { ChatHeader } from '../../features/chat/components/ChatHeader';
 import ChatRunApprovals from '../../features/approvals/ChatRunApprovals';
 import { Composer } from '../../features/chat/components/Composer';
+import { QueuePanel } from '../../features/chat/components/QueuePanel';
+import { WorkspaceDiffPanel } from '../../features/chat/workspace/WorkspaceDiffPanel';
 import { DeleteMessageDialog } from '../../features/chat/components/DeleteMessageDialog';
 import { DragOverlay } from '../../features/chat/components/DragOverlay';
 import { FileErrorDialog } from '../../features/chat/components/FileErrorDialog';
@@ -48,6 +50,8 @@ export default function ChatView(props: ChatViewProps) {
       {/* 真审批运行时（Pi、Hermes）在这个对话里等人答复的请求 */}
       <ChatRunApprovals isGroup={c.isGroup} activeKey={c.activeKey} />
 
+      <QueuePanel {...c} />
+
       <Composer {...c} />
 
       {/* File Preview Modal */}
@@ -55,6 +59,16 @@ export default function ChatView(props: ChatViewProps) {
         <Suspense fallback={null}>
           <FilePreviewModal url={c.previewFile.url} filename={c.previewFile.filename} onClose={() => c.setPreviewFile(null)} />
         </Suspense>
+      )}
+
+      {c.openWorkspaceChangeTarget && (
+        <WorkspaceDiffPanel
+          sessionId={c.activeKey}
+          change={c.openWorkspaceChangeTarget.change}
+          initialFileId={c.openWorkspaceChangeTarget.fileId}
+          onClose={c.closeWorkspaceChange}
+          onOpenFile={(target) => c.setPreviewFile(target)}
+        />
       )}
 
       <DeleteMessageDialog {...c} />

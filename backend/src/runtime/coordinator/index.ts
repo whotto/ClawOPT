@@ -1,9 +1,11 @@
 export {
   DEFAULT_ABORT_GRACE_MS,
+  QUEUE_INSERTION_EVENT,
   RunCoordinator,
   createRunMarker,
 } from './run-coordinator';
 export type {
+  QueueInsertionEndReason,
   RunCoordinatorOptions,
 } from './run-coordinator';
 export type {
@@ -45,6 +47,10 @@ export {
 export type {
   AbortResult,
   BusyPolicy,
+  InsertNowResult,
+  QueueInsertionGuarantee,
+  QueueInsertionPhase,
+  QueueInsertionView,
   PersistedToolCall,
   ProjectorFinish,
   ProjectorRunContext,
@@ -62,3 +68,12 @@ export type {
   WorkspaceCheckpoint,
   WorkspaceCheckpointer,
 } from './types';
+export {
+  WORKSPACE_DIFF_LIMITS,
+  createWorkspaceDiffCheckpointer,
+} from './workspace-diff';
+export type {
+  WorkspaceDiffCheckpointerOptions,
+  WorkspaceDiffLimits,
+  WorkspaceDiffStore,
+} from './workspace-diff';

@@ -45,6 +45,17 @@ export {
 export {
   assertHandleMatchesCapabilities,
 } from './adapter';
+export {
+  STORAGE_MAX_BYTES,
+  WIRE_MAX_CHARS,
+  boundToolOutputForStorage,
+  looksLikeUnifiedDiff,
+  previewToolArguments,
+  truncateForWire,
+} from './tool-output-bounds';
+export type {
+  WireText,
+} from './tool-output-bounds';
 export type {
   AdapterRunContext,
   AdapterRunHandle,

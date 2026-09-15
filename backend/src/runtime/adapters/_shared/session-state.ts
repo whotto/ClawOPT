@@ -47,7 +47,7 @@ export interface ResumeDecision {
   resumeNativeId: string | null;
   /** 新建时使用的原生 id（仅 client 策略）；observed 策略为 null。 */
   createNativeId: string | null;
-  reason: 'resume' | 'fresh' | 'incompatible' | 'unconfirmed' | 'legacy_resume' | 'handle_mismatch';
+  reason: 'resume' | 'fresh' | 'incompatible' | 'unconfirmed' | 'legacy_resume' | 'handle_mismatch' | 'fork';
 }
 
 export function fingerprintFor(runtime: string, request: CodingAgentRunRequest, mode: ProxyMode): LaunchFingerprint {
@@ -77,8 +77,15 @@ export function decideResume(input: {
   request: Pick<CodingAgentRunRequest, 'sessionId' | 'resume'>;
   fingerprint: LaunchFingerprint;
   randomUUID: () => string;
+  /** 分叉来源（父归属里已确认、坐标兼容的原生会话）。只有 client 策略的运行时能用。 */
+  forkSource?: { nativeSessionId: string } | null;
 }): ResumeDecision {
   const { policy, state, request, fingerprint } = input;
+  // 分叉：自己还没有确认过的原生会话（首轮，或首轮没跑成）时，续父会话并分叉出一个新 id；确认之后就按普通续话走。
+  if (input.forkSource && policy === 'client' && !(state?.confirmed && state.nativeSessionId)) {
+    const createNativeId = request.sessionId === input.forkSource.nativeSessionId ? input.randomUUID() : request.sessionId;
+    return { resumeNativeId: input.forkSource.nativeSessionId, createNativeId, reason: 'fork' };
+  }
   const fresh = (reason: ResumeDecision['reason']): ResumeDecision => {
     if (policy === 'observed') return { resumeNativeId: null, createNativeId: null, reason };
     // 客户端指定 id：句柄本身没被用过就用句柄；否则（兼容性变了、已被旧坐标占用）另起一个。

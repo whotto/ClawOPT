@@ -1,5 +1,6 @@
 // 通用设置页签。
 import { Check, ChevronDown, Eye, EyeOff, Loader2, X } from 'lucide-react';
+import NotificationSettingsSection from '../../../features/notifications/NotificationSettingsSection';
 import type { SettingsController } from '../useSettingsController';
 import { parsePreviewTimeoutSecondsInput, PREVIEW_TIMEOUT_MAX_SECONDS, PREVIEW_TIMEOUT_MIN_SECONDS } from '../shared/settingsHelpers';
 
@@ -18,7 +19,7 @@ export default function GeneralTab({ ctx }: { ctx: SettingsController }) {
     handleSaveGeneral,
     hasLoginPassword,
     historyPageRoundsInput,
-    isLoading,
+    isGeneralLoading,
     loginEnabled,
     loginPassword,
     previewTimeoutError,
@@ -125,6 +126,8 @@ export default function GeneralTab({ ctx }: { ctx: SettingsController }) {
             <p className="text-xs text-gray-400 mt-1.5">{t('settings.general.chatStreamTransportHint')}</p>
           </div>
 
+          <NotificationSettingsSection />
+
           <div className="border-t border-gray-100 pt-6">
             <label className="block text-sm font-semibold text-gray-900 mb-2">{t('settings.general.previewTimeoutLabel')}</label>
             <input
@@ -229,10 +232,10 @@ export default function GeneralTab({ ctx }: { ctx: SettingsController }) {
           )}
           <button
             onClick={handleSaveGeneral}
-            disabled={isLoading}
+            disabled={isGeneralLoading}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-2.5 text-sm font-medium rounded-xl text-white bg-blue-600 hover:bg-blue-700 transition-all disabled:opacity-50"
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : generalSaved ? <><Check className="w-4 h-4" /> {t('settings.general.saved')}</> : t('settings.general.save')}
+            {isGeneralLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : generalSaved ? <><Check className="w-4 h-4" /> {t('settings.general.saved')}</> : t('settings.general.save')}
           </button>
         </div>
       </div>

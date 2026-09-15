@@ -20,6 +20,7 @@ export const PI_DESCRIPTOR: RuntimeDescriptor = builtinRuntimeDescriptor('pi');
 export const PI_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  nativeFork: false,
   approvals: true,
   clarify: true,
   hostCompression: false,

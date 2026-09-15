@@ -45,7 +45,7 @@ export default function GatewayTab({ ctx }: { ctx: SettingsController }) {
     hostTakeoverToneClass,
     isApprovingDevicePairing,
     isDetectingAll,
-    isLoading,
+    isGatewayLoading,
     isLoadingBrowserHeadedMode,
     isRestarting,
     isSubmittingPermissionsPassword,
@@ -98,7 +98,7 @@ export default function GatewayTab({ ctx }: { ctx: SettingsController }) {
             <button
               type="button"
               onClick={() => { void detectGatewayConfig(); }}
-              disabled={isDetectingAll || isLoading}
+              disabled={isDetectingAll || isGatewayLoading}
               className={`${secondaryActionButtonClass} shrink-0`}
             >
               {isDetectingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
@@ -360,7 +360,7 @@ export default function GatewayTab({ ctx }: { ctx: SettingsController }) {
                 role="switch"
                 aria-checked={browserHeadedModeEnabled === true}
                 aria-label={t('settings.gateway.browserHeadedModeLabel')}
-                disabled={isLoadingBrowserHeadedMode || isTogglingBrowserHeadedMode || isLoading || browserHeadedModeModalStage !== null || gatewayRestartModalStage === 'restarting' || updateRestartModalStage === 'restarting'}
+                disabled={isLoadingBrowserHeadedMode || isTogglingBrowserHeadedMode || isGatewayLoading || browserHeadedModeModalStage !== null || gatewayRestartModalStage === 'restarting' || updateRestartModalStage === 'restarting'}
                 onClick={handleToggleBrowserHeadedMode}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${browserHeadedModeEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
               >
@@ -524,13 +524,13 @@ export default function GatewayTab({ ctx }: { ctx: SettingsController }) {
       <div className="flex flex-row items-center justify-between pt-4 gap-2 sm:gap-0">
           <button
             onClick={handleTest}
-            disabled={isLoading}
+            disabled={isGatewayLoading}
             className="inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 border border-gray-200 text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 transition-all disabled:opacity-50"
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {isGatewayLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             {testResult?.success ? <Check className="w-4 h-4 text-green-600" /> : testResult && !testResult.success ? <X className="w-4 h-4 text-red-500" /> : null}
             <span className={testResult?.success ? 'text-green-600 font-semibold' : testResult && !testResult.success ? 'text-red-500 font-semibold' : ''}>
-              {isLoading ? '' : testResult?.success ? t('settings.gateway.connectionSuccess') : testResult && !testResult.success ? (testResult.message || t('settings.gateway.connectionFailed')) : <><span className="sm:hidden">{t('common.test')}</span><span className="hidden sm:inline">{t('settings.gateway.testConnection')}</span></>}
+              {isGatewayLoading ? '' : testResult?.success ? t('settings.gateway.connectionSuccess') : testResult && !testResult.success ? (testResult.message || t('settings.gateway.connectionFailed')) : <><span className="sm:hidden">{t('common.test')}</span><span className="hidden sm:inline">{t('settings.gateway.testConnection')}</span></>}
             </span>
           </button>
 
@@ -555,7 +555,7 @@ export default function GatewayTab({ ctx }: { ctx: SettingsController }) {
             disabled={!canSaveGateway}
             className={`inline-flex items-center gap-2 px-5 sm:px-8 py-2.5 text-sm font-medium rounded-xl text-white transition-all ${ !canSaveGateway ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700' }`}
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : gatewaySaved ? <><Check className="w-4 h-4" /> {t('settings.gateway.saved')}</> : <><span className="sm:hidden">{t('common.save')}</span><span className="hidden sm:inline">{t('settings.gateway.save')}</span></>}
+            {isGatewayLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : gatewaySaved ? <><Check className="w-4 h-4" /> {t('settings.gateway.saved')}</> : <><span className="sm:hidden">{t('common.save')}</span><span className="hidden sm:inline">{t('settings.gateway.save')}</span></>}
           </button>
         </div>
       </div>

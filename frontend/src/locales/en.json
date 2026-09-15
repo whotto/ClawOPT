@@ -259,7 +259,14 @@
     "gatewayDisconnected": "Gateway connection lost",
     "configuredRuntimeStalled": "OpenClaw runtime stopped responding. The run was stopped for inspection.",
     "audioTranscriptionUnavailable": "No usable audio transcription capability is configured",
-    "audioTranscriptionFailed": "Audio transcription failed"
+    "audioTranscriptionFailed": "Audio transcription failed",
+    "commandWhileRunning": "Built-in commands are available once the current reply finishes",
+    "sessionBusy": "This conversation is busy. Try again in a moment",
+    "queueItemNotFound": "This queued message is no longer in the queue",
+    "queueInsertionPending": "Another message is already being inserted. Wait for it to start",
+    "contextWindowTooSmall": "The conversation no longer fits the model's context window. Send /compact to compact it, or raise the context length in model settings and shorten this message",
+    "emptyOutput": "The run finished, but the agent returned no output. Common causes: an invalid provider key, a model that doesn't support this input, or an oversized context. Try again or check the model settings.",
+    "toolCallNotFound": "This tool call record doesn't exist"
   },
   "group": {
     "maxChainDepthReached": "Chain forwarding reached the maximum depth ({{maxDepth}} rounds)",
@@ -337,6 +344,30 @@
     "viewSource": "Source",
     "viewRendered": "Rendered"
   },
+  "filePreviewSafety": {
+    "zipBlocked": "This file failed the safety check, so preview is disabled: {{reason}}. You can still download it.",
+    "zip": {
+      "notZip": "the file is not a valid Office (ZIP) package",
+      "truncated": "the package is truncated or damaged",
+      "multiDisk": "split (multi-volume) packages are not supported",
+      "zip64": "ZIP64 packages are not supported",
+      "tooManyEntries": "the package contains more than 10,000 entries",
+      "entryTooLarge": "an entry would expand to more than 64 MB",
+      "totalTooLarge": "the package would expand to more than 128 MB in total",
+      "suspiciousRatio": "an entry has an abnormally high compression ratio (possible ZIP bomb)",
+      "inconsistent": "the package directory is inconsistent"
+    },
+    "tableTimeout": "Parsing the table took too long and was stopped. Download the file to view it.",
+    "tableSheetsTruncated": "Showing the first {{shown}} of {{total}} sheets.",
+    "tableTruncated": "Showing {{rows}} rows × {{cols}} columns out of {{totalRows}} rows × {{totalCols}} columns.",
+    "tableTruncatedAtLeast": "Showing {{rows}} rows × {{cols}} columns; the sheet has more than {{totalRows}} rows and {{totalCols}} columns.",
+    "tableCellsClipped": "Cells longer than {{chars}} characters are clipped.",
+    "tableEmpty": "This sheet is empty",
+    "htmlSandboxNotice": "Safe preview: scripts, forms and network requests are disabled",
+    "htmlImagesSkipped": "{{count}} image(s) were not loaded (external, oversized, or unavailable)",
+    "htmlFrameTitle": "HTML preview",
+    "htmlPreparing": "Preparing a safe preview..."
+  },
   "unifiedChat": {
     "untitledRole": "Untitled role",
     "imageTooLargeAfterCompression": "Image \"{{name}}\" is too large ({{originalSize}}). It still exceeds the {{limit}} limit after compression.",
@@ -387,7 +418,12 @@
     "sendFailed": "This message could not be sent. Check your connection and try again.",
     "uploadFailed": "Attachment upload failed, so the message was not sent — fix the attachment first, otherwise the file never arrives.",
     "historyLoadFailed": "Chat history did not load this time (it is not lost). Refresh or try again.",
-    "replyMayBeIncomplete": "This reply may be cut off — the connection dropped and the full version could not be recovered from history. Send again or ask it to continue."
+    "replyMayBeIncomplete": "This reply may be cut off — the connection dropped and the full version could not be recovered from history. Send again or ask it to continue.",
+    "resizeComposer": "Drag to resize the message box (double-click to reset)",
+    "attachmentNote": "Add a note for this attachment (sent to the agent too)",
+    "attachmentNoteShort": "Note",
+    "attachmentNotePlaceholder": "Note about {{name}} — press Enter when done",
+    "videoFramesAttached": "{{count}} representative frames extracted from the video will be sent too"
   },
   "messageBubble": {
     "processTitle": "Execution",
@@ -1183,7 +1219,8 @@
     "protocolError": "Communication with the external runtime failed (protocol error).",
     "commandUnsupported": "This runtime does not support that session command.",
     "launchFailed": "The external runtime failed to start.",
-    "capabilityUnsupported": "The installed version of the external runtime lacks a required capability."
+    "capabilityUnsupported": "The installed version of the external runtime lacks a required capability.",
+    "forkSourceUnavailable": "The conversation this one was forked from has no resumable session in the runtime anymore, so the fork cannot continue."
   },
   "runtimeConfig": {
     "redactionMismatch": "Hidden credentials no longer match the file on disk; reload",
@@ -2303,5 +2340,213 @@
     },
     "notFound": "This approval request no longer exists",
     "notActive": "This approval request was already answered or is not active yet"
+  },
+  "chatQueue": {
+    "title": "{{count}} queued",
+    "queue": "Queue",
+    "queueHint": "Don't interrupt the current reply; send this after it, in order",
+    "placeholderWhileRunning": "A reply is in progress. Anything you send now is queued",
+    "sendNow": "Send now",
+    "sendNowHint": "Interrupt the current reply and send this right away",
+    "sendNowIdleHint": "Move to the front and send right away",
+    "cancel": "Remove from queue",
+    "hiddenItem": "(system follow-up)",
+    "queueFailed": "Couldn't queue the message",
+    "cancelFailed": "Couldn't remove the queued message",
+    "insertFailed": "Couldn't send the queued message now",
+    "interrupted": "Interrupted by an inserted message",
+    "phase": {
+      "requesting": "Requesting insertion…",
+      "waiting_for_tool_batch": "Waiting for the current tools to finish…",
+      "stopping_current_turn": "Stopping the current reply…",
+      "starting_queued_message": "Sending the inserted message…"
+    }
+  },
+  "notifications": {
+    "unnamedConversation": "Conversation",
+    "unreadDot": "Finished while you were away",
+    "os": {
+      "runCompletedTitle": "{{name}} finished",
+      "runCompletedBody": "The reply is ready.",
+      "runFailedTitle": "{{name}} failed",
+      "runFailedBody": "The run did not finish. Open the conversation for details.",
+      "approvalTitle": "{{name}} needs your approval",
+      "approvalBody": "Open the conversation to review the request."
+    },
+    "settings": {
+      "title": "Notifications",
+      "hint": "Saved in this browser. System notifications only appear while this tab is in the background; nothing rings for a conversation you are looking at.",
+      "completionSound": "Sound when a reply finishes",
+      "completionOs": "System notification when a reply finishes",
+      "approvalSound": "Sound when an approval is requested",
+      "approvalOs": "System notification when an approval is requested",
+      "test": "Test",
+      "testName": "ClawOPT",
+      "permissionLabel": "System notification permission",
+      "permission": {
+        "granted": "Allowed",
+        "denied": "Blocked",
+        "default": "Not requested yet",
+        "unsupported": "Not supported by this browser"
+      },
+      "requestPermission": "Allow notifications",
+      "permissionDeniedHint": "Allow notifications for this site in the browser settings, then reload."
+    }
+  },
+  "onboarding": {
+    "staleClient": {
+      "message": "ClawOPT has been updated and this page is still running the previous version. Reload to use the new version (unsent input will be lost).",
+      "reload": "Reload page",
+      "later": "Later"
+    },
+    "noProvider": {
+      "manageMessage": "No model provider is available yet: OpenClaw has no models configured and no external agent runtime is installed on this host, so messages will not get a reply.",
+      "askAdminMessage": "No model provider is available yet, so messages will not get a reply. Ask an administrator to configure a model provider.",
+      "openSettings": "Configure models"
+    }
+  },
+  "sessionSearch": {
+    "title": "Search conversations",
+    "placeholder": "Search conversation names and messages…",
+    "sidebarButton": "Search",
+    "recent": "Recent conversations",
+    "results": "{{count}} results",
+    "loading": "Searching…",
+    "error": "Search failed. Try again later",
+    "noRecent": "No conversations yet",
+    "noResults": "No matching conversations or messages",
+    "youPrefix": "You: ",
+    "hintNavigate": "↑↓ to select",
+    "hintOpen": "Enter to open",
+    "hintClose": "Esc to close",
+    "hintShortcuts": "{{search}} search · {{newChat}} new · {{settings}} settings"
+  },
+  "workspaceDiff": {
+    "filesChanged": "{{count}} files changed",
+    "changeType": {
+      "added": "Added",
+      "modified": "Modified",
+      "deleted": "Deleted",
+      "renamed": "Renamed"
+    },
+    "renamedFrom": "Renamed from {{path}}",
+    "binaryShort": "Binary",
+    "showAll": "Show all {{count}}",
+    "showLess": "Show less",
+    "moreFilesNotRecorded": "{{count}} more files exceeded the recording limit",
+    "changeTruncated": "Large change; some content was truncated",
+    "panelTitle": "Workspace changes in this run",
+    "loadingPatch": "Loading diff…",
+    "patchLoadFailed": "Couldn't load the diff",
+    "binaryUnavailable": "Binary file — diff unavailable",
+    "patchNotRecorded": "This file's diff exceeded the recording limit and wasn't saved",
+    "patchTruncated": "Diff too long; truncated",
+    "unchangedLines": "Show {{count}} unchanged lines",
+    "notFound": "This change record doesn't exist",
+    "openFile": "View file"
+  },
+  "sessionOrg": {
+    "organize": "Organize",
+    "recent": "Recent",
+    "allSessions": "All conversations",
+    "archived": "Archived",
+    "uncategorized": "Uncategorized",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "moveTo": "Move to category",
+    "rowMenu": "Organize this conversation",
+    "addCategory": "Add",
+    "newCategoryPlaceholder": "New category name",
+    "renameCategory": "Rename category",
+    "deleteCategory": "Delete category (conversations become uncategorized)",
+    "showRecent": "Show recent conversations",
+    "recentCount": "Number of recent conversations",
+    "humanOnly": "Only conversations created by people (hide diagnosis and automation sessions)",
+    "humanOnlyActive": "People only",
+    "prefsHint": "Sidebar preferences (collapsed groups, Recent count, human-only) are kept in this browser; categories, pins and archive are saved to your account.",
+    "pinned": "Pinned",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "batch": "Select",
+    "exitBatch": "Done",
+    "selectSession": "Select {{name}}",
+    "selectedCount": "{{count}} selected",
+    "deleteSelected": "Delete selected",
+    "confirmDelete": "Confirm deleting {{count}}",
+    "batchDeleted": "Deleted {{count}} conversations",
+    "batchPartial": "Deleted {{count}}; these were not deleted: {{names}}",
+    "batchFailed": "Nothing was deleted: {{names}}",
+    "actionFailed": "Something went wrong. Try again later",
+    "untitled": "Untitled conversation",
+    "titleLabel": "Conversation title",
+    "renameTitle": "Rename conversation",
+    "titleSource": {
+      "auto": "Automatic title (click to rename)",
+      "runtime": "Title proposed by the agent (click to rename)",
+      "manual": "Your title (click to rename)"
+    },
+    "conversationMenu": "Conversation actions",
+    "exportMarkdown": "Export as Markdown",
+    "exportJson": "Export as JSON",
+    "fork": "Fork conversation",
+    "forkFailed": "Couldn't fork the conversation",
+    "forkedFrom": "Forked from {{name}}",
+    "errors": {
+      "categoryNameEmpty": "Category name can't be empty",
+      "categoryNameTooLong": "Category name can be at most 40 characters",
+      "categoryNameTaken": "A category with this name already exists",
+      "categoryNotFound": "Category not found",
+      "sessionNotFound": "Conversation not found",
+      "titleInvalid": "Title must be 1–120 characters",
+      "exportFormatInvalid": "Unsupported export format",
+      "forkUnsupported": "This runtime can't fork its native session",
+      "forkBusy": "A reply is in progress. Fork after it finishes",
+      "forkNothingToFork": "There's no native session to fork yet (finish one turn first)",
+      "batchIdsInvalid": "Select 1–200 conversations"
+    }
+  },
+  "contextUsage": {
+    "usedOfWindow": "Context {{used}} / {{window}} · {{remaining}} left",
+    "usedOnly": "Context {{used}}",
+    "approximate": "(approx.)",
+    "hint": "Tokens used by the most recent model call, as reported by the runtime (including cache)",
+    "compactHint": "Context is almost full: send /compact to let the runtime compact the conversation",
+    "suggestCompact": "Try /compact"
+  },
+  "slashCommands": {
+    "title": "Commands",
+    "compact": "Compact the conversation context (using the runtime's own compaction)",
+    "usage": "Show usage and context occupancy",
+    "context": "Show context occupancy (same as /usage)",
+    "status": "Show the runtime session status",
+    "models": "List available models",
+    "help": "Show help",
+    "clear": "Clear this conversation's history"
+  },
+  "toolTrace": {
+    "count": "{{count}} tools",
+    "failedBadge": "{{count}} failed",
+    "interruptedBadge": "{{count}} interrupted",
+    "interrupted": "Interrupted",
+    "arguments": "Arguments",
+    "result": "Result",
+    "truncated": "Truncated for display ({{count}} characters total)",
+    "copyFull": "Copy full content",
+    "copyFailed": "Copy failed"
+  },
+  "taskPlan": {
+    "title": "Task plan",
+    "progress": "{{completed}} / {{total}} completed",
+    "status": {
+      "pending": "Not started",
+      "in_progress": "In progress",
+      "completed": "Completed"
+    },
+    "banner": {
+      "running": "Running",
+      "unfinished": "Run ended; unfinished steps remain",
+      "interrupted": "Run interrupted",
+      "failed": "Run failed"
+    }
   }
 }

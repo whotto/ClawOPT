@@ -18,6 +18,8 @@ export const CLAUDE_CODE_DESCRIPTOR: RuntimeDescriptor = builtinRuntimeDescripto
 export const CLAUDE_CODE_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  // `--resume <原生 id> --fork-session`：从已确认的原生会话分叉出新会话（原会话不动）。
+  nativeFork: true,
   // headless 下 `--permission-prompts none`：会弹窗的一律拒绝，没有交互式审批。
   approvals: false,
   clarify: false,

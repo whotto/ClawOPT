@@ -259,7 +259,14 @@
     "gatewayDisconnected": "网关连接已断开",
     "configuredRuntimeStalled": "OpenClaw 运行时无响应，已停止本次运行以便检查",
     "audioTranscriptionUnavailable": "当前未配置可用的音频转写能力",
-    "audioTranscriptionFailed": "音频转写失败"
+    "audioTranscriptionFailed": "音频转写失败",
+    "commandWhileRunning": "回复进行中，内建命令要等这一轮结束再用",
+    "sessionBusy": "这个对话正忙，请稍后再发",
+    "queueItemNotFound": "这条排队消息已经不在队列里了",
+    "queueInsertionPending": "已有一条消息正在插入，请等它开始",
+    "contextWindowTooSmall": "上下文超出了模型窗口：先发 /compact 压缩对话，或在模型设置里调大上下文长度、缩短这条输入",
+    "emptyOutput": "这一轮正常结束了，但 Agent 没有返回任何内容。常见原因：服务商密钥无效、模型不支持当前输入、上下文超长。可以重试或检查模型设置。",
+    "toolCallNotFound": "这条工具调用记录不存在"
   },
   "group": {
     "maxChainDepthReached": "链式转发已达到最大深度 ({{maxDepth}} 轮)",
@@ -337,6 +344,30 @@
     "viewSource": "源码",
     "viewRendered": "渲染"
   },
+  "filePreviewSafety": {
+    "zipBlocked": "文件未通过安全检查，已停止预览：{{reason}}。仍可下载查看。",
+    "zip": {
+      "notZip": "不是有效的 Office（ZIP）文件包",
+      "truncated": "文件包不完整或已损坏",
+      "multiDisk": "不支持分卷压缩包",
+      "zip64": "不支持 ZIP64 格式的文件包",
+      "tooManyEntries": "文件包内的条目超过 10000 个",
+      "entryTooLarge": "有条目解压后超过 64 MB",
+      "totalTooLarge": "文件包解压后合计超过 128 MB",
+      "suspiciousRatio": "有条目的压缩比异常偏高（疑似压缩炸弹）",
+      "inconsistent": "文件包目录结构前后不一致"
+    },
+    "tableTimeout": "表格解析耗时过长，已停止。请下载后查看。",
+    "tableSheetsTruncated": "只显示前 {{shown}} 个工作表，共 {{total}} 个。",
+    "tableTruncated": "显示 {{rows}} 行 × {{cols}} 列，全表共 {{totalRows}} 行 × {{totalCols}} 列。",
+    "tableTruncatedAtLeast": "显示 {{rows}} 行 × {{cols}} 列，全表超过 {{totalRows}} 行、共 {{totalCols}} 列。",
+    "tableCellsClipped": "超过 {{chars}} 个字符的单元格已截断。",
+    "tableEmpty": "这个工作表是空的",
+    "htmlSandboxNotice": "安全预览：已禁用脚本、表单与网络请求",
+    "htmlImagesSkipped": "有 {{count}} 张图片未加载（外部地址、过大或无法读取）",
+    "htmlFrameTitle": "HTML 预览",
+    "htmlPreparing": "正在准备安全预览..."
+  },
   "unifiedChat": {
     "untitledRole": "未命名角色",
     "imageTooLargeAfterCompression": "图片 \"{{name}}\" 过大（{{originalSize}}），压缩后仍超过 {{limit}} 限制",
@@ -387,7 +418,12 @@
     "sendFailed": "这条消息没能发出去。检查网络或稍后重试。",
     "uploadFailed": "附件上传失败，消息没有发送——先处理附件再发，免得对方收不到文件。",
     "historyLoadFailed": "聊天记录这次没加载出来（不是记录丢了）。刷新页面或稍后重试。",
-    "replyMayBeIncomplete": "这条回复可能没写完——连接中断了，而且没能从历史里补回完整版本。重新发一次或让它继续。"
+    "replyMayBeIncomplete": "这条回复可能没写完——连接中断了，而且没能从历史里补回完整版本。重新发一次或让它继续。",
+    "resizeComposer": "拖动调整输入框高度（双击恢复）",
+    "attachmentNote": "给这个附件加说明（会一起发给 Agent）",
+    "attachmentNoteShort": "说明",
+    "attachmentNotePlaceholder": "关于 {{name}} 的说明，回车完成",
+    "videoFramesAttached": "已从视频抽取 {{count}} 张代表帧一起发送"
   },
   "messageBubble": {
     "processTitle": "执行过程",
@@ -1183,7 +1219,8 @@
     "protocolError": "与外部运行时的通信协议出错。",
     "commandUnsupported": "这个运行时不支持该会话命令。",
     "launchFailed": "外部运行时启动失败。",
-    "capabilityUnsupported": "所装版本的外部运行时缺少所需能力。"
+    "capabilityUnsupported": "所装版本的外部运行时缺少所需能力。",
+    "forkSourceUnavailable": "分叉来源对话在运行时里已经没有可续的原生会话，这个分叉无法继续。"
   },
   "runtimeConfig": {
     "redactionMismatch": "隐藏的凭据与磁盘上的文件对不上，请重新加载",
@@ -2303,5 +2340,213 @@
     },
     "notFound": "这条审批请求已不存在",
     "notActive": "这条审批请求已被答复，或还没轮到它"
+  },
+  "chatQueue": {
+    "title": "排队中 {{count}} 条",
+    "queue": "排队发送",
+    "queueHint": "不打断当前回复，排到队列里依次发送",
+    "placeholderWhileRunning": "回复进行中，继续输入会排队发送",
+    "sendNow": "立即插入",
+    "sendNowHint": "打断当前回复，马上发送这一条",
+    "sendNowIdleHint": "排到队首，马上发送",
+    "cancel": "取消排队",
+    "hiddenItem": "（系统续跑）",
+    "queueFailed": "排队发送失败",
+    "cancelFailed": "取消排队失败",
+    "insertFailed": "立即插入失败",
+    "interrupted": "已被插入的消息打断",
+    "phase": {
+      "requesting": "正在请求插入…",
+      "waiting_for_tool_batch": "等当前工具跑完…",
+      "stopping_current_turn": "正在停下当前回复…",
+      "starting_queued_message": "正在发送插入的消息…"
+    }
+  },
+  "notifications": {
+    "unnamedConversation": "对话",
+    "unreadDot": "在你离开时已完成",
+    "os": {
+      "runCompletedTitle": "{{name}} 已完成",
+      "runCompletedBody": "回复已经好了。",
+      "runFailedTitle": "{{name}} 运行失败",
+      "runFailedBody": "这一轮没有完成，打开对话查看详情。",
+      "approvalTitle": "{{name}} 在等你批准",
+      "approvalBody": "打开对话查看请求。"
+    },
+    "settings": {
+      "title": "提醒",
+      "hint": "只保存在当前浏览器。系统通知只在本标签页处于后台时弹出；正在看的对话不会提醒。",
+      "completionSound": "回复完成时播放提示音",
+      "completionOs": "回复完成时发系统通知",
+      "approvalSound": "有审批请求时播放提示音",
+      "approvalOs": "有审批请求时发系统通知",
+      "test": "试一下",
+      "testName": "ClawOPT",
+      "permissionLabel": "系统通知权限",
+      "permission": {
+        "granted": "已允许",
+        "denied": "已拦截",
+        "default": "尚未询问",
+        "unsupported": "此浏览器不支持"
+      },
+      "requestPermission": "允许通知",
+      "permissionDeniedHint": "请在浏览器的网站设置里允许通知，然后刷新页面。"
+    }
+  },
+  "onboarding": {
+    "staleClient": {
+      "message": "ClawOPT 已更新，当前页面还是旧版本。刷新后使用新版本（未发送的输入会丢失）。",
+      "reload": "刷新页面",
+      "later": "稍后"
+    },
+    "noProvider": {
+      "manageMessage": "还没有可用的模型服务商：OpenClaw 没有配置任何模型，本机也没有可用的外部 Agent 运行时，发出的消息不会有回复。",
+      "askAdminMessage": "还没有可用的模型服务商，发出的消息不会有回复。请联系管理员配置模型服务商。",
+      "openSettings": "去配置模型"
+    }
+  },
+  "sessionSearch": {
+    "title": "搜索对话",
+    "placeholder": "搜索对话名称与消息内容…",
+    "sidebarButton": "搜索对话",
+    "recent": "最近的对话",
+    "results": "{{count}} 条结果",
+    "loading": "正在搜索…",
+    "error": "搜索失败，请稍后重试",
+    "noRecent": "还没有对话",
+    "noResults": "没有找到匹配的对话或消息",
+    "youPrefix": "你：",
+    "hintNavigate": "↑↓ 选择",
+    "hintOpen": "Enter 打开",
+    "hintClose": "Esc 关闭",
+    "hintShortcuts": "{{search}} 搜索 · {{newChat}} 新建 · {{settings}} 设置"
+  },
+  "workspaceDiff": {
+    "filesChanged": "{{count}} 个文件改动",
+    "changeType": {
+      "added": "新增",
+      "modified": "修改",
+      "deleted": "删除",
+      "renamed": "重命名"
+    },
+    "renamedFrom": "由 {{path}} 重命名",
+    "binaryShort": "二进制",
+    "showAll": "显示全部 {{count}} 个",
+    "showLess": "收起",
+    "moreFilesNotRecorded": "另有 {{count}} 个文件超出记录上限",
+    "changeTruncated": "改动较多，部分内容已截断",
+    "panelTitle": "本轮工作区改动",
+    "loadingPatch": "正在加载差异…",
+    "patchLoadFailed": "差异加载失败",
+    "binaryUnavailable": "二进制文件，无法显示差异",
+    "patchNotRecorded": "这个文件的差异超出记录上限，没有保存",
+    "patchTruncated": "差异过长，已截断",
+    "unchangedLines": "展开 {{count}} 行未改动内容",
+    "notFound": "这条改动记录不存在",
+    "openFile": "查看文件"
+  },
+  "sessionOrg": {
+    "organize": "整理",
+    "recent": "最近",
+    "allSessions": "全部对话",
+    "archived": "已归档",
+    "uncategorized": "未分类",
+    "archive": "归档",
+    "unarchive": "取消归档",
+    "moveTo": "移到分类",
+    "rowMenu": "整理这个对话",
+    "addCategory": "添加",
+    "newCategoryPlaceholder": "新分类名称",
+    "renameCategory": "重命名分类",
+    "deleteCategory": "删除分类（对话回到未分类）",
+    "showRecent": "显示最近的对话",
+    "recentCount": "最近对话数量",
+    "humanOnly": "只看人建的对话（隐藏诊断与自动化会话）",
+    "humanOnlyActive": "只看人建的",
+    "prefsHint": "整理偏好（折叠、Recent 数量、只看人建的）只保存在当前浏览器；分类、置顶与归档按账号保存。",
+    "pinned": "置顶",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "batch": "批量",
+    "exitBatch": "退出批量",
+    "selectSession": "选择 {{name}}",
+    "selectedCount": "已选 {{count}} 个",
+    "deleteSelected": "删除所选",
+    "confirmDelete": "确认删除 {{count}} 个",
+    "batchDeleted": "已删除 {{count}} 个对话",
+    "batchPartial": "已删除 {{count}} 个；以下没有删除：{{names}}",
+    "batchFailed": "没有删除任何对话：{{names}}",
+    "actionFailed": "操作失败，请稍后再试",
+    "untitled": "未命名对话",
+    "titleLabel": "对话标题",
+    "renameTitle": "重命名对话",
+    "titleSource": {
+      "auto": "自动标题（点击重命名）",
+      "runtime": "Agent 提议的标题（点击重命名）",
+      "manual": "手动标题（点击重命名）"
+    },
+    "conversationMenu": "对话操作",
+    "exportMarkdown": "导出为 Markdown",
+    "exportJson": "导出为 JSON",
+    "fork": "分叉对话",
+    "forkFailed": "分叉失败",
+    "forkedFrom": "分叉自 {{name}}",
+    "errors": {
+      "categoryNameEmpty": "分类名称不能为空",
+      "categoryNameTooLong": "分类名称不能超过 40 个字符",
+      "categoryNameTaken": "已有同名分类",
+      "categoryNotFound": "分类不存在",
+      "sessionNotFound": "对话不存在",
+      "titleInvalid": "标题不能为空，且不超过 120 个字符",
+      "exportFormatInvalid": "不支持的导出格式",
+      "forkUnsupported": "这个运行时不支持分叉原生会话",
+      "forkBusy": "回复进行中，结束后再分叉",
+      "forkNothingToFork": "还没有可以分叉的原生会话（先成功对话一轮）",
+      "batchIdsInvalid": "请选择 1–200 个对话"
+    }
+  },
+  "contextUsage": {
+    "usedOfWindow": "上下文 {{used}} / {{window}} · 剩余 {{remaining}}",
+    "usedOnly": "上下文 {{used}}",
+    "approximate": "（约）",
+    "hint": "运行时报告的最近一次模型调用占用（含缓存）",
+    "compactHint": "上下文快满了：发 /compact 让运行时压缩对话",
+    "suggestCompact": "建议 /compact"
+  },
+  "slashCommands": {
+    "title": "命令",
+    "compact": "压缩对话上下文（交给运行时自己的压缩）",
+    "usage": "查看用量与上下文占用",
+    "context": "查看上下文占用（同 /usage）",
+    "status": "查看运行时会话状态",
+    "models": "查看可用模型",
+    "help": "查看帮助",
+    "clear": "清空这个对话的历史"
+  },
+  "toolTrace": {
+    "count": "{{count}} 个工具",
+    "failedBadge": "{{count}} 个失败",
+    "interruptedBadge": "{{count}} 个中断",
+    "interrupted": "已中断",
+    "arguments": "参数",
+    "result": "结果",
+    "truncated": "已截断显示（原长 {{count}} 字符）",
+    "copyFull": "复制完整内容",
+    "copyFailed": "复制失败"
+  },
+  "taskPlan": {
+    "title": "任务计划",
+    "progress": "已完成 {{completed}} / {{total}}",
+    "status": {
+      "pending": "未开始",
+      "in_progress": "进行中",
+      "completed": "已完成"
+    },
+    "banner": {
+      "running": "正在执行",
+      "unfinished": "运行已结束，还有未完成的步骤",
+      "interrupted": "运行被中断",
+      "failed": "运行失败"
+    }
   }
 }

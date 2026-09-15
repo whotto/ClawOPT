@@ -20,47 +20,63 @@ import type { HistoryScroll } from './useHistoryScroll';
 import type { ChatHistoryFetch } from './useChatHistoryFetch';
 import type { GroupEvents } from './useGroupEvents';
 import type { MessageActions } from './useMessageActions';
+import type { ChatRunControl } from './useChatRunControl';
+import { createClientTurnId } from '../run/chatRunState';
+import { buildQuotedMessage, quotableContent } from '../lib/composerCommands';
+import { isSilentFailure, shouldSendOnEnter } from '../lib/composerPrefs';
+import { attachmentNotesMarkdown, extractVideoFrames, pastedFileName, withoutDuplicates, type PendingAttachment } from '../lib/composerAttachments';
+import { swapMessageIds } from '../lib/messageIds';
 
 /** 本段读取的、由前面各段产出的值。 */
 type ComposerActionsContext = Pick<
-  ChatViewState & ChatPresence & MessagePatchQueue & HistoryScroll & ChatHistoryFetch & GroupEvents & MessageActions,
+  ChatViewState & ChatPresence & MessagePatchQueue & HistoryScroll & ChatHistoryFetch & GroupEvents & MessageActions & ChatRunControl,
   't' | 'sessions' | 'isChat' | 'isGroup' | 'activeKey' | 'setMessages' | 'input' | 'setInput' |
   'isLoading' | 'setIsLoading' | 'setSubmitError' | 'setSubmitNotice' | 'currentLocale' | 'setActiveLeafId' | 'editingMessageId' |
-  'pendingFiles' | 'setPendingFiles' | 'isDragging' | 'setIsDragging' | 'quotedMessage' |
+  'pendingFiles' | 'setPendingFiles' | 'pendingFilesRef' | 'frameJobsRef' | 'isDragging' | 'setIsDragging' | 'quotedMessage' |
   'setQuotedMessage' | 'setFileErrorModalOpen' | 'setFileErrorMessage' | 'currentModel' |
   'showCommands' | 'setShowCommands' | 'filteredCommands' | 'commandIndex' | 'setCommandIndex' |
   'setTypingAgents' | 'setGroupRunState' | 'showMentionPopup' | 'setShowMentionPopup' |
   'mentionFilter' | 'setMentionFilter' | 'mentionIndex' | 'setMentionIndex' | 'textareaRef' |
   'abortControllerRef' | 'justSelectedFileRef' | 'dragCounter' | 'forceAutoScrollRef' |
   'currentGroup' | 'activeSessionName' | 'resolveGroupMemberDisplayName' | 'isGroupBusy' |
-  'formatQuoteTime' | 'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
+  'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
   'moveQueuedMessagePatch' | 'scrollToLatestBottom' | 'prepareLatestHistoryWindowForSubmit' |
   'recoverLatestChatMessages' | 'recoverGroupActiveRun' | 'recoverLatestGroupMessages' |
-  'uploadFiles'
+  'uploadFiles' | 'locallyStreamedRefsRef' | 'refreshRunState' | 'requestAttach' | 'waitForRunTerminal'
 >;
 
 export function useComposerActions(c: ComposerActionsContext) {
   const {
     t, sessions, isChat, isGroup, activeKey, setMessages, input, setInput, isLoading, setIsLoading,
-    setSubmitError, setSubmitNotice, currentLocale, setActiveLeafId, editingMessageId, pendingFiles, setPendingFiles, isDragging,
+    setSubmitError, setSubmitNotice, currentLocale, setActiveLeafId, editingMessageId, pendingFiles, setPendingFiles, pendingFilesRef, frameJobsRef, isDragging,
     setIsDragging, quotedMessage, setQuotedMessage, setFileErrorModalOpen, setFileErrorMessage,
     currentModel, showCommands, setShowCommands, filteredCommands, commandIndex, setCommandIndex,
     setTypingAgents, setGroupRunState, showMentionPopup, setShowMentionPopup, mentionFilter,
     setMentionFilter, mentionIndex, setMentionIndex, textareaRef, abortControllerRef,
     justSelectedFileRef, dragCounter, forceAutoScrollRef, currentGroup, activeSessionName,
-    resolveGroupMemberDisplayName, isGroupBusy, formatQuoteTime, flushQueuedMessagePatches,
+    resolveGroupMemberDisplayName, isGroupBusy, flushQueuedMessagePatches,
     queueMessagePatch, dropQueuedMessagePatch, moveQueuedMessagePatch, scrollToLatestBottom,
     prepareLatestHistoryWindowForSubmit, recoverLatestChatMessages, recoverGroupActiveRun,
-    recoverLatestGroupMessages, uploadFiles,
+    recoverLatestGroupMessages, uploadFiles, locallyStreamedRefsRef, refreshRunState, requestAttach, waitForRunTerminal,
   } = c;
+  /** 用户点了停止：这一轮之后空着的气泡不是「静默失败」。 */
+  const userStoppedRef = React.useRef(false);
   // ---- File handling ----
-  const handleFileChange = async (files: File[]) => {
-    if (!files.length) return;
+  const handleFileChange = async (incomingFiles: File[], source: 'picker' | 'paste' | 'drop' = 'picker') => {
+    if (!incomingFiles.length) return;
 
     const IMAGE_TARGET_SIZE = 4_500_000; // 4.5MB target for images
 
-    const processedFiles: {file: File, preview: string}[] = [];
+    const processedFiles: PendingAttachment[] = [];
     const errors: string[] = [];
+    // 粘贴的图片名字都是 image.png 这类通用名：改名，免得一条消息里几张图同名。
+    const taken = new Set(pendingFilesRef.current.map((item) => item.file.name));
+    const files = incomingFiles.map((file) => {
+      if (source !== 'paste') return file;
+      const name = pastedFileName(file, taken);
+      taken.add(name);
+      return name === file.name ? file : new File([file], name, { type: file.type, lastModified: file.lastModified });
+    });
 
     for (const file of files) {
       const category = getFileCategory(file);
@@ -97,14 +113,35 @@ export function useComposerActions(c: ComposerActionsContext) {
     }
 
     // Add successfully processed files
-    if (processedFiles.length > 0) {
+    const fresh = withoutDuplicates(pendingFilesRef.current, processedFiles);
+    if (fresh.length > 0) {
       justSelectedFileRef.current = true;
       setTimeout(() => { justSelectedFileRef.current = false; }, 500);
-      setPendingFiles(prev => [...prev, ...processedFiles]);
+      setPendingFiles(prev => [...prev, ...withoutDuplicates(prev, fresh)]);
+      // 视频：保留原视频，另在浏览器里抽最多 3 张代表帧作为隐藏附件（看不了视频的模型也能看到画面）。
+      for (const item of fresh.filter((entry) => entry.file.type.startsWith('video/'))) {
+        const videoName = item.file.name;
+        const job = extractVideoFrames(item.file).then((frames) => {
+          if (frames.length === 0) return;
+          setPendingFiles(prev => prev.some((entry) => entry.file.name === videoName && !entry.frameOf)
+            ? [...prev, ...frames.map((frame) => ({ file: frame, preview: '', frameOf: videoName }))]
+            : prev);
+        }).finally(() => { frameJobsRef.current.delete(videoName); });
+        frameJobsRef.current.set(videoName, job);
+      }
     }
   };
   const removePendingFile = (index: number) => {
-    setPendingFiles(prev => { const t = prev[index]; if (t.preview) URL.revokeObjectURL(t.preview); return prev.filter((_, i) => i !== index); });
+    setPendingFiles(prev => {
+      const target = prev[index];
+      if (!target) return prev;
+      if (target.preview) URL.revokeObjectURL(target.preview);
+      // 删视频连同它的代表帧一起删。
+      return prev.filter((entry, i) => i !== index && entry.frameOf !== target.file.name);
+    });
+  };
+  const setPendingFileNote = (index: number, note: string) => {
+    setPendingFiles(prev => prev.map((entry, i) => (i === index ? { ...entry, note } : entry)));
   };
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -122,19 +159,59 @@ export function useComposerActions(c: ComposerActionsContext) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation(); setIsDragging(false); dragCounter.current = 0;
     if (editingMessageId) return;
-    if (e.dataTransfer.files?.length > 0) handleFileChange(Array.from(e.dataTransfer.files));
+    if (e.dataTransfer.files?.length > 0) handleFileChange(Array.from(e.dataTransfer.files), 'drop');
   };
   const handlePaste = (e: React.ClipboardEvent) => {
-    if (e.clipboardData?.files.length > 0) { e.preventDefault(); handleFileChange(Array.from(e.clipboardData.files)); }
+    if (e.clipboardData?.files.length > 0) { e.preventDefault(); handleFileChange(Array.from(e.clipboardData.files), 'paste'); }
+  };
+
+  /**
+   * 发出去的正文：附件链接 + 输入；有引用时整条包进 `<quoted_message sender="…">…</quoted_message>` 之后（包裹必须在最前面，
+   * 气泡才认得出来）。命令（以 / 开头）从不带引用。
+   */
+  const composeOutgoingMessage = (uploadedContent: string, currentInput: string, currentQuote: ChatMessage | null, files: PendingAttachment[] = []): string => {
+    const body = [uploadedContent, attachmentNotesMarkdown(files), currentInput].filter(Boolean).join('\n\n');
+    if (!currentQuote) return body;
+    const sender = currentQuote.role === 'user' ? String(t('common.you')) : (currentQuote.agentName || String(t('common.ai')));
+    return buildQuotedMessage({ sender, content: quotableContent(currentQuote.content, currentQuote.role) }, body);
   };
 
   // ---- Send message ----
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || isLoading || isGroupBusy) return;
+    if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || (isLoading && !isChat) || isGroupBusy) return;
     setSubmitError('');
     setSubmitNotice('');
-    const currentInput = input.trim(); const currentFiles = [...pendingFiles]; const currentQuote = quotedMessage;
+    // 视频抽帧还没完成：等它（抽帧失败也会结束），再读最新的待发列表。
+    if (frameJobsRef.current.size > 0) await Promise.all([...frameJobsRef.current.values()]);
+    const currentInput = input.trim(); const currentFiles = [...pendingFilesRef.current]; const currentQuote = quotedMessage;
+
+    if (isChat && isLoading) {
+      // 正在回复：不打断，排进服务端队列（队列面板里可取消、可立即插入）。出队时由会话实时通道补进时间线。
+      setInput(''); setPendingFiles([]); setQuotedMessage(null);
+      const restoreDraft = () => { setInput(currentInput); setPendingFiles(currentFiles); setQuotedMessage(currentQuote); };
+      try {
+        const uploadedContent = await uploadFiles(currentFiles);
+        const fullMessage = composeOutgoingMessage(uploadedContent, currentInput, currentQuote, currentFiles);
+        if (!fullMessage) return;
+        const response = await postChatMessage({ sessionId: activeKey, message: fullMessage, queue: true, clientTurnId: createClientTurnId() });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          restoreDraft();
+          setSubmitError(resolveSubmitError(payload || {}, t, 'chatQueue.queueFailed'));
+          return;
+        }
+        // 判忙与提交之间上一轮刚好结束：这一条直接开始了，接回它的流。
+        if (payload?.started) requestAttach();
+      } catch (error: any) {
+        restoreDraft();
+        setSubmitError(error?.message || String(t('chatQueue.queueFailed')));
+      } finally {
+        void refreshRunState();
+      }
+      return;
+    }
+
     const submitLeafId = prepareLatestHistoryWindowForSubmit();
     setInput(''); setPendingFiles([]); setQuotedMessage(null); setIsLoading(true);
     scrollToLatestBottom();
@@ -162,13 +239,7 @@ export function useComposerActions(c: ComposerActionsContext) {
       };
       try {
         const uploadedContent = await uploadFiles(currentFiles);
-        let textContent = currentInput;
-        if (currentQuote) {
-          const author = currentQuote.role === 'user' ? t('common.you') : (currentQuote.agentName || t('common.ai'));
-          const time = formatQuoteTime(currentQuote.timestamp);
-          textContent = `[引用开始 author="${author}" time="${time}"]\n${currentQuote.content}\n[引用结束]\n\n${currentInput}`.trim();
-        }
-        const fullMessage = [uploadedContent, textContent].filter(Boolean).join('\n\n');
+        const fullMessage = composeOutgoingMessage(uploadedContent, currentInput, currentQuote, currentFiles);
         if (!fullMessage) { setIsLoading(false); return; }
         const parentForUser = submitLeafId || undefined;
         const currentSession = sessions.find(s => s.id === activeKey);
@@ -181,13 +252,23 @@ export function useComposerActions(c: ComposerActionsContext) {
           { id: assistantId, role: 'assistant', content: '', processStreaming: shouldShowProcessPlaceholder, timestamp: new Date(), model: snapshotModel, agentName: snapshotAgentName, parentId: userMessageId },
         ]);
         setActiveLeafId(assistantId);
+        const clientTurnId = createClientTurnId();
+        locallyStreamedRefsRef.current.add(clientTurnId);
         const stream = await openChatTurnStream({
           transport: readChatStreamTransport(),
           sessionId: activeKey,
           client: getRealtimeClient,
-          post: (headers) => postChatMessage({ sessionId: activeKey, message: fullMessage }, controller.signal, headers),
+          // 带 queue：万一另一个标签页刚开始了一轮，这一条排队而不是把那一轮打断。
+          post: (headers) => postChatMessage({ sessionId: activeKey, message: fullMessage, queue: true, clientTurnId }, controller.signal, headers),
           signal: controller.signal,
         });
+        if (stream.ok === 'queued') {
+          locallyStreamedRefsRef.current.delete(clientTurnId);
+          dropAssistantPatches();
+          setMessages(prev => prev.filter(message => message.id !== userMessageId && !assistantTargetIds.has(message.id)));
+          void refreshRunState();
+          return;
+        }
         if (!stream.ok) {
           dropAssistantPatches();
           const fallbackContent = `❌ ${t('common.error')}: ${t('unifiedChat.requestFailed')}`;
@@ -197,6 +278,10 @@ export function useComposerActions(c: ComposerActionsContext) {
         }
         let receivedFinal = false;
         let receivedError = false;
+        let finalFrame: any = null;
+        let accumulatedText = '';
+        let accumulatedProcess = '';
+        userStoppedRef.current = false;
         for await (const evt of stream.events) {
           try {
             if (evt.type === 'ids') {
@@ -204,14 +289,15 @@ export function useComposerActions(c: ComposerActionsContext) {
               const previousAssistantId = resolvedAssistantId;
               const realUserId = String(evt.userMsgId);
               const realAssistantId = String(evt.assistantMsgId);
-              moveQueuedMessagePatch(resolvedUserMsgId, realUserId);
-              moveQueuedMessagePatch(resolvedAssistantId, realAssistantId);
-              setMessages(prev => prev.map(m => {
-                if (m.id === resolvedUserMsgId) return { ...m, id: realUserId };
-                if (m.id === resolvedAssistantId) return { ...m, id: realAssistantId, parentId: realUserId };
-                return m;
-              }));
-              setActiveLeafId(prev => prev === resolvedAssistantId ? realAssistantId : prev);
+              const previousUserId = resolvedUserMsgId;
+              moveQueuedMessagePatch(previousUserId, realUserId);
+              moveQueuedMessagePatch(previousAssistantId, realAssistantId);
+              // 旧 id 先取成常量：更新函数稍后才执行，那时 resolved* 已经是真 id 了（见 lib/messageIds.ts）。
+              setMessages(prev => swapMessageIds(prev, [
+                { from: previousUserId, to: realUserId },
+                { from: previousAssistantId, to: realAssistantId, parentId: realUserId },
+              ]));
+              setActiveLeafId(prev => prev === previousAssistantId ? realAssistantId : prev);
               resolvedUserMsgId = realUserId;
               resolvedAssistantId = realAssistantId;
               assistantTargetIds.add(previousAssistantId);
@@ -219,7 +305,10 @@ export function useComposerActions(c: ComposerActionsContext) {
             } else if (evt.type === 'delta' || evt.type === 'final') {
               if (evt.type === 'final') {
                 receivedFinal = true;
+                finalFrame = evt;
               }
+              if (typeof evt.text === 'string' && evt.text.trim()) accumulatedText = evt.text;
+              if (typeof evt.process_content === 'string' && evt.process_content.trim()) accumulatedProcess = evt.process_content;
               const patch = mapStreamingContentPatch(evt);
               queueAssistantPatch(patch, evt.type === 'final');
             } else if (evt.type === 'error') {
@@ -236,6 +325,16 @@ export function useComposerActions(c: ComposerActionsContext) {
         flushQueuedMessagePatches();
         if (!receivedError) {
           queueAssistantPatch({ processStreaming: false }, true);
+        }
+        const assistantDbId = Number(resolvedAssistantId);
+        if (
+          receivedFinal && !receivedError && Number.isFinite(assistantDbId)
+          && isSilentFailure({ role: finalFrame?.role, messageCode: finalFrame?.messageCode, content: accumulatedText, processContent: accumulatedProcess }, { stopped: userStoppedRef.current || !!abortControllerRef.current?.signal.aborted })
+          && await waitForRunTerminal(assistantDbId, 1500) === 'run.completed'
+        ) {
+          // 正常收尾却什么都没说：不留空气泡，说清楚可能的原因（密钥、模型不支持、上下文超长）。
+          dropAssistantPatches();
+          updateAssistantMessages(message => ({ ...message, role: 'system', content: String(t('chat.emptyOutput')), messageCode: 'chat.emptyOutput', processStreaming: false }));
         }
         if (!receivedFinal && !receivedError && !abortControllerRef.current?.signal.aborted) {
           // 没有终态事件 = 这轮回复没有正常收尾。先回历史对账，
@@ -264,13 +363,7 @@ export function useComposerActions(c: ComposerActionsContext) {
     } else if (isGroup) {
       try {
         const uploadedContent = await uploadFiles(currentFiles);
-        let finalContent = currentInput;
-        if (currentQuote) {
-          const author = currentQuote.role === 'user' ? t('common.you') : (currentQuote.agentName || t('common.ai'));
-          const time = formatQuoteTime(currentQuote.timestamp);
-          finalContent = `[引用开始 author="${author}" time="${time}"]\n${currentQuote.content}\n[引用结束]\n\n${finalContent}`;
-        }
-        const fullMessage = [uploadedContent, finalContent].filter(Boolean).join('\n\n');
+        const fullMessage = composeOutgoingMessage(uploadedContent, currentInput, currentQuote, currentFiles);
         if (!fullMessage) return;
         const response = await postGroupMessage(activeKey, {
             content: fullMessage,
@@ -302,6 +395,7 @@ export function useComposerActions(c: ComposerActionsContext) {
   };
 
   const handleStop = async () => {
+    userStoppedRef.current = true;
     if (isChat && activeKey) {
       try {
         const response = await stopChat(activeKey);
@@ -367,14 +461,14 @@ export function useComposerActions(c: ComposerActionsContext) {
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); setInput(filteredCommands[commandIndex].command + ' '); setShowCommands(false); return; }
       if (e.key === 'Escape') { setShowCommands(false); return; }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (shouldSendOnEnter({ key: e.key, shiftKey: e.shiftKey, isComposing: (e.nativeEvent as KeyboardEvent).isComposing, keyCode: e.keyCode })) {
       if (justSelectedFileRef.current) { justSelectedFileRef.current = false; e.preventDefault(); return; }
       e.preventDefault(); handleSubmit();
     }
   };
 
   return {
-    handleFileChange, removePendingFile, handleDrag, handleDrop, handlePaste, handleSubmit,
+    handleFileChange, removePendingFile, setPendingFileNote, handleDrag, handleDrop, handlePaste, handleSubmit,
     handleStop, handleGroupInputChange, getFilteredMembers, insertMention, handleKeyDown,
   };
 }

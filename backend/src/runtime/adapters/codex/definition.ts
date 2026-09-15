@@ -17,6 +17,7 @@ export const CODEX_DESCRIPTOR: RuntimeDescriptor = builtinRuntimeDescriptor('cod
 export const CODEX_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  nativeFork: false,
   // --dangerously-bypass-approvals-and-sandbox：exec 模式没有可接的审批通道。
   approvals: false,
   clarify: false,

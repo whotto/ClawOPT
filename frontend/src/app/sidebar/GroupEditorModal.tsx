@@ -25,7 +25,7 @@ export default function GroupEditorModal({ groupEditor, sessions }: { groupEdito
     groupSearchQuery, setGroupSearchQuery, toggleGroupMember, activeRoleTab, setActiveRoleTab,
     draggedAgentId, setDraggedAgentId, removeGroupMember, updateGroupMemberRole,
     groupSubmitError, handleCreateGroup, groupIdError,
-    updateGroupMemberRuntime, addRemoteGroupMember, memberRuntimes,
+    updateGroupMemberRuntime, addRemoteGroupMember, memberRuntimes, memberDropdownRef,
   } = groupEditor;
   const [remoteMemberName, setRemoteMemberName] = useState('');
   const remoteRuntimeAvailable = memberRuntimes.some((runtime) => runtime.kind === 'remote');
@@ -136,7 +136,8 @@ export default function GroupEditorModal({ groupEditor, sessions }: { groupEdito
             <label className="block text-sm font-bold text-gray-700 mb-2">
               {t('chat.selectMembers')} ({selectedGroupMembers.length})
             </label>
-            <div className="relative">
+            {/* 点外部收起的判定容器（useGroupEditor 的 mousedown 监听）：必须是成员下拉这一块，而不是别的弹窗里的元素 */}
+            <div className="relative" ref={memberDropdownRef}>
               <div className={`flex items-center w-full px-4 py-2.5 border rounded-xl bg-white transition-colors ${isMemberDropdownOpen ? 'border-blue-400 ring-2 ring-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
                 <Search className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
                 <input

@@ -77,7 +77,7 @@ export interface WorkspaceCheckpoint {
  * begin 在交给运行时之前调用；complete 在投影器落完最终消息（知道 message id）之后调用。
  */
 export interface WorkspaceCheckpointer {
-  begin(input: { sessionKey: string; runId: string; runMarker: string; workspacePath?: string }): Promise<WorkspaceCheckpoint | null>;
+  begin(input: { sessionKey: string; runId: string; runMarker: string; workspacePath?: string; surface?: RunSurface }): Promise<WorkspaceCheckpoint | null>;
   complete(checkpoint: WorkspaceCheckpoint, input: { messageId: string | number | null; outcome: AdapterRunOutcome }): Promise<WorkspaceRunChangeSummary | null>;
 }
 
@@ -128,6 +128,24 @@ export interface RunSubmission<TRequest = unknown> {
   workspacePath?: string;
   /** 队列面板上显示的文字；null 表示不在队列面板展示（系统续跑）。 */
   display?: string | null;
+  /**
+   * 表面给这条提交的引用 id（例如单聊前端生成的 `clientTurnId`）。原样出现在队列视图与 `run.started` 里，
+   * 发起方据此认出「这是我排的那一条」，其他标签页据此去重——协调器不解释它。
+   */
+  ref?: string | null;
+  /**
+   * 真正开始之前（立即开始或出队时）同步调用一次：表面在这一刻落自己的行（排队的消息必须出队时才进时间线，
+   * 否则顺序会乱）。返回的 meta 并进这次运行的 meta（`run.started` 与运行视图里看得见）。
+   * 返回 `request` 时替换这次运行的请求：只用于**开始时刻才定得下来的运行时状态**（例如外部运行时的续话句柄——
+   * 排在前一轮后面的消息要等前一轮成功才知道能不能续），用户选的配置仍按入队快照。
+   * 抛错 = 这一轮按失败收尾（`stop_reason: before_start_failed`），会话回到空闲并继续出队。
+   */
+  beforeStart?: () => { meta?: Record<string, unknown>; request?: TRequest } | void;
+  /**
+   * 投影器落完最终消息之后、出队下一条之前同步调用。表面在这里写「这一轮的结局对下一轮有影响」的状态
+   * （续话句柄可续 / 换新）——放到 `completion` 的 then 里就晚了：出队是同步的，下一轮的 beforeStart 会先跑。
+   */
+  onFinished?: (outcome: AdapterRunOutcome) => void;
   /** 表面自己的附加信息（messageId 等），原样出现在运行视图里。 */
   meta?: Record<string, unknown>;
   /** 这个运行时中止的宽限（缺省用协调器的默认值）。OpenClaw 的 chat.abort 自己就有 5 秒时限。 */
@@ -197,12 +215,35 @@ export interface PendingApprovalView {
   remainingTimeoutMs: number | null;
 }
 
+/**
+ * 「立即插入」状态机（spec 01 §2.7）。每会话至多一个；`generation` 是这一次请求的令牌：
+ * 边界打断这类异步结果回来时令牌已经变了（被取消、被新请求顶掉），结果一律丢弃。
+ */
+export type QueueInsertionPhase = 'requesting' | 'waiting_for_tool_batch' | 'stopping_current_turn' | 'starting_queued_message';
+export type QueueInsertionGuarantee = 'strict' | 'immediate';
+
+export interface QueueInsertionView {
+  generation: string;
+  queueId: string;
+  runId: string | null;
+  runtime: string | null;
+  phase: QueueInsertionPhase;
+  guarantee: QueueInsertionGuarantee;
+  requestedAt: number;
+}
+
+export type InsertNowResult =
+  | { status: 'not_found' }
+  | { status: 'already_pending'; insertion: QueueInsertionView }
+  | { status: 'started' | 'strict' | 'immediate'; generation: string };
+
 export interface SessionSnapshot {
   sessionKey: string;
   activeRun: RunView | null;
   replay: RealtimeEvent[];
   replayDropped: number;
-  queue: Array<{ queueId: string; position: number; display: string | null; enqueuedAt: number }>;
+  queue: Array<{ queueId: string; position: number; display: string | null; enqueuedAt: number; ref: string | null }>;
+  insertion: QueueInsertionView | null;
   pendingInteractions: Array<{
     kind: 'approval' | 'clarify';
     id: string;

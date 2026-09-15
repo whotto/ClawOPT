@@ -11,7 +11,6 @@ import {
   CHAT_REGENERATE_LOOKBACK_LIMIT,
 } from './chat-constants';
 import { createStructuredChatError } from './chat-messages';
-import type { ChatRuns } from './chat-run-managers';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
 import type { SessionRuntime } from './session-runtime';
@@ -19,7 +18,6 @@ import type { SessionRuntime } from './session-runtime';
 export type ChatLifecycleDeps = {
   db: DB;
   sessionManager: SessionManager;
-  chatRuns: ChatRuns;
   runCoordinator: RunCoordinator;
   sessionRuntime: SessionRuntime;
   gatewayConnections: GatewayConnections;
@@ -27,19 +25,17 @@ export type ChatLifecycleDeps = {
 
 export function createChatLifecycle(ctx: ChatLifecycleDeps) {
   const { db, sessionManager } = ctx;
-  const { localChatOperationManager } = ctx.chatRuns;
   const { runCoordinator } = ctx;
   const { bumpSessionInterruptionEpoch, getSessionWorkspacePath } = ctx.sessionRuntime;
   const { disconnectConnection, getConnection } = ctx.gatewayConnections;
 
   // Force overlapping requests for the same session onto a fresh interruption epoch so
   // stale pending work or an older run cannot keep mutating state after a newer send begins.
-  // 网关运行（含准备阶段）在协调器里：中止它并等它收尾——准备阶段的占位行由投影器删掉，
-  // 运行中的以当前文本推终帧。本地操作（直连模型、生图）仍按原来的方式打断。
+  // 网关运行（含准备阶段）、直连模型与生图（P1b 起）都在协调器里：中止它并等它收尾——
+  // 还没出字的占位行由投影器删掉，运行中的以当前文本推终帧。
   async function interruptSessionStreamingStateForNewRun(sessionId: string): Promise<number> {
     const nextEpoch = bumpSessionInterruptionEpoch(sessionId);
     const hadCoordinatorRun = runCoordinator.isBusy(sessionId);
-    const localOperation = localChatOperationManager.get(sessionId);
 
     if (hadCoordinatorRun) {
       try {
@@ -49,19 +45,7 @@ export function createChatLifecycle(ctx: ChatLifecycleDeps) {
       }
     }
 
-    if (localOperation) {
-      localChatOperationManager.abort(sessionId);
-      try {
-        db.deleteMessage(localOperation.messageId);
-      } catch (error) {
-        console.warn(
-          `[chat] Failed to delete interrupted local assistant message ${localOperation.messageId} for session ${sessionId}:`,
-          error,
-        );
-      }
-    }
-
-    if (hadCoordinatorRun || localOperation) {
+    if (hadCoordinatorRun) {
       disconnectConnection(sessionId);
     }
 
@@ -69,7 +53,7 @@ export function createChatLifecycle(ctx: ChatLifecycleDeps) {
   }
 
   async function reconcileInactiveChatLatestMessage(sessionId: string): Promise<void> {
-    if (runCoordinator.isBusy(sessionId) || localChatOperationManager.get(sessionId)) {
+    if (runCoordinator.isBusy(sessionId)) {
       return;
     }
 

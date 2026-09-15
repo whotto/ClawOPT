@@ -10,9 +10,20 @@ import type { RealtimeClient, RealtimeEventMessage } from '../../../api/ws';
 
 export type ChatStreamFrame = Record<string, any>;
 
+/** 发送时会话已经在忙：服务端把这一条排进了队列（请求体带 `queue: true`），POST 回 JSON 而不是流。 */
+export type QueuedChatTurn = { queueId: string; position: number; clientTurnId: string | null };
+
 export type ChatStreamOpenResult =
   | { ok: true; events: AsyncIterable<ChatStreamFrame> }
-  | { ok: false; response: Response };
+  | { ok: false; response: Response }
+  | { ok: 'queued'; queued: QueuedChatTurn };
+
+async function readQueuedTurn(response: Response): Promise<QueuedChatTurn | null> {
+  if (!response.ok || !(response.headers.get('content-type') || '').includes('application/json')) return null;
+  const data = await response.clone().json().catch(() => null) as any;
+  if (data?.queued !== true || typeof data.queueId !== 'string') return null;
+  return { queueId: data.queueId, position: Number(data.position) || 1, clientTurnId: typeof data.clientTurnId === 'string' ? data.clientTurnId : null };
+}
 
 export const CHAT_FRAME_EVENT = 'chat.frame';
 export const CHAT_STREAM_END_EVENT = 'chat.stream.end';
@@ -169,6 +180,8 @@ export async function openChatTurnStream(params: {
 }): Promise<ChatStreamOpenResult> {
   const overSse = async (): Promise<ChatStreamOpenResult> => {
     const response = await params.post({});
+    const queued = await readQueuedTurn(response);
+    if (queued) return { ok: 'queued', queued };
     if (!response.ok || !response.body) return { ok: false, response };
     return { ok: true, events: readSseChatFrames(response) };
   };
@@ -194,6 +207,11 @@ export async function openChatTurnStream(params: {
   if (!response.ok) {
     collector.finish();
     return { ok: false, response };
+  }
+  const queued = await readQueuedTurn(response);
+  if (queued) {
+    collector.finish();
+    return { ok: 'queued', queued };
   }
   const ids = await response.json().catch(() => null) as { userMsgId?: number; assistantMsgId?: number } | null;
   if (!ids || typeof ids.assistantMsgId !== 'number') {

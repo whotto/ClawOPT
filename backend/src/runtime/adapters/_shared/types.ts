@@ -55,6 +55,11 @@ export interface CodingAgentRunRequest {
   sessionId: string;
   /** 表面认为这个会话可以续（上一轮成功）。最终续不续还要过兼容性判定。 */
   resume: boolean;
+  /**
+   * 这个会话是从哪个归属的原生会话分叉出来的（单聊「分叉对话」）。只对声明了 `nativeFork` 的运行时生效：
+   * 自己还没有确认过的原生会话时，适配器读父归属 home 里记下的原生 id，以「续父会话 + 分叉」起这一轮。
+   */
+  forkFrom?: RuntimeHomeOwner;
   provider?: ScopedProvider;
   /** global 模式可选的模型覆盖。 */
   model?: string;

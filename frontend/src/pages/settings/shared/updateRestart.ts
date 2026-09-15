@@ -24,7 +24,7 @@ export const normalizeUpdateRestartSteps = (raw: unknown): UpdateRestartStep[] |
     const status = typeof matched?.status === 'string' ? matched.status.trim() : '';
     return {
       id,
-      status: status === 'running' || status === 'completed' || status === 'failed' ? status : 'pending',
+      status: status === 'running' || status === 'completed' || status === 'skipped' || status === 'failed' ? status : 'pending',
       detail: typeof matched?.detail === 'string' && matched.detail.trim() ? matched.detail.trim() : null,
       updatedAt: typeof matched?.updatedAt === 'string' && matched.updatedAt.trim() ? matched.updatedAt.trim() : null,
     };

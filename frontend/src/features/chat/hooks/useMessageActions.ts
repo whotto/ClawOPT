@@ -19,6 +19,7 @@ import type { ChatPresence } from './useChatPresence';
 import type { MessagePatchQueue } from './useMessagePatchQueue';
 import type { ChatHistoryFetch } from './useChatHistoryFetch';
 import type { GroupEvents } from './useGroupEvents';
+import { swapMessageIds } from '../lib/messageIds';
 
 /** 本段读取的、由前面各段产出的值。 */
 type MessageActionsContext = Pick<
@@ -254,6 +255,7 @@ export function useMessageActions(c: MessageActionsContext) {
             ...(isPersistedMessageId(requestTargetMessageId) ? { targetMessageId: requestTargetMessageId } : {}),
           }, headers),
         });
+        if (stream.ok === 'queued') return; // 重新生成不带 queue，不会排队。
         if (!stream.ok) {
           dropAssistantPatches();
           const fallbackContent = `❌ ${t('common.error')}: ${t('unifiedChat.requestFailed')}`;
@@ -267,9 +269,10 @@ export function useMessageActions(c: MessageActionsContext) {
           try {
             if (evt.type === 'ids' && evt.assistantMsgId) {
               const previousResolvedId = resolvedId;
-              moveQueuedMessagePatch(resolvedId, String(evt.assistantMsgId));
-              setMessages(prev => prev.map(m => m.id === resolvedId ? { ...m, id: String(evt.assistantMsgId) } : m));
-              setActiveLeafId(prev => prev === resolvedId ? String(evt.assistantMsgId) : prev);
+              const realId = String(evt.assistantMsgId);
+              moveQueuedMessagePatch(previousResolvedId, realId);
+              setMessages(prev => swapMessageIds(prev, [{ from: previousResolvedId, to: realId }]));
+              setActiveLeafId(prev => prev === previousResolvedId ? realId : prev);
               resolvedId = String(evt.assistantMsgId);
               assistantTargetIds.add(previousResolvedId);
               assistantTargetIds.add(resolvedId);
@@ -321,7 +324,7 @@ export function useMessageActions(c: MessageActionsContext) {
   };
 
   // ---- Upload files helper ----
-  const uploadFiles = async (filesToUpload: {file: File, preview: string}[]): Promise<string> => {
+  const uploadFiles = async (filesToUpload: Array<{ file: File; preview: string; frameOf?: string }>): Promise<string> => {
     if (filesToUpload.length === 0) return '';
     const fd = new FormData();
     if (isChat) {
@@ -338,6 +341,8 @@ export function useMessageActions(c: MessageActionsContext) {
       return upData.files.map((f: any) => {
         const isImage = f.mimeType?.startsWith('image/');
         const name = f.name || f.originalname || t('common.file');
+        // 视频的代表帧也上传、也给 Agent，但在消息里以普通链接出现（不当成用户手动加的图片缩略图）。
+        if (isImage && filesToUpload.some((item) => item.frameOf && item.file.name === name)) return `[${name}](${f.url})`;
         return isImage ? `![${name}](${f.url})` : `[${name}](${f.url})`;
       }).join('\n');
     }
