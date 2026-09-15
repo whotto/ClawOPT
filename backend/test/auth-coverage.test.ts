@@ -11,32 +11,57 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { buildApp } from '../src/bootstrap';
+import { attachRealtimeServer } from '../src/bootstrap/realtime';
+import { RealtimeHub } from '../src/core/realtime';
 import { AUTH_PUBLIC_PATHS, createAuthMiddleware } from '../src/core/auth';
 import type { RouteRecord } from '../src/core/http';
 import { createStubContext } from './helpers/stub-context';
 
 const configManager = { getConfig: () => ({ loginEnabled: true, allowedHosts: [] }) };
-const authStore = { verify: () => false };
+// 只有这一个令牌是有效的：公开面清单照旧按匿名算，/ws 的正反两面都能验到。
+const authStore = { verify: (token: string) => token === 'valid-session-token' };
 
 let server: http.Server;
 let baseUrl = '';
 let records: RouteRecord[] = [];
+let realtime: ReturnType<typeof attachRealtimeServer>;
 
 beforeAll(async () => {
   // 401 走的是原有错误处理中间件，它会 console.error 每一次——这里只关心状态码。
   vi.spyOn(console, 'error').mockImplementation(() => {});
   const auth = createAuthMiddleware({ configManager, authStore } as any);
-  const ctx = createStubContext({ configManager, authStore, auth });
+  const ctx = createStubContext({ configManager, authStore, auth, realtime: new RealtimeHub() });
   const built = buildApp(ctx);
   records = built.routes.list();
   server = http.createServer(built.app);
+  realtime = attachRealtimeServer(server, ctx);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
 afterAll(async () => {
+  await realtime.close();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
+
+/** 发一个 WebSocket 升级请求，只看服务端回的 HTTP 状态（101 = 升级成功）。 */
+function upgradeStatus(headers: Record<string, string> = {}): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const request = http.request(`${baseUrl}/ws`, {
+      headers: {
+        Connection: 'Upgrade',
+        Upgrade: 'websocket',
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'),
+        ...headers,
+      },
+    });
+    request.on('upgrade', (res, socket) => { socket.destroy(); resolve(res.statusCode ?? 0); });
+    request.on('response', (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+    request.on('error', reject);
+    request.end();
+  });
+}
 
 function concretePath(record: RouteRecord): string {
   if (record.path.startsWith('/^')) return '/openclaw/some/file.txt';
@@ -99,6 +124,22 @@ describe('鉴权覆盖（登录开启、匿名请求）', () => {
       const response = await fetch(`${baseUrl}${concretePath(record)}`, { method: record.method.toUpperCase() });
       expect(response.status, `${record.method} ${record.path}`).toBe(401);
     }
+  });
+
+  it('WebSocket /ws 不在公开面：匿名升级 401，查询串带令牌也不行；cookie 里的会话令牌才放行', async () => {
+    // 它不是 Express 路由，上面两条按登记表逐条打的用例覆盖不到——单独钉住。
+    expect(await upgradeStatus()).toBe(401);
+    const tokenInQuery = await new Promise<number>((resolve, reject) => {
+      const request = http.request(`${baseUrl}/ws?token=valid-session-token`, {
+        headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64') },
+      });
+      request.on('upgrade', (res, socket) => { socket.destroy(); resolve(res.statusCode ?? 0); });
+      request.on('response', (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+      request.on('error', reject);
+      request.end();
+    });
+    expect(tokenInQuery, '查询串令牌会进访问日志，不能被接受').toBe(401);
+    expect(await upgradeStatus({ Cookie: 'clawopt_session=valid-session-token' })).toBe(101);
   });
 
   it('白名单只放行显式列出的路径', () => {

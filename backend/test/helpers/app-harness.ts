@@ -1,5 +1,5 @@
 /**
- * 真组装的应用（真 DB、真路由、真协调器），HOME 指向一次性临时目录，网关换成假网关。
+ * 真组装的应用（真 DB、真路由、真运行协调器，可选真 WebSocket 通道），HOME 指向一次性临时目录，网关换成假网关。
  *
  * 模块在导入时就读 HOME / CLAWOPT_DATA_DIR 算路径，所以必须**先改环境变量再动态导入**。
  * 关闭时恢复环境变量并删掉临时目录。
@@ -36,9 +36,10 @@ export async function startAppHarness(options: { openclawConfig?: Record<string,
   const ctx = createAppContext();
   const { app } = buildApp(ctx);
   const server = http.createServer(app);
+  let realtimeServer: { close: () => Promise<void> } | null = null;
   if (options.attachRealtime) {
     const { attachRealtimeServer } = await import('../../src/bootstrap/realtime');
-    attachRealtimeServer(server, ctx);
+    realtimeServer = attachRealtimeServer(server, ctx);
   }
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -49,6 +50,8 @@ export async function startAppHarness(options: { openclawConfig?: Record<string,
     ctx,
     server,
     close: async () => {
+      // 升级后的 WebSocket 连接不在 HTTP 的连接表里，要先关实时通道，否则 server.close 会一直等。
+      await realtimeServer?.close();
       server.closeAllConnections?.();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       process.env.HOME = previous.HOME;

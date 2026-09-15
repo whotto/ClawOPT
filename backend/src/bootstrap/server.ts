@@ -11,6 +11,7 @@ import { startupTasksStatePath } from '../core/paths';
 import { buildApp } from './app';
 import { createAppContext } from './context';
 import { createReadiness } from './health';
+import { attachRealtimeServer } from './realtime';
 import { createShutdownRegistry } from './shutdown';
 import { runStartupSteps } from './startup-steps';
 import { runStartupTasks, STARTUP_TASKS } from './startup-tasks';
@@ -29,6 +30,7 @@ export async function startServer() {
 
   const { app, routes } = buildApp(ctx, { readiness });
   const server = createServer(app);
+  const realtimeServer = attachRealtimeServer(server, ctx);
 
   shutdown.register({
     name: 'openclaw-gateway-connections',
@@ -47,6 +49,10 @@ export async function startServer() {
       server.closeIdleConnections();
     }),
     forceClose: () => server.closeAllConnections(),
+  });
+  shutdown.register({
+    name: 'realtime-websocket',
+    close: () => realtimeServer.close(),
   });
   shutdown.register({
     name: 'run-coordinator',

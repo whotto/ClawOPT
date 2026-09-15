@@ -3,6 +3,7 @@ export {
   clearAuthCookie,
   createAuthMiddleware,
   issueAuthCookie,
+  readHeadersAuthToken,
   readRequestAuthToken,
 } from './auth-middleware';
 export type {

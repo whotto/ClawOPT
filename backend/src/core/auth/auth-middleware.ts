@@ -1,4 +1,5 @@
 import express from 'express';
+import type { IncomingHttpHeaders } from 'http';
 
 import type { ConfigManager } from '../config';
 import { AUTH_LOGIN_REQUIRED_ERROR_CODE, StructuredRequestError } from '../http';
@@ -6,16 +7,25 @@ import { normalizeCliText } from '../util';
 import { AUTH_COOKIE_NAME, type AuthStore, readCookie } from './auth-store';
 
 export function readRequestAuthToken(req: express.Request): string {
-  const forwarded = req.header('x-clawopt-auth-token');
+  return readHeadersAuthToken(req.headers);
+}
+
+/**
+ * 从请求头里取令牌。HTTP 请求与 WebSocket 升级请求共用这一处——两条通道的判据不许分家。
+ * **不读查询串**：查询串会进访问日志、代理日志和浏览器历史。
+ */
+export function readHeadersAuthToken(headers: IncomingHttpHeaders): string {
+  const forwardedHeader = headers['x-clawopt-auth-token'];
+  const forwarded = Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader;
   if (forwarded) return normalizeCliText(forwarded);
-  const authorization = normalizeCliText(req.header('authorization'));
+  const authorization = normalizeCliText(headers.authorization);
   if (authorization.toLowerCase().startsWith('bearer ')) {
     return authorization.slice(7).trim();
   }
-  // Cookie 是 Web 端的主通道：SSE 的 EventSource 设不了自定义头，而前端有 80 处
-  // fetch 调用点——逐个加头既慢又必漏。同源请求自动带 cookie，一次覆盖全部。
+  // Cookie 是 Web 端的主通道：SSE 的 EventSource 与浏览器的 WebSocket 都设不了自定义头，
+  // 而前端有 80 处 fetch 调用点——逐个加头既慢又必漏。同源请求自动带 cookie，一次覆盖全部。
   // 头这条保留给 CLI 与脚本（CLAWOPT_TOKEN）。
-  return readCookie(req.headers.cookie, AUTH_COOKIE_NAME);
+  return readCookie(headers.cookie, AUTH_COOKIE_NAME);
 }
 
 export function issueAuthCookie(res: express.Response, token: string, maxAgeMs: number): void {
@@ -78,9 +88,17 @@ export function createAuthMiddleware(ctx: AuthMiddlewareDeps) {
     return next(new StructuredRequestError(401, AUTH_LOGIN_REQUIRED_ERROR_CODE, 'Login is required to perform this action.'));
   }
 
+  /** WebSocket 升级与连接期间的复查用：登录关闭时一律放行，开启时校验会话令牌。 */
+  function isAuthenticatedHeaders(headers: IncomingHttpHeaders): boolean {
+    const config = configManager.getConfig();
+    if (!config.loginEnabled) return true;
+    return authStore.verify(readHeadersAuthToken(headers));
+  }
+
   return {
     requireAdminAuth,
     requireSessionAuth,
+    isAuthenticatedHeaders,
   };
 }
 export type AuthMiddleware = ReturnType<typeof createAuthMiddleware>;

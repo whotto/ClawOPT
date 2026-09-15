@@ -12,7 +12,6 @@
 import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
-import net from 'net';
 import path from 'path';
 
 import { registerAuthGate, registerAuthRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
@@ -36,6 +35,7 @@ import { registerChatRoutes, registerSessionListRoutes, registerSessionRoutes } 
 import { registerRoomRoutes } from '../collab/rooms';
 import type { AppContext } from './context';
 import { createReadiness, registerHealthRoutes, type Readiness } from './health';
+import { isRequestHostAllowed, requestHostName } from './host-check';
 
 /** 前端产物目录。相对 `backend/src/bootstrap`（ts-node）与 `backend/dist/bootstrap`（编译后）同为三级。 */
 const FRONTEND_DIST_DIR = path.join(__dirname, '../../../frontend/dist');
@@ -72,22 +72,11 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
 
   // Host checking middleware for reverse proxies
   bootstrapApp.use((req, res, next) => {
-    const reqHost = (req.headers['x-forwarded-host'] || req.headers.host || '') as string;
-    const hostName = reqHost.split(':')[0]; // get hostname without port
-
-    // Allow local connections and pure IPs
-    if (!hostName || hostName === 'localhost' || hostName === '127.0.0.1' || net.isIP(hostName)) {
+    const hostName = requestHostName(req.headers);
+    if (isRequestHostAllowed(req.headers, configManager.getConfig().allowedHosts)) {
       return next();
     }
-
-    const config = configManager.getConfig();
-    const allowedHosts = config.allowedHosts || [];
-
-    if (!allowedHosts.includes(hostName)) {
-      return res.status(403).send(`Blocked request. This host ("${hostName}") is not allowed.`);
-    }
-
-    next();
+    return res.status(403).send(`Blocked request. This host ("${hostName}") is not allowed.`);
   });
 
   registerHealthRoutes(bootstrapApp, { readiness, connections: ctx.connections });
