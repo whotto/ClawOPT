@@ -107,6 +107,8 @@ export interface TurnDriverContext {
   command: SessionCommand;
   prepared: PreparedLaunch;
   resume: ResumeDecision;
+  /** 通过了运行前探测的 MCP 服务（ACP 类运行时经 session/new 注入）。 */
+  mcpServers: ManagedMcpServer[];
   emitter: TurnEmitter;
   /** 审批、澄清这类控制事件。 */
   emitControl(event: CanonicalEvent): void;
@@ -385,6 +387,7 @@ export function createCodingAgentAdapter(definition: RuntimeDefinition, deps: Co
             command,
             prepared: launchedPrepared,
             resume: decision,
+            mcpServers: mcp.servers,
             emitter,
             emitControl: (event) => onAdapterEvent(event),
             io,
