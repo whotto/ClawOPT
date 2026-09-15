@@ -1,0 +1,61 @@
+$ /usr/local/bin/cli
+  "--output-format"
+  "streaming-json"
+  "--always-approve"
+  "--no-auto-update"
+  "--model"
+  "clawopt"
+  "--reasoning-effort"
+  "low"
+  "--session-id"
+  "11111111-1111-4111-8111-111111111111"
+  "--prompt-file"
+  "/data/clawopt/runtime/grok/2b46da50e52b8a2b5406b373aae6f55b/turn-prompt-run_1.md"
+  "--cwd"
+  "/work/project"
+cwd: /work/project
+stdin: ignore
+env:
+  CLAWOPT_GROK_API_KEY=clawopt_proxy_token_abcdefghijkl
+  GROK_DISABLE_AUTOUPDATER=1
+  GROK_HOME=/data/clawopt/runtime/grok/2b46da50e52b8a2b5406b373aae6f55b/grok-home
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  PATH=/usr/local/bin:/usr/bin:/bin
+
+--- /data/clawopt/runtime/grok/2b46da50e52b8a2b5406b373aae6f55b/grok-home/AGENTS.md (600)
+Runtime model identity:
+- Grok Build is only the agent harness for this conversation; the model answering is "deepseek-v4" served by provider "deepseek".
+- If asked which model you are, report that model id, not a Grok model.
+
+# 用户 Grok 指令
+
+<!-- BEGIN CLAWOPT PROMPT -->
+托管规则
+<!-- END CLAWOPT PROMPT -->
+
+--- /data/clawopt/runtime/grok/2b46da50e52b8a2b5406b373aae6f55b/grok-home/config.toml (600)
+[ui]
+screen_mode = "minimal"
+
+[cli]
+auto_update = false
+
+[models]
+default = "clawopt"
+session_summary = "clawopt"
+default_reasoning_effort = "low"
+
+[model.clawopt]
+model = "deepseek-v4"
+name = "deepseek-v4"
+base_url = "http://127.0.0.1:3150/api/codex-proxy/route_1/v1"
+env_key = "CLAWOPT_GROK_API_KEY"
+api_backend = "responses"
+context_window = 200000
+max_completion_tokens = 16384
+
+[mcp_servers.clawopt-api]
+command = "node"
+args = ["mcp.mjs"]
+startup_timeout_sec = 120

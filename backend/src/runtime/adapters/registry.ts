@@ -9,12 +9,14 @@ import { createCodingAgentAdapter, type CodingAgentRuntimeAdapter, type RuntimeD
 import type { CodingAgentAdapterDeps } from './_shared/types';
 import { CLAUDE_CODE_DEFINITION } from './claude-code';
 import { CODEX_DEFINITION } from './codex';
+import { GROK_DEFINITION } from './grok';
 import { PI_DEFINITION } from './pi';
 
 export const CODING_AGENT_DEFINITIONS: readonly RuntimeDefinition[] = [
   CLAUDE_CODE_DEFINITION,
   CODEX_DEFINITION,
   PI_DEFINITION,
+  GROK_DEFINITION,
 ];
 
 export type CodingAgentAdapterLookup = (runtime: string) => CodingAgentRuntimeAdapter | undefined;

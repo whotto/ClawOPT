@@ -46,7 +46,7 @@ export class MemoryFs implements RuntimeFs {
   }
 
   seedDir(dirPath: string): this {
-    this.dirs.add(dirPath);
+    for (let dir = dirPath; dir !== path.dirname(dir); dir = path.dirname(dir)) this.dirs.add(dir);
     return this;
   }
 
