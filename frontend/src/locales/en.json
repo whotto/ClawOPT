@@ -2303,5 +2303,17 @@
     },
     "notFound": "This approval request no longer exists",
     "notActive": "This approval request was already answered or is not active yet"
+  },
+  "onboarding": {
+    "staleClient": {
+      "message": "ClawOPT has been updated and this page is still running the previous version. Reload to use the new version (unsent input will be lost).",
+      "reload": "Reload page",
+      "later": "Later"
+    },
+    "noProvider": {
+      "manageMessage": "No model provider is available yet: OpenClaw has no models configured and no external agent runtime is installed on this host, so messages will not get a reply.",
+      "askAdminMessage": "No model provider is available yet, so messages will not get a reply. Ask an administrator to configure a model provider.",
+      "openSettings": "Configure models"
+    }
   }
 }

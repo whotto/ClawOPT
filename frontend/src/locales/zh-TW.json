@@ -2303,5 +2303,17 @@
     },
     "notFound": "這條審批請求已不存在",
     "notActive": "這條審批請求已被答覆，或還沒輪到它"
+  },
+  "onboarding": {
+    "staleClient": {
+      "message": "ClawOPT 已更新，目前頁面仍是舊版本。重新整理後使用新版本（未送出的輸入會遺失）。",
+      "reload": "重新整理頁面",
+      "later": "稍後"
+    },
+    "noProvider": {
+      "manageMessage": "還沒有可用的模型服務商：OpenClaw 未設定任何模型，本機也沒有可用的外部 Agent 執行環境，送出的訊息不會有回覆。",
+      "askAdminMessage": "還沒有可用的模型服務商，送出的訊息不會有回覆。請聯絡管理員設定模型服務商。",
+      "openSettings": "前往設定模型"
+    }
   }
 }

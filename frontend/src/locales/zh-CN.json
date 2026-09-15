@@ -2303,5 +2303,17 @@
     },
     "notFound": "这条审批请求已不存在",
     "notActive": "这条审批请求已被答复，或还没轮到它"
+  },
+  "onboarding": {
+    "staleClient": {
+      "message": "ClawOPT 已更新，当前页面还是旧版本。刷新后使用新版本（未发送的输入会丢失）。",
+      "reload": "刷新页面",
+      "later": "稍后"
+    },
+    "noProvider": {
+      "manageMessage": "还没有可用的模型服务商：OpenClaw 没有配置任何模型，本机也没有可用的外部 Agent 运行时，发出的消息不会有回复。",
+      "askAdminMessage": "还没有可用的模型服务商，发出的消息不会有回复。请联系管理员配置模型服务商。",
+      "openSettings": "去配置模型"
+    }
   }
 }
