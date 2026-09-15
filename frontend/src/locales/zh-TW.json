@@ -2595,5 +2595,40 @@
     "childrenTitle": "子程序",
     "childrenSub": "{{count}} 個，合計 {{rss}}",
     "noChildren": "ClawOPT 目前沒有子程序"
+  },
+  "journey": {
+    "title": "成長軌跡",
+    "description": "一個 Agent 隨時間記住了什麼、學會了什麼：工作區 MEMORY.md 的日期小節與每日紀錄、技能目錄、記憶卡片。技能只有經寫入審批落地的才標「Agent 自己寫的」，其餘如實寫來源未知。",
+    "loadFailed": "讀取成長軌跡失敗",
+    "noAgents": "沒有可檢視的 Agent",
+    "agent": "Agent",
+    "category": "類別",
+    "allCategories": "全部類別",
+    "search": "搜尋標題或內容",
+    "kind": {
+      "memory": "記憶小節",
+      "daily": "每日紀錄",
+      "skill": "技能",
+      "card": "記憶卡片"
+    },
+    "restart": "從頭",
+    "play": "時間回放",
+    "pause": "暫停",
+    "showAll": "顯示全部",
+    "timeline": "回放進度",
+    "statMemory": "記憶 {{count}} 筆",
+    "statSkills": "技能 {{count}} 個（Agent 自己寫的 {{agent}} 個）",
+    "statCards": "記憶卡片 {{count}} 張",
+    "noWorkspace": "這個 Agent 沒有可讀的工作區（例如外部執行環境），只顯示記憶卡片。",
+    "truncated": "技能太多，只顯示前 500 個。",
+    "empty": "還沒有可顯示的成長紀錄",
+    "selectHint": "點選一個節點檢視詳情，與它相連的節點會高亮。",
+    "byAgent": "Agent 自己寫的",
+    "byPending": "待審批",
+    "byUnknown": "來源未知",
+    "at": "時間",
+    "modifiedAt": "最後修改",
+    "categoryLabel": "類別",
+    "source": "出處"
   }
 }

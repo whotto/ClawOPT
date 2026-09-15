@@ -358,10 +358,16 @@ export {
   registerWriteGateRoutes,
 } from './write-gate/write-gate-routes';
 export {
+  JOURNEY_MAX_FILE_BYTES,
   createJourneyService,
+  parseDatedMemorySections,
+  parseSkillFrontmatter,
 } from './journey/journey-service';
 export type {
+  JourneyDeps,
+  JourneyEdge,
   JourneyGraph,
+  JourneyNode,
   JourneyService,
 } from './journey/journey-service';
 export {
@@ -371,10 +377,21 @@ export type {
   JourneyRoutesDeps,
 } from './journey/journey-routes';
 export {
+  DEFAULT_THEME,
+  THEME_BACKGROUND_MAX_BYTES,
+  THEME_FONT_SIZE_MAX,
+  THEME_FONT_SIZE_MIN,
+  THEME_MODES,
   createThemeService,
+  normalizeHexColor,
+  parseThemeInput,
+  sniffBackgroundMime,
+  themeUserKey,
 } from './theme/theme-service';
 export type {
+  ThemeMode,
   ThemeService,
+  UserTheme,
 } from './theme/theme-service';
 export {
   registerThemeRoutes,
@@ -383,10 +400,19 @@ export type {
   ThemeRoutesDeps,
 } from './theme/theme-routes';
 export {
+  cpuPercentBetween,
+  cpuTimes,
   createPerformanceService,
+  descendantsOf,
+  parseMeminfoAvailable,
+  parsePsOutput,
+  parseVmStatAvailable,
 } from './performance/performance-service';
 export type {
+  PerformanceDeps,
   PerformanceService,
+  PerformanceSnapshot,
+  ProcessRow,
 } from './performance/performance-service';
 export {
   registerPerformanceRoutes,

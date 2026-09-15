@@ -2595,5 +2595,40 @@
     "childrenTitle": "子进程",
     "childrenSub": "{{count}} 个，合计 {{rss}}",
     "noChildren": "ClawOPT 当前没有子进程"
+  },
+  "journey": {
+    "title": "成长轨迹",
+    "description": "一个 Agent 随时间记住了什么、学会了什么：工作区 MEMORY.md 的日期小节与每日记录、技能目录、记忆卡片。技能只有经写入审批落地的才标「Agent 自己写的」，其余如实写来源未知。",
+    "loadFailed": "读取成长轨迹失败",
+    "noAgents": "没有可查看的 Agent",
+    "agent": "Agent",
+    "category": "类别",
+    "allCategories": "全部类别",
+    "search": "搜索标题或内容",
+    "kind": {
+      "memory": "记忆小节",
+      "daily": "每日记录",
+      "skill": "技能",
+      "card": "记忆卡片"
+    },
+    "restart": "从头",
+    "play": "时间回放",
+    "pause": "暂停",
+    "showAll": "显示全部",
+    "timeline": "回放进度",
+    "statMemory": "记忆 {{count}} 条",
+    "statSkills": "技能 {{count}} 个（Agent 自己写的 {{agent}} 个）",
+    "statCards": "记忆卡片 {{count}} 张",
+    "noWorkspace": "这个 Agent 没有可读的工作区（例如外部运行时），只显示记忆卡片。",
+    "truncated": "技能太多，只显示前 500 个。",
+    "empty": "还没有可显示的成长记录",
+    "selectHint": "点选一个节点查看详情，与它相连的节点会高亮。",
+    "byAgent": "Agent 自己写的",
+    "byPending": "待审批",
+    "byUnknown": "来源未知",
+    "at": "时间",
+    "modifiedAt": "最后修改",
+    "categoryLabel": "类别",
+    "source": "出处"
   }
 }

@@ -2595,5 +2595,40 @@
     "childrenTitle": "Child processes",
     "childrenSub": "{{count}} total, {{rss}}",
     "noChildren": "ClawOPT has no child processes right now"
+  },
+  "journey": {
+    "title": "Growth journey",
+    "description": "What an agent remembered and learned over time: dated sections of MEMORY.md and daily notes in its workspace, its skills folder, and memory cards. A skill is marked as written by the agent only when it landed through the write gate; otherwise its origin is shown as unknown.",
+    "loadFailed": "Failed to load the growth journey",
+    "noAgents": "No agents available to view",
+    "agent": "Agent",
+    "category": "Category",
+    "allCategories": "All categories",
+    "search": "Search titles or content",
+    "kind": {
+      "memory": "Memory section",
+      "daily": "Daily note",
+      "skill": "Skill",
+      "card": "Memory card"
+    },
+    "restart": "Restart",
+    "play": "Play timeline",
+    "pause": "Pause",
+    "showAll": "Show all",
+    "timeline": "Playback position",
+    "statMemory": "{{count}} memory entries",
+    "statSkills": "{{count}} skills ({{agent}} written by the agent)",
+    "statCards": "{{count}} memory cards",
+    "noWorkspace": "This agent has no readable workspace (for example an external runtime), so only memory cards are shown.",
+    "truncated": "Too many skills; only the first 500 are shown.",
+    "empty": "Nothing to show yet",
+    "selectHint": "Select a node to see details; connected nodes are highlighted.",
+    "byAgent": "Written by the agent",
+    "byPending": "Pending approval",
+    "byUnknown": "Origin unknown",
+    "at": "Time",
+    "modifiedAt": "Last modified",
+    "categoryLabel": "Category",
+    "source": "Source"
   }
 }

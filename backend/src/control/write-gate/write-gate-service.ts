@@ -146,6 +146,32 @@ export function createWriteGateService(deps: WriteGateDeps) {
 
   const key = (agentId: string, relPath: string) => `${agentId}\u0000${relPath}`;
 
+  // P6：审批结论留一份历史（批准 / 空补丁 / 拒绝）。成长轨迹据此判「这个技能是 Agent 自己写的、经审批落地」；
+  // 待审记录批完即删，没有这张表就无从追溯。只加表，不改既有表与流程。
+  sql.exec(`
+    CREATE TABLE IF NOT EXISTS write_gate_history (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL,
+      rel_path TEXT NOT NULL,
+      action TEXT NOT NULL,
+      origin TEXT NOT NULL,
+      decision TEXT NOT NULL CHECK (decision IN ('approved', 'noop', 'rejected')),
+      staged_at INTEGER NOT NULL,
+      decided_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_write_gate_history_agent ON write_gate_history(agent_id, decided_at);
+  `);
+  const recordDecision = (row: PendingWriteRow, decision: 'approved' | 'noop' | 'rejected') => {
+    sql.prepare('INSERT OR REPLACE INTO write_gate_history (id, agent_id, rel_path, action, origin, decision, staged_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(row.id, row.agent_id, row.rel_path, actionOf(row), row.origin, decision, row.created_at, now());
+  };
+
+  /** 审批历史（新到旧）。 */
+  function listHistory(agentId: string, limit = 500): Array<{ id: string; agentId: string; relPath: string; action: string; origin: string; decision: string; stagedAt: number; decidedAt: number }> {
+    const rows = sql.prepare('SELECT * FROM write_gate_history WHERE agent_id = ? ORDER BY decided_at DESC LIMIT ?').all(agentId, Math.max(1, Math.min(5000, limit))) as Array<{ id: string; agent_id: string; rel_path: string; action: string; origin: string; decision: string; staged_at: number; decided_at: number }>;
+    return rows.map((row) => ({ id: row.id, agentId: row.agent_id, relPath: row.rel_path, action: row.action, origin: row.origin, decision: row.decision, stagedAt: row.staged_at, decidedAt: row.decided_at }));
+  }
+
   function isEnabled(agentId: string): boolean {
     const row = sql.prepare('SELECT enabled FROM write_gate_settings WHERE agent_id = ?').get(agentId) as { enabled: number } | undefined;
     return row?.enabled === 1;
@@ -397,6 +423,7 @@ export function createWriteGateService(deps: WriteGateDeps) {
       if (currentHash === row.proposed_hash) {
         sql.prepare('DELETE FROM write_gate_pending WHERE id = ?').run(id);
         setBaseline(row.agent_id, row.rel_path, current);
+        recordDecision(row, 'noop');
         return { applied: false, noOp: true };
       }
       if (currentHash !== row.base_hash) throw new ControlInputError('writeGate.baseChanged', 409);
@@ -413,6 +440,7 @@ export function createWriteGateService(deps: WriteGateDeps) {
       sql.prepare('DELETE FROM write_gate_pending WHERE id = ?').run(id);
       const stillThere = sql.prepare('SELECT 1 FROM write_gate_pending WHERE id = ?').get(id);
       if (stillThere) throw new ControlInputError('writeGate.approveNotVerified', 500);
+      recordDecision(row, 'approved');
       return { applied: true, noOp: false };
     });
   }
@@ -420,13 +448,14 @@ export function createWriteGateService(deps: WriteGateDeps) {
   async function reject(id: string) {
     const initial = getRow(id);
     return serialized(initial.workspace_dir, async () => {
-      getRow(id);
+      const row = getRow(id);
       sql.prepare('DELETE FROM write_gate_pending WHERE id = ?').run(id);
+      recordDecision(row, 'rejected');
       return { rejected: true };
     });
   }
 
-  return { listSettings, setEnabled, isEnabled, start, stop, handleChange, acknowledgeWrite, listPending, review, approve, reject };
+  return { listSettings, setEnabled, isEnabled, start, stop, handleChange, acknowledgeWrite, listPending, listHistory, review, approve, reject };
 }
 
 export type WriteGateService = ReturnType<typeof createWriteGateService>;
