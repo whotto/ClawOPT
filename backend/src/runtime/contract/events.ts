@@ -71,8 +71,22 @@ export interface ClarifyRequestInput {
 
 export interface WorkspaceRunChangeSummary {
   changeId: string;
-  files: Array<{ path: string; changeType: 'added' | 'modified' | 'deleted' | 'renamed'; additions: number; deletions: number }>;
+  files: Array<{
+    path: string;
+    changeType: 'added' | 'modified' | 'deleted' | 'renamed';
+    additions: number;
+    deletions: number;
+    /** P1b 起：改名前的路径、二进制、patch 被截断。 */
+    oldPath?: string | null;
+    binary?: boolean;
+    truncated?: boolean;
+  }>;
   truncated: boolean;
+  /** P1b 起：挂在哪条消息上、改动文件总数（可能多于 files）、增删行合计。 */
+  messageId?: string | null;
+  fileCount?: number;
+  additions?: number;
+  deletions?: number;
 }
 
 /**

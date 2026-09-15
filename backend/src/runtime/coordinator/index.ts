@@ -62,3 +62,12 @@ export type {
   WorkspaceCheckpoint,
   WorkspaceCheckpointer,
 } from './types';
+export {
+  WORKSPACE_DIFF_LIMITS,
+  createWorkspaceDiffCheckpointer,
+} from './workspace-diff';
+export type {
+  WorkspaceDiffCheckpointerOptions,
+  WorkspaceDiffLimits,
+  WorkspaceDiffStore,
+} from './workspace-diff';

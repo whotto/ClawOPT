@@ -57,6 +57,7 @@ export type {
 export {
   RUN_APPROVALS_TOPIC,
   RunCoordinator,
+  createWorkspaceDiffCheckpointer,
 } from './coordinator';
 export type {
   AbortResult,

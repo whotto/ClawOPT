@@ -61,8 +61,13 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
  * 60 → 61（P2-platform）：`runtime/platform-store.ts::readPrivateText` 是运行时平面
  * （代理恢复文件、本机密钥、更新策略、成员密钥、原生配置文件编辑器）唯一的读入口。路径要么是 ClawOPT 自己数据目录下的
  * 固定文件，要么来自运行时描述符里写死的原生配置路径表，不来自请求数据；读之前 stat 判普通文件（不跟命名管道较劲）。
+ *
+ * 61 → 62（P1b 工作区 diff）：`runtime/coordinator/workspace-diff/workspace-fs.ts::probeWorkspaceFile` 是工作区 diff 读文件的唯一入口。
+ * 路径是运行时在工作区里改出来的文件名（数据给的），所以读之前：凭据类文件名不读（与出文件闸门同一份判据）、
+ * realpath 必须等于「工作区真实根 + 相对路径」（中间任何一段是符号链接就不读）、O_NOFOLLOW | O_NONBLOCK 打开后 fstat 判普通文件、
+ * 只读到上限 + 1 字节。
  */
-const CURRENT_SITE_BUDGET = 61;
+const CURRENT_SITE_BUDGET = 62;
 
 /**
  * 网关自己就是那唯一一处实现，不计入。

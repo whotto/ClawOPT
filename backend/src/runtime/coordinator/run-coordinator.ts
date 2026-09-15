@@ -496,6 +496,7 @@ export class RunCoordinator {
         runId: run.runId,
         runMarker: run.runMarker,
         workspacePath: submission.workspacePath,
+        surface: submission.surface,
       });
     } catch (error) {
       this.log(`[RunCoordinator] workspace checkpoint failed for ${submission.sessionKey}: ${(error as Error)?.message}`);

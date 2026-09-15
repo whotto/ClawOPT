@@ -50,7 +50,7 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
-import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
+import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, createWorkspaceDiffCheckpointer, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import { createScopedProviderResolver } from './scoped-provider-resolver';
 import {
@@ -107,7 +107,13 @@ export function createAppContext() {
    * 运行协调器：所有运行时（OpenClaw 网关、外部 Agent）的运行都经它；适配器只翻译事件。
    * 运行 / 工具 / 审批的业务事件（`chat.run.*` 等）也只在这里发一次，覆盖所有表面。
    */
-  const runCoordinator = new RunCoordinator({ hub: realtime, store: db, events });
+  const runCoordinator = new RunCoordinator({
+    hub: realtime,
+    store: db,
+    events,
+    // 每次运行的工作区 diff（P1b）：有工作区的运行在开始时打检查点、结束时比对并落库，挂到最终消息上。
+    checkpointer: createWorkspaceDiffCheckpointer({ store: db.workspaceRunChanges }),
+  });
 
   /** OpenClaw 网关运行时适配器（单聊）。无状态，整个进程一个。 */
   const openclawAdapter = createOpenClawRuntimeAdapter();

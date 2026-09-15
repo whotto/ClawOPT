@@ -249,6 +249,8 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
       ['/api/chat/s-other/active-run'],
       ['/api/chat/attach/s-other'],
       ['/api/sessions/s-other/configs'],
+      ['/api/sessions/s-other/workspace-changes?messageIds=1'],
+      ['/api/sessions/s-other/workspace-changes/wc-other/files/1'],
       ['/api/sessions/s-other/reset', { method: 'POST' }],
       ['/api/chat', post({ sessionId: 's-other', message: 'hi' })],
       ['/api/chat/regenerate', post({ sessionId: 's-other', message: 'hi', parentId: otherMessage })],
@@ -269,6 +271,17 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
 
     expect((await status(tokens.member, '/api/history/s-main')).code).toBe(200);
     expect((await status(tokens.member, '/api/chat/s-main/active-run')).code).toBe(200);
+    // 工作区改动（P1b）：自己会话的摘要照常；拿自己会话的路径读别人会话的变更集按不存在（404），不串会话
+    h.ctx.db.workspaceRunChanges.save({
+      id: 'wc-other', sessionKey: 's-other', surface: 'chat', runId: 'r', runMarker: 'm', assistantMessageId: String(otherMessage), mode: 'scan',
+      fileCount: 1, additions: 1, deletions: 0, patchBytes: 3, truncated: false, createdAt: Date.now(),
+      files: [{ path: 'secret.txt', oldPath: null, changeType: 'added', additions: 1, deletions: 0, oldSize: null, newSize: 2, patch: '+s\n', patchBytes: 3, truncated: false, binary: false }],
+    });
+    const otherFileId = h.ctx.db.workspaceRunChanges.listForMessages('s-other', [String(otherMessage)])[0].files[0].id;
+    expect((await status(tokens.member, `/api/sessions/s-main/workspace-changes?messageIds=${otherMessage}`)).body.changes).toEqual([]);
+    expect((await status(tokens.member, `/api/sessions/s-main/workspace-changes/wc-other/files/${otherFileId}`)).code).toBe(404);
+    expect((await status(tokens.member, `/api/sessions/s-other/workspace-changes/wc-other/files/${otherFileId}`)).code).toBe(403);
+    expect((await status(tokens.admin, `/api/sessions/s-other/workspace-changes/wc-other/files/${otherFileId}`)).body.file.patch).toBe('+s\n');
     expect((await status(tokens.member, `/api/messages/${mineMessage}`, { method: 'PUT', body: JSON.stringify({ content: 'edited' }) })).code).toBe(200);
 
     // admin 不受影响

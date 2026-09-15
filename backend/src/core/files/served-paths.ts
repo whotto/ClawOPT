@@ -84,10 +84,17 @@ function isInside(child: string, parent: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
+/**
+ * 文件名是否属于凭据 / 密钥 / 环境变量 / 数据库这一类（与出文件闸门同一份判据）。
+ * 工作区 diff 快照（`runtime/coordinator/workspace-diff`）据此连读都不读。
+ */
+export function isCredentialLikeFileName(basename: string): boolean {
+  return DENIED_BASENAMES.has(basename) || DENIED_PATTERNS.some(pattern => pattern.test(basename));
+}
+
 function deniedByName(realPath: string, roots: string[]): boolean {
   const base = path.basename(realPath);
-  if (DENIED_BASENAMES.has(base)) return true;
-  if (DENIED_PATTERNS.some(pattern => pattern.test(base))) return true;
+  if (isCredentialLikeFileName(base)) return true;
 
   const containing = roots.find(root => isInside(realPath, root));
   const relative = containing === undefined ? realPath : path.relative(containing, realPath);
