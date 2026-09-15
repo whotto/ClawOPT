@@ -31,6 +31,7 @@ import {
   type AdapterRunHandle,
   type AdapterRunOutcome,
   type ApprovalRequestInput,
+  type BoundaryInterruptResult,
   type InterruptReason,
   type WorkspaceRunChangeSummary,
 } from '../contract';
@@ -53,6 +54,8 @@ import {
   type SubmitResult,
   type WorkspaceCheckpoint,
   type WorkspaceCheckpointer,
+  type InsertNowResult,
+  type QueueInsertionView,
   RUN_APPROVALS_TOPIC,
   type PendingApprovalView,
 } from './types';
@@ -93,6 +96,8 @@ type ActiveRun = {
   deferred: Array<() => void>;
   graceTimer: ReturnType<typeof setTimeout> | null;
   stopReason: string | null;
+  /** 被「立即插入」让出时用的是哪种保证（终态负载的 `interruption_mode`）。 */
+  insertionGuarantee: 'strict' | 'immediate' | null;
   completion: Deferred<RunTerminal>;
   droppedEvents: number;
 };
@@ -102,7 +107,14 @@ type SessionState = {
   active: ActiveRun | null;
   queue: SessionRunQueue<QueuedPayload>;
   replay: ReplayBuffer;
+  /** 「立即插入」状态机（至多一个）。 */
+  insertion: QueueInsertionView | null;
 };
+
+/** 立即插入被取消 / 结束的原因（`queue.insertion.updated` 的 reason）。 */
+export type QueueInsertionEndReason = 'started' | 'cancelled' | 'hard_stop' | 'run_mismatch' | 'queue_empty';
+
+export const QUEUE_INSERTION_EVENT = 'queue.insertion.updated';
 
 export type RunCoordinatorOptions = {
   hub: RealtimeHub;
@@ -175,7 +187,7 @@ export class RunCoordinator {
   private state(sessionKey: string): SessionState {
     let state = this.sessions.get(sessionKey);
     if (!state) {
-      state = { sessionKey, active: null, queue: new SessionRunQueue(), replay: new ReplayBuffer(this.replayLimit) };
+      state = { sessionKey, active: null, queue: new SessionRunQueue(), replay: new ReplayBuffer(this.replayLimit), insertion: null };
       this.sessions.set(sessionKey, state);
     }
     return state;
@@ -395,7 +407,7 @@ export class RunCoordinator {
       const completion = deferred<RunTerminal>();
       const queueId = randomUUID();
       const snapshot = { ...submission, request: snapshotRequest(submission.request), meta: snapshotRequest(submission.meta) };
-      const position = state.queue.enqueue({ queueId, payload: { submission: snapshot, completion }, display: submission.display ?? null });
+      const position = state.queue.enqueue({ queueId, payload: { submission: snapshot, completion }, display: submission.display ?? null, ref: submission.ref ?? null });
       this.publish(state.active, 'run.queued', { queue_length: state.queue.size, queued: state.queue.view() }, { replay: { mode: 'replace', key: 'queue' } });
       return { status: 'queued', queueId, position, completion: completion.promise };
     }
@@ -427,6 +439,7 @@ export class RunCoordinator {
       deferred: [],
       graceTimer: null,
       stopReason: null,
+      insertionGuarantee: null,
       completion,
       droppedEvents: 0,
     };
@@ -453,7 +466,17 @@ export class RunCoordinator {
     }
 
     let projectorError: unknown = null;
-    try {
+    let startFailureReason = 'projector_failed';
+    if (submission.beforeStart) {
+      try {
+        const prepared = submission.beforeStart();
+        if (prepared?.meta) submission.meta = { ...(submission.meta ?? {}), ...prepared.meta };
+      } catch (error) {
+        projectorError = error;
+        startFailureReason = 'before_start_failed';
+      }
+    }
+    if (!projectorError) try {
       run.projector = submission.projector({
         runId: run.runId,
         runMarker: run.runMarker,
@@ -471,17 +494,19 @@ export class RunCoordinator {
     this.publish(run, 'run.started', {
       run_id: run.runId,
       run_marker: run.runMarker,
+      session_key: run.submission.sessionKey,
       runtime: submission.adapter.id,
       agent_id: submission.agentId,
       queue_id: dequeuedQueueId,
       queue_length: state.queue.size,
+      ref: submission.ref ?? null,
       meta: submission.meta ?? {},
     }, { allTopics: true, replay: { mode: 'replace', key: 'run.started' } });
     this.publishBus('chat.run.started', run, { queueId: dequeuedQueueId });
 
     if (projectorError) {
-      this.log(`[RunCoordinator] projector failed to start for ${submission.sessionKey}: ${(projectorError as Error)?.message}`);
-      void this.finalize(run, { kind: 'failed', error: (projectorError as Error)?.message || String(projectorError), stopReason: 'projector_failed' });
+      this.log(`[RunCoordinator] ${startFailureReason} for ${submission.sessionKey}: ${(projectorError as Error)?.message}`);
+      void this.finalize(run, { kind: 'failed', error: (projectorError as Error)?.message || String(projectorError), stopReason: startFailureReason });
       return run;
     }
     void this.launch(run);
@@ -721,12 +746,14 @@ export class RunCoordinator {
     this.publish(run, terminalEventType(outcome), {
       run_id: run.runId,
       run_marker: run.runMarker,
+      session_key: run.submission.sessionKey,
       message_id: projection.messageId ?? null,
       output: projection.output ?? (outcome.kind === 'completed' ? outcome.outputText ?? null : null),
       error: projection.error ?? (outcome.kind === 'failed' ? outcome.error : null),
       synced: outcome.kind === 'aborted' ? outcome.synced : undefined,
       interrupted: outcome.kind === 'aborted' || run.stopReason === 'queue_insertion',
       stop_reason: stopReason,
+      interruption_mode: run.stopReason === 'queue_insertion' ? run.insertionGuarantee : null,
       queue_remaining: queueRemaining,
       workspace_run_change: workspaceChange,
     }, { allTopics: true });
@@ -761,13 +788,23 @@ export class RunCoordinator {
 
     if (queueRemaining > 0 && !state.active) {
       const next = state.queue.shift()!;
+      const topic = next.payload.submission.topics[0];
+      if (state.insertion?.queueId === next.queueId) {
+        // 插入的那一条轮到了：先报 starting_queued_message，再清掉状态机。
+        this.publishInsertion(state, topic, { ...state.insertion, phase: 'starting_queued_message' });
+        this.clearInsertion(state, topic, 'started');
+      } else if (state.insertion) {
+        // 插入目标不在队首（边角情况）：状态机没有意义了。
+        this.clearInsertion(state, topic, 'run_mismatch');
+      }
       this.hub.publish({
-        topic: next.payload.submission.topics[0],
+        topic,
         type: 'run.queued',
         payload: { queue_length: state.queue.size, dequeued_queue_id: next.queueId, queued: state.queue.view() },
       });
       this.startRun(state, next.payload.submission, next.payload.completion, next.queueId);
     } else {
+      if (state.insertion) this.clearInsertion(state, run.submission.topics[0], 'queue_empty');
       this.maybeEvict(state);
     }
   }
@@ -782,6 +819,8 @@ export class RunCoordinator {
     const state = this.sessions.get(sessionKey);
     const run = state?.active;
     if (!run) return { aborted: false, synced: false, ignored: true };
+    // 硬停止（用户点停止、停机、被新运行替换）取消进行中的插入；插入自己发起的中止不算。
+    if (reason !== 'queue_insertion' && state?.insertion) this.clearInsertion(state, run.submission.topics[0], 'hard_stop');
     if (!run.terminalHandled && !run.aborting) {
       run.aborting = true;
       run.abortReason = reason;
@@ -833,28 +872,113 @@ export class RunCoordinator {
       workspaceChange: null,
       nativeSessionId: null,
     });
+    if (state.insertion?.queueId === queueId) this.clearInsertion(state, cancelled.submission.topics[0], 'cancelled');
     this.hub.publish({ topic: cancelled.submission.topics[0], type: 'run.queued', payload: { queue_length: state.queue.size, queued: state.queue.view(), cancelled_queue_id: queueId } });
     this.maybeEvict(state);
     return true;
   }
 
+  /** 发一次插入状态（重放缓冲按键替换：重连只需要最新的阶段；清掉时从缓冲移除）。 */
+  private publishInsertion(state: SessionState, topic: string, insertion: QueueInsertionView | null, reason?: QueueInsertionEndReason): void {
+    const payload = insertion
+      ? {
+        generation: insertion.generation,
+        queue_id: insertion.queueId,
+        run_id: insertion.runId,
+        runtime: insertion.runtime,
+        phase: insertion.phase,
+        guarantee: insertion.guarantee,
+        requested_at: insertion.requestedAt,
+        cleared: false,
+      }
+      : { cleared: true, reason: reason ?? null };
+    const event = this.hub.publish({ topic, type: QUEUE_INSERTION_EVENT, payload, runId: state.active?.runId });
+    if (insertion) state.replay.push(event, { mode: 'replace', key: QUEUE_INSERTION_EVENT });
+    else state.replay.remove(QUEUE_INSERTION_EVENT);
+  }
+
+  private setInsertion(state: SessionState, topic: string, insertion: QueueInsertionView): void {
+    state.insertion = insertion;
+    this.publishInsertion(state, topic, insertion);
+  }
+
+  private clearInsertion(state: SessionState, topic: string, reason: QueueInsertionEndReason): void {
+    if (!state.insertion) return;
+    state.insertion = null;
+    this.publishInsertion(state, topic, null, reason);
+  }
+
+  /** 当前插入状态（没有为 null）。 */
+  queueInsertion(sessionKey: string): QueueInsertionView | null {
+    return this.sessions.get(sessionKey)?.insertion ?? null;
+  }
+
   /**
-   * 「立即插入」：把某条排队项挪到队首，再让当前运行尽快让出。
-   * 支持边界打断的运行时等当前这批工具跑完（strict），其余直接中止（immediate）。
-   * 插入的完整状态机（generation 令牌、阶段事件、前端插入箭头）留给 P1b。
+   * 「立即插入」（spec 01 §2.7）：把某条排队项挪到队首，再让当前运行尽快让出。
+   *
+   * - 声明了 `boundaryInterrupt` 的运行时：请求边界打断（等当前这批工具跑完，`strict`），阶段 `waiting_for_tool_batch`；
+   *   运行时回 `unsupported` 或抛错时退回立即中止（用户要的是「现在就发」）；
+   * - 其余：立即中止（杀进程 / 停网关 run，`immediate`），阶段 `stopping_current_turn`；
+   * - 同一会话至多一个插入：已有别的插入在进行时回 `already_pending`（界面上插入箭头此时禁用）；
+   * - **generation 令牌**：边界打断是异步的，结果回来时若状态机已经被取消 / 换成别的请求 / 运行已经换人，
+   *   结果一律丢弃——不许拿旧结果去动一个新运行。
+   * 被让出的运行终态带 `interrupted: true`、`stop_reason: queue_insertion`、`interruption_mode`；界面不当错误显示。
    */
-  async insertNow(sessionKey: string, queueId: string): Promise<{ status: 'not_found' | 'strict' | 'immediate' | 'started' }> {
+  async insertNow(sessionKey: string, queueId: string): Promise<InsertNowResult> {
     const state = this.sessions.get(sessionKey);
-    if (!state || !state.queue.moveToFront(queueId)) return { status: 'not_found' };
+    if (!state || !state.queue.has(queueId)) return { status: 'not_found' };
+    if (state.insertion && state.insertion.queueId !== queueId) return { status: 'already_pending', insertion: state.insertion };
+    if (state.insertion) return { status: state.insertion.guarantee, generation: state.insertion.generation };
+    state.queue.moveToFront(queueId);
     const run = state.active;
-    if (!run) return { status: 'started' };
-    run.stopReason = 'queue_insertion';
-    if (run.submission.adapter.capabilities.boundaryInterrupt && run.handle?.requestBoundaryInterrupt) {
-      const result = await run.handle.requestBoundaryInterrupt(run.runId);
-      if (result.status === 'accepted' || result.status === 'already_pending') return { status: 'strict' };
+    const generation = randomUUID();
+    if (!run || run.terminalHandled || run.aborting) {
+      // 两轮之间的空档或当前运行已在停：队首就是它，出队时直接开始。
+      return { status: 'started', generation };
     }
+    const topic = run.submission.topics[0];
+    const canBoundary = !!(run.submission.adapter.capabilities.boundaryInterrupt && run.handle?.requestBoundaryInterrupt);
+    const base: QueueInsertionView = {
+      generation,
+      queueId,
+      runId: run.runId,
+      runtime: run.submission.adapter.id,
+      phase: 'requesting',
+      guarantee: canBoundary ? 'strict' : 'immediate',
+      requestedAt: Date.now(),
+    };
+    this.setInsertion(state, topic, base);
+    const stillCurrent = () => state.insertion?.generation === generation && state.active === run && !run.terminalHandled;
+
+    if (canBoundary) {
+      let result: BoundaryInterruptResult | null = null;
+      try {
+        result = await run.handle!.requestBoundaryInterrupt!(run.runId);
+      } catch (error) {
+        this.log(`[RunCoordinator] boundary interrupt failed for ${sessionKey}: ${(error as Error)?.message}`);
+      }
+      if (!stillCurrent()) {
+        // 令牌过期：插入被取消、运行已经结束或被替换。旧结果不许再动任何东西。
+        return { status: 'started', generation };
+      }
+      if (result?.status === 'accepted' || result?.status === 'already_pending') {
+        run.stopReason = 'queue_insertion';
+        run.insertionGuarantee = 'strict';
+        this.setInsertion(state, topic, { ...base, phase: 'waiting_for_tool_batch' });
+        return { status: 'strict', generation };
+      }
+      if (result?.status === 'not_found' || result?.status === 'run_mismatch') {
+        this.clearInsertion(state, topic, 'run_mismatch');
+        return { status: 'started', generation };
+      }
+      // unsupported / 异常：退回立即中止。
+    }
+
+    run.stopReason = 'queue_insertion';
+    run.insertionGuarantee = 'immediate';
+    this.setInsertion(state, topic, { ...base, guarantee: 'immediate', phase: 'stopping_current_turn' });
     void this.abort(sessionKey, 'queue_insertion');
-    return { status: 'immediate' };
+    return { status: 'immediate', generation };
   }
 
   respondInteraction(sessionKey: string, id: string, response: { choice?: string; text?: string }) {
@@ -879,6 +1003,7 @@ export class RunCoordinator {
       replay: state?.replay.snapshot() ?? [],
       replayDropped: state?.replay.dropped ?? 0,
       queue: state?.queue.view() ?? [],
+      insertion: state?.insertion ?? null,
       pendingInteractions: this.interactions.pendingForSession(sessionKey).map((view) => ({
         kind: view.kind,
         id: view.id,

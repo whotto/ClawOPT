@@ -45,6 +45,10 @@ export {
 export type {
   AbortResult,
   BusyPolicy,
+  InsertNowResult,
+  QueueInsertionGuarantee,
+  QueueInsertionPhase,
+  QueueInsertionView,
   PersistedToolCall,
   ProjectorFinish,
   ProjectorRunContext,
