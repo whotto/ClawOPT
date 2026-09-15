@@ -84,6 +84,9 @@ export function createAppContext() {
   const openclawUpdate = createOpenClawUpdateService({ imageGeneration, gatewayService });
   const agentSettings = createAgentSettings(base);
   const gatewayConnections = createGatewayConnections(base);
+  /** 业务事件总线：出站 Webhook 等下游在这里订阅，发布方不直接调下游。 */
+  const events = new EventBus();
+  const automation = createAutomation({ ...base, gatewayConnections, events });
   const sessionRuntime = createSessionRuntime({ ...base, gatewayConnections });
   const chatMessages = createChatMessages({ sessionRuntime });
   const roomMessages = createRoomMessages(base);
@@ -93,13 +96,10 @@ export function createAppContext() {
   const rooms = createRoomEngine({ ...base, roomRuntime, agentSettings, imageGeneration, gatewayConnections });
   const roomReconciliation = createRoomReconciliation({ ...base, rooms, roomRuntime, agentSettings, gatewayConnections });
   const auth = createAuthMiddleware(base);
-  const packs = createPackService({ ...base, agentSettings });
-  /** 业务事件总线：出站 Webhook 等下游在这里订阅，发布方不直接调下游。 */
-  const events = new EventBus();
+  const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
   const chatRuns = createChatRuns({ ...base, events });
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
-  const automation = createAutomation({ ...base, gatewayConnections, events });
 
   return {
     ...base,

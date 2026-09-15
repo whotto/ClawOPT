@@ -30,7 +30,8 @@ import { createWebhookStore } from './webhooks/webhook-store';
 import { createDefinitionStore } from './workflow/definition-store';
 import { createWorkflowEngine } from './workflow/engine';
 import { mediaTypeForName } from './workflow/prompt';
-import { createImportPreviewStore } from './workflow/portability';
+import { createImportPreviewStore, parseEnvelope, remapDefinitionIds, type WorkflowEnvelope } from './workflow/portability';
+import { AutomationError } from './shared/errors';
 import { createRunStore } from './workflow/run-store';
 import { createStatusHub } from './workflow/status-hub';
 import { createWorkflowService } from './workflow/workflow-service';
@@ -130,7 +131,43 @@ export function createAutomation(deps: AutomationDeps) {
 
   let detachWebhooks: (() => void) | null = null;
 
+  /**
+   * `.clawpack` 附带工作流：导出走同一个信封投影（丢模型与附件、扫凭据键），
+   * 导入走同一个严格校验 + id 重映射，并把 OpenClaw Agent 引用按装包时的改名映射过去。
+   * 只建定义，不运行、不带定时与钩子——「导入不执行任何东西」这道闸门对工作流同样成立。
+   */
+  const packBundles = {
+    exportEnvelopes(ids: string[]): WorkflowEnvelope[] {
+      return ids.map((id) => workflows.exportEnvelope(id));
+    },
+    summarize(envelopes: unknown[]): Array<{ name: string; nodes: number; edges: number; valid: boolean; errorCode?: string }> {
+      return envelopes.map((envelope) => {
+        try {
+          const parsed = parseEnvelope(envelope);
+          return { name: parsed.name, nodes: parsed.nodes.length, edges: parsed.edges.length, valid: true };
+        } catch (error) {
+          const name = String((envelope as { definition?: { name?: unknown } })?.definition?.name ?? '').slice(0, 120);
+          return { name, nodes: 0, edges: 0, valid: false, errorCode: error instanceof AutomationError ? error.code : 'workflows.importInvalid' };
+        }
+      });
+    },
+    importEnvelopes(envelopes: unknown[], agentIdMap: Record<string, string>) {
+      const results: Array<{ name: string; status: 'created' | 'failed'; workflowId?: string; errorCode?: string }> = [];
+      for (const envelope of envelopes) {
+        try {
+          const remapped = remapDefinitionIds(parseEnvelope(envelope), agentIdMap);
+          const created = defs.create({ name: remapped.name, workspace: null, nodes: remapped.nodes, edges: remapped.edges, viewport: remapped.viewport });
+          results.push({ name: created.name, status: 'created', workflowId: created.id });
+        } catch (error) {
+          results.push({ name: String((envelope as any)?.definition?.name ?? ''), status: 'failed', errorCode: error instanceof AutomationError ? error.code : 'workflows.importInvalid' });
+        }
+      }
+      return results;
+    },
+  };
+
   return {
+    packBundles,
     fakeRunner,
     settings,
     directory,

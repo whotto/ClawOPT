@@ -106,11 +106,22 @@ export async function readPackFromRequest(req: express.Request): Promise<ClawPac
   throw new PackError(PACK_SOURCE_REQUIRED_ERROR_CODE);
 }
 
+/**
+ * `.clawpack` 附带工作流的出入口，由自动化模块提供（结构化类型，control 不依赖 automation 的实现）。
+ * 导入只建定义、不运行，校验与凭据扫描都在对方那条链上。
+ */
+export type PackWorkflowBundles = {
+  exportEnvelopes(ids: string[]): unknown[];
+  summarize(envelopes: unknown[]): Array<{ name: string; nodes: number; edges: number; valid: boolean; errorCode?: string }>;
+  importEnvelopes(envelopes: unknown[], agentIdMap: Record<string, string>): Array<{ name: string; status: 'created' | 'failed'; workflowId?: string; errorCode?: string }>;
+};
+
 export type PackServiceDeps = {
   agentProvisioner: AgentProvisioner;
   db: DB;
   sessionManager: SessionManager;
   agentSettings: AgentSettings;
+  workflowPacks: PackWorkflowBundles;
 };
 
 export function createPackService(ctx: PackServiceDeps) {
@@ -197,6 +208,19 @@ export function createPackService(ctx: PackServiceDeps) {
 
     if (!agents.length) return { error: PACK_AGENT_NOT_FOUND_ERROR_CODE, params: { agentId: id } };
 
+    const workflowIds = Array.isArray(body?.includeWorkflows)
+      ? [...new Set((body.includeWorkflows as unknown[]).filter((item): item is string => typeof item === 'string' && item.length > 0))]
+      : [];
+    let workflows: unknown[] = [];
+    if (workflowIds.length) {
+      try {
+        workflows = ctx.workflowPacks.exportEnvelopes(workflowIds);
+      } catch (error) {
+        const code = typeof (error as { code?: unknown })?.code === 'string' ? (error as { code: string }).code : 'workflows.notFound';
+        return { error: code };
+      }
+    }
+
     return {
       name,
       pack: buildPack({
@@ -208,12 +232,15 @@ export function createPackService(ctx: PackServiceDeps) {
         team,
         options,
         warnings,
+        workflows,
       }),
     };
   }
 
   return {
     buildPackFromRequest,
+    summarizeWorkflows: (pack: ClawPack) => ctx.workflowPacks.summarize(pack.workflows ?? []),
+    installWorkflows: (pack: ClawPack, agentIdMap: Record<string, string>) => ctx.workflowPacks.importEnvelopes(pack.workflows ?? [], agentIdMap),
   };
 }
 export type PackService = ReturnType<typeof createPackService>;
