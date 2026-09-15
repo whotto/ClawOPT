@@ -279,6 +279,16 @@ describe('事件与落库', () => {
     expect(calls[0].args[calls[0].args.indexOf('--model') + 1]).toBe('claude-sonnet-5');
   });
 
+  it('没配工作目录时落在本群工作区，而不是后端进程的当前目录', async () => {
+    // global 模式的外部 CLI 会跳过沙箱执行命令：落到 process.cwd() 等于把 ClawOPT 自己的安装目录交给它。
+    const engine = makeEngine({ resolveExternalMemberWorkspace: (groupId: string) => `/data/openclaw/workspace-group-${groupId}` });
+    const { runner, calls } = fakeRunner({ ok: true, finalText: 'ok' });
+    await runExternal(engine, member({ external_config: JSON.stringify({ model: 'claude-sonnet-5' }) }), runner, { triggerMsg: '任务' });
+
+    expect(calls[0].cwd).toBe('/data/openclaw/workspace-group-g1');
+    expect(calls[0].cwd).not.toBe(process.cwd());
+  });
+
   it('external_config 是坏 JSON 时不崩，退回默认值', async () => {
     const engine = makeEngine();
     const { runner } = fakeRunner({ ok: true, finalText: 'ok' });

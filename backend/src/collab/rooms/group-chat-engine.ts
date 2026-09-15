@@ -47,7 +47,7 @@ import {
   externalMemberSessionKey,
   roomTopic,
 } from './external-member-run';
-import { getGroupRuntimeSessionKey } from './group-workspace';
+import { ensureGroupWorkspace, getGroupRuntimeSessionKey } from './group-workspace';
 import { selectPreferredTextSnapshot } from '../../core/util';
 import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
 import { shouldUseConfiguredImageGenerationModel } from '../../control';
@@ -1662,6 +1662,11 @@ export class GroupChatEngine extends EventEmitter {
    * （No conversation found with session ID），所以失败的那一轮若把 uuid 写进去，
    * 之后每一轮都会拿着一个死会话去 resume，永久失败。
    */
+  /** 外部成员的默认工作目录：本群工作区（按需创建）。单独成方法，便于用例替身而不去碰真实的 ~/.openclaw。 */
+  resolveExternalMemberWorkspace(groupId: string): string {
+    return ensureGroupWorkspace(groupId).workspacePath;
+  }
+
   private async runExternalMember(
     opts: {
       groupId: string;
@@ -1726,6 +1731,11 @@ export class GroupChatEngine extends EventEmitter {
     //
     // 不另写一套：两套 prompt 组装迟早分家，而这个仓库为「两处判据分家」栽过不止一次。
     // 过程标签传 undefined —— 外部 Agent 不产出过程标签，不该被要求去写。
+    // 没配工作目录的成员落在本群工作区。不能退回 process.cwd()：global 模式的外部 CLI 会跳过沙箱执行命令，
+    // 那等于把 ClawOPT 自己的安装目录交给它。
+    const memberWorkspace = typeof config.workingDir === 'string' && config.workingDir.trim()
+      ? config.workingDir
+      : this.resolveExternalMemberWorkspace(groupId);
     const request: RuntimeRunRequest = {
       // 成员配置里选了 scoped（ClawOPT 选服务商与模型、CLI 只连本地代理）才走 scoped；缺省 global（CLI 用自己的登录）。
       mode: config.mode === 'scoped' ? 'scoped' : 'global',
@@ -1746,12 +1756,12 @@ export class GroupChatEngine extends EventEmitter {
         triggerSenderName,
         undefined,
         undefined,
-        config.workingDir,
+        memberWorkspace,
         undefined,
         undefined,
         opts.remainingDepth ?? 0,
       ),
-      workspace: config.workingDir || process.cwd(),
+      workspace: memberWorkspace,
       model: typeof config.model === 'string' ? config.model : undefined,
       reasoningEffort: typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined,
       allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
@@ -1795,7 +1805,7 @@ export class GroupChatEngine extends EventEmitter {
           displayName: member.display_name,
           modelTag,
         }),
-        workspacePath: config.workingDir,
+        workspacePath: memberWorkspace,
         meta: { groupId, memberId: member.id, messageId: msgId },
       }, 'reject');
       if (submitted.status !== 'started') {
