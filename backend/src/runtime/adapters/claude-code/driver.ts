@@ -56,7 +56,11 @@ export function createClaudeCodeDriver(ctx: TurnDriverContext): TurnDriver {
           const meta = event.compact_metadata ?? {};
           const pre = num(meta.pre_tokens);
           const post = num(meta.post_tokens);
-          emitter.plan({ kind: 'compact_boundary', trigger: meta.trigger ?? 'manual', preTokens: pre || undefined, postTokens: post || undefined });
+          emitter.commandResult({
+            command: 'compact',
+            ok: true,
+            compaction: { trigger: meta.trigger === 'auto' ? 'auto' : 'manual', preTokens: pre || undefined, postTokens: post || undefined },
+          });
         }
         return;
       }

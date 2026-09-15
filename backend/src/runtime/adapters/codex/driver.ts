@@ -246,7 +246,7 @@ function createCompactionDriver(ctx: TurnDriverContext): TurnDriver {
     finish({ exit, stderrTail }: FinishInput): TurnVerdict {
       peer.close();
       if (compacted) {
-        emitter.plan({ kind: 'compact_boundary', trigger: 'manual', preTokens: tokensBefore, postTokens: tokensAfter });
+        emitter.commandResult({ command: 'compact', ok: true, compaction: { trigger: 'manual', preTokens: tokensBefore, postTokens: tokensAfter } });
         return { kind: 'completed', stopReason: 'compacted', outputText: '' };
       }
       if (error) return { kind: 'failed', messageCode: error.code, detail: error.detail };

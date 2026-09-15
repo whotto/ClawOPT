@@ -57,6 +57,7 @@ export type {
   InterruptReason,
   ProxyMode,
   RuntimeCapabilities,
+  SessionCommandResult,
   SourceOfTruthTable,
   UsageReport,
 } from './contract';

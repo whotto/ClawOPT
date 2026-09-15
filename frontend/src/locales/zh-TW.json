@@ -1122,5 +1122,11 @@
   },
   "host": {
     "nodePtyMissing": "本機沒有 node-pty，終端類功能不可用"
+  },
+  "runtimeCommand": {
+    "compactDone": "上下文壓縮完成（{{trigger}}）。壓縮前 {{preTokens}} tokens，壓縮後 {{postTokens}} tokens。",
+    "statusDone": "狀態：模型 {{model}} · 會話 {{nativeSessionId}} · 思考強度 {{thinkingLevel}} · {{messageCount}} 則訊息 · 自動壓縮 {{autoCompaction}}",
+    "usageDone": "用量：輸入 {{inputTokens}} · 輸出 {{outputTokens}} · 快取讀 {{cacheReadTokens}} · 快取寫 {{cacheWriteTokens}} · 費用 ${{costUsd}} · 上下文 {{contextTokens}} / {{contextWindow}}（{{contextPercent}}%）",
+    "failed": "/{{command}} 執行失敗：{{error}}"
   }
 }

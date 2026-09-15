@@ -1122,5 +1122,11 @@
   },
   "host": {
     "nodePtyMissing": "本机没有 node-pty，终端类功能不可用"
+  },
+  "runtimeCommand": {
+    "compactDone": "上下文压缩完成（{{trigger}}）。压缩前 {{preTokens}} tokens，压缩后 {{postTokens}} tokens。",
+    "statusDone": "状态：模型 {{model}} · 会话 {{nativeSessionId}} · 思考强度 {{thinkingLevel}} · {{messageCount}} 条消息 · 自动压缩 {{autoCompaction}}",
+    "usageDone": "用量：输入 {{inputTokens}} · 输出 {{outputTokens}} · 缓存读 {{cacheReadTokens}} · 缓存写 {{cacheWriteTokens}} · 费用 ${{costUsd}} · 上下文 {{contextTokens}} / {{contextWindow}}（{{contextPercent}}%）",
+    "failed": "/{{command}} 执行失败：{{error}}"
   }
 }

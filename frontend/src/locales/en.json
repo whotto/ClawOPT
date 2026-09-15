@@ -1122,5 +1122,11 @@
   },
   "host": {
     "nodePtyMissing": "node-pty is not available on this host; terminal features are disabled"
+  },
+  "runtimeCommand": {
+    "compactDone": "Compaction completed ({{trigger}}). Before: {{preTokens}} tokens. After: {{postTokens}} tokens.",
+    "statusDone": "Status: model {{model}} · session {{nativeSessionId}} · thinking {{thinkingLevel}} · {{messageCount}} messages · auto-compaction {{autoCompaction}}",
+    "usageDone": "Usage: input {{inputTokens}} · output {{outputTokens}} · cache read {{cacheReadTokens}} · cache write {{cacheWriteTokens}} · cost ${{costUsd}} · context {{contextTokens}} / {{contextWindow}} ({{contextPercent}}%)",
+    "failed": "/{{command}} failed: {{error}}"
   }
 }

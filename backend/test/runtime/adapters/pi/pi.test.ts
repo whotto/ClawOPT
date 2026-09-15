@@ -236,21 +236,39 @@ describe('Pi：审批与澄清（真映射）', () => {
 });
 
 describe('Pi：会话命令、中止、续话、错误', () => {
-  it('status → get_state，结果原样放进 outputText', async () => {
+  // 字段形状取自真 Pi 0.85.1 `--mode rpc` 的 get_state / get_session_stats 响应（2026-09-15 集成时实测）。
+  it('status → get_state，结果走契约事件 session.command（不再把 JSON 塞进正文）', async () => {
     const { run, proc } = await launched(harness(), baseRequest({ command: { kind: 'status' } }));
     expect(writes(proc)).toEqual([{ id: 'clawopt_cmd_0', type: 'get_state' }]);
-    proc.line({ id: 'clawopt_cmd_0', type: 'response', command: 'get_state', success: true, data: { thinkingLevel: 'high', messageCount: 2 } });
+    proc.line({ id: 'clawopt_cmd_0', type: 'response', command: 'get_state', success: true, data: { model: { id: 'gemini-3.1-pro-preview', contextWindow: 1048576 }, thinkingLevel: 'high', isStreaming: false, isCompacting: false, sessionId: '11111111-2222-4333-8444-555555555555', autoCompactionEnabled: true, messageCount: 2 } });
     const outcome = await run.done as any;
-    expect(outcome).toMatchObject({ kind: 'completed', stopReason: 'session_command:status' });
-    expect(JSON.parse(outcome.outputText)).toEqual({ thinkingLevel: 'high', messageCount: 2 });
+    expect(outcome).toMatchObject({ kind: 'completed', stopReason: 'session_command:status', outputText: '' });
+    expect(run.canonical().find((e) => e.type === 'session.command')).toEqual({
+      type: 'session.command',
+      result: { command: 'status', ok: true, status: { model: 'gemini-3.1-pro-preview', nativeSessionId: '11111111-2222-4333-8444-555555555555', thinkingLevel: 'high', messageCount: 2, autoCompaction: true, streaming: false } },
+    });
+    expect(run.canonical().some((e) => e.type === 'plan.updated')).toBe(false);
+  });
+
+  it('usage → get_session_stats，token / 成本 / 上下文占用进 session.command', async () => {
+    const { run, proc } = await launched(harness(), baseRequest({ command: { kind: 'usage' } }));
+    expect(writes(proc)).toEqual([{ id: 'clawopt_cmd_0', type: 'get_session_stats' }]);
+    proc.line({ id: 'clawopt_cmd_0', type: 'response', command: 'get_session_stats', success: true, data: { sessionId: 's', userMessages: 2, tokens: { input: 1200, output: 300, cacheRead: 5000, cacheWrite: 0, total: 6500 }, cost: 0.0123, contextUsage: { tokens: 6500, contextWindow: 1048576, percent: 0.62 } } });
+    expect(await run.done).toMatchObject({ kind: 'completed', outputText: '' });
+    expect((run.canonical().find((e) => e.type === 'session.command') as any).result).toEqual({
+      command: 'usage', ok: true,
+      usage: { inputTokens: 1200, outputTokens: 300, cacheReadTokens: 5000, cacheWriteTokens: 0, totalTokens: 6500, costUsd: 0.0123, contextTokens: 6500, contextWindow: 1048576, contextPercent: 0.62 },
+    });
   });
 
   it('compact → RPC compact（带自定义指令），回压缩前后 token 与摘要', async () => {
     const { run, proc } = await launched(harness(), baseRequest({ command: { kind: 'compact', instructions: '保留结论' } }));
     expect(writes(proc)).toEqual([{ id: 'clawopt_cmd_0', type: 'compact', customInstructions: '保留结论' }]);
     proc.line({ id: 'clawopt_cmd_0', type: 'response', command: 'compact', success: true, data: { summary: '摘要', tokensBefore: 150000, estimatedTokensAfter: 32000 } });
-    expect(await run.done).toMatchObject({ kind: 'completed', stopReason: 'compacted', outputText: '摘要' });
-    expect(run.canonical().find((e) => e.type === 'plan.updated')).toMatchObject({ plan: { preTokens: 150000, postTokens: 32000 } });
+    expect(await run.done).toMatchObject({ kind: 'completed', stopReason: 'compacted', outputText: '' });
+    expect((run.canonical().find((e) => e.type === 'session.command') as any).result).toEqual({
+      command: 'compact', ok: true, compaction: { trigger: 'manual', preTokens: 150000, postTokens: 32000, summary: '摘要' },
+    });
   });
 
   it('中止：先发 RPC abort、挂着的对话回 cancelled，再停进程组', async () => {

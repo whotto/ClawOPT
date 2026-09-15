@@ -302,7 +302,8 @@ describe('Codex：app-server 压缩', () => {
     expect(sent.map((m) => m.method)).toEqual(['initialize', 'initialized', 'thread/resume', 'thread/compact/start']);
     expect(sent[2].params).toEqual({ threadId: THREAD });
     expect(outcome).toMatchObject({ kind: 'completed', stopReason: 'compacted' });
-    expect(run.canonical().find((e) => e.type === 'plan.updated')).toMatchObject({ plan: { kind: 'compact_boundary', preTokens: 50000, postTokens: 9000 } });
+    expect(run.canonical().find((e) => e.type === 'session.command')).toEqual({ type: 'session.command', result: { command: 'compact', ok: true, compaction: { trigger: 'manual', preTokens: 50000, postTokens: 9000 } } });
+    expect(run.canonical().some((e) => e.type === 'plan.updated')).toBe(false);
   });
 
   it('没有确认过的线程：runtime.resumeFailed，不发任何请求', async () => {

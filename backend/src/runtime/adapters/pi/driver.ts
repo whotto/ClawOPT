@@ -15,7 +15,7 @@
  * - `agent_settled` 才是本轮结束：自动重试挂着时不算；之后停掉进程，`close` 之后骨架判终态。
  * - `message_end` 在 `turn_end` / `agent_end` 里还会重复出现：用量按消息时间戳 + 模型去重。
  */
-import type { ApprovalDecision } from '../../contract';
+import type { ApprovalDecision, SessionCommandResult } from '../../contract';
 import type { FinishInput, TurnDriver, TurnDriverContext, TurnVerdict } from '../_shared/cli-adapter';
 import { looksLikeAuthMissing, looksLikeSessionMissing } from '../_shared/errors';
 import { flattenContent, num } from '../_shared/turn';
@@ -30,6 +30,37 @@ type PendingUi =
   | { kind: 'clarify'; piId: string; method: 'select' | 'input' | 'editor'; options: string[] | null };
 
 const IGNORED_UI_METHODS = new Set(['notify', 'setStatus', 'setWidget', 'setTitle', 'set_editor_text']);
+
+/** Pi RPC `get_state` 的结果 → 契约的状态字段（缺的不编）。 */
+export function piStateToStatus(data: any): NonNullable<SessionCommandResult['status']> {
+  const model = typeof data?.model === 'string' ? data.model : typeof data?.model?.id === 'string' ? data.model.id : undefined;
+  return {
+    model,
+    nativeSessionId: typeof data?.sessionId === 'string' ? data.sessionId : undefined,
+    thinkingLevel: typeof data?.thinkingLevel === 'string' ? data.thinkingLevel : undefined,
+    messageCount: typeof data?.messageCount === 'number' ? data.messageCount : undefined,
+    autoCompaction: typeof data?.autoCompactionEnabled === 'boolean' ? data.autoCompactionEnabled : undefined,
+    streaming: typeof data?.isStreaming === 'boolean' ? data.isStreaming : undefined,
+  };
+}
+
+/** Pi RPC `get_session_stats` 的结果 → 契约的用量字段。 */
+export function piStatsToUsage(data: any): NonNullable<SessionCommandResult['usage']> {
+  const tokens = data?.tokens ?? {};
+  const context = data?.contextUsage ?? {};
+  const pick = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+  return {
+    inputTokens: pick(tokens.input),
+    outputTokens: pick(tokens.output),
+    cacheReadTokens: pick(tokens.cacheRead),
+    cacheWriteTokens: pick(tokens.cacheWrite),
+    totalTokens: pick(tokens.total),
+    costUsd: pick(data?.cost),
+    contextTokens: pick(context.tokens),
+    contextWindow: pick(context.contextWindow),
+    contextPercent: pick(context.percent),
+  };
+}
 
 export function createPiDriver(ctx: TurnDriverContext): TurnDriver {
   const { emitter, io, command } = ctx;
@@ -232,14 +263,22 @@ export function createPiDriver(ctx: TurnDriverContext): TurnDriver {
       for (const id of [...pendingUi.keys()]) respond(id, { cancelled: true });
       if (command.kind !== 'turn') {
         if (commandResult?.ok) {
+          const data: any = commandResult.data ?? {};
           if (command.kind === 'compact') {
-            const data: any = commandResult.data ?? {};
-            emitter.plan({ kind: 'compact_boundary', trigger: 'manual', preTokens: num(data.tokensBefore) || undefined, postTokens: num(data.estimatedTokensAfter) || undefined });
-            return { kind: 'completed', stopReason: 'compacted', outputText: typeof data.summary === 'string' ? data.summary : '' };
+            emitter.commandResult({
+              command: 'compact',
+              ok: true,
+              compaction: { trigger: 'manual', preTokens: num(data.tokensBefore) || undefined, postTokens: num(data.estimatedTokensAfter) || undefined, summary: typeof data.summary === 'string' ? data.summary : undefined },
+            });
+            return { kind: 'completed', stopReason: 'compacted', outputText: '' };
           }
-          return { kind: 'completed', stopReason: `session_command:${command.kind}`, outputText: JSON.stringify(commandResult.data ?? {}) };
+          emitter.commandResult(command.kind === 'status'
+            ? { command: 'status', ok: true, status: piStateToStatus(data) }
+            : { command: 'usage', ok: true, usage: piStatsToUsage(data) });
+          return { kind: 'completed', stopReason: `session_command:${command.kind}`, outputText: '' };
         }
         const detail = commandResult?.error ?? (stderrTail || `pi exited with code ${exit.code ?? exit.signal}`);
+        emitter.commandResult({ command: command.kind, ok: false, error: detail });
         return { kind: 'failed', messageCode: commandResult ? 'runtime.apiError' : 'runtime.exitNonZero', detail };
       }
       if (pendingError) return { kind: 'failed', messageCode: pendingError.code, detail: pendingError.detail };

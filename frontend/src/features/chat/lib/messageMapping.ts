@@ -47,6 +47,37 @@ export function mapChatHistoryMessage(m: any): ChatMessage {
   };
 }
 
+/**
+ * `delta` / `final` 帧 → 消息补丁。三处流（发送、重新生成、接回）共用这一份。
+ * 帧带 `messageCode` 时（外部运行时的会话命令结果 `runtimeCommand.*`）按结构化消息落：角色、文案码、参数、详情，
+ * 界面按当前语言本地化，而不是显示后端给的英文兜底文本。
+ */
+export function mapStreamingContentPatch(evt: any): Partial<ChatMessage> {
+  const patch: Partial<ChatMessage> = {
+    content: typeof evt.text === 'string' ? evt.text : '',
+  };
+  if (typeof evt.process_content === 'string') {
+    patch.processContent = evt.process_content;
+  }
+  if (typeof evt.process_streaming === 'boolean') {
+    patch.processStreaming = evt.process_streaming;
+  } else if (evt.type === 'final') {
+    patch.processStreaming = false;
+  }
+  if (typeof evt.modelUsed === 'string') {
+    patch.model = evt.modelUsed;
+  } else if (typeof evt.model_used === 'string') {
+    patch.model = evt.model_used;
+  }
+  if (typeof evt.messageCode === 'string' && evt.messageCode) {
+    patch.messageCode = evt.messageCode;
+    if (evt.role === 'system') patch.role = 'system';
+    if (evt.messageParams && typeof evt.messageParams === 'object') patch.messageParams = evt.messageParams;
+    if (typeof evt.rawDetail === 'string' && evt.rawDetail.trim()) patch.rawDetail = evt.rawDetail;
+  }
+  return patch;
+}
+
 export function mapStreamingErrorUpdate(evt: any, fallbackContent: string): Partial<ChatMessage> {
   return {
     role: evt.role === 'system' ? 'system' : undefined,

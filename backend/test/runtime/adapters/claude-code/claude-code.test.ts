@@ -175,6 +175,20 @@ describe('Claude Code：命令构造（scoped）', () => {
     expect(await run.done).toMatchObject({ kind: 'failed', code: 'runtime.commandUnsupported' });
     expect(h.exec.processes).toHaveLength(0);
   });
+
+  it('system/compact_boundary（手动 /compact 或运行中途自动）→ 契约事件 session.command，不走 plan.updated', async () => {
+    const { run, proc } = await launched(harness(), baseRequest({ command: { kind: 'compact' } }));
+    proc.line({ type: 'system', subtype: 'compact_boundary', session_id: '11111111-1111-4111-8111-111111111111', compact_metadata: { trigger: 'manual', pre_tokens: 48210 } });
+    proc.line({ type: 'system', subtype: 'compact_boundary', session_id: '11111111-1111-4111-8111-111111111111', compact_metadata: { trigger: 'auto', pre_tokens: 150000, post_tokens: 21000 } });
+    proc.line({ type: 'result', subtype: 'success', is_error: false, result: '', session_id: '11111111-1111-4111-8111-111111111111', uuid: 'r-compact' });
+    proc.close(0);
+    await run.done;
+    expect(run.canonical().filter((e) => e.type === 'session.command').map((e: any) => e.result)).toEqual([
+      { command: 'compact', ok: true, compaction: { trigger: 'manual', preTokens: 48210, postTokens: undefined } },
+      { command: 'compact', ok: true, compaction: { trigger: 'auto', preTokens: 150000, postTokens: 21000 } },
+    ]);
+    expect(run.canonical().some((e) => e.type === 'plan.updated')).toBe(false);
+  });
 });
 
 describe('Claude Code：解析真实 stream-json', () => {

@@ -9,6 +9,7 @@ import {
   type AdapterEvent,
   type CanonicalEvent,
   type RuntimeChannel,
+  type SessionCommandResult,
   type UsageReport,
 } from '../../contract';
 
@@ -222,6 +223,12 @@ export class TurnEmitter {
         ...(input.args !== undefined ? { arguments: stringifyArgs(input.args) } : {}),
       },
     });
+  }
+
+  /** 会话命令结果 / 运行中途的压缩完成（契约事件 `session.command`，不走计划、不进正文）。 */
+  commandResult(result: SessionCommandResult): void {
+    this.ensureCreated();
+    this.emit({ type: 'session.command', result });
   }
 
   plan(plan: unknown): void {

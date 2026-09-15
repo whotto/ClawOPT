@@ -536,6 +536,9 @@ export class RunCoordinator {
       case 'runtime.native_session':
         run.nativeSessionId = event.nativeSessionId;
         break;
+      case 'session.command':
+        this.publish(run, 'session.command', event.result, { replay: { mode: 'append' } });
+        break;
       case 'plan.updated':
         this.publish(run, 'plan.updated', event.plan, { replay: { mode: 'replace', key: 'plan' } });
         break;
