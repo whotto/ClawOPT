@@ -5,8 +5,9 @@ import { memo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { uploadFiles } from '../../../api/files';
 import type { CanvasNode } from '../hooks/useWorkflowEditor';
-import type { AgentRef } from '../lib/types';
+import { nodeRuntimeSummary, pickAgentPatch } from '../lib/nodeRuntime';
 import { agentKey, useCanvasContext } from './canvasContext';
+import ExternalRuntimeNodeFields from './ExternalRuntimeNodeFields';
 
 const STATUS_DOT: Record<string, string> = {
   running: 'bg-blue-500 animate-pulse',
@@ -46,8 +47,7 @@ function AgentNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
   const onPickAgent = (value: string) => {
     const entry = canvas.agents.find((item) => agentKey(item.ref) === value);
     if (!entry) return;
-    const agent: AgentRef = entry.ref.kind === 'external' ? { kind: 'external', id: entry.ref.id, runtime: entry.ref.id } : { kind: 'openclaw', id: entry.ref.id };
-    change({ agent, skills: data.skills.filter((skill) => entry.skills.includes(skill)) });
+    change({ ...pickAgentPatch(data, entry), skills: data.skills.filter((skill) => entry.skills.includes(skill)) });
   };
 
   const onUpload = async (files: FileList | null) => {
@@ -113,13 +113,16 @@ function AgentNodeView({ id, data, selected }: NodeProps<CanvasNode>) {
             <optgroup label={t('automation.node.externalRuntimes')}>
               {canvas.agents.filter((entry) => entry.ref.kind === 'external').map((entry) => (
                 <option key={agentKey(entry.ref)} value={agentKey(entry.ref)} disabled={!entry.available}>
-                  {entry.name}{entry.available ? '' : ` · ${t('automation.node.unavailable')}`}
+                  {entry.name}{entry.approvals ? ` · ${t('automation.node.realApprovals')}` : ''}{entry.available ? '' : ` · ${t('automation.node.unavailable')}`}
                 </option>
               ))}
             </optgroup>
           </select>
         ) : (
-          <div className="text-xs text-gray-500 truncate">{agentEntry?.name ?? data.agent.id}</div>
+          <div className="text-xs text-gray-500 truncate">{nodeRuntimeSummary(data, agentEntry, (mode) => t(`groupRuntime.mode_${mode}`))}</div>
+        )}
+        {editable && data.agent.kind === 'external' && (
+          <ExternalRuntimeNodeFields data={data} entry={agentEntry} onChange={(patch) => change(patch)} />
         )}
         {editable ? (
           <textarea

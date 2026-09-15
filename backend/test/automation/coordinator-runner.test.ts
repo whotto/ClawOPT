@@ -135,6 +135,23 @@ describe('协调器版 WorkflowAgentRunner', () => {
     expect(await running).toMatchObject({ ok: false, error: 'aborted' });
   });
 
+  it('外部运行时节点：模式与模型进请求（global 给 CLI 模型名；scoped 交服务端解析、proxyMode 随提交），业务事件带运行时 id', async () => {
+    const t = setup({ onStart: (run) => setTimeout(() => run.finish({ kind: 'completed', outputText: 'done' }), 1) });
+    await t.runner.runAndWait(t.request({ sessionId: 's-global', model: 'gpt-5.4', owner: { workflowId: 'wf1', nodeId: 'n1' } }));
+    expect(t.external.runs[0].context.request).toMatchObject({ mode: 'global', model: 'gpt-5.4', runtimeConfig: { mode: 'global', model: 'gpt-5.4' }, owner: { kind: 'workflow-node', workflowId: 'wf1', nodeId: 'n1' } });
+    expect(t.external.runs[0].context.proxyMode).toBe('global');
+
+    await t.runner.runAndWait(t.request({ sessionId: 's-scoped', agentRef: { kind: 'external', id: 'claude-code', runtime: 'claude-code', mode: 'scoped' }, model: 'vllm/fake-chat-model' }));
+    const scoped = t.external.runs[1].context;
+    expect(scoped.request).toMatchObject({ mode: 'scoped', runtimeConfig: { mode: 'scoped', model: 'vllm/fake-chat-model' } });
+    expect(scoped.request.model).toBeUndefined();
+    expect(scoped.proxyMode).toBe('scoped');
+    expect(t.business.filter((event) => event.type === 'chat.run.completed').map((event) => event.payload)).toEqual([
+      expect.objectContaining({ runtime: 'claude-code', surface: 'workflow', sessionId: 'workflow:s-global', agentId: 'ext:claude-code:workflow' }),
+      expect.objectContaining({ runtime: 'claude-code', surface: 'workflow', sessionId: 'workflow:s-scoped' }),
+    ]);
+  });
+
   it('审批自动应答落在协调器：once 选「允许一次」，deny 或请求里没有 once 时拒绝', async () => {
     const ask = (choices: Array<'once' | 'session' | 'deny'>) => (run: RunControls) => setTimeout(async () => {
       run.emit({ type: 'approval.requested', request: { approvalId: `ap-${choices.join('-')}`, agentId: 'ext', title: 'Bash', choices, timeoutMs: 60_000 } });

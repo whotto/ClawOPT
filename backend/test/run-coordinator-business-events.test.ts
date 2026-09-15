@@ -19,6 +19,8 @@ import { createWebhookService } from '../src/automation/webhooks/webhook-service
 import { createWebhookStore } from '../src/automation/webhooks/webhook-store';
 import { memoryDb, waitFor } from './automation/helpers';
 import { MemoryRunStore, flush, scriptedAdapter } from './helpers/scripted-adapter';
+import { CODEX_CAPABILITIES, CODEX_SOURCE_OF_TRUTH } from '../src/runtime/adapters/codex';
+import { runExternalChatTurn } from '../src/collab/sessions/external-chat-turn';
 
 function setup() {
   const bus = new EventBus();
@@ -102,6 +104,44 @@ describe('协调器发业务事件', () => {
     expect(received[1].payload).toMatchObject({ errorCode: 'external.exit' });
     expect(received[4].payload).toMatchObject({ approvalId: 'ap1', decision: 'once', reason: 'response' });
     expect(buildWebhookPayload('chat.approval.resolved', received[4].payload as any, 1, false)).toMatchObject({ subject: { approval_id: 'ap1' }, summary: { decision: 'once' } });
+  });
+
+  it('scoped 两路（代理 + 原生）同一个工具与正文：业务事件各只发一次', async () => {
+    const { received, coordinator, submission } = setup();
+    const codex = scriptedAdapter({ id: 'codex', capabilities: CODEX_CAPABILITIES, sourceOfTruth: CODEX_SOURCE_OF_TRUTH });
+    await coordinator.submit(submission({ sessionKey: 's-scoped', surface: 'chat', adapter: codex.adapter, proxyMode: 'scoped' }), 'reject');
+    const run = codex.runs[0];
+    for (const channel of ['proxy', 'native'] as const) {
+      run.emit({ type: 'response.output_item.added', output_index: 0, item: { type: 'function_call', id: `fc-${channel}`, call_id: 'c1', name: 'exec_command', arguments: '{}' } } as any, channel);
+      run.emit({ type: 'response.output_item.done', output_index: 1, item: { type: 'function_call_output', id: `o-${channel}`, call_id: 'c1', output: 'ok' } } as any, channel);
+    }
+    run.finish({ kind: 'completed', outputText: 'done' });
+    await flush();
+    await flush();
+    expect(received.map((event) => event.type)).toEqual(['chat.run.started', 'chat.tool.started', 'chat.tool.completed', 'chat.run.completed']);
+    expect(received[0].payload).toMatchObject({ runtime: 'codex', surface: 'chat' });
+  });
+
+  it('外部运行时单聊（Pi）经协调器：chat.run.started / completed 带 surface chat、runtime、会话 Agent', async () => {
+    const bus = new EventBus();
+    const received: BusEvent[] = [];
+    bus.subscribe('test', (event) => { received.push(event); });
+    const hub = new RealtimeHub();
+    const coordinator = new RunCoordinator({ hub, store: new MemoryRunStore(), events: bus, log: () => {} });
+    const pi = scriptedAdapter({ id: 'pi', onStart: (run) => setTimeout(() => run.finish({ kind: 'completed', outputText: 'pi says hi' }), 1) });
+    const session: any = { id: 'pi-1', name: 'Pi', agentId: 'pi-1', position: 0, created_at: 0, updated_at: 0, external_runtime: 'pi', external_config: '{"mode":"global"}', external_session_id: '33333333-3333-4333-8333-333333333333', external_session_resumable: 0 };
+    const sessions = new Map([[session.id, session]]);
+    await runExternalChatTurn({
+      db: { updateMessage: () => {}, updateMessageEnvelope: () => {}, deleteMessage: () => {}, setChatMessagesRunMarker: () => {}, getSession: (id: string) => sessions.get(id), saveSession: (row: any) => sessions.set(row.id, row) } as any,
+      configManager: { getConfig: () => ({ language: 'en' }) } as any,
+      realtime: hub,
+      runCoordinator: coordinator,
+      createAdapter: () => pi.adapter,
+      defaultWorkspace: () => '/tmp/pi',
+    }, { session, transport: 'ws', res: {} as any, sink: { frame: () => {}, end: () => {} } as any, prompt: 'hi', assistantMessageId: 2, runMarkerMessageIds: [1, 2], agentName: 'Pi' });
+    expect(received.map((event) => event.type)).toEqual(['chat.run.started', 'chat.run.completed']);
+    expect(received[1].payload).toMatchObject({ sessionId: 'pi-1', surface: 'chat', runtime: 'pi', agentId: 'pi-1', agentName: 'Pi' });
+    expect(buildWebhookPayload('chat.run.completed', received[1].payload as Record<string, unknown>, received[1].publishedAt, false)).toMatchObject({ subject: { session_id: 'pi-1' } });
   });
 
   it('端到端到 outbox：协调器运行完成 → 总线 → Webhook 服务入队 chat.run.completed', async () => {

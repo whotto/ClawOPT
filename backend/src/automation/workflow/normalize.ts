@@ -35,7 +35,7 @@ export const MAX_EDGES = 2000;
 
 const NODE_KEYS = new Set(['id', 'type', 'position', 'width', 'height', 'data']);
 const NODE_DATA_KEYS = new Set(['title', 'agent', 'input', 'skills', 'attachments', 'approvalRequired', 'orchestration', 'model']);
-const AGENT_KEYS = new Set(['kind', 'id', 'runtime']);
+const AGENT_KEYS = new Set(['kind', 'id', 'runtime', 'mode']);
 const EDGE_KEYS = new Set(['id', 'source', 'target', 'sourceHandle', 'targetHandle', 'label', 'data']);
 const ORCHESTRATION_KEYS = new Set(['route', 'condition', 'feedback']);
 const CONDITION_KEYS = new Set(['path', 'operator', 'value']);
@@ -93,6 +93,9 @@ export function normalizeNode(raw: unknown): WorkflowNode {
   if (agentRaw.runtime !== undefined && (typeof agentRaw.runtime !== 'string' || !ID_PATTERN.test(agentRaw.runtime))) {
     throw new GraphError('invalidAgentKind', { id });
   }
+  if (agentRaw.mode !== undefined && (agentRaw.kind !== 'external' || (agentRaw.mode !== 'global' && agentRaw.mode !== 'scoped'))) {
+    throw new GraphError('invalidAgentKind', { id });
+  }
 
   if (data.title !== undefined && typeof data.title !== 'string') throw new GraphError('invalidTitle', { id });
   if (data.input !== undefined && typeof data.input !== 'string') throw new GraphError('invalidInput', { id });
@@ -136,7 +139,12 @@ export function normalizeNode(raw: unknown): WorkflowNode {
     position,
     data: {
       title,
-      agent: { kind: agentRaw.kind, id: agentId, ...(typeof agentRaw.runtime === 'string' ? { runtime: agentRaw.runtime } : {}) },
+      agent: {
+        kind: agentRaw.kind,
+        id: agentId,
+        ...(typeof agentRaw.runtime === 'string' ? { runtime: agentRaw.runtime } : {}),
+        ...(agentRaw.mode === 'scoped' ? { mode: 'scoped' as const } : {}),
+      },
       input,
       skills,
       attachments,

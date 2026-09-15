@@ -140,7 +140,8 @@ export function createAppContext() {
     if (owner.kind === 'room-member') {
       return db.getGroupMembers(owner.groupId).some((member) => member.id === owner.memberId && member.runtime === runtime);
     }
-    return true;
+    // 工作流节点 / 看板派活：自动化在下面才装配，清扫在运行期才调，这里按引用取。
+    return automation.runtimeHomeOwnerExists(owner.workflowId, owner.nodeId);
   };
 
   const base = {

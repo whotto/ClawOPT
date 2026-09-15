@@ -135,7 +135,11 @@ export function createAutomation(deps: AutomationDeps) {
     engine,
     hub,
     previews: createImportPreviewStore(connection),
-    cascade: { deleteSchedulesForWorkflow: schedules.deleteForWorkflow, deleteHooksForWorkflow: hooks.deleteForWorkflow },
+    cascade: {
+      deleteSchedulesForWorkflow: schedules.deleteForWorkflow,
+      deleteHooksForWorkflow: hooks.deleteForWorkflow,
+      releaseRuntimeHomes: (workflowId) => deps.runtimePlatform?.releaseOwner({ kind: 'workflow-node', workflowId }),
+    },
   });
 
   const webhookStore = createWebhookStore(connection);
@@ -242,9 +246,15 @@ export function createAutomation(deps: AutomationDeps) {
     return [...new Set(def.nodes.map((item) => workflowAgentId(item.data.agent)))];
   };
 
+  /** 运行时目录定期清扫的判据：工作流节点还在（看板派活是 `kanban` / 任务 id，任务不删只归档，按空闲回收）。 */
+  const runtimeHomeOwnerExists = (workflowId: string, nodeId: string): boolean => (
+    workflowId === 'kanban' ? Boolean(kanbanStore.getTask(nodeId)) : Boolean(defs.get(workflowId)?.nodes.some((node) => node.id === nodeId))
+  );
+
   return {
     nodeSession,
     workflowAgentIds,
+    runtimeHomeOwnerExists,
     packBundles,
     fakeRunner,
     settings,

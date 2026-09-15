@@ -19,6 +19,11 @@ export type WorkflowAgentRef = {
   id: string;
   /** external 时的运行时标识，与 `id` 相同；保留这一格给同一运行时的多份配置。 */
   runtime?: string;
+  /**
+   * external 时的模式：`global`（缺省，CLI 用自己的登录与模型；节点 `model` 是 CLI 自己的模型名）或
+   * `scoped`（ClawOPT 选服务商，CLI 只连本地代理；节点 `model` 是 ClawOPT 模型配置里的 `<端点>/<模型>`）。
+   */
+  mode?: 'global' | 'scoped';
 };
 
 export type ContentBlock =

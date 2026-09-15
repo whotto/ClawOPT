@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { listModels } from '../../api/models';
 import { MODAL_FIELD_LABEL_CLASS, MODAL_TEXT_INPUT_CLASS } from '../../app/sidebar/sidebarTypes';
 import {
   REASONING_EFFORTS,
@@ -11,23 +10,7 @@ import {
   type RuntimeOption,
   type RuntimeSelectionConfig,
 } from './runtimeSelection';
-
-/** ClawOPT 模型配置（scoped 模式的模型下拉），同一页面里只取一次。 */
-let modelsCache: Promise<Array<{ id: string; alias?: string }>> | null = null;
-function loadModels() {
-  if (!modelsCache) {
-    modelsCache = listModels()
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        return Array.isArray(data.models) ? data.models : [];
-      })
-      .catch(() => {
-        modelsCache = null;
-        return [];
-      });
-  }
-  return modelsCache;
-}
+import { loadScopedModels as loadModels } from './scopedModels';
 
 /**
  * 外部运行时的配置项：检测状态、模式（global：CLI 用自己的登录与模型；scoped：ClawOPT 选服务商与模型，CLI 只连本地代理）、

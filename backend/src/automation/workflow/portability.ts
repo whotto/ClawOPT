@@ -60,7 +60,8 @@ function assertOnlyKeys(value: Record<string, unknown>, allowed: string[], where
 function projectNode(node: WorkflowNode) {
   const data: Record<string, unknown> = {
     title: node.data.title,
-    agent: node.data.agent,
+    // 模式与模型一样是本机环境绑定（scoped 指向这台 ClawOPT 的模型配置）：导出时丢掉。
+    agent: { kind: node.data.agent.kind, id: node.data.agent.id, ...(node.data.agent.runtime ? { runtime: node.data.agent.runtime } : {}) },
     input: node.data.input,
     skills: node.data.skills,
     approvalRequired: node.data.approvalRequired,
@@ -108,7 +109,7 @@ function validateViewport(raw: unknown): Viewport | null {
   return { x: x as number, y: y as number, zoom: zoom as number };
 }
 
-/** 信封 → 规范化后的定义。每一层白名单；旧版环境字段（model / attachments）接受后丢弃。 */
+/** 信封 → 规范化后的定义。每一层白名单；环境字段（model / attachments / agent.mode）接受后丢弃。 */
 export function parseEnvelope(document: unknown): WorkflowEnvelopeDefinition {
   scanDocument(document);
   if (!isPlainObject(document)) throw importError('notAnObject');
@@ -134,6 +135,10 @@ export function parseEnvelope(document: unknown): WorkflowEnvelopeDefinition {
     if (!isPlainObject(raw.data)) throw importError('invalidNode');
     assertOnlyKeys(raw.data, ['title', 'agent', 'input', 'skills', 'approvalRequired', 'orchestration', 'model', 'attachments'], 'nodeData');
     const { model: _model, attachments: _attachments, ...data } = raw.data;
+    if (isPlainObject(data.agent)) {
+      const { mode: _mode, ...agent } = data.agent;
+      return { ...raw, data: { ...data, agent } };
+    }
     return { ...raw, data };
   });
   const edges = definition.edges.map((raw) => {

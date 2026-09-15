@@ -3,6 +3,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { compileWorkflow } from '../../src/automation/workflow/compiler';
+
 import {
   buildEnvelope,
   createImportPreviewStore,
@@ -45,6 +47,17 @@ describe('导出', () => {
     expect(JSON.stringify(out)).not.toContain('/uploads/');
     expect(JSON.stringify(out)).not.toContain('/secret/place');
     expect(Object.keys(out.definition.nodes[0].data).sort()).toEqual(['agent', 'approvalRequired', 'input', 'orchestration', 'skills', 'title']);
+  });
+
+  it('外部运行时节点的模式（scoped 绑定本机模型配置）与模型一样导出时丢掉；导入时带着也丢掉', () => {
+    const t = setupEngine();
+    const external = { ...node('a'), data: { ...node('a').data, agent: { kind: 'external', id: 'codex', runtime: 'codex', mode: 'scoped' }, model: 'vllm/x' } };
+    const def = t.defs.create({ name: 'wf', workspace: null, nodes: [compileWorkflow([external], [], { requireConnected: false }).nodes[0]], edges: [], viewport: null });
+    expect(def.nodes[0].data.agent).toEqual({ kind: 'external', id: 'codex', runtime: 'codex', mode: 'scoped' });
+    const out = buildEnvelope(def);
+    expect(out.definition.nodes[0].data.agent).toEqual({ kind: 'external', id: 'codex', runtime: 'codex' });
+    const imported = parseEnvelope({ ...out, definition: { ...out.definition, nodes: [{ ...out.definition.nodes[0], data: { ...out.definition.nodes[0].data, agent: { kind: 'external', id: 'codex', runtime: 'codex', mode: 'scoped' } } }] } });
+    expect(imported.nodes[0].data.agent).toEqual({ kind: 'external', id: 'codex', runtime: 'codex' });
   });
 
   it('导出→导入往返：结构保持', () => {

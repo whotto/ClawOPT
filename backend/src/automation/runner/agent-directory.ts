@@ -71,7 +71,8 @@ export function createAgentDirectory(deps: AgentDirectoryDeps): AgentDirectory {
     const seen = new Set<string>();
     const out: Array<{ id: string; name: string }> = [];
     for (const session of deps.sessionManager.getAllSessions()) {
-      if (!session.agentId || seen.has(session.agentId)) continue;
+      // 外部运行时单聊的会话 Agent 不是 OpenClaw 角色（外部运行时在下面按登记处列）。
+      if (!session.agentId || session.external_runtime || seen.has(session.agentId)) continue;
       seen.add(session.agentId);
       out.push({ id: session.agentId, name: session.name || session.agentId });
     }
@@ -89,6 +90,9 @@ export function createAgentDirectory(deps: AgentDirectoryDeps): AgentDirectory {
     const runtime = ref.runtime ?? ref.id;
     if (!deps.runtimes.list().some((item) => item.id === runtime)) return { available: false as const, reason: `runtime ${runtime} has no adapter` };
     if (!deps.runtimes.installed(runtime)) return { available: false as const, reason: `runtime ${runtime} is not installed on this host` };
+    const mode = ref.mode ?? 'global';
+    const modes = deps.runtimes.list().find((item) => item.id === runtime)?.modes ?? [];
+    if (modes.length > 0 && !modes.includes(mode)) return { available: false as const, reason: `runtime ${runtime} does not support ${mode} mode` };
     return { available: true as const };
   }
 

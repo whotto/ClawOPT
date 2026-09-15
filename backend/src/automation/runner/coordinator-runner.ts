@@ -102,6 +102,8 @@ export function createCoordinatorRunner(deps: CoordinatorRunnerDeps): WorkflowAg
 
     let adapter: AgentRuntimeAdapter<any>;
     let request: OpenClawChatRunRequest | RuntimeRunRequest;
+    // 协调器按它选用量 / 文本的事实来源（scoped 信代理的真实计费）；OpenClaw 不给。
+    let proxyMode: 'global' | 'scoped' | undefined;
     if (isOpenClaw) {
       adapter = deps.openclawAdapter;
       request = openclawRequest(req, connectionKey);
@@ -109,16 +111,20 @@ export function createCoordinatorRunner(deps: CoordinatorRunnerDeps): WorkflowAg
       const external = deps.runtimePlatform.createAdapter(runtime);
       if (!external) return { ok: false, output: '', error: `runtime ${runtime} has no adapter`, sessionId: req.sessionId };
       adapter = external;
+      const mode = req.agentRef.mode === 'scoped' ? 'scoped' : 'global';
       request = {
-        mode: 'global',
+        mode,
         prompt: blocksToText(req.input),
         workspace: req.workspace,
         owner: { kind: 'workflow-node', workflowId: req.owner?.workflowId ?? 'workflow', nodeId: req.owner?.nodeId ?? req.sessionId },
         // 每个节点执行是一轮新会话：句柄就是节点会话 id，不续话。
         sessionId: req.sessionId,
         resume: false,
-        ...(req.model ? { model: req.model } : {}),
+        // global：模型是 CLI 自己的模型名；scoped：模型是 `<端点>/<模型>`，由服务端解析器按 runtimeConfig 取上游（key 只进代理）。
+        ...(mode === 'global' && req.model ? { model: req.model } : {}),
+        runtimeConfig: { mode, ...(req.model ? { model: req.model } : {}) },
       };
+      proxyMode = mode;
     }
 
     let timedOut = false;
@@ -135,6 +141,7 @@ export function createCoordinatorRunner(deps: CoordinatorRunnerDeps): WorkflowAg
         title: 'workflow',
         adapter,
         request,
+        ...(proxyMode ? { proxyMode } : {}),
         projector: () => ({
           // 工作流节点没有自己的消息行：转录读协调器的通用表，运行中的增量协调器已经发进会话主题。
           onEvent: () => {},

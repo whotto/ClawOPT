@@ -18,6 +18,8 @@ export const MAX_BATCH_DELETE = 200;
 export type WorkflowCascade = {
   deleteSchedulesForWorkflow: (workflowId: string) => void;
   deleteHooksForWorkflow: (workflowId: string) => void;
+  /** 回收这个工作流里外部运行时节点的运行时目录。 */
+  releaseRuntimeHomes?: (workflowId: string) => void;
 };
 
 const invalid = (field: string, detail?: string) => new AutomationError(400, WORKFLOW_ERROR.invalidBody, detail ?? field, { field });
@@ -86,6 +88,8 @@ export function createWorkflowService(deps: {
     deps.cascade.deleteHooksForWorkflow(id);
     await engine.deleteWorkflowRuns(id);
     defs.delete(id);
+    // 外部运行时节点的运行时目录随工作流回收（归属 {workflow-node, 工作流}）。
+    deps.cascade.releaseRuntimeHomes?.(id);
     hub.forget(id);
   }
 

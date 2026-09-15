@@ -188,3 +188,13 @@ describe('严格规范化', () => {
     expect(reasonOf(() => compileWorkflow([bad2], []))).toBe('invalidAttachment');
   });
 });
+
+describe('外部运行时节点的模式', () => {
+  const ext = (agent: Record<string, unknown>) => ({ ...node('a'), data: { ...node('a').data, agent } });
+  it('scoped 保留、global 缺省不写；OpenClaw 节点或非法值拒绝', () => {
+    expect(compileWorkflow([ext({ kind: 'external', id: 'pi', runtime: 'pi', mode: 'scoped' })], []).nodes[0].data.agent).toEqual({ kind: 'external', id: 'pi', runtime: 'pi', mode: 'scoped' });
+    expect(compileWorkflow([ext({ kind: 'external', id: 'pi', runtime: 'pi', mode: 'global' })], []).nodes[0].data.agent).toEqual({ kind: 'external', id: 'pi', runtime: 'pi' });
+    expect(reasonOf(() => compileWorkflow([ext({ kind: 'openclaw', id: 'main', mode: 'scoped' })], []))).toBe('invalidAgentKind');
+    expect(reasonOf(() => compileWorkflow([ext({ kind: 'external', id: 'pi', mode: 'proxy' })], []))).toBe('invalidAgentKind');
+  });
+});

@@ -1,6 +1,7 @@
 // 与后端 `backend/src/automation/workflow/types.ts` 同形。改一边要改另一边（接口契约）。
 
-export type AgentRef = { kind: 'openclaw' | 'external'; id: string; runtime?: string };
+/** 外部运行时节点的 `mode`：global（缺省，CLI 自己的登录与模型）/ scoped（ClawOPT 选服务商，节点 `model` 是 `<端点>/<模型>`）。 */
+export type AgentRef = { kind: 'openclaw' | 'external'; id: string; runtime?: string; mode?: 'global' | 'scoped' };
 export type Route = 'success' | 'failure' | 'always';
 export const ROUTES: Route[] = ['success', 'failure', 'always'];
 export const CONDITION_OPERATORS = [
@@ -128,7 +129,16 @@ export type RuntimeStatus = {
   pendingApprovals: Array<{ nodeId: string; executionId: string }>;
 };
 
-export type AgentEntry = { ref: AgentRef; name: string; available: boolean; reason?: string; skills: string[] };
+export type AgentEntry = {
+  ref: AgentRef;
+  name: string;
+  available: boolean;
+  reason?: string;
+  skills: string[];
+  /** 外部运行时（后端登记处）：支持的模式、有没有真审批。 */
+  modes?: Array<'global' | 'scoped'>;
+  approvals?: boolean;
+};
 
 export type Transcript = {
   executionId: string;

@@ -1808,6 +1808,7 @@
       "titlePlaceholder": "節點標題",
       "approvalGate": "審批閘門",
       "agentMissing": "名冊裡已不存在",
+      "realApprovals": "審批自動允許一次",
       "openclawAgents": "OpenClaw 角色",
       "externalRuntimes": "外部執行環境",
       "unavailable": "本機不可用",

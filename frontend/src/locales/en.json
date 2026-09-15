@@ -1808,6 +1808,7 @@
       "titlePlaceholder": "Node title",
       "approvalGate": "Approval gate",
       "agentMissing": "no longer in roster",
+      "realApprovals": "auto-approves once",
       "openclawAgents": "OpenClaw agents",
       "externalRuntimes": "External runtimes",
       "unavailable": "unavailable on this host",

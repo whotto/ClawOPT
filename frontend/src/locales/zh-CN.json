@@ -1808,6 +1808,7 @@
       "titlePlaceholder": "节点标题",
       "approvalGate": "审批闸门",
       "agentMissing": "名册里已不存在",
+      "realApprovals": "审批自动允许一次",
       "openclawAgents": "OpenClaw 角色",
       "externalRuntimes": "外部运行时",
       "unavailable": "本机不可用",
