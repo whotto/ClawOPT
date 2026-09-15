@@ -173,6 +173,7 @@ GET /api/plugins/:id
 POST /api/plugins/:id/enable
 POST /api/plugins/:id/disable
 POST /api/plugins/install
+POST /api/plugins/update-all
 POST /api/plugins/:id/update
 DELETE /api/plugins/:id
 GET /api/usage/summary

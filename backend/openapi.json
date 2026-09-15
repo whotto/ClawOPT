@@ -5061,7 +5061,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/:id",
-        "x-clawopt-order": 176
+        "x-clawopt-order": 177
       }
     },
     "/api/plugins/{id}/enable": {
@@ -5168,6 +5168,34 @@
         "x-clawopt-order": 174
       }
     },
+    "/api/plugins/update-all": {
+      "post": {
+        "operationId": "postApiPluginsUpdateAll",
+        "tags": [
+          "control/plugins"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/plugins/update-all",
+        "x-clawopt-order": 175
+      }
+    },
     "/api/plugins/{id}/update": {
       "post": {
         "operationId": "postApiPluginsIdUpdate",
@@ -5203,7 +5231,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/:id/update",
-        "x-clawopt-order": 175
+        "x-clawopt-order": 176
       }
     },
     "/api/usage/summary": {
@@ -5231,7 +5259,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/usage/summary",
-        "x-clawopt-order": 177
+        "x-clawopt-order": 178
       }
     },
     "/api/logs": {
@@ -5259,7 +5287,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/logs",
-        "x-clawopt-order": 178
+        "x-clawopt-order": 179
       }
     },
     "/api/gateway/service-status": {
@@ -5287,7 +5315,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/gateway/service-status",
-        "x-clawopt-order": 179
+        "x-clawopt-order": 180
       }
     },
     "/api/groups": {
@@ -5315,7 +5343,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 182
+        "x-clawopt-order": 183
       },
       "post": {
         "operationId": "postApiGroups",
@@ -5341,7 +5369,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 183
+        "x-clawopt-order": 184
       }
     },
     "/api/groups/{id}": {
@@ -5379,7 +5407,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 184
+        "x-clawopt-order": 185
       },
       "delete": {
         "operationId": "deleteApiGroupsId",
@@ -5415,7 +5443,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 186
+        "x-clawopt-order": 187
       }
     },
     "/api/groups/reorder": {
@@ -5443,7 +5471,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/reorder",
-        "x-clawopt-order": 185
+        "x-clawopt-order": 186
       }
     },
     "/api/groups/{id}/reset": {
@@ -5481,7 +5509,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/reset",
-        "x-clawopt-order": 187
+        "x-clawopt-order": 188
       }
     },
     "/api/groups/{id}/messages": {
@@ -5519,7 +5547,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 188
+        "x-clawopt-order": 189
       },
       "post": {
         "operationId": "postApiGroupsIdMessages",
@@ -5555,7 +5583,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 191
+        "x-clawopt-order": 192
       }
     },
     "/api/groups/{id}/active-run": {
@@ -5593,7 +5621,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/active-run",
-        "x-clawopt-order": 189
+        "x-clawopt-order": 190
       }
     },
     "/api/groups/{id}/messages/search": {
@@ -5631,7 +5659,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/search",
-        "x-clawopt-order": 190
+        "x-clawopt-order": 191
       }
     },
     "/api/groups/{id}/stop": {
@@ -5669,7 +5697,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/stop",
-        "x-clawopt-order": 192
+        "x-clawopt-order": 193
       }
     },
     "/api/groups/{id}/messages/{msgId}": {
@@ -5715,7 +5743,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 193
+        "x-clawopt-order": 194
       },
       "delete": {
         "operationId": "deleteApiGroupsIdMessagesMsgId",
@@ -5759,7 +5787,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 194
+        "x-clawopt-order": 195
       }
     },
     "/api/groups/{id}/messages/regenerate": {
@@ -5797,7 +5825,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/regenerate",
-        "x-clawopt-order": 195
+        "x-clawopt-order": 196
       }
     },
     "/api/groups/{id}/events": {
@@ -5835,7 +5863,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/events",
-        "x-clawopt-order": 196
+        "x-clawopt-order": 197
       }
     }
   },
