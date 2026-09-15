@@ -16,9 +16,9 @@ function MemoryNode({ data }: NodeProps<Node<MemoryNodeData>>) {
       style={{ width: NODE_WIDTH, background: style.fill, borderColor: selected ? '#2a55b8' : style.border, borderWidth: selected ? 2 : 1 }}
     >
       <Handle type="target" position={Position.Left} className="!w-1 !h-1 !min-w-0 !border-0 !bg-transparent" />
-      <div className="text-xs font-semibold text-gray-900 truncate">{card.title}</div>
-      <div className="mt-0.5 text-[11px] font-mono text-gray-500 truncate">{card.key}</div>
-      <div className="mt-1 flex items-center gap-1.5 text-[10px] text-gray-500">
+      <div className="text-xs font-semibold text-[#171c24] truncate">{card.title}</div>
+      <div className="mt-0.5 text-[11px] font-mono text-[#4c5462] truncate">{card.key}</div>
+      <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#4c5462]">
         <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: style.dot }} />
         <span>r{card.revision}</span>
         <span className="truncate">{card.status}</span>

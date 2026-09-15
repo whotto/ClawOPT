@@ -123,6 +123,17 @@
   border-color: var(--theme-surface);
 }
 
+/* 既有组件里写死的浅色十六进制（聊天日期胶囊、引用块、代码块底色……）：深色下统一换成凹陷表面，文字换成正文色。 */
+:root[data-theme-mode="dark"] :is([class~="bg-[#fffdf0]"], [class~="bg-[#f1f3f4]"], [class~="bg-[#eff1f4]"], [class~="bg-[#fff8ee]"], [class~="bg-[#fafafa]"], [class~="bg-[#FAFAFA]"], [class~="bg-[#f7fbff]"], [class~="bg-[#eff6ff]"], [class~="bg-[#fff3b0]"], [class~="bg-[#f8f9fb]"], [class~="bg-[#f8f9fa]"]) {
+  background-color: var(--color-gray-100);
+}
+:root[data-theme-mode="dark"] :is([class~="text-[#444]"], [class~="text-[#1f2937]"], [class~="text-[#666]"]) {
+  color: var(--color-gray-700);
+}
+:root[data-theme-mode="dark"] [class~="border-[#E5E7EB]"] {
+  border-color: var(--color-gray-200);
+}
+
 /* ── 强调色：交互蓝整族按用户颜色重算（浅色混白、深色混表面） ───────────────── */
 :root[data-theme-accent] {
   --color-blue-50: color-mix(in oklab, var(--theme-accent) 8%, white);

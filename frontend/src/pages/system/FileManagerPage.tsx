@@ -319,6 +319,7 @@ export default function FileManagerPage() {
                 {listError ? <div className="p-3"><ErrorBanner error={listError} /></div> : !listing ? <LoadingRow /> : (
                   <EntryTable
                     entries={listing.entries}
+                    compact={editor !== null}
                     activePath={editor?.path ?? null}
                     writable={writable}
                     canPreview={root.kind === 'agent'}

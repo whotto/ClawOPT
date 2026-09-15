@@ -37,8 +37,8 @@ function JourneyNode({ data }: NodeProps<Node<NodeData>>) {
       style={{ width: JOURNEY_NODE_WIDTH, background: style.fill, borderColor: data.selected ? '#2a55b8' : style.border, borderWidth: data.selected ? 2 : 1 }}
     >
       <Handle type="target" position={Position.Left} className="!w-1 !h-1 !min-w-0 !border-0 !bg-transparent" />
-      <div className="text-xs font-semibold text-gray-900 truncate">{data.node.label}</div>
-      <div className="mt-1 flex items-center gap-1.5 text-[10px] text-gray-500">
+      <div className="text-xs font-semibold text-[#171c24] truncate">{data.node.label}</div>
+      <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#4c5462]">
         <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: style.dot }} />
         <span className="font-mono">{data.node.timestamp.slice(0, 10)}</span>
         {data.byLabel && <span className="truncate">{data.byLabel}</span>}
