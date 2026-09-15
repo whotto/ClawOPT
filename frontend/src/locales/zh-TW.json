@@ -259,7 +259,11 @@
     "gatewayDisconnected": "網關連線已中斷",
     "configuredRuntimeStalled": "OpenClaw 執行階段無回應，已停止本次執行以便檢查",
     "audioTranscriptionUnavailable": "目前未設定可用的音訊轉寫能力",
-    "audioTranscriptionFailed": "音訊轉寫失敗"
+    "audioTranscriptionFailed": "音訊轉寫失敗",
+    "commandWhileRunning": "回覆進行中，內建命令要等這一輪結束再用",
+    "sessionBusy": "這個對話正忙，請稍後再傳",
+    "queueItemNotFound": "這則排隊訊息已經不在佇列裡了",
+    "queueInsertionPending": "已有一則訊息正在插入，請等它開始"
   },
   "group": {
     "maxChainDepthReached": "鏈式轉發已達到最大深度 ({{maxDepth}} 輪)",
@@ -2303,5 +2307,26 @@
     },
     "notFound": "這條審批請求已不存在",
     "notActive": "這條審批請求已被答覆，或還沒輪到它"
+  },
+  "chatQueue": {
+    "title": "排隊中 {{count}} 則",
+    "queue": "排隊傳送",
+    "queueHint": "不打斷目前回覆，排進佇列依序傳送",
+    "placeholderWhileRunning": "回覆進行中，繼續輸入會排隊傳送",
+    "sendNow": "立即插入",
+    "sendNowHint": "打斷目前回覆，馬上傳送這一則",
+    "sendNowIdleHint": "排到佇列最前面，馬上傳送",
+    "cancel": "取消排隊",
+    "hiddenItem": "（系統續跑）",
+    "queueFailed": "排隊傳送失敗",
+    "cancelFailed": "取消排隊失敗",
+    "insertFailed": "立即插入失敗",
+    "interrupted": "已被插入的訊息打斷",
+    "phase": {
+      "requesting": "正在請求插入…",
+      "waiting_for_tool_batch": "等目前工具跑完…",
+      "stopping_current_turn": "正在停下目前回覆…",
+      "starting_queued_message": "正在傳送插入的訊息…"
+    }
   }
 }

@@ -259,7 +259,11 @@
     "gatewayDisconnected": "网关连接已断开",
     "configuredRuntimeStalled": "OpenClaw 运行时无响应，已停止本次运行以便检查",
     "audioTranscriptionUnavailable": "当前未配置可用的音频转写能力",
-    "audioTranscriptionFailed": "音频转写失败"
+    "audioTranscriptionFailed": "音频转写失败",
+    "commandWhileRunning": "回复进行中，内建命令要等这一轮结束再用",
+    "sessionBusy": "这个对话正忙，请稍后再发",
+    "queueItemNotFound": "这条排队消息已经不在队列里了",
+    "queueInsertionPending": "已有一条消息正在插入，请等它开始"
   },
   "group": {
     "maxChainDepthReached": "链式转发已达到最大深度 ({{maxDepth}} 轮)",
@@ -2303,5 +2307,26 @@
     },
     "notFound": "这条审批请求已不存在",
     "notActive": "这条审批请求已被答复，或还没轮到它"
+  },
+  "chatQueue": {
+    "title": "排队中 {{count}} 条",
+    "queue": "排队发送",
+    "queueHint": "不打断当前回复，排到队列里依次发送",
+    "placeholderWhileRunning": "回复进行中，继续输入会排队发送",
+    "sendNow": "立即插入",
+    "sendNowHint": "打断当前回复，马上发送这一条",
+    "sendNowIdleHint": "排到队首，马上发送",
+    "cancel": "取消排队",
+    "hiddenItem": "（系统续跑）",
+    "queueFailed": "排队发送失败",
+    "cancelFailed": "取消排队失败",
+    "insertFailed": "立即插入失败",
+    "interrupted": "已被插入的消息打断",
+    "phase": {
+      "requesting": "正在请求插入…",
+      "waiting_for_tool_batch": "等当前工具跑完…",
+      "stopping_current_turn": "正在停下当前回复…",
+      "starting_queued_message": "正在发送插入的消息…"
+    }
   }
 }

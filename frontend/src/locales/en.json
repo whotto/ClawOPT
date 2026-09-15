@@ -259,7 +259,11 @@
     "gatewayDisconnected": "Gateway connection lost",
     "configuredRuntimeStalled": "OpenClaw runtime stopped responding. The run was stopped for inspection.",
     "audioTranscriptionUnavailable": "No usable audio transcription capability is configured",
-    "audioTranscriptionFailed": "Audio transcription failed"
+    "audioTranscriptionFailed": "Audio transcription failed",
+    "commandWhileRunning": "Built-in commands are available once the current reply finishes",
+    "sessionBusy": "This conversation is busy. Try again in a moment",
+    "queueItemNotFound": "This queued message is no longer in the queue",
+    "queueInsertionPending": "Another message is already being inserted. Wait for it to start"
   },
   "group": {
     "maxChainDepthReached": "Chain forwarding reached the maximum depth ({{maxDepth}} rounds)",
@@ -2303,5 +2307,26 @@
     },
     "notFound": "This approval request no longer exists",
     "notActive": "This approval request was already answered or is not active yet"
+  },
+  "chatQueue": {
+    "title": "{{count}} queued",
+    "queue": "Queue",
+    "queueHint": "Don't interrupt the current reply; send this after it, in order",
+    "placeholderWhileRunning": "A reply is in progress. Anything you send now is queued",
+    "sendNow": "Send now",
+    "sendNowHint": "Interrupt the current reply and send this right away",
+    "sendNowIdleHint": "Move to the front and send right away",
+    "cancel": "Remove from queue",
+    "hiddenItem": "(system follow-up)",
+    "queueFailed": "Couldn't queue the message",
+    "cancelFailed": "Couldn't remove the queued message",
+    "insertFailed": "Couldn't send the queued message now",
+    "interrupted": "Interrupted by an inserted message",
+    "phase": {
+      "requesting": "Requesting insertion…",
+      "waiting_for_tool_batch": "Waiting for the current tools to finish…",
+      "stopping_current_turn": "Stopping the current reply…",
+      "starting_queued_message": "Sending the inserted message…"
+    }
   }
 }

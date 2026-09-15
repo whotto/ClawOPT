@@ -254,6 +254,7 @@ export function useMessageActions(c: MessageActionsContext) {
             ...(isPersistedMessageId(requestTargetMessageId) ? { targetMessageId: requestTargetMessageId } : {}),
           }, headers),
         });
+        if (stream.ok === 'queued') return; // 重新生成不带 queue，不会排队。
         if (!stream.ok) {
           dropAssistantPatches();
           const fallbackContent = `❌ ${t('common.error')}: ${t('unifiedChat.requestFailed')}`;

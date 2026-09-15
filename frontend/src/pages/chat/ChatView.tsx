@@ -4,6 +4,7 @@ import type { ChatViewProps } from '../../features/chat/lib/types';
 import { ChatHeader } from '../../features/chat/components/ChatHeader';
 import ChatRunApprovals from '../../features/approvals/ChatRunApprovals';
 import { Composer } from '../../features/chat/components/Composer';
+import { QueuePanel } from '../../features/chat/components/QueuePanel';
 import { DeleteMessageDialog } from '../../features/chat/components/DeleteMessageDialog';
 import { DragOverlay } from '../../features/chat/components/DragOverlay';
 import { FileErrorDialog } from '../../features/chat/components/FileErrorDialog';
@@ -47,6 +48,8 @@ export default function ChatView(props: ChatViewProps) {
 
       {/* 真审批运行时（Pi、Hermes）在这个对话里等人答复的请求 */}
       <ChatRunApprovals isGroup={c.isGroup} activeKey={c.activeKey} />
+
+      <QueuePanel {...c} />
 
       <Composer {...c} />
 

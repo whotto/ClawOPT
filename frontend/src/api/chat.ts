@@ -26,3 +26,17 @@ export function updateMessage(messageId: string, body: unknown) {
 export function deleteMessage(messageId: string) {
   return apiFetch(`/messages/${messageId}`, { method: 'DELETE' });
 }
+
+/** 单聊运行控制快照：活跃运行、服务端队列、插入状态、待答审批（P1b）。 */
+export function getChatRunState(sessionId: string, signal?: AbortSignal) {
+  return apiFetch(`/chat/${encodeURIComponent(sessionId)}/state`, { signal });
+}
+
+export function cancelQueuedChatMessage(sessionId: string, queueId: string) {
+  return apiFetch(`/chat/${encodeURIComponent(sessionId)}/queue/${encodeURIComponent(queueId)}`, { method: 'DELETE' });
+}
+
+/** 「立即插入」：让当前这一轮尽快让出，排队的这一条接着开始。 */
+export function insertQueuedChatMessage(sessionId: string, queueId: string) {
+  return apiFetch(`/chat/${encodeURIComponent(sessionId)}/queue/${encodeURIComponent(queueId)}/insert`, { method: 'POST' });
+}

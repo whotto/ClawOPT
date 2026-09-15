@@ -20,10 +20,12 @@ import type { HistoryScroll } from './useHistoryScroll';
 import type { ChatHistoryFetch } from './useChatHistoryFetch';
 import type { GroupEvents } from './useGroupEvents';
 import type { MessageActions } from './useMessageActions';
+import type { ChatRunControl } from './useChatRunControl';
+import { createClientTurnId } from '../run/chatRunState';
 
 /** 本段读取的、由前面各段产出的值。 */
 type ComposerActionsContext = Pick<
-  ChatViewState & ChatPresence & MessagePatchQueue & HistoryScroll & ChatHistoryFetch & GroupEvents & MessageActions,
+  ChatViewState & ChatPresence & MessagePatchQueue & HistoryScroll & ChatHistoryFetch & GroupEvents & MessageActions & ChatRunControl,
   't' | 'sessions' | 'isChat' | 'isGroup' | 'activeKey' | 'setMessages' | 'input' | 'setInput' |
   'isLoading' | 'setIsLoading' | 'setSubmitError' | 'setSubmitNotice' | 'currentLocale' | 'setActiveLeafId' | 'editingMessageId' |
   'pendingFiles' | 'setPendingFiles' | 'isDragging' | 'setIsDragging' | 'quotedMessage' |
@@ -36,7 +38,7 @@ type ComposerActionsContext = Pick<
   'formatQuoteTime' | 'flushQueuedMessagePatches' | 'queueMessagePatch' | 'dropQueuedMessagePatch' |
   'moveQueuedMessagePatch' | 'scrollToLatestBottom' | 'prepareLatestHistoryWindowForSubmit' |
   'recoverLatestChatMessages' | 'recoverGroupActiveRun' | 'recoverLatestGroupMessages' |
-  'uploadFiles'
+  'uploadFiles' | 'locallyStreamedRefsRef' | 'refreshRunState' | 'requestAttach'
 >;
 
 export function useComposerActions(c: ComposerActionsContext) {
@@ -51,7 +53,7 @@ export function useComposerActions(c: ComposerActionsContext) {
     resolveGroupMemberDisplayName, isGroupBusy, formatQuoteTime, flushQueuedMessagePatches,
     queueMessagePatch, dropQueuedMessagePatch, moveQueuedMessagePatch, scrollToLatestBottom,
     prepareLatestHistoryWindowForSubmit, recoverLatestChatMessages, recoverGroupActiveRun,
-    recoverLatestGroupMessages, uploadFiles,
+    recoverLatestGroupMessages, uploadFiles, locallyStreamedRefsRef, refreshRunState, requestAttach,
   } = c;
   // ---- File handling ----
   const handleFileChange = async (files: File[]) => {
@@ -131,10 +133,43 @@ export function useComposerActions(c: ComposerActionsContext) {
   // ---- Send message ----
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || isLoading || isGroupBusy) return;
+    if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || (isLoading && !isChat) || isGroupBusy) return;
     setSubmitError('');
     setSubmitNotice('');
     const currentInput = input.trim(); const currentFiles = [...pendingFiles]; const currentQuote = quotedMessage;
+
+    if (isChat && isLoading) {
+      // 正在回复：不打断，排进服务端队列（队列面板里可取消、可立即插入）。出队时由会话实时通道补进时间线。
+      setInput(''); setPendingFiles([]); setQuotedMessage(null);
+      const restoreDraft = () => { setInput(currentInput); setPendingFiles(currentFiles); setQuotedMessage(currentQuote); };
+      try {
+        const uploadedContent = await uploadFiles(currentFiles);
+        let textContent = currentInput;
+        if (currentQuote) {
+          const author = currentQuote.role === 'user' ? t('common.you') : (currentQuote.agentName || t('common.ai'));
+          const time = formatQuoteTime(currentQuote.timestamp);
+          textContent = `[引用开始 author="${author}" time="${time}"]\n${currentQuote.content}\n[引用结束]\n\n${currentInput}`.trim();
+        }
+        const fullMessage = [uploadedContent, textContent].filter(Boolean).join('\n\n');
+        if (!fullMessage) return;
+        const response = await postChatMessage({ sessionId: activeKey, message: fullMessage, queue: true, clientTurnId: createClientTurnId() });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          restoreDraft();
+          setSubmitError(resolveSubmitError(payload || {}, t, 'chatQueue.queueFailed'));
+          return;
+        }
+        // 判忙与提交之间上一轮刚好结束：这一条直接开始了，接回它的流。
+        if (payload?.started) requestAttach();
+      } catch (error: any) {
+        restoreDraft();
+        setSubmitError(error?.message || String(t('chatQueue.queueFailed')));
+      } finally {
+        void refreshRunState();
+      }
+      return;
+    }
+
     const submitLeafId = prepareLatestHistoryWindowForSubmit();
     setInput(''); setPendingFiles([]); setQuotedMessage(null); setIsLoading(true);
     scrollToLatestBottom();
@@ -181,13 +216,23 @@ export function useComposerActions(c: ComposerActionsContext) {
           { id: assistantId, role: 'assistant', content: '', processStreaming: shouldShowProcessPlaceholder, timestamp: new Date(), model: snapshotModel, agentName: snapshotAgentName, parentId: userMessageId },
         ]);
         setActiveLeafId(assistantId);
+        const clientTurnId = createClientTurnId();
+        locallyStreamedRefsRef.current.add(clientTurnId);
         const stream = await openChatTurnStream({
           transport: readChatStreamTransport(),
           sessionId: activeKey,
           client: getRealtimeClient,
-          post: (headers) => postChatMessage({ sessionId: activeKey, message: fullMessage }, controller.signal, headers),
+          // 带 queue：万一另一个标签页刚开始了一轮，这一条排队而不是把那一轮打断。
+          post: (headers) => postChatMessage({ sessionId: activeKey, message: fullMessage, queue: true, clientTurnId }, controller.signal, headers),
           signal: controller.signal,
         });
+        if (stream.ok === 'queued') {
+          locallyStreamedRefsRef.current.delete(clientTurnId);
+          dropAssistantPatches();
+          setMessages(prev => prev.filter(message => message.id !== userMessageId && !assistantTargetIds.has(message.id)));
+          void refreshRunState();
+          return;
+        }
         if (!stream.ok) {
           dropAssistantPatches();
           const fallbackContent = `❌ ${t('common.error')}: ${t('unifiedChat.requestFailed')}`;

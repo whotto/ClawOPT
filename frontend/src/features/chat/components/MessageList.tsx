@@ -141,6 +141,7 @@ export function MessageList(c: MessageListProps) {
                 processContent={msg.processContent}
                 processStreaming={msg.processStreaming}
                 rawDetail={msg.rawDetail}
+                interrupted={msg.interrupted}
                 isHighlighted={isHighlighted} showDateDivider={showDateDivider}
                 searchQuery={matchedMessageIdSet.has(msg.id) ? debouncedMessageSearchQuery : ''}
                 agentName={agentName} modelDisplayName={modelDisplayName}

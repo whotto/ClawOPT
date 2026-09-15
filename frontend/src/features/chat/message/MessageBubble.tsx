@@ -30,6 +30,8 @@ export interface MessageProps {
   processContent?: string;
   processStreaming?: boolean;
   rawDetail?: string;
+  /** 这一轮被「立即插入」的消息打断（不是错误）。 */
+  interrupted?: boolean;
   timestamp: Date;
   isHighlighted?: boolean;
   searchQuery?: string;
@@ -77,7 +79,7 @@ export interface MessageProps {
 }
 
 const MessageBubbleInner: React.FC<MessageProps> = ({
-  id, role, content, processContent, processStreaming, rawDetail, timestamp, isHighlighted, searchQuery, showDateDivider,
+  id, role, content, processContent, processStreaming, rawDetail, interrupted, timestamp, isHighlighted, searchQuery, showDateDivider,
   agentName, modelDisplayName, avatarUrl, avatarChar, avatarColorClass,
   isEditing, editContent, editIsDragging, editExistingAttachments, editPendingFiles,
   onSetEditIsDragging, onSetEditContent, onSetEditExistingAttachments, onDropNewFiles,
@@ -862,6 +864,9 @@ const MessageBubbleInner: React.FC<MessageProps> = ({
           
           <div className={`mt-2 flex items-center gap-1.5 text-[14px] text-gray-500 font-sans font-normal w-full ${role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <span className={`text-[12px] opacity-70 font-sans ${role === 'user' ? 'mr-0' : 'mr-2'}`}>{timestamp.toLocaleTimeString(currentLocale, { hour: '2-digit', minute: '2-digit' })}</span>
+            {role === 'assistant' && interrupted && (
+              <span className="mr-2 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-[11px] text-gray-500">{t('chatQueue.interrupted')}</span>
+            )}
 
             {role === 'user' && isLatest && (
               <button 
@@ -909,7 +914,7 @@ const MessageBubbleInner: React.FC<MessageProps> = ({
 // Only re-render when data props actually change
 const messageBubbleAreEqual = (prevProps: MessageProps, nextProps: MessageProps): boolean => {
   const dataKeys: (keyof MessageProps)[] = [
-    'id', 'role', 'content', 'processContent', 'processStreaming', 'rawDetail', 'isHighlighted', 'searchQuery', 'showDateDivider',
+    'id', 'role', 'content', 'processContent', 'processStreaming', 'rawDetail', 'interrupted', 'isHighlighted', 'searchQuery', 'showDateDivider',
     'agentName', 'modelDisplayName', 'avatarUrl', 'avatarChar', 'avatarColorClass',
     'isEditing', 'editContent', 'editIsDragging',
     'isCopied', 'activeCopiedId', 'isLoading', 'isLatest',
