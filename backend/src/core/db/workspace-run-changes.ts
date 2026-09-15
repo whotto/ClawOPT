@@ -8,6 +8,8 @@
  *
  * 只加表不改表，全部 `IF NOT EXISTS`。单独成文件，`db.ts` 只多一行调用。
  */
+import path from 'path';
+
 import type Database from 'better-sqlite3';
 
 export type WorkspaceChangeType = 'added' | 'modified' | 'deleted' | 'renamed';
@@ -34,6 +36,8 @@ export interface WorkspaceRunChangeInput {
   runMarker: string;
   assistantMessageId: string | null;
   mode: 'git' | 'scan';
+  /** 检查点时工作区的 realpath（「查看文件」据此拼绝对路径，再交给可服务路径闸门；老行没有）。 */
+  workspaceRoot?: string | null;
   /** 改动文件总数（可能多于落库的文件行：超过文件数上限时只存前面的）。 */
   fileCount: number;
   additions: number;
@@ -83,6 +87,18 @@ export interface WorkspaceRunChangeFilePatch {
   patch: string | null;
   truncated: boolean;
   binary: boolean;
+  /**
+   * 运行后这个文件在磁盘上的绝对路径（删除的文件、老行、路径不像相对路径时为 null）。
+   * 只是一个**候选路径**：看原文走 `/api/files/*`，那里先过可服务路径闸门（realpath、白名单根、凭据文件名）再过数据面授权。
+   */
+  contentPath: string | null;
+}
+
+/** 变更集里的相对路径 + 工作区根 → 绝对路径。拒绝绝对路径与带 `..` 段的（库里的数据也不信）。 */
+export function workspaceChangeContentPath(root: string | null | undefined, relPath: string, changeType: WorkspaceChangeType): string | null {
+  if (!root || !path.isAbsolute(root) || changeType === 'deleted') return null;
+  if (!relPath || path.isAbsolute(relPath) || relPath.split(/[\\/]/).some((segment) => segment === '..')) return null;
+  return path.join(root, relPath);
 }
 
 export function applyWorkspaceRunChangesSchema(db: Database.Database): void {
@@ -100,7 +116,8 @@ export function applyWorkspaceRunChangesSchema(db: Database.Database): void {
       deletions INTEGER NOT NULL DEFAULT 0,
       patch_bytes INTEGER NOT NULL DEFAULT 0,
       truncated INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      workspace_root TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_workspace_run_changes_message ON workspace_run_changes(session_key, assistant_message_id);
 
@@ -121,6 +138,9 @@ export function applyWorkspaceRunChangesSchema(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_workspace_run_change_files_change ON workspace_run_change_files(change_id, id);
   `);
+  // 工作区根晚于表本身加入（P1b 收尾「查看文件」）：已经建过表的库补一列，只加不改。
+  const columns = db.prepare('PRAGMA table_info(workspace_run_changes)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'workspace_root')) db.exec('ALTER TABLE workspace_run_changes ADD COLUMN workspace_root TEXT');
 }
 
 type ChangeRow = {
@@ -141,8 +161,8 @@ export class WorkspaceRunChangeRepository {
   save(input: WorkspaceRunChangeInput): void {
     const insertChange = this.db.prepare(`
       INSERT INTO workspace_run_changes (id, session_key, surface, run_id, run_marker, assistant_message_id, workspace_mode,
-        file_count, additions, deletions, patch_bytes, truncated, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        file_count, additions, deletions, patch_bytes, truncated, created_at, workspace_root)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertFile = this.db.prepare(`
       INSERT INTO workspace_run_change_files (change_id, path, old_path, change_type, additions, deletions, old_size, new_size,
@@ -153,6 +173,7 @@ export class WorkspaceRunChangeRepository {
       insertChange.run(
         input.id, input.sessionKey, input.surface, input.runId, input.runMarker, input.assistantMessageId, input.mode,
         input.fileCount, input.additions, input.deletions, input.patchBytes, input.truncated ? 1 : 0, input.createdAt,
+        input.workspaceRoot ?? null,
       );
       for (const file of input.files) {
         insertFile.run(
@@ -219,13 +240,16 @@ export class WorkspaceRunChangeRepository {
   /** 一个文件的 patch：变更集必须属于这个会话，否则当作不存在。 */
   getFilePatch(sessionKey: string, changeId: string, fileId: number): WorkspaceRunChangeFilePatch | null {
     const row = this.db.prepare(`
-      SELECT f.id, f.path, f.old_path, f.change_type, f.patch, f.truncated, f.binary
+      SELECT f.id, f.path, f.old_path, f.change_type, f.patch, f.truncated, f.binary, c.workspace_root
       FROM workspace_run_change_files f
       JOIN workspace_run_changes c ON c.id = f.change_id
       WHERE c.session_key = ? AND c.id = ? AND f.id = ?
-    `).get(sessionKey, changeId, fileId) as { id: number; path: string; old_path: string | null; change_type: WorkspaceChangeType; patch: string | null; truncated: number; binary: number } | undefined;
+    `).get(sessionKey, changeId, fileId) as { id: number; path: string; old_path: string | null; change_type: WorkspaceChangeType; patch: string | null; truncated: number; binary: number; workspace_root: string | null } | undefined;
     if (!row) return null;
-    return { id: row.id, path: row.path, oldPath: row.old_path, changeType: row.change_type, patch: row.patch, truncated: row.truncated === 1, binary: row.binary === 1 };
+    return {
+      id: row.id, path: row.path, oldPath: row.old_path, changeType: row.change_type, patch: row.patch, truncated: row.truncated === 1, binary: row.binary === 1,
+      contentPath: workspaceChangeContentPath(row.workspace_root, row.path, row.change_type),
+    };
   }
 
   /** 助手消息被删（重新生成、删消息）时，挂在它上面的变更集一起删。 */

@@ -10,7 +10,9 @@ import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { RealtimeHub, type RealtimeEvent } from '../src/core/realtime';
+import Database from 'better-sqlite3';
 import type { WorkspaceRunChangeInput } from '../src/core/db';
+import { applyWorkspaceRunChangesSchema, WorkspaceRunChangeRepository, workspaceChangeContentPath } from '../src/core/db/workspace-run-changes';
 import { RunCoordinator, createWorkspaceDiffCheckpointer, type RunProjector, type RunSubmission, type WorkspaceCheckpointer } from '../src/runtime/coordinator';
 import { diffLines, formatUnifiedPatch } from '../src/runtime/coordinator/workspace-diff';
 import { parseMessageIdsQuery } from '../src/collab/sessions/workspace-change-routes';
@@ -314,7 +316,7 @@ describe('协调器接线', () => {
     expect((diffEvent?.payload as any)?.changeId).toBe(terminal.workspaceChange.changeId);
     const completed = events.find((event) => event.type === 'run.completed');
     expect((completed?.payload as any).workspace_run_change.changeId).toBe(terminal.workspaceChange.changeId);
-    expect(saved[0]).toMatchObject({ assistantMessageId: '99', surface: 'chat' });
+    expect(saved[0]).toMatchObject({ assistantMessageId: '99', surface: 'chat', workspaceRoot: fs.realpathSync(root) });
   });
 
   it('检查点开始失败、比对失败、落库失败都不影响运行：照常完成，没有改动卡片', async () => {
@@ -381,6 +383,34 @@ describe('库表：按消息取、懒加载 patch、跟着会话走', () => {
     const fileId = listed[0].files[0].id;
     expect(db.workspaceRunChanges.getFilePatch('sess-a', 'c1', fileId)?.patch).toBe('+a\n');
     expect(db.workspaceRunChanges.getFilePatch('sess-b', 'c1', fileId)).toBeNull();
+    // 老行没有工作区根：没有「查看文件」的候选路径
+    expect(db.workspaceRunChanges.getFilePatch('sess-a', 'c1', fileId)?.contentPath).toBeNull();
+  });
+
+  it('「查看文件」的候选路径：工作区根 + 相对路径；删除的文件、绝对路径与带 .. 的路径不给', () => {
+    db.workspaceRunChanges.save({ ...change('c-root', 'sess-root', '20'), workspaceRoot: '/work/space', files: [
+      { path: 'src/a.txt', oldPath: null, changeType: 'modified', additions: 1, deletions: 1, oldSize: 1, newSize: 1, patch: '-a\n+b\n', patchBytes: 6, truncated: false, binary: false },
+      { path: 'gone.txt', oldPath: null, changeType: 'deleted', additions: 0, deletions: 1, oldSize: 1, newSize: null, patch: '-x\n', patchBytes: 3, truncated: false, binary: false },
+      { path: '../escape.txt', oldPath: null, changeType: 'added', additions: 1, deletions: 0, oldSize: null, newSize: 1, patch: '+e\n', patchBytes: 3, truncated: false, binary: false },
+    ] });
+    const [modified, deleted, escape] = db.workspaceRunChanges.listForMessages('sess-root', ['20'])[0].files;
+    expect(db.workspaceRunChanges.getFilePatch('sess-root', 'c-root', modified.id).contentPath).toBe(path.join('/work/space', 'src/a.txt'));
+    expect(db.workspaceRunChanges.getFilePatch('sess-root', 'c-root', deleted.id).contentPath).toBeNull();
+    expect(db.workspaceRunChanges.getFilePatch('sess-root', 'c-root', escape.id).contentPath).toBeNull();
+    expect(workspaceChangeContentPath('/work/space', '/etc/passwd', 'added')).toBeNull();
+    expect(workspaceChangeContentPath('relative-root', 'a.txt', 'added')).toBeNull();
+  });
+
+  it('已经建过表（没有 workspace_root 列）的库：打开时补一列，旧行照常读', () => {
+    const legacy = new Database(':memory:');
+    legacy.exec(`CREATE TABLE workspace_run_changes (id TEXT PRIMARY KEY, session_key TEXT NOT NULL, surface TEXT, run_id TEXT NOT NULL, run_marker TEXT NOT NULL,
+      assistant_message_id TEXT, workspace_mode TEXT NOT NULL, file_count INTEGER NOT NULL DEFAULT 0, additions INTEGER NOT NULL DEFAULT 0,
+      deletions INTEGER NOT NULL DEFAULT 0, patch_bytes INTEGER NOT NULL DEFAULT 0, truncated INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)`);
+    applyWorkspaceRunChangesSchema(legacy);
+    const repo = new WorkspaceRunChangeRepository(legacy);
+    repo.save({ ...change('c-legacy', 'sess-l', '1'), workspaceRoot: '/w' });
+    const fileId = repo.listForMessages('sess-l', ['1'])[0].files[0].id;
+    expect(repo.getFilePatch('sess-l', 'c-legacy', fileId)?.contentPath).toBe(path.join('/w', 'a.txt'));
   });
 
   it('删会话、清空历史、删消息、删群、删工作流会话数据都带走变更集', () => {

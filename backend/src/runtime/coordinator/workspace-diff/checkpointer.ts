@@ -255,6 +255,7 @@ export function createWorkspaceDiffCheckpointer(options: WorkspaceDiffCheckpoint
         runMarker: state.runMarker,
         assistantMessageId: messageId,
         mode: state.mode,
+        workspaceRoot: state.rootReal,
         fileCount: merged.length,
         additions,
         deletions,

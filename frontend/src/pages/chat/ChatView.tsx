@@ -67,6 +67,7 @@ export default function ChatView(props: ChatViewProps) {
           change={c.openWorkspaceChangeTarget.change}
           initialFileId={c.openWorkspaceChangeTarget.fileId}
           onClose={c.closeWorkspaceChange}
+          onOpenFile={(target) => c.setPreviewFile(target)}
         />
       )}
 

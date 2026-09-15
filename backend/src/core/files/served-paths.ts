@@ -6,7 +6,7 @@
  * `openclaw.json` 里的模型 key 都在内）；`/openclaw` 静态挂载把整个 `~/.openclaw`
  * 挂了出去，同样的问题。
  *
- * 这里换成白名单：只有智能体与群组工作区、上传目录下的文件可以被服务，且工作区内
+ * 这里换成白名单：只有智能体与群组工作区、外部运行时单聊的缺省工作区、上传目录下的文件可以被服务，且工作区内
  * 的凭据类文件仍然拒绝。路径先 realpath 再做归属判断，符号链接因此逃不出去。
  *
  * 判据顺序是「先解析真实路径，再判归属，最后判文件名」——反过来先看文件名的话，
@@ -50,13 +50,22 @@ function dataUploadsRoot(): string {
 }
 
 /**
+ * 外部运行时单聊没配工作目录时的缺省工作区的父目录（`collab/sessions/external-workspace.ts` 在这下面按会话 id 建目录）。
+ * 自定义工作目录（`workingDir`）不在白名单里：那是任意本机路径，不因为「某个会话用过」就对浏览器开放。
+ */
+function externalSessionWorkspacesRoot(): string {
+  const dataDir = process.env.CLAWOPT_DATA_DIR || '.clawopt';
+  return path.join(os.homedir(), dataDir, 'workspaces', 'external');
+}
+
+/**
  * 真实存在的允许根，已 realpath。
  *
  * 只列**工作区**与上传目录：`~/.openclaw` 根目录本身不在其中，所以 `openclaw.json`
  * 与 `agents/` 下的凭据天然落在白名单之外，不必依赖文件名黑名单兜底。
  */
 function allowedRoots(): string[] {
-  const roots: string[] = [dataUploadsRoot()];
+  const roots: string[] = [dataUploadsRoot(), externalSessionWorkspacesRoot()];
   const root = openclawRoot();
   try {
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
@@ -133,6 +142,7 @@ export function resolveServablePath(absolutePath: string): ServedPathVerdict {
  * - `~/.openclaw/workspace-group-<群>/…` → 群；
  * - `~/.openclaw/workspace-<Agent>/…` → Agent（`getWorkspacePath` 的命名就是这个）；
  * - 上传目录 → 看 `files` 表里登记的会话 / 群；
+ * - `<数据目录>/workspaces/external/<目录名>/…` → 单聊会话（目录名就是会话 id 时；否则无主）；
  * - 其余（`~/.openclaw/workspace` 这类不带 id 的目录）→ 无主，只给管理员。
  *
  * 入参必须是 `resolveServablePath` 给出的 realPath：先过闸门、再判归属，顺序不能反。
@@ -141,6 +151,7 @@ export type ServedPathOwner =
   | { kind: 'agent'; agentId: string }
   | { kind: 'group'; groupId: string }
   | { kind: 'upload'; storedName: string }
+  | { kind: 'chatSession'; sessionDir: string }
   | { kind: 'unowned' };
 
 const GROUP_WORKSPACE_DIR_PREFIX = 'workspace-group-';
@@ -157,6 +168,11 @@ function realpathOrSelf(candidate: string): string {
 export function servedPathOwner(realPath: string): ServedPathOwner {
   const uploadsRoot = realpathOrSelf(dataUploadsRoot());
   if (isInside(realPath, uploadsRoot)) return { kind: 'upload', storedName: path.basename(realPath) };
+  const externalRoot = realpathOrSelf(externalSessionWorkspacesRoot());
+  if (isInside(realPath, externalRoot)) {
+    const [dir] = path.relative(externalRoot, realPath).split(path.sep);
+    return dir && dir !== '..' && path.join(externalRoot, dir) !== realPath ? { kind: 'chatSession', sessionDir: dir } : { kind: 'unowned' };
+  }
   const root = realpathOrSelf(openclawRoot());
   if (!isInside(realPath, root)) return { kind: 'unowned' };
   const [top] = path.relative(root, realPath).split(path.sep);

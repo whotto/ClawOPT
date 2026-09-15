@@ -20,6 +20,7 @@ process.env.CLAWOPT_DATA_DIR = '.clawopt_test';
 const workspace = path.join(home, '.openclaw', 'workspace-main');
 const uploads = path.join(home, '.clawopt_test', 'uploads');
 const outside = path.join(home, 'secret');
+const external = path.join(home, '.clawopt_test', 'workspaces', 'external');
 
 beforeAll(() => {
   fs.mkdirSync(path.join(workspace, 'skills'), { recursive: true });
@@ -29,6 +30,12 @@ beforeAll(() => {
   fs.writeFileSync(path.join(workspace, 'auth-profiles.json'), '{"token":"secret"}');
   fs.writeFileSync(path.join(workspace, 'id_rsa'), 'PRIVATE');
   fs.writeFileSync(path.join(uploads, 'photo.png'), 'png');
+  fs.mkdirSync(path.join(external, 'sess-1', 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(external, 'sess-1', 'hello.txt'), 'hi');
+  fs.writeFileSync(path.join(external, 'sess-1', '.env'), 'SECRET=1');
+  fs.writeFileSync(path.join(external, 'sess-1', 'node_modules', 'x.js'), '1');
+  fs.mkdirSync(path.join(home, '.clawopt_test', 'workspaces', 'other'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.clawopt_test', 'workspaces', 'other', 'x.txt'), 'x');
   fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), '{"models":{"providers":{"a":{"apiKey":"sk-x"}}}}');
   fs.writeFileSync(path.join(outside, 'private.key'), 'KEY');
 });
@@ -36,7 +43,7 @@ beforeAll(() => {
 afterAll(() => fs.rmSync(home, { recursive: true, force: true }));
 
 // 模块在导入时读 HOME，所以必须在设置环境变量之后再 import
-const { resolveServablePath } = await import('../src/core/files/served-paths');
+const { resolveServablePath, servedPathOwner } = await import('../src/core/files/served-paths');
 
 describe('放行', () => {
   it('工作区里的普通文件', () => {
@@ -46,6 +53,15 @@ describe('放行', () => {
 
   it('上传目录里的文件', () => {
     expect(resolveServablePath(path.join(uploads, 'photo.png')).ok).toBe(true);
+  });
+
+  it('外部运行时单聊的缺省工作区：放行普通文件、归属是那个会话；凭据文件与依赖目录照样拒绝；数据目录里别的目录不放行', () => {
+    const verdict = resolveServablePath(path.join(external, 'sess-1', 'hello.txt'));
+    expect(verdict.ok).toBe(true);
+    if (verdict.ok) expect(servedPathOwner(verdict.realPath)).toEqual({ kind: 'chatSession', sessionDir: 'sess-1' });
+    expect(resolveServablePath(path.join(external, 'sess-1', '.env'))).toMatchObject({ ok: false, reason: 'deniedFile' });
+    expect(resolveServablePath(path.join(external, 'sess-1', 'node_modules', 'x.js'))).toMatchObject({ ok: false, reason: 'deniedFile' });
+    expect(resolveServablePath(path.join(home, '.clawopt_test', 'workspaces', 'other', 'x.txt'))).toMatchObject({ ok: false, reason: 'outsideAllowedRoots' });
   });
 });
 

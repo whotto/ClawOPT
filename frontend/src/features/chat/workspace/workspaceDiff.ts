@@ -38,6 +38,17 @@ export interface WorkspaceFilePatch {
   patch: string | null;
   truncated: boolean;
   binary: boolean;
+  /** 运行后文件在磁盘上的绝对路径（删除的文件、老记录为 null）。看原文走 `/api/files/*` 的两道门。 */
+  contentPath?: string | null;
+}
+
+/** 「查看文件」：只有服务端给了候选路径才出按钮；地址是下载接口（服务端先过可服务路径闸门再按会话授权）。 */
+export function workspaceFileViewTarget(file: Pick<WorkspaceFilePatch, 'path' | 'contentPath' | 'binary'>, buildUrl: (localPath: string) => string | null): { url: string; filename: string } | null {
+  if (!file.contentPath) return null;
+  const url = buildUrl(file.contentPath);
+  if (!url) return null;
+  const segments = file.path.split('/');
+  return { url, filename: segments[segments.length - 1] || file.path };
 }
 
 /** 这一页里能挂改动卡片的消息：落了库的助手消息（临时 id 还没有服务端记录）。只取最近的 200 条。 */

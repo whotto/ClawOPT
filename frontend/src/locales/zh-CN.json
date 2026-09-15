@@ -2442,7 +2442,8 @@
     "patchNotRecorded": "这个文件的差异超出记录上限，没有保存",
     "patchTruncated": "差异过长，已截断",
     "unchangedLines": "展开 {{count}} 行未改动内容",
-    "notFound": "这条改动记录不存在"
+    "notFound": "这条改动记录不存在",
+    "openFile": "查看文件"
   },
   "sessionOrg": {
     "organize": "整理",

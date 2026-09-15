@@ -2442,7 +2442,8 @@
     "patchNotRecorded": "This file's diff exceeded the recording limit and wasn't saved",
     "patchTruncated": "Diff too long; truncated",
     "unchangedLines": "Show {{count}} unchanged lines",
-    "notFound": "This change record doesn't exist"
+    "notFound": "This change record doesn't exist",
+    "openFile": "View file"
   },
   "sessionOrg": {
     "organize": "Organize",

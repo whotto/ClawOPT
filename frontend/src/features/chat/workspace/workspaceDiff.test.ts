@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  collectAssistantMessageIds, createRequestSequence, foldUnchangedLines, groupChangesByMessage, parseUnifiedPatch, summarizeChanges,
+  collectAssistantMessageIds, createRequestSequence, foldUnchangedLines, groupChangesByMessage, parseUnifiedPatch, summarizeChanges, workspaceFileViewTarget,
   type WorkspaceChange,
 } from './workspaceDiff';
 
@@ -44,5 +44,12 @@ describe('workspaceDiff', () => {
     const a = sequence.next();
     const b = sequence.next();
     expect([sequence.isCurrent(a), sequence.isCurrent(b)]).toEqual([false, true]);
+  });
+
+  it('查看文件：只有服务端给了候选路径才有目标，文件名取路径最后一段', () => {
+    const build = (localPath: string) => `/api/files/download?path=${encodeURIComponent(localPath)}`;
+    expect(workspaceFileViewTarget({ path: 'src/a.ts', contentPath: '/w/src/a.ts', binary: false }, build)).toEqual({ url: '/api/files/download?path=%2Fw%2Fsrc%2Fa.ts', filename: 'a.ts' });
+    expect(workspaceFileViewTarget({ path: 'gone.txt', contentPath: null, binary: false }, build)).toBeNull();
+    expect(workspaceFileViewTarget({ path: 'x', contentPath: '/w/x', binary: false }, () => null)).toBeNull();
   });
 });

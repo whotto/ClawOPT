@@ -2442,7 +2442,8 @@
     "patchNotRecorded": "這個檔案的差異超出記錄上限，沒有儲存",
     "patchTruncated": "差異過長，已截斷",
     "unchangedLines": "展開 {{count}} 行未變更內容",
-    "notFound": "這筆變更記錄不存在"
+    "notFound": "這筆變更記錄不存在",
+    "openFile": "查看檔案"
   },
   "sessionOrg": {
     "organize": "整理",

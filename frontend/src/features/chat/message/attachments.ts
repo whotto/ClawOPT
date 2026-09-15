@@ -229,7 +229,7 @@ function isLikelyFilePath(localPath: string): boolean {
   return /\.[^./\s]+$/u.test(filename);
 }
 
-function buildDownloadUrlFromLocalPath(localPath: string): string | null {
+export function buildDownloadUrlFromLocalPath(localPath: string): string | null {
   const encodedPath = encodeBase64Utf8(localPath);
   if (!encodedPath) return null;
   return `/api/files/download?path=${encodeURIComponent(encodedPath)}`;

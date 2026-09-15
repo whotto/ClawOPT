@@ -1,11 +1,12 @@
 // 右侧 diff 面板：左列这一轮改动的文件，右边懒加载选中文件的 patch（未改动行折叠、二进制与截断提示）。
-import { ChevronRight, FileDiff, Loader2, X } from 'lucide-react';
+import { ChevronRight, ExternalLink, FileDiff, Loader2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getWorkspaceChangeFile } from '../../../api/workspaceChanges';
+import { buildDownloadUrlFromLocalPath } from '../message/attachments';
 import { ChangeTypeBadge, LineCounts } from './WorkspaceChangeCard';
 import {
-  createRequestSequence, foldUnchangedLines, parseUnifiedPatch,
+  createRequestSequence, foldUnchangedLines, parseUnifiedPatch, workspaceFileViewTarget,
   type DiffViewItem, type WorkspaceChange, type WorkspaceFilePatch,
 } from './workspaceDiff';
 
@@ -57,11 +58,13 @@ function DiffRows({ items }: { items: DiffViewItem[] }) {
   );
 }
 
-export function WorkspaceDiffPanel({ sessionId, change, initialFileId, onClose }: {
+export function WorkspaceDiffPanel({ sessionId, change, initialFileId, onClose, onOpenFile }: {
   sessionId: string;
   change: WorkspaceChange;
   initialFileId: number | null;
   onClose: () => void;
+  /** 打开文件预览（聊天页的预览弹窗）。 */
+  onOpenFile?: (target: { url: string; filename: string }) => void;
 }) {
   const { t } = useTranslation();
   const [fileId, setFileId] = useState<number | null>(initialFileId ?? change.files[0]?.id ?? null);
@@ -99,6 +102,7 @@ export function WorkspaceDiffPanel({ sessionId, change, initialFileId, onClose }
     patch.status === 'ready' && patch.file.patch ? foldUnchangedLines(parseUnifiedPatch(patch.file.patch)) : []
   ), [patch]);
   const selected = change.files.find((file) => file.id === fileId) ?? null;
+  const viewTarget = patch.status === 'ready' && onOpenFile ? workspaceFileViewTarget(patch.file, buildDownloadUrlFromLocalPath) : null;
 
   return (
     <div className="fixed inset-0 z-[120] flex justify-end" role="dialog" aria-label={t('workspaceDiff.panelTitle')} data-testid="workspace-diff-panel">
@@ -131,8 +135,21 @@ export function WorkspaceDiffPanel({ sessionId, change, initialFileId, onClose }
           </ul>
           <div className="min-h-0 min-w-0 flex-1 overflow-auto">
             {selected && (
-              <div dir="ltr" className="sticky top-0 border-b border-gray-100 bg-white px-3 py-2 font-mono text-[12px] text-gray-600">
-                {selected.oldPath ? `${selected.oldPath} → ${selected.path}` : selected.path}
+              <div className="sticky top-0 flex items-center gap-2 border-b border-gray-100 bg-white px-3 py-2">
+                <span dir="ltr" className="min-w-0 flex-1 truncate font-mono text-[12px] text-gray-600">
+                  {selected.oldPath ? `${selected.oldPath} → ${selected.path}` : selected.path}
+                </span>
+                {viewTarget && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenFile?.(viewTarget)}
+                    className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                    data-testid="workspace-diff-open-file"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    {t('workspaceDiff.openFile')}
+                  </button>
+                )}
               </div>
             )}
             {patch.status === 'loading' && (
