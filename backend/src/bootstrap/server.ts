@@ -27,6 +27,9 @@ export async function startServer() {
   // 拒跑或失败只记日志（任务 id + errorCode），不阻止服务起来：没跑的任务下次启动再试。
   await runStartupTasks({ tasks: buildStartupTasks(ctx), statePath: startupTasksStatePath });
 
+  // 自动化：先按失败收尾上次没跑完的工作流运行（fail closed），再开定时计划与 Webhook outbox。
+  // 必须在监听之前——不能让前端先看到一个「还在跑」、其实已经没人执行的运行。
+  ctx.automation.start();
   const { app, routes } = buildApp(ctx, { readiness });
   const server = createServer(app);
 
@@ -40,6 +43,10 @@ export async function startServer() {
     },
   });
   shutdown.register({ name: 'write-gate-watchers', close: () => ctx.writeGate.stop() });
+  shutdown.register({
+    name: 'automation',
+    close: () => ctx.automation.stop(),
+  });
   shutdown.register({
     name: 'http-server',
     close: () => new Promise<void>((resolve, reject) => {

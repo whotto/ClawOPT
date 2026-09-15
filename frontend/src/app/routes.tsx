@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import ChatPage from '../pages/chat/ChatPage';
 import LoginPage from '../pages/login/LoginPage';
+import AutomationPage from '../pages/automation/AutomationPage';
 import SettingsPage from '../pages/settings/SettingsPage';
 import AppShell from './AppShell';
 import { RequireAuth } from './auth';
@@ -24,6 +25,7 @@ export default function AppRoutes() {
         <Route path="chat/:sessionId?" element={<ChatPage mode="chat" />} />
         <Route path="groups/:groupId?" element={<ChatPage mode="group" />} />
         <Route path="settings/:tab?" element={<SettingsPage />} />
+        <Route path="automation/:section?/:workflowId?" element={<AutomationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

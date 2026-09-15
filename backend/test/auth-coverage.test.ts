@@ -71,6 +71,9 @@ const EXPECTED_PUBLIC_ROUTES = [
   'POST /api/sidebar/favorites',
   'GET /api/auth/check',
   'POST /api/auth/login',
+  // P4a：入站钩子与本机测试收件箱。注册在闸门之后、靠白名单放行；安全性在处理器里（签名 / 回环 + 令牌）。
+  'POST /api/hooks/workflows/:hookId',
+  'POST /api/hooks/webhook-test/:token',
   'GET *',
 ];
 
@@ -103,6 +106,8 @@ describe('鉴权覆盖（登录开启、匿名请求）', () => {
   });
 
   it('白名单只放行显式列出的路径', () => {
-    expect([...AUTH_PUBLIC_PATHS].sort()).toEqual(['/api/auth/check', '/api/auth/login', '/api/version', '/livez', '/readyz']);
+    expect([...AUTH_PUBLIC_PATHS].sort()).toEqual([
+      '/api/auth/check', '/api/auth/login', '/api/hooks/webhook-test/:token', '/api/hooks/workflows/:hookId', '/api/version', '/livez', '/readyz',
+    ]);
   });
 });

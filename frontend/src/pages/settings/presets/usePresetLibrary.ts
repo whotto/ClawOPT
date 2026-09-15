@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Boxes, Share2, Upload } from 'lucide-react';
 import type { GroupSummary, InstallOutcome, InstallResult, PackInspection, Preset, Section, SessionSummary } from './presetTypes';
 import { exportPack, inspectPack, installPack, installPreset, listPresets, type PackSource, sharePack } from '../../../api/presets';
+import { listWorkflows } from '../../../api/automation';
 import { listSessions } from '../../../api/sessions';
 import { listGroups } from '../../../api/groups';
 
@@ -33,6 +34,8 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
   const [applyModel, setApplyModel] = useState(false);
   const [importResults, setImportResults] = useState<InstallOutcome[] | null>(null);
   const [importTeamResult, setImportTeamResult] = useState<any>(null);
+  const [installWorkflows, setInstallWorkflows] = useState(true);
+  const [importWorkflowResults, setImportWorkflowResults] = useState<Array<{ name: string; status: 'created' | 'failed'; errorCode?: string }> | null>(null);
   const [packBusy, setPackBusy] = useState<'inspect' | 'install' | null>(null);
   const [packError, setPackError] = useState('');
 
@@ -44,6 +47,9 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
   const [includeMemory, setIncludeMemory] = useState(false);
   const [includeAutomations, setIncludeAutomations] = useState(true);
   const [includeModelConfig, setIncludeModelConfig] = useState(false);
+  // 附带工作流（只带定义，不带模型绑定、附件与定时）
+  const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [exportWorkflowIds, setExportWorkflowIds] = useState<string[]>([]);
   const [exportBusy, setExportBusy] = useState<'download' | 'share' | null>(null);
   const [shareResult, setShareResult] = useState<{ gistUrl: string; rawUrl: string } | null>(null);
   const [copied, setCopied] = useState('');
@@ -72,6 +78,13 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
   };
 
   useEffect(() => { loadPresets(); }, []);
+
+  useEffect(() => {
+    listWorkflows()
+      .then(res => res.json())
+      .then(data => setWorkflowOptions(Array.isArray(data?.workflows) ? data.workflows.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name })) : []))
+      .catch(() => setWorkflowOptions([]));
+  }, []);
 
   // 切换预设时重置选择：默认勾推荐角色、参数取默认值
   useEffect(() => {
@@ -156,7 +169,7 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
     setExportDone('');
     setShareResult(null);
     try {
-      const res = await exportPack({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig });
+      const res = await exportPack({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig, includeWorkflows: exportWorkflowIds });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const localized = data?.errorCode ? t(data.errorCode, { ...(data.errorParams || {}) }) : t('settings.presets.exportFailed');
@@ -188,7 +201,7 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
     setExportDone('');
     setShareResult(null);
     try {
-      const res = await sharePack({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig });
+      const res = await sharePack({ kind: exportKind, id: exportId, includeMemory, includeAutomations, includeModelConfig, includeWorkflows: exportWorkflowIds });
       const data = await res.json();
       if (!res.ok || !data?.success) {
         const localized = data?.errorCode ? t(data.errorCode, { ...(data.errorParams || {}) }) : t('settings.presets.shareFailed');
@@ -233,6 +246,7 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
     setPackError('');
     setImportResults(null);
     setImportTeamResult(null);
+    setImportWorkflowResults(null);
     try {
       const res = await inspectPack(buildPackSource());
       const data = await res.json();
@@ -264,6 +278,7 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
         renameNames,
         overwrite: packOverwrite,
         applyModel,
+        installWorkflows,
       }));
       const data = await res.json();
       if (!res.ok) {
@@ -273,6 +288,7 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
       }
       setImportResults(Array.isArray(data?.results) ? data.results : []);
       setImportTeamResult(data?.team || null);
+      setImportWorkflowResults(Array.isArray(data?.workflows) ? data.workflows : []);
       onAgentsChanged?.();
       loadExportTargets();
     } catch (err: any) {
@@ -343,6 +359,9 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
     setImportResults,
     importTeamResult,
     setImportTeamResult,
+    installWorkflows,
+    setInstallWorkflows,
+    importWorkflowResults,
     packBusy,
     setPackBusy,
     packError,
@@ -361,6 +380,9 @@ export function usePresetLibrary(onAgentsChanged?: () => void) {
     setIncludeAutomations,
     includeModelConfig,
     setIncludeModelConfig,
+    workflowOptions,
+    exportWorkflowIds,
+    setExportWorkflowIds,
     exportBusy,
     setExportBusy,
     shareResult,

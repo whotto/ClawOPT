@@ -77,6 +77,8 @@ export type PackInspection = {
   };
   team: { id: string; name: string; conflict: boolean; members: Array<{ agentId: string }> } | null;
   agents: PackAgentInfo[];
+  /** 包里附带的工作流摘要（P4a 起；旧后端不返回）。 */
+  workflows?: Array<{ name: string; nodes: number; edges: number; valid: boolean; errorCode?: string }>;
 };
 
 export type InstallOutcome = {

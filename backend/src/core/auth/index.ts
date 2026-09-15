@@ -3,6 +3,7 @@ export {
   AUTH_FORBIDDEN_ERROR_CODE,
   AUTH_PASSWORD_CHANGE_REQUIRED_ERROR_CODE,
   AUTH_PUBLIC_PATHS,
+  isAuthPublicPath,
   clearAuthCookie,
   createAuthMiddleware,
   getRequestIdentity,

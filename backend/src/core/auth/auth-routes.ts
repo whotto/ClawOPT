@@ -3,7 +3,7 @@ import type express from 'express';
 import type { ConfigManager } from '../config';
 import { buildStructuredApiError, type RouteApp } from '../http';
 import {
-  AUTH_PUBLIC_PATHS,
+  isAuthPublicPath,
   type AuthMiddleware,
   clearAuthCookie,
   getRequestIdentity,
@@ -24,7 +24,7 @@ export function registerAuthGate(app: RouteApp, ctx: AuthGateDeps): void {
 
   app.use('/api', (req, res, next) => {
     const routePath = req.path.startsWith('/') ? `/api${req.path}` : `/api/${req.path}`;
-    if (AUTH_PUBLIC_PATHS.has(routePath)) return next();
+    if (isAuthPublicPath(routePath)) return next();
     return requireSessionAuth(req, res, next);
   });
 

@@ -24,6 +24,8 @@ const MAX_FILE_BYTES = 2 * 1024 * 1024;
 export const MAX_PACK_BYTES = 20 * 1024 * 1024;
 /** 单个包里的文件数上限。结构合法但塞十万个空文件同样能拖垮导入。 */
 const MAX_PACK_FILES = 5000;
+/** 单个包里附带的工作流数上限。每个工作流在装包时还要再过一遍工作流导入的严格校验。 */
+export const MAX_PACK_WORKFLOWS = 50;
 
 /** 工作区根目录里允许进包的文件。白名单，不是黑名单。 */
 const ROOT_FILE_WHITELIST = [
@@ -96,6 +98,8 @@ export type PackManifest = {
   includesAutomations: boolean;
   riskySkills: Array<{ agentId: string; skill: string; tools: string; exec: boolean; network: boolean }>;
   warnings: PackWarning[];
+  /** 附带的工作流数（P4a 起；旧包没有这个字段）。 */
+  workflowCount?: number;
 };
 
 export type ClawPack = {
@@ -107,6 +111,11 @@ export type ClawPack = {
   manifest: PackManifest;
   team: PackTeam | null;
   agents: PackAgent[];
+  /**
+   * 附带的工作流信封（`clawopt.workflow` v1）。这里只当不透明数据：结构校验、凭据键扫描、id 重映射
+   * 都在装包时交给工作流导入的同一条校验链（automation/workflow/portability.ts）。只建定义，不运行。
+   */
+  workflows?: unknown[];
 };
 
 export type ExportOptions = {
@@ -224,6 +233,7 @@ export function buildPack(input: {
   team: PackTeam | null;
   options: ExportOptions;
   warnings: PackWarning[];
+  workflows?: unknown[];
 }): ClawPack {
   const { agents, warnings } = input;
   const fileCount = agents.reduce((sum, a) => sum + a.files.length, 0);
@@ -248,9 +258,11 @@ export function buildPack(input: {
       includesAutomations,
       riskySkills,
       warnings,
+      ...(input.workflows?.length ? { workflowCount: input.workflows.length } : {}),
     },
     team: input.team,
     agents,
+    ...(input.workflows?.length ? { workflows: input.workflows } : {}),
   };
 }
 
@@ -314,6 +326,9 @@ export function parsePack(raw: Buffer): ClawPack {
   if (parsed?.format !== PACK_FORMAT) throw new PackError('packs.notAPack');
   if (Number(parsed?.formatVersion) > PACK_FORMAT_VERSION) throw new PackError('packs.versionTooNew');
   if (!Array.isArray(parsed?.agents) || !parsed.agents.length) throw new PackError('packs.noAgents');
+  if (parsed.workflows !== undefined) {
+    if (!Array.isArray(parsed.workflows) || parsed.workflows.length > MAX_PACK_WORKFLOWS) throw new PackError('packs.invalidWorkflows');
+  }
 
   for (const agent of parsed.agents) {
     if (typeof agent?.id !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(agent.id)) {

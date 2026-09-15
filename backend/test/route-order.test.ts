@@ -10,6 +10,8 @@
  *
  * 要新增路由：改清单，这一刻就有人看见了顺序与公开性的变化。
  * 相对拆分前的清单，唯一的新增是 P0 加的 `GET /livez`、`GET /readyz`（紧挨 `/health` 之前）。
+ * P4a 在 `/api/files` 之后、静态资源之前追加了自动化模块的路由（工作流 / 定时 / 钩子 / Webhook / 看板），
+ * 其中 `POST /api/hooks/*` 两条是有意公开的（见 AUTH_PUBLIC_PATHS）。
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';

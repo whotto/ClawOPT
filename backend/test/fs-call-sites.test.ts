@@ -48,7 +48,8 @@ const SRC = path.resolve(__dirname, '..', 'src');
 const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
 
 /** 建立基线当天的实际数量。改大它需要显式修改本文件——那一刻就有人看见了。 */
-const CURRENT_SITE_BUDGET = 57;
+// 58：P4a 工作流 OpenClaw Runner 读图片附件（路径已过可服务路径闸门 + assertRegularFile）。
+const CURRENT_SITE_BUDGET = 58;
 
 /**
  * 网关自己就是那唯一一处实现，不计入。

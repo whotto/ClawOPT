@@ -5,6 +5,9 @@ import type { PresetLibraryController } from './usePresetLibrary';
 export default function PackImportSection({ ctx }: { ctx: PresetLibraryController }) {
   const {
     applyModel,
+    importWorkflowResults,
+    installWorkflows,
+    setInstallWorkflows,
     conflictCount,
     importResults,
     importTeamResult,
@@ -215,6 +218,26 @@ export default function PackImportSection({ ctx }: { ctx: PresetLibraryControlle
                 </span>
               </label>
 
+              {inspection.workflows && inspection.workflows.length > 0 && (
+                <div className="space-y-1">
+                  <label className="flex items-start gap-2 text-sm text-gray-600">
+                    <input type="checkbox" checked={installWorkflows} onChange={e => setInstallWorkflows(e.target.checked)} className="mt-1" />
+                    <span>
+                      {t('settings.presets.installWorkflowsLabel')}
+                      <span className="block text-xs text-gray-400 mt-0.5">{t('settings.presets.packWorkflows', { count: inspection.workflows.length })}</span>
+                    </span>
+                  </label>
+                  <ul className="pl-6 text-xs text-gray-500 space-y-0.5">
+                    {inspection.workflows.map((workflow, index) => (
+                      <li key={`${workflow.name}-${index}`} className={workflow.valid ? '' : 'text-red-600'}>
+                        {workflow.name} · {workflow.nodes} / {workflow.edges}
+                        {!workflow.valid && ` · ${t('settings.presets.workflowInvalid')}`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {conflictCount > 0 && !packOverwrite && (
                 <p className="text-xs text-amber-700">{t('settings.presets.conflictHint', { count: conflictCount })}</p>
               )}
@@ -262,6 +285,11 @@ export default function PackImportSection({ ctx }: { ctx: PresetLibraryControlle
                   </div>
                 )}
               </div>
+              {importWorkflowResults && importWorkflowResults.length > 0 && (
+                <p className="text-xs text-gray-500 mt-4">
+                  {t('settings.presets.workflowsImported', { count: importWorkflowResults.filter(item => item.status === 'created').length })}
+                </p>
+              )}
               {inspection?.manifest.includesAutomations && (
                 <p className="text-xs text-gray-500 mt-4">{t('settings.presets.automationsNotRun')}</p>
               )}

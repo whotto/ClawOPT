@@ -173,20 +173,21 @@ export class DB {
   }
 
   /**
+   * 底层连接，给自带 schema 与仓储的模块用：`core/auth` 的用户与 IP 锁、控制面服务、
+   * `automation/` 的工作流 / 定时 / outbox / 看板表。它们的表与迁移住在各自模块里，
+   * 不往这个文件继续堆；共享的只有这一个连接与 WAL 设置。
+   */
+  connection(): Database.Database {
+    return this.db;
+  }
+
+  /**
    * 在线备份到指定路径。用 SQLite 自己的 backup 而不是 cp——
    * cp 一个正在写入的库会拷到撕裂的中间状态，而这种损坏往往到恢复时才发现。
    */
   backupTo(targetPath: string): void {
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     this.db.exec(`VACUUM INTO '${targetPath.replace(/'/g, "''")}'`);
-  }
-
-  /**
-   * 底层连接。只给自带表的 core 子模块（`core/auth` 的用户与 IP 锁）和控制面服务用，
-   * 它们各自管自己的 SQL，不往这个文件里继续堆方法。
-   */
-  connection(): Database.Database {
-    return this.db;
   }
 
   private init() {

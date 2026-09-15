@@ -9,6 +9,7 @@ import {
   shouldReplaceHistory,
   storedSelectionToState,
   type AppRouteState,
+  type AutomationSection,
   type SettingsTab,
   type ViewType,
 } from './routeState';
@@ -19,6 +20,8 @@ function readStoredRouteState(): AppRouteState {
     settingsTab: localStorage.getItem(NAV_STORAGE_KEYS.settingsTab),
     sessionId: localStorage.getItem(NAV_STORAGE_KEYS.activeSession),
     groupId: localStorage.getItem(NAV_STORAGE_KEYS.activeGroup),
+    automationSection: localStorage.getItem(NAV_STORAGE_KEYS.automationSection),
+    workflowId: localStorage.getItem(NAV_STORAGE_KEYS.activeWorkflow),
   });
 }
 
@@ -38,6 +41,8 @@ export function useAppNavigation() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>(initial.settingsTab);
   const [activeSessionId, setActiveSessionIdState] = useState<string>(initial.sessionId);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(initial.groupId);
+  const [automationSection, setAutomationSection] = useState<AutomationSection>(initial.automationSection ?? 'workflows');
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(initial.workflowId ?? null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [lastConversationView, setLastConversationView] = useState<'chat' | 'groups'>(() => {
     if (initial.view === 'chat' || initial.view === 'groups') {
@@ -57,8 +62,14 @@ export function useAppNavigation() {
       settingsTab,
       sessionId: activeSessionId,
       groupId: activeGroupId,
+      automationSection,
+      workflowId: activeWorkflowId,
     });
     setCurrentView(next.view);
+    if (next.view === 'automation') {
+      setAutomationSection(next.automationSection ?? 'workflows');
+      setActiveWorkflowId(next.workflowId ?? null);
+    }
     setSettingsTab(next.settingsTab);
     setActiveSessionIdState(next.sessionId);
     if (next.groupId) setActiveGroupId(next.groupId);
@@ -71,7 +82,7 @@ export function useAppNavigation() {
   pathnameRef.current = location.pathname;
   const autoSelectionRef = useRef(false);
   useEffect(() => {
-    const state: AppRouteState = { view: currentView, settingsTab, sessionId: activeSessionId, groupId: activeGroupId };
+    const state: AppRouteState = { view: currentView, settingsTab, sessionId: activeSessionId, groupId: activeGroupId, automationSection, workflowId: activeWorkflowId };
     const desired = formatAppPath(state);
     const replace = autoSelectionRef.current || shouldReplaceHistory(parseAppPath(pathnameRef.current), state);
     autoSelectionRef.current = false;
@@ -80,7 +91,10 @@ export function useAppNavigation() {
     }
     localStorage.setItem(NAV_STORAGE_KEYS.currentView, currentView);
     localStorage.setItem(NAV_STORAGE_KEYS.settingsTab, settingsTab);
-  }, [currentView, settingsTab, activeSessionId, activeGroupId, navigate]);
+    localStorage.setItem(NAV_STORAGE_KEYS.automationSection, automationSection);
+    if (activeWorkflowId) localStorage.setItem(NAV_STORAGE_KEYS.activeWorkflow, activeWorkflowId);
+    else localStorage.removeItem(NAV_STORAGE_KEYS.activeWorkflow);
+  }, [currentView, settingsTab, activeSessionId, activeGroupId, automationSection, activeWorkflowId, navigate]);
 
   useEffect(() => {
     if (activeSessionId) {
@@ -128,6 +142,14 @@ export function useAppNavigation() {
 
   const openMobileMenu = () => navigateTo(currentView, settingsTab, true);
 
+  /** 进入自动化区的某一页；`workflowId` 只对工作流页有意义，缺省保留当前选中。 */
+  const openAutomation = useCallback((section: AutomationSection, workflowId?: string | null) => {
+    setAutomationSection(section);
+    if (workflowId !== undefined) setActiveWorkflowId(workflowId);
+    setCurrentView('automation');
+    setIsMobileMenuOpen(false);
+  }, []);
+
   const handleReturnToConversation = () => {
     const targetView = lastConversationView === 'groups' ? 'groups' : 'chat';
     const refreshDetail = targetView === 'groups'
@@ -163,6 +185,9 @@ export function useAppNavigation() {
     autoSelectSession,
     activeGroupId,
     setActiveGroupId,
+    automationSection,
+    activeWorkflowId,
+    openAutomation,
     isMobileMenuOpen,
     navigateTo,
     openMobileMenu,

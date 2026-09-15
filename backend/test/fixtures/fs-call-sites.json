@@ -1,5 +1,10 @@
 [
   {
+    "file": "automation/runner/existing-path-runner.ts",
+    "call": "readFileSync",
+    "context": "block.path"
+  },
+  {
     "file": "collab/sessions/session-runtime.ts",
     "call": "readFileSync",
     "context": "absolutePath"

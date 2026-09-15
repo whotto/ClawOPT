@@ -12,11 +12,14 @@ import {
   ScrollText,
   Settings,
   Sparkles,
+  SquareKanban,
   Terminal,
   Users,
+  Webhook,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
-import { SETTINGS_TABS, type SettingsTab } from '../routeState';
+import { SETTINGS_TABS, type AutomationSection, type SettingsTab } from '../routeState';
 
 /**
  * 导航分区：团队 / 自动化 / 系统（工作台就是对话本身，不在设置侧栏里）。
@@ -61,3 +64,17 @@ export function navItemsMissingFromRoutes(): SettingsTab[] {
   const listed = new Set(SETTINGS_NAV_ITEMS.map((item) => item.tab));
   return SETTINGS_TABS.filter((tab) => !listed.has(tab));
 }
+
+type AutomationNavItem = {
+  section: AutomationSection;
+  icon: LucideIcon;
+  labelKey: string;
+  zone: SidebarNavZone;
+};
+
+/** 自动化模式下侧栏的入口，顺序即显示顺序。每一项都对应真实路由 `/automation/<section>`。 */
+export const AUTOMATION_NAV_ITEMS: readonly AutomationNavItem[] = [
+  { section: 'workflows', icon: Workflow, labelKey: 'automation.nav.workflows', zone: 'automation' },
+  { section: 'kanban', icon: SquareKanban, labelKey: 'automation.nav.kanban', zone: 'automation' },
+  { section: 'webhooks', icon: Webhook, labelKey: 'automation.nav.webhooks', zone: 'automation' },
+];

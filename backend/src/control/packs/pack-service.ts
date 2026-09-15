@@ -1,4 +1,3 @@
-import dns from 'dns/promises';
 import axios from 'axios';
 import express from 'express';
 
@@ -11,6 +10,7 @@ import {
   PACK_TEAM_NOT_FOUND_ERROR_CODE,
   PACK_URL_BLOCKED_ERROR_CODE,
 } from '../../core/http';
+import { isBlockedIpAddress, isPrivateHostname, systemResolver } from '../../core/net';
 import type { AgentProvisioner } from '../agents/agent-provisioner';
 import type { AgentSettings } from '../agents/agent-settings';
 import { getCurrentAppVersionInfo } from '../update/app-version';
@@ -26,33 +26,17 @@ import {
   parsePack,
 } from './agent-pack';
 
-/** 这个字面量地址是不是内网/回环。 */
-function isPrivateAddress(value: string): boolean {
-  const host = value.toLowerCase().replace(/^\[|\]$/g, '');
-  return host === 'localhost' || host === '::1' || host === '::' || host.endsWith('.local') || host.endsWith('.internal')
-    || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)
-    || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) || /^0\./.test(host)
-    || /^f[cd][0-9a-f]{2}:/.test(host) || /^fe80:/.test(host)
-    || /^::ffff:(127|10|0)\./.test(host)
-    // 100.64/10 是运营商级 NAT，也是 Tailscale 等内网组网的常用段；
-    // 198.18/15 是基准测试保留段，被一些代理与沙箱网络当作内部地址用。
-    || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)
-    || /^198\.1[89]\./.test(host);
-}
-
 /**
  * 主机名是否指向内网。字面量检查不够：`localtest.me`、`127.0.0.1.nip.io` 这类域名
- * 长得像公网，解析出来却是回环地址。所以还要把名字解出来再查一遍。
- *
- * 这挡不住 DNS rebinding（校验之后、连接之前改解析结果），那需要在连接层锁定 IP。
- * 这里堵的是随手就能用的那一类。
+ * 长得像公网，解析出来却是回环地址。所以还要把名字解出来、**每一条记录**都查一遍。
+ * 判据与出站 Webhook 共用 `core/net`，不在这里另写一份。
  */
 async function resolvesToPrivateHost(hostname: string): Promise<string | null> {
-  if (isPrivateAddress(hostname)) return hostname;
+  if (isPrivateHostname(hostname)) return hostname;
   try {
-    const records = await dns.lookup(hostname, { all: true });
+    const records = await systemResolver(hostname);
     for (const record of records) {
-      if (isPrivateAddress(record.address)) return record.address;
+      if (isBlockedIpAddress(record.address)) return record.address;
     }
   } catch {
     // 解析不了的名字交给后续请求自己失败，不在这里下结论
@@ -122,11 +106,22 @@ export async function readPackFromRequest(req: express.Request): Promise<ClawPac
   throw new PackError(PACK_SOURCE_REQUIRED_ERROR_CODE);
 }
 
+/**
+ * `.clawpack` 附带工作流的出入口，由自动化模块提供（结构化类型，control 不依赖 automation 的实现）。
+ * 导入只建定义、不运行，校验与凭据扫描都在对方那条链上。
+ */
+export type PackWorkflowBundles = {
+  exportEnvelopes(ids: string[]): unknown[];
+  summarize(envelopes: unknown[]): Array<{ name: string; nodes: number; edges: number; valid: boolean; errorCode?: string }>;
+  importEnvelopes(envelopes: unknown[], agentIdMap: Record<string, string>): Array<{ name: string; status: 'created' | 'failed'; workflowId?: string; errorCode?: string }>;
+};
+
 export type PackServiceDeps = {
   agentProvisioner: AgentProvisioner;
   db: DB;
   sessionManager: SessionManager;
   agentSettings: AgentSettings;
+  workflowPacks: PackWorkflowBundles;
 };
 
 export function createPackService(ctx: PackServiceDeps) {
@@ -213,6 +208,19 @@ export function createPackService(ctx: PackServiceDeps) {
 
     if (!agents.length) return { error: PACK_AGENT_NOT_FOUND_ERROR_CODE, params: { agentId: id } };
 
+    const workflowIds = Array.isArray(body?.includeWorkflows)
+      ? [...new Set((body.includeWorkflows as unknown[]).filter((item): item is string => typeof item === 'string' && item.length > 0))]
+      : [];
+    let workflows: unknown[] = [];
+    if (workflowIds.length) {
+      try {
+        workflows = ctx.workflowPacks.exportEnvelopes(workflowIds);
+      } catch (error) {
+        const code = typeof (error as { code?: unknown })?.code === 'string' ? (error as { code: string }).code : 'workflows.notFound';
+        return { error: code };
+      }
+    }
+
     return {
       name,
       pack: buildPack({
@@ -224,12 +232,15 @@ export function createPackService(ctx: PackServiceDeps) {
         team,
         options,
         warnings,
+        workflows,
       }),
     };
   }
 
   return {
     buildPackFromRequest,
+    summarizeWorkflows: (pack: ClawPack) => ctx.workflowPacks.summarize(pack.workflows ?? []),
+    installWorkflows: (pack: ClawPack, agentIdMap: Record<string, string>) => ctx.workflowPacks.importEnvelopes(pack.workflows ?? [], agentIdMap),
   };
 }
 export type PackService = ReturnType<typeof createPackService>;

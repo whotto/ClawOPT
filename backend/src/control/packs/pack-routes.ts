@@ -60,7 +60,7 @@ export type PackRoutesDeps = {
 
 export function registerPackRoutes(app: RouteApp, ctx: PackRoutesDeps): void {
   const { agentProvisioner, db, sessionManager } = ctx;
-  const { buildPackFromRequest } = ctx.packs;
+  const { buildPackFromRequest, summarizeWorkflows, installWorkflows } = ctx.packs;
   const { requireAdminAuth } = ctx.auth;
 
   app.post('/api/packs/export', requireAdminAuth, async (req, res) => {
@@ -184,6 +184,7 @@ export function registerPackRoutes(app: RouteApp, ctx: PackRoutesDeps): void {
         manifest: pack.manifest,
         team: pack.team ? { ...pack.team, conflict: Boolean(db.getGroupChat(pack.team.id)) } : null,
         agents,
+        workflows: summarizeWorkflows(pack),
       });
     } catch (error: any) {
       const code = error instanceof PackError ? error.code : PRESET_INSTALL_FAILED_ERROR_CODE;
@@ -319,11 +320,16 @@ export function registerPackRoutes(app: RouteApp, ctx: PackRoutesDeps): void {
         }
       }
 
+      // 附带的工作流：只建定义，不运行；Agent 引用按本次装包的改名映射过去。
+      const installWorkflowsFlag = req.body?.installWorkflows !== false && req.body?.installWorkflows !== 'false';
+      const workflowResults = installWorkflowsFlag && pack.workflows?.length ? installWorkflows(pack, idMap) : [];
+
       const failed = results.filter(result => result.status === 'failed');
       res.json({
         success: failed.length === 0,
         results,
         team: teamResult,
+        workflows: workflowResults,
         manifest: pack.manifest,
       });
     } catch (error: any) {

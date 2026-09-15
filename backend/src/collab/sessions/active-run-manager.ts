@@ -2,6 +2,7 @@ import express from 'express';
 
 import type { ConfigManager } from '../../core/config';
 import { DB } from '../../core/db';
+import type { EventBus } from '../../core/events';
 import { normalizeCliText } from '../../core/util';
 import { OpenClawClient } from '../../openclaw';
 import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
@@ -55,10 +56,18 @@ export class ActiveRunManager {
   private configManager: ConfigManager;
   private connections: Map<string, OpenClawClient>;
 
-  constructor(db: DB, configManager: ConfigManager, connections: Map<string, OpenClawClient>) {
+  /** 业务事件总线（可选）：运行开始 / 完成 / 失败发 `chat.run.*`，出站 Webhook 在总线上订阅。 */
+  private events?: Pick<EventBus, 'publish'>;
+
+  constructor(db: DB, configManager: ConfigManager, connections: Map<string, OpenClawClient>, events?: Pick<EventBus, 'publish'>) {
     this.db = db;
     this.configManager = configManager;
     this.connections = connections;
+    this.events = events;
+  }
+
+  private publishRunEvent(type: 'chat.run.started' | 'chat.run.completed' | 'chat.run.failed', run: ActiveRun, extra: Record<string, unknown> = {}) {
+    this.events?.publish(type, { sessionId: run.sessionId, runId: run.runId, agentId: run.agentId, agentName: run.agentName, ...extra });
   }
 
   getRun(sessionId: string): ActiveRun | undefined {
@@ -520,6 +529,7 @@ export class ActiveRunManager {
     (run as any)._onDisconnect = onDisconnect;
 
     this.scheduleCompletionProbe(run);
+    this.publishRunEvent('chat.run.started', run);
 
     return run;
   }
@@ -856,6 +866,7 @@ export class ActiveRunManager {
           process_content: rewrittenFallbackProcessContent,
           process_streaming: false,
         }, { end: true });
+        this.publishRunEvent('chat.run.completed', run, { text: rewrittenFallbackText });
         this.cleanupRun(run);
         return;
       }
@@ -868,6 +879,7 @@ export class ActiveRunManager {
       end: true,
       allowShorterReplacement: hasFinalEventText,
     });
+    this.publishRunEvent('chat.run.completed', run, { text: rewritten });
     this.cleanupRun(run);
   }
 
@@ -894,6 +906,7 @@ export class ActiveRunManager {
       role: structuredError.role,
     }, { end: true });
     this.abortUnderlyingRunBestEffort(run, detail);
+    this.publishRunEvent('chat.run.failed', run, { errorCode: structuredError.messageCode ?? null });
     this.cleanupRun(run);
   }
 
@@ -964,12 +977,13 @@ export type ChatRunsDeps = {
   configManager: ConfigManager;
   connections: Map<string, OpenClawClient>;
   db: DB;
+  events?: Pick<EventBus, 'publish'>;
 };
 
 export function createChatRuns(ctx: ChatRunsDeps) {
   const { configManager, connections, db } = ctx;
 
-  const activeRunManager = new ActiveRunManager(db, configManager, connections);
+  const activeRunManager = new ActiveRunManager(db, configManager, connections, ctx.events);
   const pendingChatPreparationManager = new PendingChatPreparationManager();
   const localChatOperationManager = new LocalChatOperationManager();
 

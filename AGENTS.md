@@ -16,12 +16,14 @@
   - `control/`: 控制面。agents（含克隆 `agent-clone.ts`、头像、引擎名册路由）/ characters / models（含生图、服务商编辑器 `provider-editor.ts`、连通性测试 `provider-probe.ts`、目录缓存与可见性 `model-catalog.ts`、审计 `provider-audit.ts`）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics，以及 P5a 新增的 cron / channels / skills / mcp / plugins / usage / logs（含网关服务状态卡）/ workspace-files（工作区身份文件）/ write-gate（写入审批）；`shared/` 放控制面共用的错误出口 `control-http.ts` 与引擎名册 `engine-roster.ts`。
   - `workspace/`: 上传、文件下载与预览、链接改写、文档与音频工具链。
   - `collab/sessions/`: 单聊（会话、历史、消息、聊天运行管理）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账）。
+  - `automation/`: 自动化（P4a）。`workflow/`（规范化、编译器、判定、区域调度器、运行与证据仓储、引擎门面、状态广播、导入导出）、`schedules/`（cron 计划）、`hooks/`（入站钩子）、`webhooks/`（出站 Webhook outbox）、`kanban/`（原生看板）、`runner/`（Agent 名册、现有路径 Runner、假 Runner）、`ports.ts`（对执行平面的唯一依赖）、`shared/`（自有 schema、错误码、设置）。表与迁移住在模块里（`shared/schema.ts`），经 `DB.connection()` 共用连接。
   - 模块之间只经各自的 `index.ts`（barrel）互相导入；`*-routes.ts` 只由 bootstrap 注册，服务不得引用。由 `npm run boundaries:check` 机械校验。
 - `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。`frontend/src/` 下：
   - `app/`: 应用壳。`App.tsx`（BrowserRouter + 鉴权）、`routes.tsx` 路由表、`routeState.ts` URL ↔ 视图状态纯函数（带单测，改路径形状两边一起改）、`AppShell.tsx`（侧栏 + Outlet）、`auth.tsx`（登录守卫）、壳层轮询 hooks，以及 `sidebar/` 侧栏（设置导航由 `sidebarNav.ts` 数据驱动，条目带 工作台/团队/自动化/系统 zone）。
-  - 路由：`/login`、`/chat/:sessionId`、`/groups/:groupId`（无 id 为团队列表）、`/settings/:tab`（gateway / general / models / presets / commands / about，以及 P5a 控制面 agents / skills / mcp / users / cron / channels / plugins / usage / logs）。页签清单 `SETTINGS_TABS` 与侧栏 `SETTINGS_NAV_ITEMS` 由 `sidebarNav.test.ts` 互相校验：新增页签两边一起加。用 history 路由，依赖后端 `app.get('*')` 回退 index.html；旧 `#settings/...` 书签挂载前自动换成新路径。缺段按 localStorage 记忆补齐，地址栏优先。
+  - 路由：`/login`、`/chat/:sessionId`、`/groups/:groupId`（无 id 为团队列表）、`/settings/:tab`（gateway / general / models / presets / commands / about，以及 P5a 控制面 agents / skills / mcp / users / cron / channels / plugins / usage / logs）、`/automation/workflows[/:workflowId]`、`/automation/kanban`、`/automation/webhooks`。页签清单 `SETTINGS_TABS` 与侧栏 `SETTINGS_NAV_ITEMS` 由 `sidebarNav.test.ts` 互相校验：新增页签两边一起加。用 history 路由，依赖后端 `app.get('*')` 回退 index.html；旧 `#settings/...` 书签挂载前自动换成新路径。缺段按 localStorage 记忆补齐，地址栏优先。
   - `pages/`: 路由页面容器。`chat/`（单聊与群聊共用同一组件实例）、`settings/`（所有页签共用一个挂载实例；状态在 `hooks/`，页签在 `tabs/`，弹窗在 `modals/`，预设库在 `presets/`，模型页附加区在 `models/`）、`login/`；控制面页面按分区放 `team/`、`automation/`、`system/`，由 `SettingsPage` 挂载、各自管状态，共用 `control/useControlApi.ts`（读 JSON、错误本地化、当前用户）与 `components/control/ControlUi.tsx`（按钮、卡片、弹窗等与设置页同一套样式）。
-  - `features/`: 页面内功能块。`chat/`（`hooks/` 状态与副作用、`components/` 展示层、`lib/` 纯函数、`message/` 消息气泡与过程块）、`files/`（文件预览，按格式分查看器）。
+  - `features/`: 页面内功能块。`chat/`（`hooks/` 状态与副作用、`components/` 展示层、`lib/` 纯函数、`message/` 消息气泡与过程块）、`files/`（文件预览，按格式分查看器）、`workflow/`（工作流画布 `@xyflow/react`、运行回放、定时 / 钩子 / 导入导出弹窗；`lib/graph.ts` 的保存校验是服务端编译器的镜像，reason 码一致）。
+  - `pages/automation/`: 自动化区页面（工作流、看板、Webhook）。
   - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`；控制面各资源在 `control.ts` 里按资源分组。组件里不要再直接写 `fetch`。
   - `components/`: 跨页面复用的小组件；`utils/`: 与页面无关的纯逻辑（`message-merge`、`history-window` 等）；`locales/`: 三语文案。
   - 单个组件文件不超过 800 行；确需超过的在文件头写一行原因（目前只有 `features/chat/message/MessageBubble.tsx`）。
@@ -81,6 +83,19 @@
 - 新增预设占位符时，必须同时改三处：`scripts/sync-presets.mjs` 的 `PARAM_RULES`、`presets/opt-team/preset.json` 的 `params`、以及装配器的 `fillPlaceholders` 覆盖范围。
 - 不要把对用户有意义的参数、阈值、开关、配置做成隐藏实现；应优先提供界面入口让用户配置。
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
+
+## 自动化模块（P4a）
+- **执行平面只经 `automation/ports.ts` 的 `WorkflowAgentRunner`**（`runAndWait` / `abort`）。当前实现 `runner/existing-path-runner.ts` 是**接缝**：OpenClaw 走网关 `chat.send` + `agent.wait`，外部运行时走本机执行器（目前只有 claude-code 有适配器）。运行协调器落地后替换这一个文件与 `create-automation.ts` 的一行装配；引擎、看板、测试不改。不要在引擎或看板里直接调网关或执行器。
+- 本机演示与 UI 验证用 `CLAWOPT_WORKFLOW_FAKE_RUNNER=1`（确定性假 Runner，按节点任务里的 `[fake:delay|fail|seq|output]` 指令出结果）；界面会明确标出演示模式。
+- 终态：`completed` / `completed_with_failures`（有节点失败，但每个失败都被 failure / always 路由接住）/ `failed` / `canceled`。**终态不可逆在仓储层强制**（`run-store.ts` 的 `WHERE status NOT IN 终态`），不要在服务层绕开；唯一的重置入口是带乐观并发条件的 `resetForRerun`。
+- 三张证据表共用运行行上的 `evidence_seq`，在同一事务里取号（`UPDATE … RETURNING`）。终态运行只允许追加非 completed 的收尾循环轮次。
+- 准入顺序固定：互斥锁 → 已有活跃运行 409 → 编译 → **静态执行上界 ≤1000** → Agent / 技能 / 附件预检 → 写运行行（此刻才算受理，HTTP 回 202）。任何预检失败都不得留下运行行。
+- 停止与致命错误**先落库再中止**（`scheduler.ts` 的 `triggerFatal`）；迟到的完成看到终态就丢弃。重启时活跃运行一律按失败收尾（fail closed），不续跑。
+- 每次运行的节点并发上限在界面「运行设置」里配（默认 2）；主机总内存 < 3GiB 或 Linux MemAvailable < 768MiB 时强制为 1（判据在 `shared/settings.ts`，不用 `os.freemem()` 判可用量）。
+- 出站 Webhook 是**数据库 outbox**（至少一次、按端点先进先出、退避加抖动），来源是业务事件总线（`core/events`，在 `bootstrap/context.ts` 实例化）。URL 地址策略统一在 `core/net`：协议白名单、**全部**解析记录查内网与保留段、投递时再查一遍并**钉住 IP**、不跟随重定向。`.clawpack` 远端拉取用同一份判据，不要再写第二份。
+- 入站钩子 `POST /api/hooks/workflows/:hookId` 与本机测试收件箱 `POST /api/hooks/webhook-test/:token` 是**有意公开**的，登记在 `AUTH_PUBLIC_PATHS`（条目支持 `:param` 单段匹配，判据在 `isAuthPublicPath`）。钩子的安全性全在处理器：HMAC-SHA256(secret, `时间戳.原始请求体`)、±5 分钟窗、签名防重放；密钥只在创建 / 轮换时返回一次。`express.json` 只为 `/api/hooks/` 保留原始请求体。
+- 导入预览令牌存数据库（TTL 5 分钟、一次性、摘要复核、id 重映射）；导出丢模型绑定与附件路径并扫凭据键。`.clawpack` 可附带工作流（只建定义、不运行），三道闸门不变。
+- 定时用 `croner` 的标准 cron 语义（Vixie OR、名字、IANA 时区、夏令时各触发一次）；触发占位表去重、错过即跳过（>60s）、重叠即跳过；只在 cron / 时区 / 启用变更时重算下一次。
 
 ## 国际化要求
 - 所有新增的用户可见功能，默认必须同时支持 `zh-CN`、`zh-TW`、`en`。
