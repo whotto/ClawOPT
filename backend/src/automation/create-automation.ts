@@ -252,6 +252,8 @@ export function createAutomation(deps: AutomationDeps) {
   );
 
   return {
+    /** 「让某个 Agent 跑一轮并等它结束」的执行端口（P3：群摘要选 Agent 作为摘要模型时复用它，不另写一份）。 */
+    agentRunner: runner,
     nodeSession,
     workflowAgentIds,
     runtimeHomeOwnerExists,

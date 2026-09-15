@@ -53,6 +53,7 @@ import {
 import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import { createScopedProviderResolver } from './scoped-provider-resolver';
+import { createRoomSummaryRunner } from './room-summary-runner';
 import {
   createChatCommands,
   createChatLifecycle,
@@ -205,6 +206,11 @@ export function createAppContext() {
       return { userId: user.id, username: user.username, role: user.role, implicit: false, mustChangePassword: user.mustChangePassword };
     },
     loginEnabled: () => configManager.getConfig().loginEnabled === true,
+    summaryRunner: createRoomSummaryRunner({
+      proxy: providerProxy,
+      resolveScopedProvider: createScopedProviderResolver(agentProvisioner),
+      agentRunner: () => automation.agentRunner,
+    }),
   });
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
   const chatRuns = createChatRuns();

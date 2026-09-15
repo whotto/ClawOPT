@@ -25,6 +25,7 @@ import { externalMemberSessionKey, roomTopic } from './external-member-run';
 import type { RoomCollab } from './room-collab';
 import { RoomRequestError } from './room-orchestrator';
 import { originatorFromActor } from './room-policy';
+import { SummaryConflictError } from './room-summary';
 import {
   deleteGroupWorkspace,
   ensureGroupWorkspace,
@@ -518,6 +519,45 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     collab.publish(req.params.id, { type: 'room_updated', data: { policyChanged: true } });
     const { sessionSeed, ...rest } = policy;
     res.json({ success: true, policy: rest });
+  });
+
+  /** 滚动摘要：状态 + 锚点消息预览。看得见群即可读。 */
+  app.get('/api/groups/:id/summary', guardRoom, (req, res) => {
+    const state = collab.summary.state(req.params.id);
+    if (!state) return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
+    const anchor = state.throughMessageId ? db.getGroupMessageById(state.throughMessageId, req.params.id) : null;
+    res.json({
+      success: true,
+      state,
+      anchor: anchor ? { id: anchor.id, created_at: anchor.created_at, sender_name: anchor.sender_name, sender_type: anchor.sender_type, content: String(anchor.content ?? '').slice(0, 500) } : null,
+      canManage: collab.roomAccess.isManager(getRequestIdentity(req), req.params.id),
+    });
+  });
+
+  /** 手工编辑摘要（管理员，按版本号 CAS）。 */
+  app.put('/api/groups/:id/summary', guardRoom, (req, res) => {
+    if (!collab.roomAccess.isManager(getRequestIdentity(req), req.params.id)) return sendResourceForbidden(res);
+    const text = typeof req.body?.summary === 'string' ? req.body.summary : null;
+    const version = typeof req.body?.version === 'number' ? req.body.version : null;
+    if (text === null || version === null) return res.status(400).json(buildStructuredApiError('groups.summaryInvalid'));
+    try {
+      res.json({ success: true, state: collab.summary.edit(req.params.id, text, version) });
+    } catch (error) {
+      if (error instanceof SummaryConflictError) {
+        return res.status(error.code === 'groups.summaryTooLong' ? 413 : 409).json({ ...buildStructuredApiError(error.code), state: collab.summary.state(req.params.id) });
+      }
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  });
+
+  /** 立即摘要一次（管理员；不看节奏）。 */
+  app.post('/api/groups/:id/summary/run', guardRoom, (req, res) => {
+    if (!collab.roomAccess.isManager(getRequestIdentity(req), req.params.id)) return sendResourceForbidden(res);
+    const state = collab.summary.state(req.params.id);
+    if (!state) return res.status(404).json(buildStructuredApiError(GROUP_NOT_FOUND_ERROR_CODE, null, { groupId: req.params.id }));
+    if (!state.configured) return res.status(409).json(buildStructuredApiError('groups.summaryNotConfigured'));
+    void collab.summary.schedule(req.params.id, { force: true });
+    res.status(202).json({ success: true });
   });
 
   /** 中断单个成员：管理员，或远程 Agent 的主人。丢掉它排队中的项、推进它的中断版本、停掉正在跑的那一轮。 */

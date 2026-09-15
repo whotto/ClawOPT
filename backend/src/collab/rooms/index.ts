@@ -83,3 +83,13 @@ export type {
   RoomRuntime,
   RoomRuntimeDeps,
 } from './room-runtime';
+export {
+  createRoomSummary,
+  SUMMARY_SYSTEM_PROMPT,
+  SummaryConflictError,
+} from './room-summary';
+export type {
+  RoomSummary,
+  SummaryModelRunner,
+  SummaryState,
+} from './room-summary';

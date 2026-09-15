@@ -18,6 +18,7 @@ import { createRoomOrchestrator, isRelayOnlineMember, type ExecuteTurnInput, typ
 import { createRoomPolicyStore, handoffAllows, originatorDisplayName, originatorId, type RoomPolicy } from './room-policy';
 import { buildRoomPrompt, type RoomPromptInput } from './room-prompt';
 import { createRoomQueueStore } from './room-queue';
+import { createRoomSummary, type SummaryModelRunner } from './room-summary';
 import { createWorkspaceChangeStore, diffWorkspaceSnapshots, takeWorkspaceSnapshot } from './room-workspace';
 
 export type RoomCollabDeps = {
@@ -26,6 +27,8 @@ export type RoomCollabDeps = {
   access: ResourceAccess;
   identityForUser: (userId: number) => RequestIdentity | null;
   loginEnabled: () => boolean;
+  /** 摘要模型的执行（bootstrap 注入：本地模型代理 / Agent 运行器）；不给则没有摘要。 */
+  summaryRunner?: SummaryModelRunner;
   log?: (message: string) => void;
 };
 
@@ -78,6 +81,18 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     afterMessage: (groupId, messageId) => summaryPort.afterMessage(groupId, messageId),
     invalidate: (groupId) => summaryPort.invalidate(groupId),
   };
+
+  const summary = createRoomSummary({
+    conn,
+    policies,
+    messages,
+    run: (input) => (deps.summaryRunner ? deps.summaryRunner(input) : Promise.reject(new Error('summary runner is not available'))),
+    isStructuredNotice: (content) => !!getStructuredGroupMessage(content).messageCode,
+    publish: (groupId, state) => publish(groupId, { type: 'summary', data: state }),
+    log,
+  });
+  summaryPort = summary.port;
+  summaryState = (groupId) => summary.current(groupId);
 
   const dispatcherRef: { current: ReturnType<typeof createHandoffDispatcher> | null } = { current: null };
 
@@ -193,7 +208,7 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     isMemberOnline,
     publish,
     useRelay(port: RoomRelayPort) { relay = port; },
-    useSummary(port: RoomSummaryPort, state: (groupId: string) => RoomSummaryState) { summaryPort = port; summaryState = state; },
+    summary,
     /** 清空 / 删除房间时：协作表里这个群的状态一并清掉，摘要失效，会话种子轮换。 */
     clearRoomState(groupId: string) {
       queueStore.deleteForGroup(groupId);
