@@ -22,6 +22,7 @@ export const HERMES_DESCRIPTOR: RuntimeDescriptor = builtinRuntimeDescriptor('he
 export const HERMES_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  nativeFork: false,
   approvals: true,
   clarify: false,
   hostCompression: false,

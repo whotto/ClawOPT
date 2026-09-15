@@ -22,6 +22,7 @@ import type { PersistedToolCall, RunStore, SessionUsageRow } from '../../src/run
 export const PLAIN_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: false,
+  nativeFork: false,
   approvals: false,
   clarify: false,
   hostCompression: false,

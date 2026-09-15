@@ -24,6 +24,7 @@ export const RUNTIME_MESSAGE_CODES = [
   'runtime.commandUnsupported',
   'runtime.launchFailed',
   'runtime.capabilityUnsupported',
+  'runtime.forkSourceUnavailable',
 ] as const;
 
 export type RuntimeMessageCode = (typeof RUNTIME_MESSAGE_CODES)[number];

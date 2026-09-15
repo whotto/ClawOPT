@@ -113,6 +113,7 @@ POST /api/presets/:presetId/install
 POST /api/sessions
 PUT /api/sessions/:id
 DELETE /api/sessions/:id
+POST /api/sessions/batch-delete
 POST /api/sessions/:id/reset
 GET /api/sessions/:id/configs
 POST /api/sessions/reorder
@@ -122,6 +123,15 @@ GET /api/history/:sessionId/search
 GET /api/chat/:sessionId/active-run
 PUT /api/messages/:id
 DELETE /api/messages/:id
+GET /api/session-organization
+POST /api/session-categories
+PUT /api/session-categories/:categoryId
+DELETE /api/session-categories/:categoryId
+PUT /api/sessions/:id/category
+PUT /api/sessions/:id/archive
+PUT /api/sessions/:id/title
+GET /api/sessions/:id/export
+POST /api/sessions/:id/fork
 POST /api/chat
 POST /api/chat/regenerate
 GET /api/chat/attach/:sessionId

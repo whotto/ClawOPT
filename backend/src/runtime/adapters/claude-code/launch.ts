@@ -129,7 +129,10 @@ export function prepareClaudeCodeLaunch(ctx: PrepareContext): PreparedLaunch {
     args.push('--append-system-prompt-file', rulesPath);
   }
 
-  if (ctx.resume.resumeNativeId) args.push('--resume', ctx.resume.resumeNativeId);
+  if (ctx.resume.reason === 'fork' && ctx.resume.resumeNativeId && ctx.resume.createNativeId) {
+    // 分叉：续父会话但写进新 id（`--fork-session` 不动原会话），新 id 由我们预生成，确认后下一轮按它续。
+    args.push('--resume', ctx.resume.resumeNativeId, '--fork-session', '--session-id', ctx.resume.createNativeId);
+  } else if (ctx.resume.resumeNativeId) args.push('--resume', ctx.resume.resumeNativeId);
   else if (ctx.resume.createNativeId) args.push('--session-id', ctx.resume.createNativeId);
 
   // 注入的 MCP 服务是用户 / ClawOPT 显式配置的：它们的工具按服务名放进白名单（`mcp__<服务>`），

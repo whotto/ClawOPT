@@ -1,4 +1,3 @@
-import fs from 'fs';
 import path from 'path';
 import type express from 'express';
 
@@ -30,7 +29,6 @@ import {
   type RunSubmission,
   type RuntimePlatform,
 } from '../../runtime';
-import { clawoptDataDir } from '../../core/paths';
 import type { ConfigManager } from '../../core/config';
 import type { UploadService } from '../../workspace';
 import { type ChatCommands, parseChatCommand } from './chat-commands';
@@ -67,6 +65,8 @@ import {
   LocalChatTurnChannel,
   withImageFirst,
 } from './local-chat-task';
+import { externalSessionDefaultWorkspace } from './external-workspace';
+import type { SessionOrgStore } from './session-org-store';
 import { createOpenClawChatProjection } from './openclaw-chat-projection';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
@@ -92,6 +92,8 @@ export type ChatRoutesDeps = {
   access: ResourceAccess;
   /** 外部运行时单聊（会话行上有 external_runtime）按运行时 id 取适配器。 */
   runtimePlatform: Pick<RuntimePlatform, 'createAdapter'>;
+  /** 对话标题（第一条用户消息 → 自动标题）与分叉血缘。 */
+  sessionOrg: Pick<SessionOrgStore, 'recordUserMessageForTitle' | 'getMeta'>;
 };
 
 /** 队列面板上显示的文字上限（整条消息仍按原样执行）。 */
@@ -155,11 +157,9 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     realtime: ctx.realtime,
     runCoordinator,
     createAdapter: (runtime: string) => ctx.runtimePlatform.createAdapter(runtime),
-    defaultWorkspace: (sessionId: string) => {
-      const dir = path.join(clawoptDataDir, 'workspaces', 'external', sessionId.replace(/[^A-Za-z0-9_-]/g, '_'));
-      fs.mkdirSync(dir, { recursive: true });
-      return dir;
-    },
+    defaultWorkspace: externalSessionDefaultWorkspace,
+    // 分叉出来的外部单聊：首轮从父会话的原生会话分叉（适配器按能力声明决定）。
+    forkSource: (sessionId: string) => ctx.sessionOrg.getMeta(sessionId)?.parentSessionId ?? null,
   };
 
   function buildInjectedMessage(sessionInfo: SessionRow | undefined, agentId: string, rawMessage: string): string {
@@ -454,6 +454,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     const rows = new ChatTurnRows();
     const persistRows = () => {
       const saved = persistChatTurnRows(db, { sessionId, content: rawMessage, agentId: plan.agentId, agentName, modelUsed });
+      ctx.sessionOrg.recordUserMessageForTitle(sessionId, rawMessage);
       rows.userMessageId = saved.userMessageId;
       rows.assistantMessageId = saved.assistantMessageId;
       rows.runMarkerMessageIds = [saved.userMessageId, saved.assistantMessageId];
@@ -557,6 +558,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
         });
         userMsgId = saved.userMessageId;
         assistantMsgId = saved.assistantMessageId;
+        ctx.sessionOrg.recordUserMessageForTitle(normalizedSessionId, rawMessage);
         openTurnStream(res, transport, { userMsgId, assistantMsgId });
         echo({ userMsgId, assistantMsgId, parentId: saved.parentId }, sessionInfo.agentId, externalAgentName, externalModelTag(sessionInfo));
         sink = createChatStreamSink(streamDeps, { transport, sessionId: normalizedSessionId, res, origin, messageId: assistantMsgId });
@@ -622,6 +624,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
       });
       userMsgId = saved.userMessageId;
       assistantMsgId = saved.assistantMessageId;
+      ctx.sessionOrg.recordUserMessageForTitle(normalizedSessionId, rawMessage);
 
       openTurnStream(res, transport, { userMsgId, assistantMsgId });
       echo({ userMsgId, assistantMsgId, parentId: saved.parentId }, agentId, agentName, modelUsed);

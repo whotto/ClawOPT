@@ -90,6 +90,8 @@ export type ExternalChatTurnDeps = {
   runCoordinator: RunCoordinator;
   createAdapter: (runtime: string) => AgentRuntimeAdapter<RuntimeRunRequest> | null;
   defaultWorkspace: (sessionId: string) => string;
+  /** 这个会话是从哪个单聊分叉出来的（没有返回 null）。 */
+  forkSource?: (sessionId: string) => string | null;
 };
 
 export type ExternalChatSubmissionResult =
@@ -124,6 +126,8 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
   const command = parseExternalChatCommand(turn.prompt) ?? undefined;
   const workspace = config.workingDir || deps.defaultWorkspace(session.id);
 
+  // 分叉出来的会话：第一轮从父会话的原生会话分叉（适配器按能力决定怎么做）。
+  const forkParent = deps.forkSource?.(session.id) ?? null;
   const buildRequest = (): RuntimeRunRequest => {
     const latest = deps.db.getSession(session.id) ?? session;
     // 句柄缺了（老会话、手工改库）就补一个；续不续由「上一轮成功」决定，适配器还会再过一遍兼容性判定。
@@ -143,6 +147,7 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
       reasoningEffort: config.reasoningEffort,
       runtimeConfig: { ...config },
       command,
+      ...(forkParent ? { forkFrom: { kind: 'session' as const, sessionId: forkParent } } : {}),
     };
   };
 

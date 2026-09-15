@@ -41,7 +41,7 @@ import {
   registerVersionRoutes,
 } from '../control';
 import { registerFileRoutes, registerUploadRoutes } from '../workspace';
-import { registerChatRoutes, registerChatSearchRoutes, registerSessionListRoutes, registerSessionRoutes, registerWorkspaceChangeRoutes } from '../collab/sessions';
+import { registerChatRoutes, registerChatSearchRoutes, registerSessionListRoutes, registerSessionOrgRoutes, registerSessionRoutes, registerWorkspaceChangeRoutes } from '../collab/sessions';
 import { registerRoomRoutes } from '../collab/rooms';
 import { registerAutomationRoutes, registerWorkflowRoutes } from '../automation';
 import type { AppContext } from './context';
@@ -125,6 +125,7 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerPackRoutes(routes.forModule('control/packs'), ctx);
   registerPresetRoutes(routes.forModule('control/presets'), ctx);
   registerSessionRoutes(routes.forModule('collab/sessions'), ctx);
+  registerSessionOrgRoutes(routes.forModule('collab/sessions'), ctx);
   registerChatRoutes(routes.forModule('collab/sessions'), ctx);
   // Ctrl/Cmd+K 全局搜索（FTS5）：按用户过滤在排序查询里面。
   registerChatSearchRoutes(routes.forModule('collab/sessions'), ctx);

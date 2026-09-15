@@ -20,6 +20,7 @@ export const OPENCODE_DESCRIPTOR: RuntimeDescriptor = builtinRuntimeDescriptor('
 export const OPENCODE_CAPABILITIES = defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: true,
+  nativeFork: false,
   // --auto + permission {"*": "allow"}：run 模式没有审批通道。
   approvals: false,
   clarify: false,

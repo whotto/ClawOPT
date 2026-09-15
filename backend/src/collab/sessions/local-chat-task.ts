@@ -77,6 +77,7 @@ export interface LocalChatTaskRequest {
 const localTaskCapabilities = () => defineCapabilities({
   boundaryInterrupt: false,
   nativeResume: false,
+  nativeFork: false,
   approvals: false,
   clarify: false,
   hostCompression: false,
