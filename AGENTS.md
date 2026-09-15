@@ -82,6 +82,27 @@
 - WebSocket 事件契约（`/ws`，协议注释在 `core/realtime/ws-server.ts`）：鉴权与 HTTP 同一个 httpOnly cookie（升级失败回 401，不收查询串令牌，心跳时复查，失效 4401 断开）、升级请求过 Host 白名单（与 HTTP 中间件共用 `bootstrap/host-check.ts`）；订阅 `session:` / `room:` / `agent:` 主题前逐个授权；每个事件带 `id` 与 `topic`；主题无人订阅时事件直发发起连接（`agent:` 主题除外）；慢消费者按 4008 断开；`subscribe` 带 `resume` 时回协调器快照（活跃运行、重放缓冲、队列、待决交互的剩余时间、接回帧）。新增主题类型时 `bootstrap/realtime.ts` 的授权与 `test/auth-coverage.test.ts` 的 `/ws` 用例要一起改。前端单聊默认仍走 SSE，WebSocket 由「设置 → 通用 → 对话实时通道」按浏览器切换，真机验证通过后再改默认。
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
 
+## 外部运行时适配器
+编码类外部运行时（Claude Code / Codex / Pi / Grok / OpenCode / DeepSeek Harness / Hermes Agent）在 `backend/src/runtime/adapters/<运行时>/`，共用件在 `_shared/`，唯一清单是 `registry.ts`（成员运行时选择器、群聊派发、运行时管理器都从它取）。
+- **适配器只翻译。** 一份 `RuntimeDefinition` = 描述符 + 能力 + 仲裁表 + `prepare`（产出要写的文件、参数、启动环境，**纯数据**，金样用例直接比）+ `createDriver`（原生输出 → 规范事件）。会话行、排队、陈旧、落库、用量去重、审批注册表都在协调器；写进驱动就是越界。
+- **以 `close` 判完成，不是 `exit`。** `exit` 可能先于 stdout 排空，最后一行（API 错误、用量）会丢。驱动只在 `finish()`（close 之后）决定成败；中止是 SIGINT 整个进程组、1.5 秒后 SIGKILL、等 close 才确认已停。子进程只经注入的 `ProcessExecutor` 起（`_shared/process.ts`），驱动与测试都不直接 `spawn`。
+- **子进程环境是白名单**（`_shared/env.ts`）：scoped 只有白名单 + 启动变量；global 额外放行运行时声明的凭据变量（按名字），仍然不是整份环境。管理器合并出来的环境会再过一遍名单——守卫用例对着「把整份环境合并进来」的假管理器证明会红。
+- **key 不进任何配置文件。** 上游 key 只进本地代理的内存；CLI 拿到的是代理令牌，而令牌也只进进程环境，文件里只写引用（Codex `env_key`、Pi `$VAR`、OpenCode `{env:VAR}`、Grok `env_key`、DSH `apiKeyEnv`、Hermes `${VAR}`；Claude 的 settings.json 里不写 `ANTHROPIC_API_KEY`）。每个运行时都有一条「生成的文件里没有 key 与令牌」的用例。
+- **prompt 走 stdin 或文件，从不进 argv**（ARG_MAX、`ps` 可见、OpenCode 还会给带空格的位置参数加字面引号）。
+- **不重定向 HOME / XDG。** 运行时 home 在 `<数据目录>/runtime/<运行时>/<哈希>`（群聊按 (群, 成员) 稳定），只经各 CLI 自己的指针变量生效。global 模式**不做影子 home**：本机 Codex 是 ChatGPT OAuth，影子副本刷新令牌会让用户真实的登录失效（Grok 同理）。
+- **续话**：会话句柄由表面持久化，「句柄 → 原生 id + 创建时的坐标」记在运行时 home 的 `.clawopt-session.json`；预生成的 id 确认后才 resume；scoped 下 provider / model / apiMode 变了就开新会话。
+- 新增运行时：一个目录 + 登记表加一行 + 三语 `runtime.*` 错误码（如有新码）+ 至少 25 条用例（命令构造两种模式、金样、真实输出回放、仲裁经协调器、续话兼容、close/exit 顺序、中止、错误映射），并在报告里记下对真 CLI 的核对。`_interim-platform.ts` 是平台分支合并前的过渡实现，合并时删掉。
+
+| 运行时 | 协议 | 续话 | 审批 | 必须记住的坑 |
+|---|---|---|---|---|
+| Claude Code | `-p --output-format stream-json --verbose --include-partial-messages`，stdin 文本 | `--session-id <预生成>` → `--resume` | `--permission-prompts none`（从不绕过权限） | stream-json 不带 `--verbose` 直接退出；`--append-system-prompt-file` 不在 `--help` 里但存在；hook_response 的 stdout 不是正文 |
+| Codex | `exec --json … -`，压缩走 `app-server` JSON-RPC | `exec resume … <threadId> -`（不收 `--cd`） | bypass | `error` 是临时的（退出码说了算）；丢掉 `exec_command` 回声；代理文本在驱动里折叠（协调器按 item id 去重，跨路对不上） |
+| Pi | `--mode rpc`，一轮一进程 | 同一个 `--session-id` + `--session-dir` | **真审批**：confirm → once/deny，select/input/editor → 澄清 | 只认 `agent_settled`（重试时先来 `agent_end willRetry`）；严格 LF 分帧 |
+| Grok | `--output-format streaming-json --prompt-file` | `--session-id` 只能新建；`--resume` 前必须确认本地会话目录存在 | `--always-approve` | `--resume <本地没有的 id>` 会进交互式设备码登录挂住；`--no-auto-update` 不在 `--help` 里 |
+| OpenCode | `run --format json --auto --thinking`，prompt 走 stdin | `-s <观察到的 sessionID>` | `--auto` | 没配服务商会悄悄回落免费模型（scoped 用 `enabled_providers`）；配置经 `OPENCODE_CONFIG_CONTENT` |
+| DSH | `--profile acp`（ACP） | `session/resume`，失败不偷偷新建 | `DSH_PERMISSION_MODE=danger-full-access` + 自动「允许一次」 | 模型取值是 JSON 数组字符串；全新 DSH_HOME 首次 `session/new` 会报 no adapter registered，隔一秒重试 |
+| Hermes Agent | `hermes acp`（ACP） | `session/resume`，核对来历 id | **真审批**：五个 ACP 选项 → once/session/always/deny | resume 先重放历史；上游错误当正文吐（`HTTP 401: …`）；普通 custom 端点会忽略 `codex_responses`，scoped 用 `anthropic_messages` |
+
 ## 国际化要求
 - 所有新增的用户可见功能，默认必须同时支持 `zh-CN`、`zh-TW`、`en`。
 - 不要在组件中新增硬编码用户可见文案。
