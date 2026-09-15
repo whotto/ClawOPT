@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SETTINGS_TABS,
   formatAppPath,
   legacyHashToPath,
   parseAppPath,
@@ -23,8 +24,12 @@ describe('parseAppPath', () => {
     expect(parseAppPath('/groups/team-1')).toEqual({ view: 'groups', groupId: 'team-1' });
   });
 
+  it('控制面页签都在清单里（新增页签必须同时进路由表与侧栏）', () => {
+    expect([...SETTINGS_TABS].sort()).toEqual(['about', 'agents', 'channels', 'commands', 'cron', 'gateway', 'general', 'logs', 'mcp', 'models', 'plugins', 'presets', 'skills', 'usage', 'users']);
+  });
+
   it('parses every settings tab and flags unknown tabs', () => {
-    for (const tab of ['gateway', 'general', 'models', 'presets', 'commands', 'about'] as const) {
+    for (const tab of SETTINGS_TABS) {
       expect(parseAppPath(`/settings/${tab}`)).toEqual({ view: 'settings', tab });
     }
     expect(parseAppPath('/settings')).toEqual({ view: 'settings', tab: null });
@@ -53,6 +58,8 @@ describe('formatAppPath', () => {
       { ...base, view: 'chat', sessionId: 'x/y' },
       { ...base, view: 'groups', groupId: 'g:1' },
       { ...base, view: 'settings', settingsTab: 'about' },
+      { ...base, view: 'settings', settingsTab: 'cron' },
+      { ...base, view: 'settings', settingsTab: 'users' },
     ];
     for (const state of states) {
       const resolved = resolveRouteState(parseAppPath(formatAppPath(state)), base);

@@ -369,7 +369,8 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
 
   const openEditEndpointModal = (ep: EndpointConfig) => {
     setEditingEndpoint(ep);
-    setNewEndpointData({ ...ep });
+    // 后端不回传 apiKey：编辑时输入框起手为空，留空 = 保持原值。
+    setNewEndpointData({ ...ep, apiKey: '' });
     setEndpointTestStatus('idle');
     setEndpointTestMessage('');
     setEndpointModalError(EMPTY_INLINE_ERROR);
@@ -383,12 +384,25 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
     }
     setIsLoading(true);
     try {
-      const res = await saveEndpoint(newEndpointData);
+      const res = await saveEndpoint(
+        { id: newEndpointData.id, baseUrl: newEndpointData.baseUrl, apiKey: newEndpointData.apiKey, api: newEndpointData.api },
+        editingEndpoint?.revision ?? null,
+      );
       if (res.ok) {
         setEndpointModalError(EMPTY_INLINE_ERROR);
         setIsEndpointModalOpen(false);
         fetchEndpoints();
 
+      } else if (res.status === 412) {
+        // 别处（另一个标签页、CLI、网关）改过这个服务商：载入最新版本，提示后让用户再保存一次。
+        const data = await res.json().catch(() => ({}));
+        const latest = data?.current?.value as EndpointConfig | undefined;
+        if (latest) {
+          setEditingEndpoint(latest);
+          setNewEndpointData({ ...latest, apiKey: newEndpointData.apiKey });
+        }
+        setEndpointModalError({ message: t('control.common.changedElsewhere'), detail: '' });
+        fetchEndpoints();
       } else {
         const data = await res.json().catch(() => ({}));
         setEndpointModalError(resolveStructuredErrorDisplay(data, t, 'settings.models.saveEndpointFailed'));
@@ -418,12 +432,15 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
       const res = await testEndpoint({
           baseUrl: newEndpointData.baseUrl,
           apiKey: newEndpointData.apiKey,
-          api: newEndpointData.api
+          api: newEndpointData.api,
+          // 编辑时 key 留空：让后端用库里保存的 key 测（前端拿不到它）。
+          endpointId: editingEndpoint?.id,
         });
       const data = await res.json();
       if (data.success) {
         setEndpointTestStatus('success');
-        setEndpointTestMessage(t('settings.models.endpointConnectionSuccess'));
+        // 404/405 on /models：可达，但上游不提供目录——提示手动输入模型 ID，而不是报失败。
+        setEndpointTestMessage(data.catalogUnavailable ? t('control.models.reachableNoCatalog') : t('settings.models.endpointConnectionSuccess'));
         setTimeout(() => setEndpointTestStatus('idle'), 3000);
       } else {
         const display = resolveStructuredErrorDisplay(data, t, 'settings.models.endpointConnectionFailed');

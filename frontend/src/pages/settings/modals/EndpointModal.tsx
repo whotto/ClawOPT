@@ -120,7 +120,7 @@ export default function EndpointModal({ ctx }: { ctx: SettingsController }) {
                           type={showPassword ? "text" : "password"}
                           value={newEndpointData.apiKey}
                           onChange={(e) => setNewEndpointData({ ...newEndpointData, apiKey: e.target.value })}
-                          placeholder="sk-..."
+                          placeholder={editingEndpoint?.hasApiKey ? t('settings.gateway.secretConfigured') : 'sk-...'}
                           className="block w-full px-4 py-2.5 pr-12 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
                         />
                         <button
@@ -131,6 +131,7 @@ export default function EndpointModal({ ctx }: { ctx: SettingsController }) {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {editingEndpoint?.hasApiKey && <p className="text-xs text-gray-400 mt-1.5">{t('settings.gateway.secretKeepHint')}</p>}
                     </div>
                   </div>
                   <div className="p-4 bg-gray-50 flex gap-3 border-t border-gray-100">

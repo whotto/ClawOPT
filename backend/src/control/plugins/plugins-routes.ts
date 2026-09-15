@@ -36,6 +36,11 @@ export function registerPluginsRoutes(app: RouteApp, ctx: PluginsRoutesDeps): vo
     res.json({ success: true });
   }));
 
+  app.post('/api/plugins/update-all', requireAdminAuth, controlHandler(async (_req, res) => {
+    await plugins.update(null);
+    res.json({ success: true });
+  }));
+
   app.post('/api/plugins/:id/update', requireAdminAuth, controlHandler(async (req, res) => {
     await plugins.update(String(req.params.id));
     res.json({ success: true });

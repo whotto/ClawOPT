@@ -1,6 +1,7 @@
 // 网关设置页签。
 import { Activity, Check, Edit2, Eye, EyeOff, Link2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { SettingsController } from '../useSettingsController';
+import GatewayServiceCard from './GatewayServiceCard';
 
 export default function GatewayTab({ ctx }: { ctx: SettingsController }) {
   const {
@@ -80,6 +81,7 @@ export default function GatewayTab({ ctx }: { ctx: SettingsController }) {
 
   return (
     <>
+      <GatewayServiceCard />
       <div>
         <div className="flex items-center justify-between mb-1">
           <div className="flex min-w-0 items-baseline gap-3">

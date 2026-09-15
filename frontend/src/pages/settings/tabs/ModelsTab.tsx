@@ -1,12 +1,17 @@
 // 模型设置页签。
-import { Activity, Check, ChevronDown, Edit2, Loader2, Plus, Trash2, X } from 'lucide-react';
-import { Fragment } from 'react';
+import { Activity, Check, ChevronDown, Edit2, Library, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Fragment, useState } from 'react';
 import type { SettingsController } from '../useSettingsController';
 import ModelSinglePicker from '../../../components/ModelSinglePicker';
 import ModelFallbackEditor from '../../../components/ModelFallbackEditor';
+import ModelsExtrasPanel from '../models/ModelsExtrasPanel';
+import ProviderCatalogModal from '../models/ProviderCatalogModal';
 
 export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
+  // P5a：服务商模型目录弹窗（刷新 / 撤销 / 可见性 / 上下文长度）。
+  const [catalogProvider, setCatalogProvider] = useState<string | null>(null);
   const {
+    fetchEndpoints,
     CAPABILITIES,
     cancelEditModel,
     currentPrimaryModelId,
@@ -165,6 +170,14 @@ export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">{t('settings.models.addModel')}</span>
+                    </button>
+                    <button
+                      onClick={() => setCatalogProvider(epName)}
+                      className="flex items-center gap-1 px-2 py-1.5 text-sm text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                      title={t('control.models.catalog')}
+                    >
+                      <Library className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{t('control.models.catalog')}</span>
                     </button>
                     <button
                       onClick={() => openEditEndpointModal(epConfig)}
@@ -624,6 +637,18 @@ export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
           </div>
         )}
       </div>
+
+      <ModelsExtrasPanel modelIds={models.map((model) => model.id)} />
+
+      {catalogProvider && (
+        <ProviderCatalogModal
+          providerId={catalogProvider}
+          revision={endpoints.find((endpoint) => endpoint.id === catalogProvider)?.revision ?? null}
+          contextLengths={endpoints.find((endpoint) => endpoint.id === catalogProvider)?.contextLengths ?? {}}
+          onClose={() => setCatalogProvider(null)}
+          onChanged={() => void fetchEndpoints()}
+        />
+      )}
     </div>
   );
 }
