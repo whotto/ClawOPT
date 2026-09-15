@@ -171,3 +171,5 @@ export function useMessageSearch(c: MessageSearchContext) {
     revealSearchMatchInLoadedMessages, jumpToSearchMatch, handleNextSearch, handlePrevSearch,
   };
 }
+
+export type MessageSearch = ReturnType<typeof useMessageSearch>;

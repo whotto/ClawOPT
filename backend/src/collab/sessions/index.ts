@@ -42,6 +42,15 @@ export type {
 export {
   registerChatRoutes,
 } from './chat-routes';
+export {
+  rebuildChatSearchIndex,
+} from './chat-search';
+export {
+  registerChatSearchRoutes,
+} from './chat-search-routes';
+export type {
+  ChatSearchRoutesDeps,
+} from './chat-search-routes';
 export type {
   ChatRoutesDeps,
 } from './chat-routes';

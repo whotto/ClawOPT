@@ -17,6 +17,7 @@
  * 登记表是 `buildStartupTasks(deps)` 的返回值：任务要用到上下文里的单例（库、用户表），
  * 所以登记表在上下文建好之后才构造。
  */
+import { rebuildChatSearchIndex } from '../collab/sessions';
 import { migrateLegacyLoginPassword, type UserStore } from '../core/auth';
 import type { DB } from '../core/db';
 import { sharedFileStore, type SafeFileStore } from '../core/files';
@@ -39,7 +40,7 @@ export type StartupTaskOutcome =
   | { status: 'refused'; errorCode: string };
 
 export type StartupTaskDeps = {
-  db: Pick<DB, 'getConfig'>;
+  db: Pick<DB, 'getConfig' | 'connection'>;
   userStore: UserStore;
   log?: (message: string) => void;
 };
@@ -55,6 +56,15 @@ export function buildStartupTasks(deps: StartupTaskDeps): StartupTask[] {
       run: () => {
         const outcome = migrateLegacyLoginPassword({ userStore: deps.userStore, readRawAppConfig: () => deps.db.getConfig('app_config') });
         log(`[StartupTasks] auth.login-password-to-super-admin: ${outcome.status === 'created' ? `created ${outcome.username}${outcome.mustChangePassword ? ' (must change password)' : ''}` : `skipped (${outcome.reason})`}`);
+      },
+    },
+    {
+      // P1b：Ctrl/Cmd+K 全文检索的索引回填。触发器只管上线之后的写入，之前的消息与会话名在这里重建一次（重复跑结果相同）。
+      id: 'search.chat-fts-backfill',
+      scope: 'clawopt-data',
+      run: () => {
+        const outcome = rebuildChatSearchIndex(deps.db.connection());
+        log(`[StartupTasks] search.chat-fts-backfill: indexed ${outcome.messages} message(s), ${outcome.sessions} session name(s)`);
       },
     },
   ];

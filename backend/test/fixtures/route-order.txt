@@ -131,6 +131,7 @@ GET /api/chat/:sessionId/state
 DELETE /api/chat/:sessionId/queue/:queueId
 POST /api/chat/:sessionId/queue/:queueId/insert
 GET /api/chat/:sessionId/events
+GET /api/search/chat
 GET /api/run-approvals
 POST /api/run-approvals/:id/respond
 POST /api/files/upload
