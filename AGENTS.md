@@ -12,7 +12,7 @@
   - `bootstrap/`: 组装与生命周期。`context.ts` 构造单例与服务（经 `ctx` 注入）；`app.ts` 按固定顺序注册中间件与路由（顺序即行为，由 `test/route-order.test.ts` 对照清单校验）；`server.ts` 监听、就绪状态、优雅停机；`startup-steps.ts` 拆分前就有的启动修复；`startup-tasks.ts` 启动一次性任务登记表；`health.ts` 的 `/livez` `/readyz` `/health`。
   - `core/`: 与业务无关的底座，**不得依赖其他模块**。`db/`、`realtime/`（实时事件中枢与 `/ws` WebSocket 服务）、`auth/`（会话令牌、鉴权中间件与 `AUTH_PUBLIC_PATHS`）、`files/`（可服务路径闸门、原子写、`SafeFileStore`）、`config/`（ClawOPT 自身配置）、`http/`（结构化错误与错误码、路由登记表与 OpenAPI、配置版本号）、`events/`（业务事件总线）、`logger/`、`paths/`、`process/`、`util/`。
   - `openclaw/`: gateway 客户端与连接、`openclaw.json` 读写与名册门面、版本探测、CLI 定位、网关探测与重启、运行时补丁、设备配对。
-  - `runtime/`: 执行平面的唯一入口（P1a 起）。`contract/`（`AgentRuntimeAdapter` 接口、能力声明、Responses 风格规范事件、事实来源仲裁表、文本去重）；`coordinator/`（运行协调器：会话行、run marker、陈旧事件、单会话单运行与队列、中止宽限、重放缓冲、工具调用原子落库、用量去重、终态顺序、审批/澄清注册表、工作区 diff 检查点缝）；`adapters/`（`openclaw` 网关单聊、`claude-code`）；`external-agents/`（CLI 命令构造、stream-json 解析、可注入的本机执行器）；运行时不变量。
+  - `runtime/`: 执行平面的唯一入口（P1a 起）。`contract/`（`AgentRuntimeAdapter` 接口、能力声明、Responses 风格规范事件、事实来源仲裁表、文本去重）；`coordinator/`（运行协调器：会话行、run marker、陈旧事件、单会话单运行与队列、中止宽限、重放缓冲、工具调用原子落库、用量去重、终态顺序、审批/澄清注册表、工作区 diff 检查点缝）；`adapters/`（`openclaw` 网关单聊、`claude-code`）；`external-agents/`（CLI 命令构造、stream-json 解析、可注入的本机执行器）；运行时不变量。P2-platform 起另有：`proxy/`（本地模型代理，Anthropic ↔ Chat ↔ Responses 互转与 tee）、`mcp/`（托管 MCP 注入、每运行健康隔离、各运行时原生 MCP 配置塑形纯函数）、`manager/`（运行时描述符、PATH 发现、白名单子进程环境、安装升级卸载与升级锁、主机能力、原生配置页后端、运行时目录回收）、`remote-openclaw/`（远程 OpenClaw 网关成员）、`adapter-registry.ts`（`registerAdapter(descriptor, factory)`）、`platform.ts` / `platform-routes.ts`（组装与 `/api/runtime/*`）、`net-policy.ts`（出站地址策略）、`platform-store.ts`（运行时平面的私有文件与本机加密）。
   - `control/`: 控制面。agents / characters / models（含生图）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics 的路由与服务。
   - `workspace/`: 上传、文件下载与预览、链接改写、文档与音频工具链。
   - `collab/sessions/`: 单聊（会话、历史、消息、OpenClaw 运行的投影器 `openclaw-chat-projection.ts`、流出口 `chat-stream.ts`）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账、外部成员运行的投影器 `external-member-run.ts`、群聊帧唯一构造处 `room-frames.ts`）。
@@ -20,7 +20,7 @@
   - 模块之间只经各自的 `index.ts`（barrel）互相导入；`*-routes.ts` 只由 bootstrap 注册，服务不得引用。由 `npm run boundaries:check` 机械校验。
 - `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。`frontend/src/` 下：
   - `app/`: 应用壳。`App.tsx`（BrowserRouter + 鉴权）、`routes.tsx` 路由表、`routeState.ts` URL ↔ 视图状态纯函数（带单测，改路径形状两边一起改）、`AppShell.tsx`（侧栏 + Outlet）、`auth.tsx`（登录守卫）、壳层轮询 hooks，以及 `sidebar/` 侧栏（设置导航由 `sidebarNav.ts` 数据驱动，条目带 工作台/团队/自动化/系统 zone）。
-  - 路由：`/login`、`/chat/:sessionId`、`/groups/:groupId`（无 id 为团队列表）、`/settings/:tab`（gateway / general / models / presets / commands / about）。用 history 路由，依赖后端 `app.get('*')` 回退 index.html；旧 `#settings/...` 书签挂载前自动换成新路径。缺段按 localStorage 记忆补齐，地址栏优先。
+  - 路由：`/login`、`/chat/:sessionId`、`/groups/:groupId`（无 id 为团队列表）、`/settings/:tab`（gateway / general / models / presets / commands / about / runtimes）。`/settings/runtimes` 是团队区的 Agent 运行时管理页，每运行时配置页用查询串 `?runtime=<id>&section=settings|mcp|skills`（不改路径形状，页面在 `pages/team/runtimes/`）。用 history 路由，依赖后端 `app.get('*')` 回退 index.html；旧 `#settings/...` 书签挂载前自动换成新路径。缺段按 localStorage 记忆补齐，地址栏优先。
   - `pages/`: 路由页面容器。`chat/`（单聊与群聊共用同一组件实例）、`settings/`（所有页签共用一个挂载实例；状态在 `hooks/`，页签在 `tabs/`，弹窗在 `modals/`，预设库在 `presets/`）、`login/`。
   - `features/`: 页面内功能块。`chat/`（`hooks/` 状态与副作用、`components/` 展示层、`lib/` 纯函数、`message/` 消息气泡与过程块）、`files/`（文件预览，按格式分查看器）。
   - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`，实时通道客户端（`/ws`，重连退避、重新订阅、旧 socket 丢弃）在 `ws.ts`；单聊逐帧读取统一经 `features/chat/lib/chatStream.ts`，SSE 与 WebSocket 给出同一串帧。组件里不要再直接写 `fetch`，也不要自己 `new WebSocket`。
@@ -35,7 +35,7 @@
 - `cd frontend && npm run dev`: 启动前端开发服务。
 - `npm run build`: 同时构建前后端。
 - `npm run release`: 构建后启动 release 预览流程。
-- `cd backend && npm test`: 类型检查 + vitest（覆盖凭据与会话、包解析与路径闸门、可服务路径白名单、上游消息解包、聊天历史对账、外部 Agent 适配与执行、运行时不变量）。**新增守卫时必须先证明它会红**：把对应的防护改回有缺陷的写法，看该用例失败，再还原。没验过的门等于没有门。
+- `cd backend && npm test`: 类型检查 + vitest（覆盖凭据与会话、包解析与路径闸门、可服务路径白名单、上游消息解包、聊天历史对账、外部 Agent 适配与执行、运行时不变量；P2 起还有本地模型代理六个翻译方向、运行时管理器、MCP 塑形与隔离、原生配置页、远程 OpenClaw 成员）。**新增守卫时必须先证明它会红**：把对应的防护改回有缺陷的写法，看该用例失败，再还原。没验过的门等于没有门。
 - **手工自检不是守卫。** 在命令行里跑一遍确认「它是对的」只证明这一刻对；守卫是下一个人改坏时会响的东西。验完就把它固化成用例，否则那次验证随会话一起消失。
 - 能进类型层的检查就不放到运行时，能进运行时守卫的就不放到 code review。**每退一步，可靠性掉一个数量级。**
 - `npm run locales:check`: 校验 `zh-CN` / `zh-TW` / `en` 三份 locale 的键集完全一致；缺一个语言不会报错、只会显示原始 key，所以这道门是硬性的（已并入 `npm run test`）。
@@ -80,6 +80,13 @@
 - 新运行时接入必须同时交三样：能力声明（`defineCapabilities`，缺一项过不了类型检查）、事实来源仲裁表（`defineSourceOfTruth`：文本 / 工具 / 终态 / 用量 / 控制各信哪一路）、以及至少一条「同轮双路事件不重复」的用例（参照 `test/runtime-arbitration.test.ts`）。用量上报的 `callId` 必须是确定性的（运行时原生 id 为底），`session_usage` 的部分唯一索引靠它去重。执行器保持可注入：本机子进程与远程 relay 是同一个接口。
 - **实时帧只从实时中枢发**（`core/realtime` 的 `RealtimeHub`）。单聊帧是 `session:<id>` 主题的 `chat.frame`，群聊帧是 `room:<id>` 主题的 `room.frame`（唯一构造处 `room-frames.ts`）；SSE 与 WebSocket 都只是中枢的订阅者。不要再对 SSE 客户端直接 `res.write` 群聊或运行帧——那样 WebSocket 通道就收不到。
 - WebSocket 事件契约（`/ws`，协议注释在 `core/realtime/ws-server.ts`）：鉴权与 HTTP 同一个 httpOnly cookie（升级失败回 401，不收查询串令牌，心跳时复查，失效 4401 断开）、升级请求过 Host 白名单（与 HTTP 中间件共用 `bootstrap/host-check.ts`）；订阅 `session:` / `room:` / `agent:` 主题前逐个授权；每个事件带 `id` 与 `topic`；主题无人订阅时事件直发发起连接（`agent:` 主题除外）；慢消费者按 4008 断开；`subscribe` 带 `resume` 时回协调器快照（活跃运行、重放缓冲、队列、待决交互的剩余时间、接回帧）。新增主题类型时 `bootstrap/realtime.ts` 的授权与 `test/auth-coverage.test.ts` 的 `/ws` 用例要一起改。前端单聊默认仍走 SSE，WebSocket 由「设置 → 通用 → 对话实时通道」按浏览器切换，真机验证通过后再改默认。
+- **外部运行时的适配器从登记处取**（`runtime/adapter-registry.ts`）：适配器在自己的文件夹里 `registerAdapter(descriptor, factory)`，工厂拿 `RuntimeAdapterDeps`（管理器、代理、MCP 注入、运行时目录、可注入执行器）；群聊引擎按 `member.runtime` 取，**没登记的运行时明说失败（`runtime.adapterNotRegistered`），不静默退回 OpenClaw**。同一个 id 重复登记直接抛。
+- **本地模型代理**（`runtime/proxy`）：`/api/runtime-proxy/{anthropic,responses}/:key/v1/*` 是**有意公开**的（外部 CLI 带不了登录 cookie），模式逐字登记在 `AUTH_PUBLIC_PATHS`，`:key` 只匹配恰好一个非空段（`isAuthPublicPath`）；安全性在处理器里：未知 key 404、每目标令牌（x-api-key 或 Bearer）常数时间比较不符 401。上游 key 永远不进 CLI 配置、不进日志、不明文落盘——重启恢复文件是 AES-256-GCM 密文，AAD 绑定目标全部坐标与令牌，本机密钥在数据目录 0600。上游地址只收 http/https、**解析后**不落内网（服务商显式标成本地——ollama / lmstudio / llamacpp / vllm / localai / `local:` 前缀——才放行）、不跟重定向。代理请求体解析器（64 MB）必须注册在全局 `express.json()` 之前。翻译夹具在 `backend/test/fixtures/runtime-proxy/`，是按线协议手写的，不是抓包。
+- **子进程环境只从白名单起步**（`runtime/manager/path-env.ts` 的 `CHILD_ENV_ALLOWLIST`），`RuntimeManager.childEnv(extra)` 只把 PATH 换成扩充版再叠 `extra`。参考实现把整个进程环境并进启动环境、白名单形同虚设，这是我们要修的那个泄露；包管理器变量（`npm_config_*` 等）只给安装器，不给 Agent。扩充 PATH 时**原 PATH 在最前**：管理器报告的可执行文件必须就是实际会跑的那一个（本机实测两份 claude 版本不同）。
+- **运行时安装升级不碰系统**：npm 全局安装装 `@latest`（不钉版本，官方源的运行时加 `--registry`）；pip 运行时（hermes-agent）装进 `<数据目录>/runtime/venvs/<id>`，**永远不用系统 pip**；不是 npm 全局、也不是我们 venv 里的安装（Homebrew cask 等）只探测不代管，升级卸载一律 409 `runtime.notManagedByClawopt`。升级锁、准备计数（`beginRun`）、活动版本号、连续空闲 60 秒、上锁前同步复查只在 `runtime/manager/runtime-manager.ts` 里实现一次。测安装卸载只能用隔离的 `npm_config_prefix`。
+- **原生配置页凭据不出服务端**：读出时按键名与值形状把凭据换成 `<clawopt:redacted:N>`，保存时按序号从磁盘当前内容换回，标记对不上 400；认证文件（`auth.json`、`.credentials.json`、`.env`）只报在不在，不读不写；MCP 列表不回 env / headers 的值。改原生 MCP 配置用 `runtime/mcp/config-shapes.ts` 的纯函数：保留用户内容，托管条目（`clawopt-` 前缀或 env `CLAWOPT_MANAGED_MCP=1`，TOML/YAML 另有成对注释标记块）剥掉重生成；读不懂的文件报错，**绝不覆盖**。每次运行前的 MCP 健康隔离只改运行副本，隔离步骤自身失败放行。
+- **远程 OpenClaw 成员**（`runtime/remote-openclaw`）：`external_config` 只放网关地址、远程 Agent、受信任局域网开关；令牌走 `PUT /api/runtime/remote-openclaw/members/:groupId/:agentId/token`（只写，空串不修改）进加密存储，接口只回 `hasToken`；群成员 `external_config` 写入时剥掉凭据类键（`GET /api/groups` 会原样回给前端）。地址只收 ws/wss，内网要打开受信任局域网；失败一律带 `remoteOpenclaw.*` messageCode。
+- **运行时目录随归属回收**：`<数据目录>/runtime/<runtime>/<hash>`，删会话、删群、移出成员时 `runtimePlatform.releaseOwner(...)`，定期清扫孤儿与超期空闲（界面可调）；只删带 `.clawopt-home.json` 标记、realpath 在 root 下的真实子目录。新增会删会话或成员的入口时，要一起调 `releaseOwner`。
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
 
 ## 国际化要求
