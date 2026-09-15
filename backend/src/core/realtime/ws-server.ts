@@ -68,6 +68,8 @@ type Connection<TIdentity> = {
   req: IncomingMessage;
   identity: TIdentity;
   topics: Set<string>;
+  /** 每个已订阅主题在中枢里的订阅计数退订函数。 */
+  releases: Map<string, () => void>;
   alive: boolean;
 };
 
@@ -144,6 +146,8 @@ export function attachRealtimeWebSocketServer<TIdentity>(server: Server, options
 
   const unsubscribe = (connection: Connection<TIdentity>, topic: string) => {
     connection.topics.delete(topic);
+    connection.releases.get(topic)?.();
+    connection.releases.delete(topic);
     const set = byTopic.get(topic);
     if (!set) return;
     set.delete(connection);
@@ -182,6 +186,7 @@ export function attachRealtimeWebSocketServer<TIdentity>(server: Server, options
           send(connection, { type: 'error', code: 'realtime.topicForbidden', topic, requestId });
           return;
         }
+        if (!connection.topics.has(topic)) connection.releases.set(topic, options.hub.retainTopic(topic));
         connection.topics.add(topic);
         const set = byTopic.get(topic) ?? new Set<Connection<TIdentity>>();
         set.add(connection);
@@ -231,7 +236,7 @@ export function attachRealtimeWebSocketServer<TIdentity>(server: Server, options
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      const connection: Connection<TIdentity> = { id: randomUUID(), socket: ws, req, identity, topics: new Set(), alive: true };
+      const connection: Connection<TIdentity> = { id: randomUUID(), socket: ws, req, identity, topics: new Set(), releases: new Map(), alive: true };
       connections.set(connection.id, connection);
       ws.on('pong', () => { connection.alive = true; });
       ws.on('message', (data, isBinary) => {

@@ -51,6 +51,8 @@ export function parseRealtimeTopic(topic: string): { kind: RealtimeTopicKind; id
 export class RealtimeHub {
   private nextId = 1;
   private readonly listeners = new Map<string, RealtimeListener>();
+  /** 每个主题的订阅计数（WebSocket 连接订阅时登记）。发布方据此跳过「没人要」的重负载计算。 */
+  private readonly subscriptions = new Map<string, number>();
   private readonly onListenerError: (name: string, event: RealtimeEvent, error: unknown) => void;
 
   constructor(options: { onListenerError?: (name: string, event: RealtimeEvent, error: unknown) => void } = {}) {
@@ -82,6 +84,27 @@ export class RealtimeHub {
     return () => {
       if (this.listeners.get(name) === listener) this.listeners.delete(name);
     };
+  }
+
+  /**
+   * 登记一个主题订阅，返回退订函数（只生效一次）。计数归零即删键，不随主题数增长。
+   * 只是计数：事件照常经 `publish` 发给监听者，谁收由监听者自己按主题过滤。
+   */
+  retainTopic(topic: string): () => void {
+    this.subscriptions.set(topic, (this.subscriptions.get(topic) ?? 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const next = (this.subscriptions.get(topic) ?? 1) - 1;
+      if (next > 0) this.subscriptions.set(topic, next);
+      else this.subscriptions.delete(topic);
+    };
+  }
+
+  /** 主题当前有没有订阅者。没有时发布方可以只做廉价的状态记账、跳过负载计算。 */
+  hasSubscribers(topic: string): boolean {
+    return (this.subscriptions.get(topic) ?? 0) > 0;
   }
 
   listenerNames(): string[] {

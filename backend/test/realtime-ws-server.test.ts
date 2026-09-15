@@ -122,6 +122,27 @@ describe('实时 WebSocket 通道', () => {
     client.socket.close();
   });
 
+  it('中枢的订阅计数跟着连接的订阅 / 重复订阅 / 退订 / 断开走（发布方据此跳过负载计算）', async () => {
+    const h = await startServer();
+    const topic = 'workflow:w1';
+    expect(h.hub.hasSubscribers(topic)).toBe(false);
+    const a = await connect(h.url);
+    const b = await connect(h.url);
+    for (const [client, id] of [[a, 1], [a, 2], [b, 3]] as const) {
+      client.socket.send(JSON.stringify({ type: 'subscribe', topic, requestId: id }));
+      await client.next((m) => m.requestId === id);
+    }
+    expect(h.hub.hasSubscribers(topic)).toBe(true);
+    a.socket.send(JSON.stringify({ type: 'unsubscribe', topic, requestId: 4 }));
+    await a.next((m) => m.requestId === 4);
+    expect(h.hub.hasSubscribers(topic)).toBe(true);
+    b.socket.close();
+    const deadline = Date.now() + 2000;
+    while (h.hub.hasSubscribers(topic) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(h.hub.hasSubscribers(topic)).toBe(false);
+    a.socket.close();
+  });
+
   it('主题没人订阅时，事件直发给发起这次运行的连接；有人订阅时按主题发', async () => {
     const h = await startServer();
     const origin = await connect(h.url);

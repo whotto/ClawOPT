@@ -47,7 +47,7 @@ export type AutomationDeps = {
   openclawAdapter: AgentRuntimeAdapter<OpenClawChatRunRequest>;
   events: EventBus;
   /** 实时中枢：工作流状态流走 `workflow:<id>` 主题。 */
-  realtime: Pick<RealtimeHub, 'publish'>;
+  realtime: Pick<RealtimeHub, 'publish' | 'hasSubscribers'>;
   /** 测试注入；缺省按环境变量选择。 */
   runner?: WorkflowAgentRunner;
   fakeRunner?: boolean;
@@ -67,6 +67,7 @@ export function createAutomation(deps: AutomationDeps) {
   const runStore = createRunStore(connection);
   const hub = createStatusHub(runStore, {
     publish: (topic, type, payload) => { deps.realtime.publish({ topic, type, payload }); },
+    hasSubscribers: (topic) => deps.realtime.hasSubscribers(topic),
   });
   const directory = createAgentDirectory({
     sessionManager: deps.sessionManager,

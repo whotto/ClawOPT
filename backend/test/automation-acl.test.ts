@@ -25,6 +25,8 @@ const previousFakeRunner = process.env.CLAWOPT_WORKFLOW_FAKE_RUNNER;
 const wf = { main: '', other: '', external: '' };
 const task = { main: '', mainReady: '', other: '', ext: '', none: '' };
 const tokens: Record<'owner' | 'admin' | 'member', string> = { owner: '', admin: '', member: '' };
+/** 实时中枢上发出的主题（这个套件不挂 WS，没有任何订阅者）。 */
+const realtimeTopics: string[] = [];
 
 beforeAll(async () => {
   process.env.CLAWOPT_WORKFLOW_FAKE_RUNNER = '1';
@@ -32,6 +34,7 @@ beforeAll(async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   h = await startAppHarness();
   const { ctx } = h;
+  ctx.realtime.listen('test:topics', (event: { topic: string }) => realtimeTopics.push(event.topic));
   const owner = ctx.userStore.create({ username: 'owner', password: 'owner-pass-1234', role: 'super_admin' });
   const admin = ctx.userStore.create({ username: 'admin2', password: 'admin-pass-1234', role: 'admin' });
   const member = ctx.userStore.create({ username: 'member', password: 'member-pass-1234', role: 'member' });
@@ -165,6 +168,9 @@ describe('工作流', () => {
     const approved = await call(tokens.member, ['POST', `/api/workflows/${wf.main}/runs/${runId}/nodes/${pending.nodeId}/approval`, { approved: true, executionId: pending.executionId }]);
     expect(approved.code).toBe(200);
     await h.ctx.automation.engine.waitForRun(runId);
+    // 装配接线：没有 WS 订阅者时状态广播不计算、不发 workflow:<id>（待审批提醒照发）。
+    expect(realtimeTopics.filter((topic) => topic.startsWith('workflow:'))).toEqual([]);
+    expect(realtimeTopics).toContain('approvals:workflows');
     expect((await call(tokens.member, ['GET', `/api/workflows/${wf.main}/runs/${runId}`])).code).toBe(200);
     // 删运行是管理员的
     expect((await call(tokens.member, ['DELETE', `/api/workflows/${wf.main}/runs/${runId}`])).code).toBe(403);

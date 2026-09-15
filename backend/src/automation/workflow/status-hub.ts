@@ -35,6 +35,12 @@ export const WORKFLOW_APPROVALS_TOPIC = 'approvals:workflows';
 export type StatusHubOptions = {
   /** 发进实时中枢（WS 主题）。缺省 = 只有 SSE 监听者。 */
   publish?: (topic: string, type: string, payload: unknown) => void;
+  /**
+   * 主题有没有 WS 订阅者（实时中枢的订阅计数）。给了且为 false 时跳过这一主题的负载计算（读增量证据、拼消息），
+   * 只把主题级游标推到 `status.evidenceSeq`——之后有人订阅先拿 resume 快照，增量从当前序号接着算，
+   * 不会补发一大段早就在快照里的证据。缺省 = 一律当作有订阅者（单测与旧装配行为不变）。
+   */
+  hasSubscribers?: (topic: string) => boolean;
 };
 
 type Listener = { send: (message: HubMessage) => void; seqByRun: Map<string, number> };
@@ -43,6 +49,7 @@ export function createStatusHub(runStore: RunStore, options: StatusHubOptions = 
   const statuses = new Map<string, RuntimeStatus>();
   const listeners = new Map<string, Set<Listener>>();
   const publish = options.publish;
+  const hasSubscribers = options.hasSubscribers ?? (() => true);
   /** 主题级的增量游标：所有 WS 订阅者共用。 */
   const broadcast: Listener | null = publish
     ? {
@@ -88,7 +95,8 @@ export function createStatusHub(runStore: RunStore, options: StatusHubOptions = 
       statuses.set(status.workflowId, status);
       for (const listener of listeners.get(status.workflowId) ?? []) deliver(listener, status);
       if (broadcast && publish) {
-        deliver(broadcast, status);
+        if (hasSubscribers(workflowTopic(status.workflowId))) deliver(broadcast, status);
+        else if (status.runId) broadcast.seqByRun.set(status.runId, status.evidenceSeq);
         // 运行结束后游标不再用得上：不让它随运行次数无限增长。
         if (status.runId && status.finishedAt !== null) broadcast.seqByRun.delete(status.runId);
         if (approvalsKey(previous) !== approvalsKey(status)) publish(WORKFLOW_APPROVALS_TOPIC, 'workflow.approvals.changed', {});

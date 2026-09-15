@@ -285,6 +285,41 @@ describe('增量推送', () => {
     expect(t.hub.snapshot('missing')).toEqual({ status: null, runId: null, evidence: null });
   });
 
+  it('主题没有订阅者：不读增量证据、不发 workflow:<id>；有人订阅后增量从当前序号接着算，不补发快照里已有的证据', async () => {
+    const published: Array<{ topic: string; type: string; payload: any }> = [];
+    let subscribed = false;
+    let evidenceReads = 0;
+    const t = setupEngine({
+      publish: (topic, type, payload) => published.push({ topic, type, payload }),
+      hasSubscribers: () => subscribed,
+      runStore: (store) => {
+        const original = store.evidenceSince.bind(store);
+        store.evidenceSince = (...args: Parameters<typeof original>) => { evidenceReads++; return original(...args); };
+        return store;
+      },
+    });
+    const def = t.create([node('a'), node({ id: 'b', approval: true })], [edge('a', 'b')]);
+    const run = await t.engine.startRun(def.id);
+    await waitFor(() => t.engine.pendingApprovals().length === 1);
+
+    const onTopic = () => published.filter((item) => item.topic === `workflow:${def.id}`);
+    expect(onTopic()).toEqual([]);
+    expect(evidenceReads).toBe(0);
+    // 待审批提醒不带负载，照发（待办中心靠它）。
+    expect(published.filter((item) => item.topic === 'approvals:workflows')).toHaveLength(1);
+
+    subscribed = true;
+    const [pending] = t.engine.pendingApprovals();
+    const seqBefore = t.runStore.getRun(run.id)!.evidenceSeq;
+    t.engine.resolveApproval(def.id, run.id, pending.nodeId, { approved: true, executionId: pending.executionId });
+    await t.engine.waitForRun(run.id);
+    const evidence = onTopic().filter((item) => item.type === 'workflow.evidence');
+    expect(evidence.length).toBeGreaterThan(0);
+    expect(evidence[0].payload.sinceSeq).toBe(seqBefore);
+    expect(evidence.flatMap((item) => item.payload.evidence.nodeExecutions.map((row: any) => row.nodeId))).not.toContain('a');
+    expect(onTopic().filter((item) => item.type === 'workflow.status').at(-1)!.payload.status.status).toBe('completed');
+  });
+
   it('待审批集合变化时发不带内容的 approvals:workflows 提醒（挂起一次、答复一次）', async () => {
     const published: Array<{ topic: string; type: string; payload: any }> = [];
     const t = setupEngine({ publish: (topic, type, payload) => published.push({ topic, type, payload }) });
