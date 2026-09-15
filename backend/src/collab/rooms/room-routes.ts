@@ -12,6 +12,7 @@ import {
   GROUP_MENTION_NOT_PERMITTED_MESSAGE_CODE,
   GROUP_NOT_FOUND_ERROR_CODE,
   GROUP_RUN_IN_PROGRESS_ERROR_CODE,
+  isStructuredRequestError,
   type RouteApp,
 } from '../../core/http';
 import { sanitizeMemberExternalConfig, type RunCoordinator, type RuntimePlatform } from '../../runtime';
@@ -26,6 +27,8 @@ import type { RoomCollab } from './room-collab';
 import { RoomRequestError } from './room-orchestrator';
 import { originatorFromActor } from './room-policy';
 import { SummaryConflictError } from './room-summary';
+import { WorkspaceFiles, WorkspacePathError } from './room-workspace';
+import { assertServablePath, servedPathOwner } from '../../core/files';
 import {
   deleteGroupWorkspace,
   ensureGroupWorkspace,
@@ -519,6 +522,92 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     collab.publish(req.params.id, { type: 'room_updated', data: { policyChanged: true } });
     const { sessionSeed, ...rest } = policy;
     res.json({ success: true, policy: rest });
+  });
+
+  /**
+   * 群共享工作区的文件浏览 / 编辑（管理员）。路径一律相对工作区根：不收绝对路径与 `..`、realpath 必须仍在根里、敏感名字拒绝；
+   * 写入与删除按 SHA-256 乐观并发（409 `workspace.conflict`）。下载走可服务路径闸门 + 文件归属授权（与 /api/files/download 同一套）。
+   */
+  const workspaceFiles = new Map<string, WorkspaceFiles>();
+  const filesFor = (groupId: string) => {
+    let files = workspaceFiles.get(groupId);
+    if (!files) {
+      files = new WorkspaceFiles(() => ensureGroupWorkspace(groupId).workspacePath);
+      workspaceFiles.set(groupId, files);
+    }
+    return files;
+  };
+  const guardWorkspace: express.RequestHandler = (req, res, next) => (
+    collab.roomAccess.isManager(getRequestIdentity(req), String(req.params.id ?? '')) ? next() : sendResourceForbidden(res)
+  );
+  const sendWorkspaceError = (res: express.Response, error: unknown) => {
+    if (error instanceof WorkspacePathError) return res.status(error.status).json(buildStructuredApiError(error.code, error.message));
+    return res.status(500).json({ success: false, error: (error as Error)?.message });
+  };
+
+  app.get('/api/groups/:id/workspace/list', guardRoom, guardWorkspace, (req, res) => {
+    try {
+      res.json({ success: true, ...filesFor(req.params.id).list(typeof req.query.path === 'string' ? req.query.path : '') });
+    } catch (error) {
+      sendWorkspaceError(res, error);
+    }
+  });
+
+  app.get('/api/groups/:id/workspace/file', guardRoom, guardWorkspace, (req, res) => {
+    try {
+      res.json({ success: true, file: filesFor(req.params.id).readText(String(req.query.path ?? '')) });
+    } catch (error) {
+      sendWorkspaceError(res, error);
+    }
+  });
+
+  app.put('/api/groups/:id/workspace/file', guardRoom, guardWorkspace, async (req, res) => {
+    try {
+      if (typeof req.body?.content !== 'string') return res.status(400).json(buildStructuredApiError('workspace.invalidContent'));
+      const expected = typeof req.body?.expectedSha256 === 'string' ? req.body.expectedSha256 : null;
+      const written = await filesFor(req.params.id).write(String(req.body?.path ?? ''), Buffer.from(req.body.content, 'utf8'), expected);
+      res.json({ success: true, file: written });
+    } catch (error) {
+      sendWorkspaceError(res, error);
+    }
+  });
+
+  app.post('/api/groups/:id/workspace/mkdir', guardRoom, guardWorkspace, async (req, res) => {
+    try {
+      res.json({ success: true, ...(await filesFor(req.params.id).mkdir(String(req.body?.path ?? ''))) });
+    } catch (error) {
+      sendWorkspaceError(res, error);
+    }
+  });
+
+  app.post('/api/groups/:id/workspace/rename', guardRoom, guardWorkspace, async (req, res) => {
+    try {
+      res.json({ success: true, ...(await filesFor(req.params.id).rename(String(req.body?.from ?? ''), String(req.body?.to ?? ''))) });
+    } catch (error) {
+      sendWorkspaceError(res, error);
+    }
+  });
+
+  app.post('/api/groups/:id/workspace/delete', guardRoom, guardWorkspace, async (req, res) => {
+    try {
+      const expected = typeof req.body?.expectedSha256 === 'string' ? req.body.expectedSha256 : null;
+      res.json({ success: true, ...(await filesFor(req.params.id).remove(String(req.body?.path ?? ''), expected)) });
+    } catch (error) {
+      sendWorkspaceError(res, error);
+    }
+  });
+
+  app.get('/api/groups/:id/workspace/download', guardRoom, guardWorkspace, (req, res) => {
+    try {
+      const { abs } = filesFor(req.params.id).statFile(String(req.query.path ?? ''));
+      const realPath = assertServablePath(abs);
+      if (!ctx.access.canAccessServedFile(getRequestIdentity(req), servedPathOwner(realPath))) return sendResourceForbidden(res);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.download(realPath);
+    } catch (error) {
+      if (isStructuredRequestError(error)) return res.status(error.status).json(error.payload);
+      sendWorkspaceError(res, error);
+    }
   });
 
   /** 待决的审批与澄清：审批只列 Agent 主人能处理的，澄清只列给管理员（重连后据此恢复卡片，倒计时按剩余时间）。 */

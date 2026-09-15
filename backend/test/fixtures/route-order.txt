@@ -284,6 +284,13 @@ GET /api/groups/:id/handoffs
 POST /api/groups/:id/handoffs/:chainId/continue
 GET /api/groups/:id/policy
 PUT /api/groups/:id/policy
+GET /api/groups/:id/workspace/list
+GET /api/groups/:id/workspace/file
+PUT /api/groups/:id/workspace/file
+POST /api/groups/:id/workspace/mkdir
+POST /api/groups/:id/workspace/rename
+POST /api/groups/:id/workspace/delete
+GET /api/groups/:id/workspace/download
 GET /api/groups/:id/interactions
 POST /api/groups/:id/interactions/:interactionId/respond
 GET /api/groups/:id/summary
