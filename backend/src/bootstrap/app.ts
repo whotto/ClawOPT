@@ -34,6 +34,7 @@ import {
 import { registerFileRoutes, registerUploadRoutes } from '../workspace';
 import { registerChatRoutes, registerSessionListRoutes, registerSessionRoutes } from '../collab/sessions';
 import { registerRoomRoutes } from '../collab/rooms';
+import { registerAutomationRoutes, registerWorkflowRoutes } from '../automation';
 import type { AppContext } from './context';
 import { createReadiness, registerHealthRoutes, type Readiness } from './health';
 
@@ -68,7 +69,14 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
       return compression.filter(req, res);
     },
   }));
-  bootstrapApp.use(express.json());
+  // 上限 2MB：工作流定义（最多 500 节点、每个节点可带长任务说明）一次存盘会超过默认的 100KB。
+  // `/api/hooks/` 下的公开入口要按**原始字节**验 HMAC 签名，解析时顺手留一份原始请求体。
+  bootstrapApp.use(express.json({
+    limit: '2mb',
+    verify: (req, _res, buf) => {
+      if ((req as express.Request).url?.startsWith('/api/hooks/')) (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+    },
+  }));
 
   // Host checking middleware for reverse proxies
   bootstrapApp.use((req, res, next) => {
@@ -115,6 +123,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerUploadRoutes(routes.forModule('workspace/uploads'), ctx);
   registerCommandRoutes(routes.forModule('control/commands'), ctx);
   registerFileRoutes(routes.forModule('workspace/files'), ctx);
+  registerWorkflowRoutes(routes.forModule('automation'), ctx);
+  registerAutomationRoutes(routes.forModule('automation'), ctx);
 
   // Serve hashed static assets with long-lived cache (JS/CSS filenames include content hash)
   bootstrapApp.use('/assets', express.static(path.join(FRONTEND_DIST_DIR, 'assets'), {

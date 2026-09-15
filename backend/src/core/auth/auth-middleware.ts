@@ -48,7 +48,29 @@ export const AUTH_PUBLIC_PATHS = new Set([
   // 登记在这里是为了让「有意公开」在白名单里看得见。
   '/livez',
   '/readyz',
+  // 入站 Webhook 触发工作流：调用方是外部系统，带不了登录 cookie。安全性在处理器里：
+  // HMAC 签名 + ±5 分钟时间窗 + 签名防重放（automation/hooks/inbound-hooks.ts）。
+  '/api/hooks/workflows/:hookId',
+  // 出站 Webhook 的本机回环测试收件箱：只收回环来源、HMAC 派生令牌常数时间比较。
+  '/api/hooks/webhook-test/:token',
 ]);
+
+/**
+ * 请求路径是否命中公开白名单。条目里的 `:param` 只匹配**恰好一个非空段**——
+ * `/api/hooks/workflows/x/extra` 与 `/api/hooks/workflowsX` 都不算公开。
+ * 登记表（RouteRegistry）按路由模式原文比对同一个集合，所以条目必须与注册的路由模式逐字相同。
+ */
+export function isAuthPublicPath(requestPath: string): boolean {
+  if (AUTH_PUBLIC_PATHS.has(requestPath)) return true;
+  const segments = requestPath.split('/');
+  for (const entry of AUTH_PUBLIC_PATHS) {
+    if (!entry.includes('/:')) continue;
+    const pattern = entry.split('/');
+    if (pattern.length !== segments.length) continue;
+    if (pattern.every((part, index) => (part.startsWith(':') ? segments[index].length > 0 : part === segments[index]))) return true;
+  }
+  return false;
+}
 
 export type AuthMiddlewareDeps = {
   authStore: AuthStore;

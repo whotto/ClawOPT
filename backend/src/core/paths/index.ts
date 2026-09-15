@@ -6,4 +6,5 @@ export {
   startupTasksStatePath,
   updateRestartStatePath,
   uploadDir,
+  workflowWorkspacesDir,
 } from './data-paths';

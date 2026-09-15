@@ -18,6 +18,7 @@ import fs from 'fs';
 import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword } from '../core/auth';
 import { ConfigManager } from '../core/config';
 import { DB } from '../core/db';
+import { EventBus } from '../core/events';
 import { uploadDir } from '../core/paths';
 import { createGatewayConnections, createGatewayService, type OpenClawClient } from '../openclaw';
 import {
@@ -45,6 +46,7 @@ import {
   createRoomReconciliation,
   createRoomRuntime,
 } from '../collab/rooms';
+import { createAutomation } from '../automation';
 
 export function createAppContext() {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -92,9 +94,12 @@ export function createAppContext() {
   const roomReconciliation = createRoomReconciliation({ ...base, rooms, roomRuntime, agentSettings, gatewayConnections });
   const auth = createAuthMiddleware(base);
   const packs = createPackService({ ...base, agentSettings });
-  const chatRuns = createChatRuns(base);
+  /** 业务事件总线：出站 Webhook 等下游在这里订阅，发布方不直接调下游。 */
+  const events = new EventBus();
+  const chatRuns = createChatRuns({ ...base, events });
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
+  const automation = createAutomation({ ...base, gatewayConnections, events });
 
   return {
     ...base,
@@ -119,6 +124,8 @@ export function createAppContext() {
     chatRuns,
     chatLifecycle,
     chatCommands,
+    events,
+    automation,
   };
 }
 

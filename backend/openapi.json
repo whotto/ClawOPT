@@ -7,6 +7,9 @@
   },
   "tags": [
     {
+      "name": "automation"
+    },
+    {
       "name": "bootstrap"
     },
     {
@@ -2782,6 +2785,2014 @@
         "x-clawopt-order": 105
       }
     },
+    "/api/workflows": {
+      "get": {
+        "operationId": "getApiWorkflows",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows",
+        "x-clawopt-order": 106
+      },
+      "post": {
+        "operationId": "postApiWorkflows",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows",
+        "x-clawopt-order": 107
+      }
+    },
+    "/api/workflows/batch-delete": {
+      "post": {
+        "operationId": "postApiWorkflowsBatchDelete",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/batch-delete",
+        "x-clawopt-order": 108
+      }
+    },
+    "/api/workflows/import/preview": {
+      "post": {
+        "operationId": "postApiWorkflowsImportPreview",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/import/preview",
+        "x-clawopt-order": 109
+      }
+    },
+    "/api/workflows/import/confirm": {
+      "post": {
+        "operationId": "postApiWorkflowsImportConfirm",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/import/confirm",
+        "x-clawopt-order": 110
+      }
+    },
+    "/api/workflows/import/cancel": {
+      "post": {
+        "operationId": "postApiWorkflowsImportCancel",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/import/cancel",
+        "x-clawopt-order": 111
+      }
+    },
+    "/api/workflows/agents": {
+      "get": {
+        "operationId": "getApiWorkflowsAgents",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/agents",
+        "x-clawopt-order": 112
+      }
+    },
+    "/api/workflows/pending-approvals": {
+      "get": {
+        "operationId": "getApiWorkflowsPendingApprovals",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/pending-approvals",
+        "x-clawopt-order": 113
+      }
+    },
+    "/api/workflows/settings": {
+      "get": {
+        "operationId": "getApiWorkflowsSettings",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/settings",
+        "x-clawopt-order": 114
+      },
+      "put": {
+        "operationId": "putApiWorkflowsSettings",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/settings",
+        "x-clawopt-order": 115
+      }
+    },
+    "/api/workflows/{id}": {
+      "get": {
+        "operationId": "getApiWorkflowsId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id",
+        "x-clawopt-order": 116
+      },
+      "patch": {
+        "operationId": "patchApiWorkflowsId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id",
+        "x-clawopt-order": 117
+      },
+      "delete": {
+        "operationId": "deleteApiWorkflowsId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id",
+        "x-clawopt-order": 118
+      }
+    },
+    "/api/workflows/{id}/export": {
+      "get": {
+        "operationId": "getApiWorkflowsIdExport",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/export",
+        "x-clawopt-order": 119
+      }
+    },
+    "/api/workflows/{id}/run": {
+      "post": {
+        "operationId": "postApiWorkflowsIdRun",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/run",
+        "x-clawopt-order": 120
+      }
+    },
+    "/api/workflows/{id}/runs": {
+      "get": {
+        "operationId": "getApiWorkflowsIdRuns",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/runs",
+        "x-clawopt-order": 121
+      }
+    },
+    "/api/workflows/{id}/runs/{runId}": {
+      "get": {
+        "operationId": "getApiWorkflowsIdRunsRunId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/runs/:runId",
+        "x-clawopt-order": 122
+      },
+      "delete": {
+        "operationId": "deleteApiWorkflowsIdRunsRunId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/runs/:runId",
+        "x-clawopt-order": 125
+      }
+    },
+    "/api/workflows/{id}/runs/{runId}/transcript": {
+      "get": {
+        "operationId": "getApiWorkflowsIdRunsRunIdTranscript",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/transcript",
+        "x-clawopt-order": 123
+      }
+    },
+    "/api/workflows/{id}/runs/{runId}/stop": {
+      "post": {
+        "operationId": "postApiWorkflowsIdRunsRunIdStop",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/stop",
+        "x-clawopt-order": 124
+      }
+    },
+    "/api/workflows/{id}/runs/{runId}/nodes/{nodeId}/approval": {
+      "post": {
+        "operationId": "postApiWorkflowsIdRunsRunIdNodesNodeIdApproval",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/nodes/:nodeId/approval",
+        "x-clawopt-order": 126
+      }
+    },
+    "/api/workflows/{id}/runs/{runId}/rerun-from-node": {
+      "post": {
+        "operationId": "postApiWorkflowsIdRunsRunIdRerunFromNode",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/rerun-from-node",
+        "x-clawopt-order": 127
+      }
+    },
+    "/api/workflows/{id}/events": {
+      "get": {
+        "operationId": "getApiWorkflowsIdEvents",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/events",
+        "x-clawopt-order": 128
+      }
+    },
+    "/api/workflows/{id}/schedules": {
+      "get": {
+        "operationId": "getApiWorkflowsIdSchedules",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/schedules",
+        "x-clawopt-order": 129
+      },
+      "post": {
+        "operationId": "postApiWorkflowsIdSchedules",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/schedules",
+        "x-clawopt-order": 130
+      }
+    },
+    "/api/workflows/{id}/schedules/{scheduleId}": {
+      "patch": {
+        "operationId": "patchApiWorkflowsIdSchedulesScheduleId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/schedules/:scheduleId",
+        "x-clawopt-order": 131
+      },
+      "delete": {
+        "operationId": "deleteApiWorkflowsIdSchedulesScheduleId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/schedules/:scheduleId",
+        "x-clawopt-order": 132
+      }
+    },
+    "/api/workflows/{id}/schedules/{scheduleId}/events": {
+      "get": {
+        "operationId": "getApiWorkflowsIdSchedulesScheduleIdEvents",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/schedules/:scheduleId/events",
+        "x-clawopt-order": 133
+      }
+    },
+    "/api/workflows/{id}/hooks": {
+      "get": {
+        "operationId": "getApiWorkflowsIdHooks",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/hooks",
+        "x-clawopt-order": 134
+      },
+      "post": {
+        "operationId": "postApiWorkflowsIdHooks",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/hooks",
+        "x-clawopt-order": 135
+      }
+    },
+    "/api/workflows/{id}/hooks/{hookId}": {
+      "patch": {
+        "operationId": "patchApiWorkflowsIdHooksHookId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hookId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/hooks/:hookId",
+        "x-clawopt-order": 136
+      },
+      "delete": {
+        "operationId": "deleteApiWorkflowsIdHooksHookId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hookId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/hooks/:hookId",
+        "x-clawopt-order": 138
+      }
+    },
+    "/api/workflows/{id}/hooks/{hookId}/rotate-secret": {
+      "post": {
+        "operationId": "postApiWorkflowsIdHooksHookIdRotateSecret",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hookId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/workflows/:id/hooks/:hookId/rotate-secret",
+        "x-clawopt-order": 137
+      }
+    },
+    "/api/hooks/workflows/{hookId}": {
+      "post": {
+        "operationId": "postApiHooksWorkflowsHookId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "hookId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/hooks/workflows/:hookId",
+        "x-clawopt-order": 139
+      }
+    },
+    "/api/hooks/webhook-test/{token}": {
+      "post": {
+        "operationId": "postApiHooksWebhookTestToken",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": true,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/hooks/webhook-test/:token",
+        "x-clawopt-order": 140
+      }
+    },
+    "/api/webhooks/event-types": {
+      "get": {
+        "operationId": "getApiWebhooksEventTypes",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/event-types",
+        "x-clawopt-order": 141
+      }
+    },
+    "/api/webhooks/endpoints": {
+      "get": {
+        "operationId": "getApiWebhooksEndpoints",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/endpoints",
+        "x-clawopt-order": 142
+      },
+      "post": {
+        "operationId": "postApiWebhooksEndpoints",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/endpoints",
+        "x-clawopt-order": 143
+      }
+    },
+    "/api/webhooks/endpoints/{endpointId}": {
+      "patch": {
+        "operationId": "patchApiWebhooksEndpointsEndpointId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "endpointId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId",
+        "x-clawopt-order": 144
+      },
+      "delete": {
+        "operationId": "deleteApiWebhooksEndpointsEndpointId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "endpointId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId",
+        "x-clawopt-order": 145
+      }
+    },
+    "/api/webhooks/endpoints/{endpointId}/test": {
+      "post": {
+        "operationId": "postApiWebhooksEndpointsEndpointIdTest",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "endpointId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId/test",
+        "x-clawopt-order": 146
+      }
+    },
+    "/api/webhooks/endpoints/{endpointId}/deliveries": {
+      "get": {
+        "operationId": "getApiWebhooksEndpointsEndpointIdDeliveries",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "endpointId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId/deliveries",
+        "x-clawopt-order": 147
+      }
+    },
+    "/api/webhooks/local-test-target": {
+      "get": {
+        "operationId": "getApiWebhooksLocalTestTarget",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/local-test-target",
+        "x-clawopt-order": 148
+      }
+    },
+    "/api/webhooks/local-test-events": {
+      "get": {
+        "operationId": "getApiWebhooksLocalTestEvents",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/local-test-events",
+        "x-clawopt-order": 149
+      },
+      "delete": {
+        "operationId": "deleteApiWebhooksLocalTestEvents",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/webhooks/local-test-events",
+        "x-clawopt-order": 150
+      }
+    },
+    "/api/kanban/boards": {
+      "get": {
+        "operationId": "getApiKanbanBoards",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/boards",
+        "x-clawopt-order": 151
+      },
+      "post": {
+        "operationId": "postApiKanbanBoards",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/boards",
+        "x-clawopt-order": 152
+      }
+    },
+    "/api/kanban/boards/{boardId}": {
+      "patch": {
+        "operationId": "patchApiKanbanBoardsBoardId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/boards/:boardId",
+        "x-clawopt-order": 153
+      }
+    },
+    "/api/kanban/boards/{boardId}/tasks": {
+      "get": {
+        "operationId": "getApiKanbanBoardsBoardIdTasks",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/boards/:boardId/tasks",
+        "x-clawopt-order": 154
+      },
+      "post": {
+        "operationId": "postApiKanbanBoardsBoardIdTasks",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/boards/:boardId/tasks",
+        "x-clawopt-order": 155
+      }
+    },
+    "/api/kanban/tasks/bulk": {
+      "post": {
+        "operationId": "postApiKanbanTasksBulk",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/tasks/bulk",
+        "x-clawopt-order": 156
+      }
+    },
+    "/api/kanban/links": {
+      "post": {
+        "operationId": "postApiKanbanLinks",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/links",
+        "x-clawopt-order": 157
+      },
+      "delete": {
+        "operationId": "deleteApiKanbanLinks",
+        "tags": [
+          "automation"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/links",
+        "x-clawopt-order": 158
+      }
+    },
+    "/api/kanban/tasks/{taskId}": {
+      "get": {
+        "operationId": "getApiKanbanTasksTaskId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/tasks/:taskId",
+        "x-clawopt-order": 159
+      },
+      "patch": {
+        "operationId": "patchApiKanbanTasksTaskId",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/tasks/:taskId",
+        "x-clawopt-order": 160
+      }
+    },
+    "/api/kanban/tasks/{taskId}/actions": {
+      "post": {
+        "operationId": "postApiKanbanTasksTaskIdActions",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/tasks/:taskId/actions",
+        "x-clawopt-order": 161
+      }
+    },
+    "/api/kanban/tasks/{taskId}/comments": {
+      "post": {
+        "operationId": "postApiKanbanTasksTaskIdComments",
+        "tags": [
+          "automation"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/kanban/tasks/:taskId/comments",
+        "x-clawopt-order": 162
+      }
+    },
     "/api/groups": {
       "get": {
         "operationId": "getApiGroups",
@@ -2807,7 +4818,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 108
+        "x-clawopt-order": 165
       },
       "post": {
         "operationId": "postApiGroups",
@@ -2833,7 +4844,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 109
+        "x-clawopt-order": 166
       }
     },
     "/api/groups/{id}": {
@@ -2871,7 +4882,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 110
+        "x-clawopt-order": 167
       },
       "delete": {
         "operationId": "deleteApiGroupsId",
@@ -2907,7 +4918,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 112
+        "x-clawopt-order": 169
       }
     },
     "/api/groups/reorder": {
@@ -2935,7 +4946,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/reorder",
-        "x-clawopt-order": 111
+        "x-clawopt-order": 168
       }
     },
     "/api/groups/{id}/reset": {
@@ -2973,7 +4984,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/reset",
-        "x-clawopt-order": 113
+        "x-clawopt-order": 170
       }
     },
     "/api/groups/{id}/messages": {
@@ -3011,7 +5022,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 114
+        "x-clawopt-order": 171
       },
       "post": {
         "operationId": "postApiGroupsIdMessages",
@@ -3047,7 +5058,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 117
+        "x-clawopt-order": 174
       }
     },
     "/api/groups/{id}/active-run": {
@@ -3085,7 +5096,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/active-run",
-        "x-clawopt-order": 115
+        "x-clawopt-order": 172
       }
     },
     "/api/groups/{id}/messages/search": {
@@ -3123,7 +5134,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/search",
-        "x-clawopt-order": 116
+        "x-clawopt-order": 173
       }
     },
     "/api/groups/{id}/stop": {
@@ -3161,7 +5172,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/stop",
-        "x-clawopt-order": 118
+        "x-clawopt-order": 175
       }
     },
     "/api/groups/{id}/messages/{msgId}": {
@@ -3207,7 +5218,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 119
+        "x-clawopt-order": 176
       },
       "delete": {
         "operationId": "deleteApiGroupsIdMessagesMsgId",
@@ -3251,7 +5262,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 120
+        "x-clawopt-order": 177
       }
     },
     "/api/groups/{id}/messages/regenerate": {
@@ -3289,7 +5300,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/regenerate",
-        "x-clawopt-order": 121
+        "x-clawopt-order": 178
       }
     },
     "/api/groups/{id}/events": {
@@ -3327,7 +5338,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/events",
-        "x-clawopt-order": 122
+        "x-clawopt-order": 179
       }
     }
   },

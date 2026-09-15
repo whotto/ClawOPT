@@ -6,6 +6,8 @@ export const browserWarmupMarkerPath = path.join(process.env.HOME || '.', dataDi
 export const updateRestartStatePath = path.join(process.env.HOME || '.', dataDir, 'update-restart-state.json');
 export const gatewayRestartStatePath = path.join(process.env.HOME || '.', dataDir, 'gateway-restart-state.json');
 export const startupTasksStatePath = path.join(process.env.HOME || '.', dataDir, 'startup-tasks.json');
+/** 工作流默认工作目录根：`$HOME/$CLAWOPT_DATA_DIR/workflows/<workflowId>`。 */
+export const workflowWorkspacesDir = path.join(process.env.HOME || '.', dataDir, 'workflows');
 
 export const appRepoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 export const previewCacheDir = path.join(process.env.HOME || '.', '.clawopt_preview_cache');

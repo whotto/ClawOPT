@@ -1,5 +1,6 @@
 export {
   AUTH_PUBLIC_PATHS,
+  isAuthPublicPath,
   clearAuthCookie,
   createAuthMiddleware,
   issueAuthCookie,

@@ -11,9 +11,10 @@
  * macOS 上更是常年只有几百 MB——拿它判会把每台开发机都判成低内存。所以可用量只在能读到
  * MemAvailable 的 Linux 上参与判定，其余平台只看总量。命中任一条，并发强制为 1，界面显示原因。
  */
-import fs from 'fs';
 import os from 'os';
 import type Database from 'better-sqlite3';
+
+import { readTextFileSafe } from '../../openclaw';
 
 export const DEFAULT_MAX_CONCURRENT_NODES = 2;
 export const MAX_CONCURRENT_NODES_LIMIT = 8;
@@ -25,8 +26,8 @@ export type MemoryProbe = { totalBytes: number; availableBytes: number | null };
 export function probeMemory(): MemoryProbe {
   let availableBytes: number | null = null;
   try {
-    const meminfo = fs.readFileSync('/proc/meminfo', 'utf-8');
-    const match = /^MemAvailable:\s+(\d+)\s+kB/m.exec(meminfo);
+    const meminfo = readTextFileSafe('/proc/meminfo');
+    const match = meminfo.exists ? /^MemAvailable:\s+(\d+)\s+kB/m.exec(String(meminfo.value)) : null;
     if (match) availableBytes = Number(match[1]) * 1024;
   } catch {
     availableBytes = null;
