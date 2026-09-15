@@ -413,6 +413,12 @@
       "historyPageRoundsLabel": "History Page Rounds",
       "historyPageRoundsPlaceholder": "30",
       "historyPageRoundsHint": "Conversation pagination rounds are counted by user-started messages only. If the user sends 30 messages, that counts as 30 rounds no matter how many AI replies follow.",
+      "chatStreamTransportLabel": "Chat Streaming Channel",
+      "chatStreamTransportHint": "How single-chat replies are pushed to this page in real time. SSE is the default; WebSocket reconnects automatically and resumes in-progress replies, and is still being validated. Applies to this browser only, starting with the next message.",
+      "chatStreamTransportOptions": {
+        "sse": "SSE (default)",
+        "ws": "WebSocket (experimental)"
+      },
       "previewTimeoutLabel": "Preview Timeout",
       "previewTimeoutPlaceholder": "60",
       "previewTimeoutHint": "Set the timeout for document preview conversion in seconds. Range: {{min}}-{{max}}, default 60.",
@@ -1944,9 +1950,15 @@
         "allowPrivateWarning": "This lets the endpoint reach LAN or local services. Enable only for addresses you trust."
       },
       "eventTypes": {
-        "chat_run_started": "Chat run started",
-        "chat_run_completed": "Chat run completed",
-        "chat_run_failed": "Chat run failed",
+        "chat_run_started": "Agent run started",
+        "chat_run_completed": "Agent run completed",
+        "chat_run_failed": "Agent run failed",
+        "chat_run_aborted": "Agent run stopped",
+        "chat_tool_started": "Tool call started",
+        "chat_tool_completed": "Tool call completed",
+        "chat_tool_failed": "Tool call failed",
+        "chat_approval_requested": "Tool approval requested",
+        "chat_approval_resolved": "Tool approval answered",
         "workflow_run_started": "Workflow run started",
         "workflow_run_completed": "Workflow run completed",
         "workflow_run_completed_with_failures": "Workflow completed with handled failures",

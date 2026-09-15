@@ -1,4 +1,5 @@
 import path from 'path';
+import type express from 'express';
 
 import {
   type AgentProvisioner,
@@ -8,42 +9,53 @@ import {
   resolveModelTagForErrorReport,
   shouldUseConfiguredImageGenerationModel,
 } from '../../control';
-import type { DB } from '../../core/db';
+import type { DB, SessionRow } from '../../core/db';
 import type { RouteApp } from '../../core/http';
-import { type GatewayConnections, OpenClawClient } from '../../openclaw';
-import type { UploadService } from '../../workspace';
-import type { ChatRuns } from './active-run-manager';
-import { type ChatCommands, parseChatCommand } from './chat-commands';
-import {
-  CHAT_HISTORY_COMPLETION_PROBE_LIMIT,
-  CHAT_LATEST_ROUND_ONLY_CODE,
-  CHAT_LATEST_ROUND_ONLY_DETAIL,
-  CHAT_ORPHAN_ABORT_TIMEOUT_MS,
-} from './chat-constants';
-import { getHistorySnapshot, getUnknownHistorySnapshot } from './chat-history-reconciliation';
+import type { RealtimeHub } from '../../core/realtime';
 import {
   abortOpenClawSessionRuns,
-  type ChatLifecycle,
-  scheduleOpenClawSessionAbortRetry,
-} from './chat-lifecycle';
+  buildOpenClawChatSessionKey,
+  type GatewayChatClient,
+  type GatewayConnections,
+  type OpenClawClient,
+} from '../../openclaw';
+import { OPENCLAW_ABORT_GRACE_MS, type OpenClawChatRunRequest, type RunCoordinator } from '../../runtime';
+import type { ConfigManager } from '../../core/config';
+import type { AgentRuntimeAdapter } from '../../runtime';
+import type { UploadService } from '../../workspace';
+import { type ChatCommands, parseChatCommand } from './chat-commands';
+import {
+  CHAT_LATEST_ROUND_ONLY_CODE,
+  CHAT_LATEST_ROUND_ONLY_DETAIL,
+} from './chat-constants';
+import type { ChatLifecycle } from './chat-lifecycle';
 import {
   buildStructuredChatErrorStreamEvent,
   buildStructuredChatHttpError,
   createStructuredChatError,
   resolveStructuredChatErrorInput,
 } from './chat-messages';
-import { isStreamingClientOpen } from './chat-run-managers';
+import type { ChatRuns } from './chat-run-managers';
+import {
+  CHAT_STREAM_TRANSPORT_HEADER,
+  CHAT_WS_CONNECTION_HEADER,
+  chatSessionTopic,
+  createChatStreamSink,
+  type ChatStreamSink,
+  openSseResponse,
+  pipeChatRunToSse,
+  streamNewChatRunToSse,
+  writeSseFrame,
+} from './chat-stream';
 import type { DirectChatService } from './direct-chat-service';
+import { createOpenClawChatProjection } from './openclaw-chat-projection';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
-import {
-  buildOpenClawChatSessionKey,
-  SessionInterruptedError,
-  type SessionRuntime,
-} from './session-runtime';
+import { SessionInterruptedError, type SessionRuntime } from './session-runtime';
 
 export type ChatRoutesDeps = {
   agentProvisioner: AgentProvisioner;
+  configManager: ConfigManager;
   db: DB;
   sessionManager: SessionManager;
   chatRuns: ChatRuns;
@@ -54,12 +66,29 @@ export type ChatRoutesDeps = {
   agentSettings: AgentSettings;
   imageGeneration: ImageGenerationService;
   gatewayConnections: GatewayConnections;
+  connections: Map<string, OpenClawClient>;
   uploads: UploadService;
+  realtime: RealtimeHub;
+  runCoordinator: RunCoordinator;
+  openclawAdapter: AgentRuntimeAdapter<OpenClawChatRunRequest>;
 };
 
+type ChatTurnKind = 'send' | 'regenerate';
+
+/**
+ * 流的出口由请求头决定：缺省（与迁移前完全一致）是 SSE；
+ * 前端打开 WebSocket 开关时带 `X-ClawOPT-Stream: ws` 与自己的连接 id，
+ * 这时 POST 立刻回 JSON（带消息 id），帧从 WebSocket 的 `session:<id>` 主题走。
+ */
+function readTransport(req: express.Request): { transport: 'sse' | 'ws'; origin?: string } {
+  if (String(req.header(CHAT_STREAM_TRANSPORT_HEADER) || '').toLowerCase() !== 'ws') return { transport: 'sse' };
+  const origin = String(req.header(CHAT_WS_CONNECTION_HEADER) || '').trim();
+  return { transport: 'ws', origin: origin || undefined };
+}
+
 export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
-  const { agentProvisioner, db, sessionManager } = ctx;
-  const { activeRunManager, localChatOperationManager, pendingChatPreparationManager } = ctx.chatRuns;
+  const { agentProvisioner, db, sessionManager, runCoordinator } = ctx;
+  const { localChatOperationManager } = ctx.chatRuns;
   const { resolveChatCommandResult } = ctx.chatCommands;
   const { getLatestChatRegenerateTarget, interruptSessionStreamingStateForNewRun, reconcileInactiveChatLatestMessage } = ctx.chatLifecycle;
   const { prepareOutgoingMessage, runDirectChatCompletion } = ctx.directChat;
@@ -68,6 +97,241 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
   const { buildImageGenerationStartProcessContent, getConfiguredDirectImageGenerationModel, tryGenerateImageForPrompt } = ctx.imageGeneration;
   const { getConnection } = ctx.gatewayConnections;
   const { clearStoredFilesBySessionKey } = ctx.uploads;
+  const streamDeps = { realtime: ctx.realtime, runCoordinator };
+
+  function buildInjectedMessage(sessionInfo: SessionRow | undefined, agentId: string, rawMessage: string): string {
+    let injectedInstructions = '';
+    if (sessionInfo) {
+      if (sessionInfo.process_start_tag && sessionInfo.process_end_tag) {
+        injectedInstructions += `【极其重要：输出格式规范】\n当前启用了结构化思考输出。你关于后续任务决断的所有内部思考、分析或工作执行过程，必须严格包裹在 ${sessionInfo.process_start_tag} 和 ${sessionInfo.process_end_tag} 之间！\n真正的最终沟通、回复语言写在标签外部。\n\n`;
+      }
+    }
+    if (shouldInjectHostTakeoverInstruction(sessionInfo, agentId)) {
+      injectedInstructions += `${buildHostTakeoverChatInstruction()}\n\n`;
+    }
+    return injectedInstructions ? `${injectedInstructions}${rawMessage}` : rawMessage;
+  }
+
+  /** 行已落库、流已打开之后的那一段：生图 → 直连模型 → OpenClaw 网关（经运行协调器）。 */
+  async function continueChatTurn(turn: {
+    req: express.Request;
+    res: express.Response;
+    transport: 'sse' | 'ws';
+    origin?: string;
+    sink: ChatStreamSink;
+    sessionId: string;
+    epoch: number;
+    sessionInfo: SessionRow | undefined;
+    agentId: string;
+    agentName: string;
+    modelUsed: string;
+    directImageModel: string | null;
+    imageIntentContext: string;
+    rawMessage: string;
+    finalMessage: string;
+    userMessageId: number;
+    assistantMessageId: number;
+    runMarkerMessageIds: number[];
+  }): Promise<void> {
+    const { sessionId, epoch, agentId, agentName, modelUsed, assistantMessageId, sink } = turn;
+    const runtimeSettings = readEffectiveAgentRuntimeSettings(turn.sessionInfo, agentId);
+
+    if (turn.directImageModel) {
+      const directImageModel = turn.directImageModel;
+      const localImageController = new AbortController();
+      const startProcessContent = buildImageGenerationStartProcessContent(directImageModel);
+      db.updateMessage(assistantMessageId, '', directImageModel, startProcessContent, true);
+      localChatOperationManager.start({
+        sessionId,
+        epoch,
+        messageId: assistantMessageId,
+        agentId,
+        agentName,
+        modelUsed: directImageModel,
+        startedAt: Date.now(),
+        kind: 'image-generation',
+        abortController: localImageController,
+      });
+      sink.frame({
+        type: 'delta',
+        text: '',
+        process_content: startProcessContent,
+        process_streaming: true,
+        modelUsed: directImageModel,
+        model_used: directImageModel,
+      });
+
+      const directImageResult = await tryGenerateImageForPrompt({
+        prompt: turn.rawMessage,
+        intentText: turn.rawMessage,
+        intentContext: turn.imageIntentContext,
+        outputDir: path.join(getSessionWorkspacePath(sessionId), 'output', 'image-generations'),
+        signal: localImageController.signal,
+      });
+      if (directImageResult) {
+        assertSessionInterruptionEpoch(sessionId, epoch);
+        db.updateMessage(assistantMessageId, directImageResult.content, directImageResult.modelUsed, directImageResult.processContent, false);
+        const finalEvent = {
+          type: 'final',
+          text: directImageResult.content,
+          process_content: directImageResult.processContent,
+          process_streaming: false,
+          modelUsed: directImageResult.modelUsed,
+          model_used: directImageResult.modelUsed,
+        };
+        sink.frame(finalEvent);
+        sink.end();
+        localChatOperationManager.emit(sessionId, finalEvent, epoch);
+        localChatOperationManager.finish(sessionId, epoch);
+        return;
+      }
+      localChatOperationManager.finish(sessionId, epoch);
+    }
+
+    if (runtimeSettings.runtimeMode === 'direct') {
+      const localDirectController = new AbortController();
+      localChatOperationManager.start({
+        sessionId,
+        epoch,
+        messageId: assistantMessageId,
+        agentId,
+        agentName,
+        modelUsed,
+        startedAt: Date.now(),
+        kind: 'direct-runtime',
+        abortController: localDirectController,
+      });
+      await runDirectChatCompletion({
+        sessionId,
+        agentId,
+        userMessageId: turn.userMessageId,
+        assistantMessageId,
+        message: turn.finalMessage,
+        modelUsed,
+        stream: sink,
+        signal: localDirectController.signal,
+        onEvent: (event) => localChatOperationManager.emit(sessionId, event, epoch),
+        processStartTag: turn.sessionInfo?.process_start_tag || undefined,
+        processEndTag: turn.sessionInfo?.process_end_tag || undefined,
+        sessionInterruptionEpoch: epoch,
+      });
+      localChatOperationManager.finish(sessionId, epoch);
+      return;
+    }
+
+    // OpenClaw 网关：交给运行协调器。准备段（连网关、清孤儿 run、订阅会话事件、组装消息、
+    // 取历史基线、发送）、流式、完成探针、中止都在 runtime/adapters/openclaw.ts；
+    // 消息行与帧在 openclaw-chat-projection.ts。
+    const attachedFrame = { type: 'attached', messageId: assistantMessageId, agentId, agentName, modelUsed };
+    if (turn.transport === 'sse') {
+      streamNewChatRunToSse(streamDeps, { sessionId, messageId: assistantMessageId, attachedFrame, res: turn.res });
+    }
+    const includeDocumentToolingContext = runtimeSettings.toolMode === 'full' || runtimeSettings.toolMode === 'coding';
+    await runCoordinator.submit({
+      sessionKey: sessionId,
+      surface: 'chat',
+      topics: [chatSessionTopic(sessionId), `agent:${agentId}`],
+      agentId,
+      title: agentName,
+      adapter: ctx.openclawAdapter,
+      request: {
+        sessionId,
+        agentId,
+        getConnection: () => getConnection(sessionId),
+        prepareMessage: () => prepareOutgoingMessage(turn.finalMessage, agentId, { includeDocumentToolingContext }),
+        onGatewayReconnected: (client: GatewayChatClient) => { ctx.connections.set(sessionId, client as OpenClawClient); },
+      },
+      projector: (run) => createOpenClawChatProjection({
+        db,
+        configManager: ctx.configManager,
+        run,
+        messageId: assistantMessageId,
+        runMarkerMessageIds: turn.runMarkerMessageIds,
+        agentId,
+        agentName,
+        modelUsed,
+        workspacePath: getSessionWorkspacePath(sessionId),
+        processStartTag: turn.sessionInfo?.process_start_tag || undefined,
+        processEndTag: turn.sessionInfo?.process_end_tag || undefined,
+        resolveErrorModelTag: () => resolveModelTagForErrorReport(agentProvisioner, db.getSession(sessionId)?.agentId || 'main'),
+      }),
+      origin: turn.origin,
+      workspacePath: getSessionWorkspacePath(sessionId),
+      meta: { messageId: assistantMessageId, agentId, kind: 'openclaw-run' },
+      abortGraceMs: OPENCLAW_ABORT_GRACE_MS,
+    }, 'replace');
+  }
+
+  /** 发送与重新生成共用的错误收尾（与迁移前两份拷贝逐行一致）。 */
+  function handleTurnError(params: {
+    error: any;
+    res: express.Response;
+    sink: ChatStreamSink | null;
+    sessionId: string;
+    epoch: number;
+    userMessageId?: number;
+    assistantMessageId?: number;
+    fallbackParentId?: number;
+  }): void {
+    const { error, res, sink, sessionId, epoch } = params;
+    const resetInterrupted = error instanceof SessionInterruptedError || getSessionInterruptionEpoch(sessionId) !== epoch;
+    if (resetInterrupted) {
+      if (res.headersSent) {
+        sink?.end();
+      } else {
+        res.status(409).json(buildStructuredChatHttpError('Session was interrupted during processing.'));
+      }
+      return;
+    }
+
+    const structuredErrorInput = resolveStructuredChatErrorInput(error);
+    const structuredError = createStructuredChatError(structuredErrorInput.rawDetail, structuredErrorInput.messageCode);
+    const agentId = db.getSession(sessionId)?.agentId || 'main';
+    const modelUsed = resolveModelTagForErrorReport(agentProvisioner, agentId);
+
+    if (typeof params.assistantMessageId === 'number') {
+      try {
+        db.updateMessage(params.assistantMessageId, structuredError.content, modelUsed, null, false);
+        db.updateMessageEnvelope(params.assistantMessageId, structuredError.role, structuredError.agent_id, structuredError.agent_name);
+      } catch {}
+    } else if (typeof (params.userMessageId ?? params.fallbackParentId) === 'number') {
+      try {
+        db.saveMessage({
+          session_key: sessionId,
+          parent_id: params.userMessageId ?? params.fallbackParentId,
+          role: structuredError.role,
+          content: structuredError.content,
+          model_used: modelUsed,
+          agent_id: structuredError.agent_id,
+          agent_name: structuredError.agent_name,
+        });
+      } catch {}
+    }
+
+    if (!res.headersSent) {
+      res.status(500).json(buildStructuredChatHttpError(structuredErrorInput.rawDetail, structuredErrorInput.messageCode));
+      return;
+    }
+    const errorEvent = buildStructuredChatErrorStreamEvent(structuredError);
+    sink?.frame(errorEvent);
+    localChatOperationManager.emit(sessionId, errorEvent, epoch);
+    localChatOperationManager.finish(sessionId, epoch);
+    sink?.end();
+  }
+
+  /**
+   * 打开这一轮的流。SSE：写头、填充块与 `ids` 帧（与迁移前一致）；
+   * WebSocket：直接回 JSON，之后的帧走 `session:<id>` 主题。
+   */
+  function openTurnStream(res: express.Response, transport: 'sse' | 'ws', ids: { userMsgId: number; assistantMsgId: number }): void {
+    if (transport === 'ws') {
+      res.json({ success: true, stream: 'ws', ...ids });
+      return;
+    }
+    openSseResponse(res);
+    res.write(':' + Array(2048).fill(' ').join('') + '\n\n');
+    writeSseFrame(res, { type: 'ids', ...ids });
+  }
 
   app.post('/api/chat', async (req, res) => {
     const { sessionId, message, parentId } = req.body;
@@ -77,23 +341,19 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     }
 
     const normalizedSessionId = String(sessionId);
+    const { transport, origin } = readTransport(req);
     const sessionInterruptionEpoch = await interruptSessionStreamingStateForNewRun(normalizedSessionId);
 
     let userMsgId: number | undefined;
     let assistantMsgId: number | undefined;
-    let pendingPreparationActive = false;
-    let sessionEventsClient: OpenClawClient | null = null;
-    let sessionEventsSubscribed = false;
+    let sink: ChatStreamSink | null = null;
 
     try {
       const rawMessage = String(message);
       const parsedCommand = parseChatCommand(rawMessage);
       const sessionInfo = sessionManager.getSession(normalizedSessionId);
-      let finalMessage = rawMessage;
-      let injectedInstructions = '';
 
       const agentId = sessionInfo?.agentId || 'main';
-      const runtimeSettings = readEffectiveAgentRuntimeSettings(sessionInfo, agentId);
       const allCharacters = db.getCharacters();
       const character = allCharacters.find(c => c.agentId === agentId);
       const agentName = sessionInfo?.name || character?.name || agentId;
@@ -103,19 +363,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
         : null;
       const modelUsed = directImageModel || agentProvisioner.readAgentModel(agentId) ||
         agentProvisioner.readAvailableModels().find(m => m.primary)?.id || '';
-
-      if (sessionInfo) {
-        if (sessionInfo.process_start_tag && sessionInfo.process_end_tag) {
-          injectedInstructions += `【极其重要：输出格式规范】\n当前启用了结构化思考输出。你关于后续任务决断的所有内部思考、分析或工作执行过程，必须严格包裹在 ${sessionInfo.process_start_tag} 和 ${sessionInfo.process_end_tag} 之间！\n真正的最终沟通、回复语言写在标签外部。\n\n`;
-        }
-      }
-      if (shouldInjectHostTakeoverInstruction(sessionInfo, agentId)) {
-        injectedInstructions += `${buildHostTakeoverChatInstruction()}\n\n`;
-      }
-
-      if (injectedInstructions) {
-        finalMessage = `${injectedInstructions}${finalMessage}`;
-      }
+      const finalMessage = buildInjectedMessage(sessionInfo, agentId, rawMessage);
 
       if (parsedCommand) {
         const commandResult = await resolveChatCommandResult(parsedCommand, normalizedSessionId);
@@ -148,15 +396,10 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
             agent_name: agentName,
           }));
 
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          res.setHeader('X-Accel-Buffering', 'no');
-          res.flushHeaders();
-          res.write(':' + Array(2048).fill(' ').join('') + '\n\n');
-          res.write(`data: ${JSON.stringify({ type: 'ids', userMsgId, assistantMsgId })}\n\n`);
-          res.write(`data: ${JSON.stringify({ type: 'final', text: commandResult.content })}\n\n`);
-          res.end();
+          openTurnStream(res, transport, { userMsgId, assistantMsgId });
+          sink = createChatStreamSink(streamDeps, { transport, sessionId: normalizedSessionId, res, origin, messageId: assistantMsgId });
+          sink.frame({ type: 'final', text: commandResult.content });
+          sink.end();
           return;
         }
 
@@ -181,262 +424,26 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
         agent_name: agentName
       }));
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      res.flushHeaders();
+      openTurnStream(res, transport, { userMsgId, assistantMsgId });
+      sink = createChatStreamSink(streamDeps, { transport, sessionId: normalizedSessionId, res, origin, messageId: assistantMsgId });
 
-      // Notify frontend of the real DB IDs immediately
-      res.write(':' + Array(2048).fill(' ').join('') + '\n\n');
-      res.write(`data: ${JSON.stringify({ type: 'ids', userMsgId, assistantMsgId })}\n\n`);
-
-      if (directImageModel) {
-        const localImageController = new AbortController();
-        const startProcessContent = buildImageGenerationStartProcessContent(directImageModel);
-        db.updateMessage(assistantMsgId, '', directImageModel, startProcessContent, true);
-        localChatOperationManager.start({
-          sessionId: normalizedSessionId,
-          epoch: sessionInterruptionEpoch,
-          messageId: assistantMsgId,
-          agentId,
-          agentName,
-          modelUsed: directImageModel,
-          startedAt: Date.now(),
-          kind: 'image-generation',
-          abortController: localImageController,
-        });
-        const startEvent = {
-          type: 'delta',
-          text: '',
-          process_content: startProcessContent,
-          process_streaming: true,
-          modelUsed: directImageModel,
-          model_used: directImageModel,
-        };
-        if (isStreamingClientOpen(res)) {
-          try {
-            res.write(`data: ${JSON.stringify(startEvent)}\n\n`);
-          } catch {}
-        }
-
-        const directImageResult = await tryGenerateImageForPrompt({
-          prompt: rawMessage,
-          intentText: rawMessage,
-          intentContext: imageIntentContext,
-          outputDir: path.join(getSessionWorkspacePath(normalizedSessionId), 'output', 'image-generations'),
-          signal: localImageController.signal,
-        });
-        if (directImageResult) {
-          assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-          db.updateMessage(assistantMsgId, directImageResult.content, directImageResult.modelUsed, directImageResult.processContent, false);
-          const finalEvent = {
-            type: 'final',
-            text: directImageResult.content,
-            process_content: directImageResult.processContent,
-            process_streaming: false,
-            modelUsed: directImageResult.modelUsed,
-            model_used: directImageResult.modelUsed,
-          };
-          if (isStreamingClientOpen(res)) {
-            try {
-              res.write(`data: ${JSON.stringify(finalEvent)}\n\n`);
-              res.end();
-            } catch {}
-          }
-          localChatOperationManager.emit(normalizedSessionId, finalEvent, sessionInterruptionEpoch);
-          localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-          return;
-        }
-        localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-      }
-
-      if (runtimeSettings.runtimeMode === 'direct') {
-        const localDirectController = new AbortController();
-        localChatOperationManager.start({
-          sessionId: normalizedSessionId,
-          epoch: sessionInterruptionEpoch,
-          messageId: assistantMsgId,
-          agentId,
-          agentName,
-          modelUsed,
-          startedAt: Date.now(),
-          kind: 'direct-runtime',
-          abortController: localDirectController,
-        });
-        await runDirectChatCompletion({
-          sessionId: normalizedSessionId,
-          agentId,
-          userMessageId: userMsgId,
-          assistantMessageId: assistantMsgId,
-          message: finalMessage,
-          modelUsed,
-          response: res,
-          signal: localDirectController.signal,
-          onEvent: (event) => localChatOperationManager.emit(normalizedSessionId, event, sessionInterruptionEpoch),
-          processStartTag: sessionInfo?.process_start_tag || undefined,
-          processEndTag: sessionInfo?.process_end_tag || undefined,
-          sessionInterruptionEpoch,
-        });
-        localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-        return;
-      }
-
-      pendingChatPreparationManager.start({
+      await continueChatTurn({
+        req, res, transport, origin, sink,
         sessionId: normalizedSessionId,
         epoch: sessionInterruptionEpoch,
-        messageId: assistantMsgId,
-        agentId,
-        agentName,
-        modelUsed,
-        startedAt: Date.now(),
+        sessionInfo, agentId, agentName, modelUsed, directImageModel, imageIntentContext, rawMessage, finalMessage,
+        userMessageId: userMsgId,
+        assistantMessageId: assistantMsgId,
+        runMarkerMessageIds: [userMsgId, assistantMsgId],
       });
-      pendingPreparationActive = true;
-      pendingChatPreparationManager.attachClient(normalizedSessionId, res, {
-        announceAttach: true,
-        expectedEpoch: sessionInterruptionEpoch,
-      });
-
-      const client = await getConnection(normalizedSessionId);
-      sessionEventsClient = client;
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-      const expectedSessionKey = buildOpenClawChatSessionKey(normalizedSessionId, agentId);
-      await abortOpenClawSessionRuns(client, expectedSessionKey, `session ${normalizedSessionId} before send`);
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-      try {
-        await client.subscribeSessionEvents();
-        sessionEventsSubscribed = true;
-      } catch (error) {
-        console.warn(`[chat] Failed to subscribe session events for session ${normalizedSessionId}:`, error);
-      }
-      const outgoingMessage = await prepareOutgoingMessage(finalMessage, agentId, {
-        includeDocumentToolingContext: runtimeSettings.toolMode === 'full' || runtimeSettings.toolMode === 'coding',
-      });
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-
-      const preRunHistorySnapshot = await client.getChatHistory(expectedSessionKey, CHAT_HISTORY_COMPLETION_PROBE_LIMIT)
-        .then((history) => getHistorySnapshot(history))
-        .catch(() => getUnknownHistorySnapshot());
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-
-      const { runId, sessionKey: finalSessionKey } = await client.sendChatMessageStreaming({
-        sessionKey: normalizedSessionId,
-        message: outgoingMessage.text,
-        agentId: agentId,
-        attachments: outgoingMessage.attachments,
-      });
-      if (getSessionInterruptionEpoch(normalizedSessionId) !== sessionInterruptionEpoch) {
-        try {
-          const abortResult = await client.abortChat({
-            sessionKey: finalSessionKey,
-            runId,
-            timeoutMs: CHAT_ORPHAN_ABORT_TIMEOUT_MS,
-          });
-          if (!abortResult.aborted) {
-            scheduleOpenClawSessionAbortRetry(client, finalSessionKey, `interrupted session ${normalizedSessionId}`);
-          }
-        } catch {
-          scheduleOpenClawSessionAbortRetry(client, finalSessionKey, `interrupted session ${normalizedSessionId}`);
-        }
-        throw new SessionInterruptedError(normalizedSessionId);
-      }
-
-      const run = activeRunManager.startRun(
-        normalizedSessionId,
-        runId,
-        agentId,
-        agentName,
-        modelUsed,
-        assistantMsgId,
-        getSessionWorkspacePath(normalizedSessionId),
-        client,
-        finalSessionKey,
-        preRunHistorySnapshot,
-        sessionInfo?.process_start_tag || undefined,
-        sessionInfo?.process_end_tag || undefined,
-        sessionEventsSubscribed
-      );
-      sessionEventsSubscribed = false;
-      const pendingClients = pendingChatPreparationManager.promoteClients(normalizedSessionId, sessionInterruptionEpoch);
-      pendingPreparationActive = false;
-      pendingClients.forEach((clientRes) => {
-        activeRunManager.attachClient(normalizedSessionId, clientRes);
-      });
-
     } catch (error: any) {
-      if (sessionEventsSubscribed && sessionEventsClient) {
-        sessionEventsSubscribed = false;
-        void sessionEventsClient.unsubscribeSessionEvents().catch((unsubscribeError) => {
-          console.warn(`[chat] Failed to unsubscribe session events for session ${normalizedSessionId}:`, unsubscribeError);
-        });
-      }
-      const resetInterrupted = error instanceof SessionInterruptedError || getSessionInterruptionEpoch(normalizedSessionId) !== sessionInterruptionEpoch;
-      if (resetInterrupted) {
-        if (pendingPreparationActive) {
-          if (typeof assistantMsgId === 'number') {
-            try {
-              db.deleteMessage(assistantMsgId);
-              assistantMsgId = undefined;
-            } catch {}
-          }
-          pendingChatPreparationManager.cancel(normalizedSessionId, sessionInterruptionEpoch);
-          pendingPreparationActive = false;
-        } else if (res.headersSent) {
-          try {
-            res.end();
-          } catch {}
-        } else {
-          res.status(409).json(buildStructuredChatHttpError('Session was interrupted during processing.'));
-        }
-        return;
-      }
-
-      const structuredErrorInput = resolveStructuredChatErrorInput(error);
-      const structuredError = createStructuredChatError(
-        structuredErrorInput.rawDetail,
-        structuredErrorInput.messageCode
-      );
-      const sessionInfo = db.getSession(normalizedSessionId);
-      const agentId = sessionInfo?.agentId || 'main';
-      const character = db.getCharacters().find(c => c.agentId === agentId);
-      const modelUsed = resolveModelTagForErrorReport(agentProvisioner, agentId);
-
-      if (typeof assistantMsgId === 'number') {
-        try {
-          db.updateMessage(assistantMsgId, structuredError.content, modelUsed, null, false);
-          db.updateMessageEnvelope(assistantMsgId, structuredError.role, structuredError.agent_id, structuredError.agent_name);
-        } catch {}
-      } else if (typeof userMsgId === 'number') {
-        try {
-          assistantMsgId = Number(db.saveMessage({
-            session_key: normalizedSessionId,
-            parent_id: userMsgId,
-            role: structuredError.role,
-            content: structuredError.content,
-            model_used: modelUsed,
-            agent_id: structuredError.agent_id,
-            agent_name: structuredError.agent_name,
-          }));
-        } catch {}
-      }
-
-      if (!res.headersSent) {
-        res.status(500).json(buildStructuredChatHttpError(
-          structuredErrorInput.rawDetail,
-          structuredErrorInput.messageCode
-        ));
-      } else {
-        if (pendingPreparationActive) {
-          pendingChatPreparationManager.fail(normalizedSessionId, structuredError, sessionInterruptionEpoch);
-          pendingPreparationActive = false;
-        } else {
-          const errorEvent = buildStructuredChatErrorStreamEvent(structuredError);
-          res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
-          localChatOperationManager.emit(normalizedSessionId, errorEvent, sessionInterruptionEpoch);
-          localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-          res.end();
-        }
-      }
+      handleTurnError({
+        error, res, sink,
+        sessionId: normalizedSessionId,
+        epoch: sessionInterruptionEpoch,
+        userMessageId: userMsgId,
+        assistantMessageId: assistantMsgId,
+      });
     }
   });
 
@@ -448,12 +455,11 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     }
 
     const normalizedSessionId = String(sessionId);
+    const { transport, origin } = readTransport(req);
     const sessionInterruptionEpoch = await interruptSessionStreamingStateForNewRun(normalizedSessionId);
 
     let assistantMsgId: number | undefined;
-    let pendingPreparationActive = false;
-    let sessionEventsClient: OpenClawClient | null = null;
-    let sessionEventsSubscribed = false;
+    let sink: ChatStreamSink | null = null;
 
     try {
       const requestedParentId = Number(parentId);
@@ -497,24 +503,8 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
 
       const sessionInfo = sessionManager.getSession(normalizedSessionId);
       const rawMessage = String(message);
-      let finalMessage = rawMessage;
-      let injectedInstructions = '';
-
-      if (sessionInfo) {
-        if (sessionInfo.process_start_tag && sessionInfo.process_end_tag) {
-          injectedInstructions += `【极其重要：输出格式规范】\n当前启用了结构化思考输出。你关于后续任务决断的所有内部思考、分析或工作执行过程，必须严格包裹在 ${sessionInfo.process_start_tag} 和 ${sessionInfo.process_end_tag} 之间！\n真正的最终沟通、回复语言写在标签外部。\n\n`;
-        }
-      }
       const agentId = sessionInfo?.agentId || 'main';
-      const runtimeSettings = readEffectiveAgentRuntimeSettings(sessionInfo, agentId);
-
-      if (shouldInjectHostTakeoverInstruction(sessionInfo, agentId)) {
-        injectedInstructions += `${buildHostTakeoverChatInstruction()}\n\n`;
-      }
-
-      if (injectedInstructions) {
-        finalMessage = `${injectedInstructions}${finalMessage}`;
-      }
+      const finalMessage = buildInjectedMessage(sessionInfo, agentId, rawMessage);
 
       const allCharacters = db.getCharacters();
       const character = allCharacters.find(c => c.agentId === agentId);
@@ -530,291 +520,49 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
         session_key: normalizedSessionId,
         parent_id: numericParentId,
         role: 'assistant',
-        content: '', 
+        content: '',
         model_used: modelUsed,
         agent_id: agentId,
         agent_name: agentName
       }));
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      res.flushHeaders();
+      openTurnStream(res, transport, { userMsgId: numericParentId, assistantMsgId });
+      sink = createChatStreamSink(streamDeps, { transport, sessionId: normalizedSessionId, res, origin, messageId: assistantMsgId });
 
-      // Notify frontend immediately of the new assistant msg ID
-      res.write(':' + Array(2048).fill(' ').join('') + '\n\n');
-      res.write(`data: ${JSON.stringify({ type: 'ids', userMsgId: numericParentId, assistantMsgId })}\n\n`);
-
-      if (directImageModel) {
-        const localImageController = new AbortController();
-        const startProcessContent = buildImageGenerationStartProcessContent(directImageModel);
-        db.updateMessage(assistantMsgId, '', directImageModel, startProcessContent, true);
-        localChatOperationManager.start({
-          sessionId: normalizedSessionId,
-          epoch: sessionInterruptionEpoch,
-          messageId: assistantMsgId,
-          agentId,
-          agentName,
-          modelUsed: directImageModel,
-          startedAt: Date.now(),
-          kind: 'image-generation',
-          abortController: localImageController,
-        });
-        const startEvent = {
-          type: 'delta',
-          text: '',
-          process_content: startProcessContent,
-          process_streaming: true,
-          modelUsed: directImageModel,
-          model_used: directImageModel,
-        };
-        if (isStreamingClientOpen(res)) {
-          try {
-            res.write(`data: ${JSON.stringify(startEvent)}\n\n`);
-          } catch {}
-        }
-
-        const directImageResult = await tryGenerateImageForPrompt({
-          prompt: rawMessage,
-          intentText: rawMessage,
-          intentContext: imageIntentContext,
-          outputDir: path.join(getSessionWorkspacePath(normalizedSessionId), 'output', 'image-generations'),
-          signal: localImageController.signal,
-        });
-        if (directImageResult) {
-          assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-          db.updateMessage(assistantMsgId, directImageResult.content, directImageResult.modelUsed, directImageResult.processContent, false);
-          const finalEvent = {
-            type: 'final',
-            text: directImageResult.content,
-            process_content: directImageResult.processContent,
-            process_streaming: false,
-            modelUsed: directImageResult.modelUsed,
-            model_used: directImageResult.modelUsed,
-          };
-          if (isStreamingClientOpen(res)) {
-            try {
-              res.write(`data: ${JSON.stringify(finalEvent)}\n\n`);
-              res.end();
-            } catch {}
-          }
-          localChatOperationManager.emit(normalizedSessionId, finalEvent, sessionInterruptionEpoch);
-          localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-          return;
-        }
-        localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-      }
-
-      if (runtimeSettings.runtimeMode === 'direct') {
-        const localDirectController = new AbortController();
-        localChatOperationManager.start({
-          sessionId: normalizedSessionId,
-          epoch: sessionInterruptionEpoch,
-          messageId: assistantMsgId,
-          agentId,
-          agentName,
-          modelUsed,
-          startedAt: Date.now(),
-          kind: 'direct-runtime',
-          abortController: localDirectController,
-        });
-        await runDirectChatCompletion({
-          sessionId: normalizedSessionId,
-          agentId,
-          userMessageId: numericParentId,
-          assistantMessageId: assistantMsgId,
-          message: finalMessage,
-          modelUsed,
-          response: res,
-          signal: localDirectController.signal,
-          onEvent: (event) => localChatOperationManager.emit(normalizedSessionId, event, sessionInterruptionEpoch),
-          processStartTag: sessionInfo?.process_start_tag || undefined,
-          processEndTag: sessionInfo?.process_end_tag || undefined,
-          sessionInterruptionEpoch,
-        });
-        localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-        return;
-      }
-
-      pendingChatPreparationManager.start({
+      await continueChatTurn({
+        req, res, transport, origin, sink,
         sessionId: normalizedSessionId,
         epoch: sessionInterruptionEpoch,
-        messageId: assistantMsgId,
-        agentId,
-        agentName,
-        modelUsed,
-        startedAt: Date.now(),
+        sessionInfo, agentId, agentName, modelUsed, directImageModel, imageIntentContext, rawMessage, finalMessage,
+        userMessageId: numericParentId,
+        assistantMessageId: assistantMsgId,
+        runMarkerMessageIds: [assistantMsgId],
       });
-      pendingPreparationActive = true;
-      pendingChatPreparationManager.attachClient(normalizedSessionId, res, {
-        announceAttach: true,
-        expectedEpoch: sessionInterruptionEpoch,
-      });
-
-      const client = await getConnection(normalizedSessionId);
-      sessionEventsClient = client;
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-      const expectedSessionKey = buildOpenClawChatSessionKey(normalizedSessionId, agentId);
-      await abortOpenClawSessionRuns(client, expectedSessionKey, `session ${normalizedSessionId} before regenerate`);
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-      try {
-        await client.subscribeSessionEvents();
-        sessionEventsSubscribed = true;
-      } catch (error) {
-        console.warn(`[chat] Failed to subscribe session events for session ${normalizedSessionId}:`, error);
-      }
-      const outgoingMessage = await prepareOutgoingMessage(finalMessage, agentId, {
-        includeDocumentToolingContext: runtimeSettings.toolMode === 'full' || runtimeSettings.toolMode === 'coding',
-      });
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-
-      const preRunHistorySnapshot = await client.getChatHistory(expectedSessionKey, CHAT_HISTORY_COMPLETION_PROBE_LIMIT)
-        .then((history) => getHistorySnapshot(history))
-        .catch(() => getUnknownHistorySnapshot());
-      assertSessionInterruptionEpoch(normalizedSessionId, sessionInterruptionEpoch);
-
-      const { runId, sessionKey: finalSessionKey } = await client.sendChatMessageStreaming({
-        sessionKey: normalizedSessionId,
-        message: outgoingMessage.text,
-        agentId: agentId,
-        attachments: outgoingMessage.attachments,
-      });
-      if (getSessionInterruptionEpoch(normalizedSessionId) !== sessionInterruptionEpoch) {
-        try {
-          const abortResult = await client.abortChat({
-            sessionKey: finalSessionKey,
-            runId,
-            timeoutMs: CHAT_ORPHAN_ABORT_TIMEOUT_MS,
-          });
-          if (!abortResult.aborted) {
-            scheduleOpenClawSessionAbortRetry(client, finalSessionKey, `interrupted session ${normalizedSessionId}`);
-          }
-        } catch {
-          scheduleOpenClawSessionAbortRetry(client, finalSessionKey, `interrupted session ${normalizedSessionId}`);
-        }
-        throw new SessionInterruptedError(normalizedSessionId);
-      }
-
-      const run = activeRunManager.startRun(
-        normalizedSessionId,
-        runId,
-        agentId,
-        agentName,
-        modelUsed,
-        assistantMsgId,
-        getSessionWorkspacePath(normalizedSessionId),
-        client,
-        finalSessionKey,
-        preRunHistorySnapshot,
-        sessionInfo?.process_start_tag || undefined,
-        sessionInfo?.process_end_tag || undefined,
-        sessionEventsSubscribed
-      );
-      sessionEventsSubscribed = false;
-
-      const pendingClients = pendingChatPreparationManager.promoteClients(normalizedSessionId, sessionInterruptionEpoch);
-      pendingPreparationActive = false;
-      pendingClients.forEach((clientRes) => {
-        activeRunManager.attachClient(normalizedSessionId, clientRes);
-      });
-
     } catch (error: any) {
-      if (sessionEventsSubscribed && sessionEventsClient) {
-        sessionEventsSubscribed = false;
-        void sessionEventsClient.unsubscribeSessionEvents().catch((unsubscribeError) => {
-          console.warn(`[chat] Failed to unsubscribe session events for session ${normalizedSessionId}:`, unsubscribeError);
-        });
-      }
-      const resetInterrupted = error instanceof SessionInterruptedError || getSessionInterruptionEpoch(normalizedSessionId) !== sessionInterruptionEpoch;
-      if (resetInterrupted) {
-        if (pendingPreparationActive) {
-          if (typeof assistantMsgId === 'number') {
-            try {
-              db.deleteMessage(assistantMsgId);
-              assistantMsgId = undefined;
-            } catch {}
-          }
-          pendingChatPreparationManager.cancel(normalizedSessionId, sessionInterruptionEpoch);
-          pendingPreparationActive = false;
-        } else if (res.headersSent) {
-          try {
-            res.end();
-          } catch {}
-        } else {
-          res.status(409).json(buildStructuredChatHttpError('Session was interrupted during processing.'));
-        }
-        return;
-      }
-
-      const structuredErrorInput = resolveStructuredChatErrorInput(error);
-      const structuredError = createStructuredChatError(
-        structuredErrorInput.rawDetail,
-        structuredErrorInput.messageCode
-      );
-      const sessionInfo = db.getSession(normalizedSessionId);
-      const agentId = sessionInfo?.agentId || 'main';
-      const modelUsed = resolveModelTagForErrorReport(agentProvisioner, agentId);
-
-      if (typeof assistantMsgId === 'number') {
-        try {
-          db.updateMessage(assistantMsgId, structuredError.content, modelUsed, null, false);
-          db.updateMessageEnvelope(assistantMsgId, structuredError.role, structuredError.agent_id, structuredError.agent_name);
-        } catch {}
-      } else {
-        try {
-          assistantMsgId = Number(db.saveMessage({
-            session_key: normalizedSessionId,
-            parent_id: Number(parentId),
-            role: structuredError.role,
-            content: structuredError.content,
-            model_used: modelUsed,
-            agent_id: structuredError.agent_id,
-            agent_name: structuredError.agent_name,
-          }));
-        } catch {}
-      }
-
-      if (!res.headersSent) {
-        res.status(500).json(buildStructuredChatHttpError(
-          structuredErrorInput.rawDetail,
-          structuredErrorInput.messageCode
-        ));
-      } else {
-        if (pendingPreparationActive) {
-          pendingChatPreparationManager.fail(normalizedSessionId, structuredError, sessionInterruptionEpoch);
-          pendingPreparationActive = false;
-        } else {
-          const errorEvent = buildStructuredChatErrorStreamEvent(structuredError);
-          res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
-          localChatOperationManager.emit(normalizedSessionId, errorEvent, sessionInterruptionEpoch);
-          localChatOperationManager.finish(normalizedSessionId, sessionInterruptionEpoch);
-          res.end();
-        }
-      }
+      handleTurnError({
+        error, res, sink,
+        sessionId: normalizedSessionId,
+        epoch: sessionInterruptionEpoch,
+        assistantMessageId: assistantMsgId,
+        fallbackParentId: Number(parentId),
+      });
     }
   });
 
   app.get('/api/chat/attach/:sessionId', async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const pendingPreparation = pendingChatPreparationManager.get(sessionId);
-      const run = activeRunManager.getRun(sessionId);
+      const run = runCoordinator.getActiveRun(sessionId);
       const localOperation = localChatOperationManager.get(sessionId);
-      if (!run && !pendingPreparation && !localOperation) {
+      if (!run && !localOperation) {
         await reconcileInactiveChatLatestMessage(sessionId);
         // Return empty payload to indicate no active run
         return res.status(200).json({ active: false });
       }
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      res.flushHeaders();
+      openSseResponse(res);
 
-      if (run) {
-        activeRunManager.attachClient(sessionId, res, { announceAttach: true });
+      if (run && pipeChatRunToSse(streamDeps, sessionId, res)) {
         return;
       }
 
@@ -823,7 +571,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
         return;
       }
 
-      pendingChatPreparationManager.attachClient(sessionId, res, { announceAttach: true });
+      res.end();
     } catch (error: any) {
       if (!res.headersSent) {
         res.status(500).json(buildStructuredChatHttpError(error?.message || 'Failed to attach chat stream.'));
@@ -846,9 +594,10 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
       const normalizedSessionId = String(sessionId);
       const interruptedEpoch = getSessionInterruptionEpoch(normalizedSessionId);
       bumpSessionInterruptionEpoch(normalizedSessionId);
-      pendingChatPreparationManager.cancel(normalizedSessionId, interruptedEpoch);
       const localAbortResult = localChatOperationManager.abort(normalizedSessionId, interruptedEpoch);
-      const result = await activeRunManager.abortRun(normalizedSessionId);
+      const result = await runCoordinator.abort(normalizedSessionId, 'user_stop');
+      // 与迁移前一致：只有「运行中的网关 run 确认停下」才算这一路停掉了；准备阶段被取消不算。
+      const gatewayRunAborted = result.outcome?.kind === 'aborted' && result.outcome.phase === 'running' && result.outcome.synced;
       let orphanAbortResult: { aborted: boolean; runIds: string[] } = { aborted: false, runIds: [] };
       try {
         const sessionInfo = sessionManager.getSession(normalizedSessionId);
@@ -866,7 +615,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
       await reconcileInactiveChatLatestMessage(normalizedSessionId);
       res.json({
         success: true,
-        aborted: localAbortResult.aborted || result.aborted || orphanAbortResult.aborted,
+        aborted: localAbortResult.aborted || gatewayRunAborted || orphanAbortResult.aborted,
         runIds: orphanAbortResult.runIds,
       });
     } catch (error: any) {

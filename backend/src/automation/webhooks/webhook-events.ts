@@ -1,7 +1,8 @@
 /**
  * 出站 Webhook 的事件类型与负载。来源是业务事件总线（`core/events`）。
  *
- * - `chat.run.*`：单聊运行生命周期，是 ClawOPT 今天能观察到的聊天事件（运行开始 / 完成 / 失败）；
+ * - `chat.run.*` / `chat.tool.*` / `chat.approval.*`：运行协调器发出的运行事实（开始 / 完成 / 失败 / 中止、工具调用、审批），
+ *   覆盖单聊、群聊外部成员与工作流节点（`summary.surface` 区分），发布点只在 `runtime/coordinator`；
  * - `workflow.run.*` 与 `workflow.node.approval_requested`：工作流（对方不对 HTTP 端点开放，我们开放）。
  *
  * 事件 id **由内容派生且稳定**：`sha256(type:subject:occurrence)` 取前 32 位。同一件事重投多少次都是同一个 id，
@@ -13,6 +14,12 @@ export const WEBHOOK_EVENT_TYPES = [
   'chat.run.started',
   'chat.run.completed',
   'chat.run.failed',
+  'chat.run.aborted',
+  'chat.tool.started',
+  'chat.tool.completed',
+  'chat.tool.failed',
+  'chat.approval.requested',
+  'chat.approval.resolved',
   'workflow.run.started',
   'workflow.run.completed',
   'workflow.run.completed_with_failures',
@@ -54,21 +61,35 @@ const str = (value: unknown) => (typeof value === 'string' ? value : value === u
 /** 业务事件 → Webhook 负载。认不出的类型返回 null（不外发）。`includeContent` 控制是否带正文。 */
 export function buildWebhookPayload(type: string, payload: Record<string, unknown>, publishedAt: number, includeContent: boolean): WebhookPayload | null {
   const occurredAt = new Date(publishedAt).toISOString();
-  if (type.startsWith('chat.run.')) {
+  if (type.startsWith('chat.')) {
     const sessionId = str(payload.sessionId);
     const runId = str(payload.runId);
     if (!sessionId || !runId) return null;
+    const [, family, phase] = type.split('.');
+    // 同一次运行里的多个工具调用 / 审批各是一件事：occurrence 带上调用 / 审批 id。
+    const itemId = family === 'tool' ? str(payload.callId) : family === 'approval' ? str(payload.approvalId) : '';
+    if (family !== 'run' && !itemId) return null;
     const result: WebhookPayload = {
       schema_version: 1,
-      id: stableEventId(type, sessionId, runId),
+      id: stableEventId(type, sessionId, itemId ? `${runId}:${itemId}` : runId),
       type,
       occurred_at: occurredAt,
       source: 'chat',
-      subject: { session_id: sessionId, run_id: runId, agent_id: str(payload.agentId) },
+      subject: {
+        session_id: sessionId,
+        run_id: runId,
+        agent_id: str(payload.agentId),
+        ...(family === 'tool' ? { call_id: itemId } : {}),
+        ...(family === 'approval' ? { approval_id: itemId } : {}),
+      },
       summary: {
-        status: type.slice('chat.run.'.length),
+        status: phase ?? null,
         agent_name: str(payload.agentName) || null,
-        error_kind: type === 'chat.run.failed' ? 'run_error' : null,
+        runtime: str(payload.runtime) || null,
+        surface: str(payload.surface) || null,
+        error_kind: type === 'chat.run.failed' || type === 'chat.tool.failed' ? (str(payload.errorCode) || 'run_error') : null,
+        ...(family === 'tool' ? { tool_name: str(payload.toolName) || null } : {}),
+        ...(family === 'approval' && phase === 'resolved' ? { decision: str(payload.decision) || null } : {}),
       },
     };
     if (includeContent && type === 'chat.run.completed' && typeof payload.text === 'string') {

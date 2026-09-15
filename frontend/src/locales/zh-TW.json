@@ -413,6 +413,12 @@
       "historyPageRoundsLabel": "歷史分頁輪數",
       "historyPageRoundsPlaceholder": "30",
       "historyPageRoundsHint": "依使用者發起訊息的次數計算對話分頁輪數，使用者發起 30 次訊息，就算 30 輪，不受 AI 回覆條數影響。",
+      "chatStreamTransportLabel": "對話即時通道",
+      "chatStreamTransportHint": "單聊回覆透過哪條通道即時推送到頁面。預設 SSE；WebSocket 支援斷線後自動重連並接回進行中的回覆，仍在驗證階段。只對目前瀏覽器生效，下一次傳送起啟用。",
+      "chatStreamTransportOptions": {
+        "sse": "SSE（預設）",
+        "ws": "WebSocket（實驗）"
+      },
       "previewTimeoutLabel": "預覽逾時時間",
       "previewTimeoutPlaceholder": "60",
       "previewTimeoutHint": "設定文件預覽轉換的逾時時間，單位為秒。支援 {{min}}-{{max}} 秒，預設 60 秒。",
@@ -1944,9 +1950,15 @@
         "allowPrivateWarning": "放行後，這個端點可以指向區域網路或本機服務。只對你信任的位址開啟。"
       },
       "eventTypes": {
-        "chat_run_started": "單聊執行開始",
-        "chat_run_completed": "單聊執行完成",
-        "chat_run_failed": "單聊執行失敗",
+        "chat_run_started": "Agent 執行開始",
+        "chat_run_completed": "Agent 執行完成",
+        "chat_run_failed": "Agent 執行失敗",
+        "chat_run_aborted": "Agent 執行已停止",
+        "chat_tool_started": "工具呼叫開始",
+        "chat_tool_completed": "工具呼叫完成",
+        "chat_tool_failed": "工具呼叫失敗",
+        "chat_approval_requested": "工具審批待答覆",
+        "chat_approval_resolved": "工具審批已答覆",
         "workflow_run_started": "工作流開始",
         "workflow_run_completed": "工作流完成",
         "workflow_run_completed_with_failures": "工作流完成（有已處理的失敗）",

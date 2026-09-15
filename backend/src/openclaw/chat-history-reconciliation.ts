@@ -2,7 +2,7 @@ import {
   extractOpenClawMessageError,
   extractOpenClawMessageText,
   normalizeOpenClawMessageRecord,
-} from '../../openclaw';
+} from './openclaw-client';
 
 export type ChatHistorySnapshot = {
   length: number;

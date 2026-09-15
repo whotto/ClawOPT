@@ -96,6 +96,21 @@ describe('外部成员必须真的被路由过去', () => {
     expect(body).not.toContain('OpenClawClient');
     expect(body).not.toContain('subscribeSessionEvents');
   });
+
+  it('外部分支经运行协调器提交，不再自己直接调执行器（P1a）', () => {
+    const src = SRC.slice(SRC.indexOf('private async runExternalMember'));
+    const body = src.slice(0, src.indexOf('\n  public async sendToAgent('));
+    expect(body, '外部成员绕过了协调器：陈旧检查、中止、用量去重、工具调用落库全部失效')
+      .toContain('requireRunCoordinator().submit(');
+    expect(body, '执行器又被直接调用了——它应当只作为适配器的注入项').not.toMatch(/await runner\(/);
+    expect(body).toContain('createClaudeCodeRuntimeAdapter({ executor: runner })');
+  });
+
+  it('群聊停止也中止协调器里的外部成员运行（否则停止按钮停不住外部 Agent）', () => {
+    const routes = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'collab', 'rooms', 'room-routes.ts'), 'utf-8');
+    const stop = routes.slice(routes.indexOf("app.post('/api/groups/:id/stop'"));
+    expect(stop.slice(0, 1200)).toContain('runCoordinator.abortTopic(roomTopic(req.params.id)');
+  });
 });
 
 /**

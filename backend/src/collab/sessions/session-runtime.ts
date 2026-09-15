@@ -144,10 +144,6 @@ export function runtimeAgentSessionsNeedWorkspaceReset(agentId: string, workspac
   return false;
 }
 
-export function buildOpenClawChatSessionKey(sessionId: string, agentId: string): string {
-  return sessionId.startsWith('agent:') ? sessionId : `agent:${agentId}:chat:${sessionId}`;
-}
-
 export type SessionRuntimeDeps = {
   agentProvisioner: AgentProvisioner;
   sessionManager: SessionManager;

@@ -10,12 +10,14 @@ import {
   GROUP_RUN_IN_PROGRESS_ERROR_CODE,
   type RouteApp,
 } from '../../core/http';
+import type { RunCoordinator } from '../../runtime';
 import type { UploadService } from '../../workspace';
 import {
   buildHistoryPageResponse,
   buildHistorySearchResponse,
   getHistoryPageQueryParams,
 } from '../sessions';
+import { roomTopic } from './external-member-run';
 import {
   deleteGroupWorkspace,
   ensureGroupWorkspace,
@@ -31,6 +33,7 @@ const GROUP_SSE_KEEPALIVE_MS = 15000;
 
 export type RoomRoutesDeps = {
   db: DB;
+  runCoordinator: RunCoordinator;
   rooms: RoomEngine;
   roomMessages: RoomMessages;
   roomReconciliation: RoomReconciliation;
@@ -40,7 +43,7 @@ export type RoomRoutesDeps = {
 
 export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   const { db } = ctx;
-  const { groupChatEngine, groupSSEClients } = ctx.rooms;
+  const { groupChatEngine, groupSSEClients, publishRoomFrame } = ctx.rooms;
   const { withResolvedGroupMemberDisplayName } = ctx.roomMessages;
   const { broadcastGroupReconciliationActions, reconcileInactiveGroupLatestMessage } = ctx.roomReconciliation;
   const { cleanupGroupRuntimeAgent } = ctx.roomRuntime;
@@ -198,6 +201,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       }
 
       groupChatEngine.markGroupReset(req.params.id);
+      await ctx.runCoordinator.abortTopic(roomTopic(req.params.id), 'user_stop');
       try {
         await groupChatEngine.abortGroupRun(req.params.id);
       } catch {}
@@ -225,6 +229,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       }
 
       groupChatEngine.markGroupReset(req.params.id);
+      await ctx.runCoordinator.abortTopic(roomTopic(req.params.id), 'user_stop');
       try {
         await groupChatEngine.abortGroupRun(req.params.id);
       } catch {}
@@ -363,6 +368,9 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       }
 
       groupChatEngine.markGroupReset(req.params.id);
+      // 外部成员的运行在协调器里：一并中止（子进程整组收掉）。此前停止按钮停不住外部 Agent，
+      // 它会一直跑到自己结束、占着成员锁。
+      const externalAborts = await ctx.runCoordinator.abortTopic(roomTopic(req.params.id), 'user_stop');
       const result = await groupChatEngine.abortGroupRun(req.params.id).catch((error) => {
         console.warn(`[GroupStop] Failed to abort active run for group ${req.params.id}:`, error);
         return { aborted: false };
@@ -377,22 +385,14 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         && message.content.trim() === ''
       ));
 
-      if (staleMessages.length > 0) {
-        const clients = groupSSEClients.get(req.params.id);
-        for (const staleMessage of staleMessages) {
-          if (typeof staleMessage.id !== 'number') continue;
-          db.deleteGroupMessage(staleMessage.id);
-          cleanedMessageIds.push(staleMessage.id);
-          if (clients) {
-            const data = JSON.stringify({ type: 'delete', id: staleMessage.id, parent_id: staleMessage.parent_id ?? null });
-            for (const client of clients) {
-              try { client.write(`data: ${data}\n\n`); } catch {}
-            }
-          }
-        }
+      for (const staleMessage of staleMessages) {
+        if (typeof staleMessage.id !== 'number') continue;
+        db.deleteGroupMessage(staleMessage.id);
+        cleanedMessageIds.push(staleMessage.id);
+        publishRoomFrame(req.params.id, { type: 'delete', id: staleMessage.id, parent_id: staleMessage.parent_id ?? null });
       }
 
-      res.json({ success: true, aborted: result.aborted, cleanedMessageIds });
+      res.json({ success: true, aborted: result.aborted || externalAborts.some((item) => item.aborted), cleanedMessageIds });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -443,16 +443,11 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
 
       res.json({ success: true, rerunStarted: shouldRerun, deletedIds });
 
-      const clients = groupSSEClients.get(req.params.id);
-      if (clients) {
-        clients.forEach(client => {
-          if (updatedMessage) {
-            client.write(`data: ${JSON.stringify({ type: 'edit', ...withStructuredGroupMessage(updatedMessage, { groupId: req.params.id }) })}\n\n`);
-          }
-          if (deletedIds.length > 0) {
-            client.write(`data: ${JSON.stringify({ type: 'delete', deletedIds, fallbackParentId: messageId })}\n\n`);
-          }
-        });
+      if (updatedMessage) {
+        publishRoomFrame(req.params.id, { type: 'edit', ...withStructuredGroupMessage(updatedMessage, { groupId: req.params.id }) });
+      }
+      if (deletedIds.length > 0) {
+        publishRoomFrame(req.params.id, { type: 'delete', deletedIds, fallbackParentId: messageId });
       }
 
       if (shouldRerun) {
@@ -477,12 +472,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       res.json({ success: true, deletedIds, fallbackParentId });
 
       // Broadcast delete event
-      const clients = groupSSEClients.get(req.params.id);
-      if (clients) {
-        clients.forEach(client => {
-          client.write(`data: ${JSON.stringify({ type: 'delete', deletedIds, fallbackParentId })}\n\n`);
-        });
-      }
+      publishRoomFrame(req.params.id, { type: 'delete', deletedIds, fallbackParentId });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -524,12 +514,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       }
 
       db.deleteGroupMessage(Number(msgId));
-      const clients = groupSSEClients.get(req.params.id);
-      if (clients) {
-        clients.forEach(client => {
-          client.write(`data: ${JSON.stringify({ type: 'delete', id: Number(msgId), parent_id: validParentId })}\n\n`);
-        });
-      }
+      publishRoomFrame(req.params.id, { type: 'delete', id: Number(msgId), parent_id: validParentId });
 
       res.json({ success: true });
 

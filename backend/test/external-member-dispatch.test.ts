@@ -20,6 +20,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GroupChatEngine } from '../src/collab/rooms/group-chat-engine';
 import { NON_RESUMABLE_EXTERNAL_SESSION_STATUSES as NON_RESUMABLE } from '../src/core/db/db';
+import { RealtimeHub } from '../src/core/realtime';
+import { RunCoordinator } from '../src/runtime/coordinator';
+import { MemoryRunStore } from './helpers/scripted-adapter';
 
 type Emitted = { event: string; payload: any };
 
@@ -50,12 +53,16 @@ function makeEngine(overrides: Record<string, any> = {}) {
       if (row) sessions.set(`${g}|${m}`, { ...row, status, last_error: detail ?? null });
     },
     saveGroupMessage: (row: any) => { saved.push(row); return ++nextId; },
+    setGroupMessageRunMarker: vi.fn(),
     updateGroupMessage: vi.fn(),
     updateGroupMessageSender: vi.fn(),
     getGroupChat: () => ({ id: 'g1', max_chain_depth: 6, system_prompt: '' }),
     getGroupMessages: () => [],
   };
   engine.emit = (event: string, payload: any) => { emitted.push({ event, payload }); };
+  // 外部成员的运行由协调器驱动（P1a 起）；内存存储记下它写了什么。
+  engine.runStore = new MemoryRunStore();
+  engine.useRunCoordinator(new RunCoordinator({ hub: new RealtimeHub(), store: engine.runStore, log: () => {} }));
   engine.getPreferredLanguage = () => 'zh-CN';
   // buildAgentPrompt 只用到 this 上这两个方法（prompt-baseline.test.ts 同样只桩这两个）。
   engine.canUseHostTakeover = () => false;
@@ -419,6 +426,65 @@ describe('链式转发：外部 → 其他成员', () => {
     const { runner } = fakeRunner({ ok: false, errorDetail: 'timeout' });
     await runExternal(engine, members[0], runner, { allMembers: members });
     expect(engine.sendToAgent).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * P1a：外部成员的运行交给运行协调器。这里钉住迁移后新增的义务，
+ * 行为本身（帧、落库、续话、转发）由上面那些迁移前就有的用例守着。
+ */
+describe('外部成员经运行协调器', () => {
+  it('会话键按 (群, 成员)，终态后写结束标记；result 的整轮用量按确定性 id 记一次；工具调用与结果成组落库', async () => {
+    const engine = makeEngine();
+    const runner = async (_built: any, _parser: any, opts: any) => {
+      opts.onEvent({ kind: 'init', model: 'claude-sonnet-5', sessionId: 'sid-1', raw: { type: 'system', subtype: 'init' } });
+      opts.onEvent({ kind: 'progress', sessionId: 'sid-1', raw: { type: 'assistant', message: { id: 'msg_1', content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { path: 'a.ts' } }] } } });
+      opts.onEvent({ kind: 'unknown', sessionId: 'sid-1', raw: { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'body' }] }] } } });
+      opts.onEvent({ kind: 'delta', text: 'done', sessionId: 'sid-1', raw: { type: 'assistant', message: { id: 'msg_2', content: [{ type: 'text', text: 'done' }] } } });
+      const result = { type: 'result', subtype: 'success', result: 'done', session_id: 'sid-1', uuid: 'res-1', total_cost_usd: 0.01, usage: { input_tokens: 12, output_tokens: 3, cache_read_input_tokens: 100, cache_creation_input_tokens: 7 } };
+      // 同一个 result 重放两次：用量只能记一次。
+      opts.onEvent({ kind: 'final', text: 'done', sessionId: 'sid-1', costUsd: 0.01, raw: result });
+      opts.onEvent({ kind: 'final', text: 'done', sessionId: 'sid-1', costUsd: 0.01, raw: result });
+      return { ok: true, finalText: 'done', exitCode: 0, aborted: false, timedOut: false };
+    };
+    await runExternal(engine, member(), runner);
+
+    const store: MemoryRunStore = engine.runStore;
+    expect(store.calls[0]).toBe('ensure:room:g1:member:m1');
+    expect(store.calls.at(-1)).toBe('ended:room:g1:member:m1:complete');
+    expect(store.usage).toHaveLength(1);
+    expect(store.usage[0]).toMatchObject({
+      callId: 'claude-code:sid-1:res-1', source: 'claude-code', agentId: 'ext:claude-code:lead-engineer', scope: 'run',
+      inputTokens: 12, outputTokens: 3, cacheReadTokens: 100, cacheWriteTokens: 7, costUsd: 0.01, model: 'claude-sonnet-5',
+    });
+    expect(store.toolCallBatches.map((batch) => batch.map((c) => [c.callId, c.name, c.output, c.status]))).toEqual([
+      [['toolu_1', 'Read', 'body', 'completed']],
+    ]);
+    expect(engine.db.setGroupMessageRunMarker).toHaveBeenCalledWith(101, expect.stringMatching(/^run-/));
+  });
+
+  it('群聊停止经协调器中止外部成员：执行器收到 abort 信号，会话记成 cancelled，消息写明原因', async () => {
+    const engine = makeEngine();
+    engine.db.setExternalSession('g1', 'm1', 'uuid-1');
+    let sawSignal: AbortSignal | undefined;
+    const runner = (_built: any, _parser: any, opts: any) => new Promise<any>((resolve) => {
+      sawSignal = opts.signal;
+      opts.onEvent({ kind: 'delta', text: '做到一半' });
+      opts.signal.addEventListener('abort', () => resolve({ ok: false, exitCode: null, aborted: true, timedOut: false, errorDetail: 'aborted' }));
+    });
+    const running = runExternal(engine, member(), runner);
+    await new Promise((resolve) => setImmediate(resolve));
+    const coordinator = engine.runCoordinator as RunCoordinator;
+    expect(coordinator.getActiveRun('room:g1:member:m1')?.agentId).toBe('ext:claude-code:lead-engineer');
+
+    const results = await coordinator.abortTopic('room:g1', 'user_stop');
+    await running;
+    expect(results).toMatchObject([{ aborted: true, synced: true, ignored: false }]);
+    expect(sawSignal?.aborted).toBe(true);
+    expect(engine.db.getExternalSessionRow('g1', 'm1').status).toBe('cancelled');
+    const [, content] = (engine.db.updateGroupMessage as any).mock.calls.at(-1);
+    expect(content).toBe('Lead Engineer 执行失败（aborted）');
+    expect(engine.emitted.filter((e: Emitted) => e.event === 'typing_done')).toHaveLength(1);
   });
 });
 

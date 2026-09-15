@@ -165,8 +165,8 @@ describe('createAuthMiddleware', () => {
 
   function request(token: string | null, url = '/api/something', params: Record<string, string> = {}) {
     return {
-      header: (name: string) => (name.toLowerCase() === 'x-clawopt-auth-token' && token ? token : undefined),
-      headers: {},
+      // 令牌只从 headers 读（P1a 起 HTTP 与 /ws 升级共用 readHeadersAuthToken）。
+      headers: token ? { 'x-clawopt-auth-token': token } : {},
       originalUrl: url,
       params,
     } as unknown as express.Request;

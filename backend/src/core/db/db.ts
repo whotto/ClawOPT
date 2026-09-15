@@ -3,6 +3,10 @@ import path from 'path';
 import Database from 'better-sqlite3';
 
 import { applyControlPlaneSchema } from './control-plane-schema';
+import { warnIfBetterSqliteNativeBuildHazard } from './native-build-check';
+
+/** 原生插件构建隐患只在进程里查一次（ConfigManager 与应用上下文各开一个 DB）。 */
+let nativeBuildChecked = false;
 
 export type GroupChatRow = {
   id: string;
@@ -148,10 +152,61 @@ export type CapabilityCacheRow = {
   updated_at?: string;
 };
 
+export type RunSessionRow = {
+  session_key: string;
+  surface: string;
+  runtime: string;
+  agent_id: string;
+  title: string | null;
+  run_count: number;
+  started_at: string;
+  last_active: string;
+  ended_at: string | null;
+  end_reason: string | null;
+};
+
+export type RunToolCallRow = {
+  id: number;
+  session_key: string;
+  run_id: string;
+  run_marker: string;
+  call_id: string;
+  name: string;
+  arguments: string;
+  output: string | null;
+  status: string | null;
+  started_at: number | null;
+  completed_at: number | null;
+};
+
+export type SessionUsageDbRow = {
+  id: number;
+  session_key: string;
+  run_id: string;
+  source: string;
+  agent_id: string | null;
+  usage_scope: string;
+  purpose: string | null;
+  model: string | null;
+  provider: string | null;
+  api_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  reasoning_tokens: number;
+  cost_usd: number | null;
+  created_at: string;
+};
+
 export class DB {
   private db: Database.Database;
 
   constructor() {
+    if (!nativeBuildChecked) {
+      nativeBuildChecked = true;
+      warnIfBetterSqliteNativeBuildHazard();
+    }
     const dataDir = process.env.CLAWOPT_DATA_DIR || '.clawopt';
     const base = path.join(process.env.HOME || '.', dataDir);
     fs.mkdirSync(base, { recursive: true });
@@ -422,6 +477,150 @@ export class DB {
     // Group message upgrades
     try { this.db.exec("ALTER TABLE group_messages ADD COLUMN model_used TEXT"); } catch (e: any) {}
     try { this.db.exec("ALTER TABLE group_messages ADD COLUMN parent_id INTEGER REFERENCES group_messages(id)"); } catch (e: any) {}
+
+    this.initRunTables(addColumn);
+  }
+
+  /**
+   * 运行协调器的通用表（P1a）。只加表加列，不改老表的既有列。
+   *
+   * - `run_sessions`：协调器视角的会话行（单聊会话、群里的每个外部成员各一行）。
+   *   `ended_at` 只在队列清空时写；新一轮开始时清掉（「重开」）。
+   * - `run_tool_calls`：工具调用与结果**成组**写入（同一事务），库里不会出现有调用没结果的行。
+   * - `session_usage`：一次计费调用一行。`(session_key, run_id, source)` 上的**部分唯一索引**
+   *   加 `INSERT OR IGNORE`：重放、断线续传重复上报同一次调用，也只记一次。
+   * - `chat_messages.run_marker` / `group_messages.run_marker`：同一次运行产出的行带同一个标记。
+   */
+  private initRunTables(addColumn: (sql: string) => void) {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS run_sessions (
+        session_key TEXT PRIMARY KEY,
+        surface TEXT NOT NULL,
+        runtime TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        title TEXT,
+        run_count INTEGER NOT NULL DEFAULT 0,
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
+        ended_at DATETIME,
+        end_reason TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS run_tool_calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_key TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        run_marker TEXT NOT NULL,
+        call_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        arguments TEXT NOT NULL DEFAULT '',
+        output TEXT,
+        status TEXT,
+        started_at INTEGER,
+        completed_at INTEGER,
+        UNIQUE (run_marker, call_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_run_tool_calls_session ON run_tool_calls(session_key, id);
+
+      CREATE TABLE IF NOT EXISTS session_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_key TEXT NOT NULL,
+        run_id TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        agent_id TEXT,
+        usage_scope TEXT NOT NULL DEFAULT 'model_call',
+        purpose TEXT,
+        model TEXT,
+        provider TEXT,
+        api_calls INTEGER NOT NULL DEFAULT 1,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+        reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+        cost_usd REAL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_session_usage_call
+        ON session_usage(session_key, run_id, source) WHERE run_id <> '';
+      CREATE INDEX IF NOT EXISTS idx_session_usage_session ON session_usage(session_key, id);
+    `);
+    addColumn('ALTER TABLE chat_messages ADD COLUMN run_marker TEXT');
+    addColumn('ALTER TABLE group_messages ADD COLUMN run_marker TEXT');
+  }
+
+  // --- Run coordinator store（结构上满足 runtime/coordinator 的 RunStore 端口）---
+
+  ensureRunSession(input: { sessionKey: string; surface: string; runtime: string; agentId: string; title?: string }): void {
+    this.db.prepare(`
+      INSERT INTO run_sessions (session_key, surface, runtime, agent_id, title, run_count, started_at, last_active, ended_at, end_reason)
+      VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL, NULL)
+      ON CONFLICT(session_key) DO UPDATE SET
+        runtime = excluded.runtime,
+        agent_id = excluded.agent_id,
+        title = COALESCE(run_sessions.title, excluded.title),
+        run_count = run_sessions.run_count + 1,
+        last_active = CURRENT_TIMESTAMP,
+        ended_at = NULL,
+        end_reason = NULL
+    `).run(input.sessionKey, input.surface, input.runtime, input.agentId, input.title ?? null);
+  }
+
+  markRunSessionEnded(sessionKey: string, reason: string): void {
+    this.db.prepare('UPDATE run_sessions SET ended_at = CURRENT_TIMESTAMP, end_reason = ?, last_active = CURRENT_TIMESTAMP WHERE session_key = ?')
+      .run(reason, sessionKey);
+  }
+
+  getRunSession(sessionKey: string): RunSessionRow | undefined {
+    return this.db.prepare('SELECT * FROM run_sessions WHERE session_key = ?').get(sessionKey) as RunSessionRow | undefined;
+  }
+
+  persistToolCalls(calls: Array<{
+    sessionKey: string; runId: string; runMarker: string; callId: string; name: string; arguments: string;
+    output: string | null; status: string | null; startedAt: number; completedAt: number | null;
+  }>): void {
+    const insert = this.db.prepare(`
+      INSERT OR IGNORE INTO run_tool_calls (session_key, run_id, run_marker, call_id, name, arguments, output, status, started_at, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    this.db.transaction(() => {
+      for (const call of calls) {
+        insert.run(call.sessionKey, call.runId, call.runMarker, call.callId, call.name, call.arguments, call.output, call.status, call.startedAt, call.completedAt);
+      }
+    })();
+  }
+
+  listRunToolCalls(sessionKey: string): RunToolCallRow[] {
+    return this.db.prepare('SELECT * FROM run_tool_calls WHERE session_key = ? ORDER BY id ASC').all(sessionKey) as RunToolCallRow[];
+  }
+
+  recordSessionUsage(row: {
+    sessionKey: string; callId: string; source: string; agentId: string; scope: string; purpose: string | null;
+    model: string | null; provider: string | null; apiCalls: number; inputTokens: number; outputTokens: number;
+    cacheReadTokens: number; cacheWriteTokens: number; reasoningTokens: number; costUsd: number | null;
+  }): boolean {
+    const result = this.db.prepare(`
+      INSERT OR IGNORE INTO session_usage (session_key, run_id, source, agent_id, usage_scope, purpose, model, provider, api_calls,
+        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cost_usd)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      row.sessionKey, row.callId, row.source, row.agentId, row.scope, row.purpose, row.model, row.provider, row.apiCalls,
+      row.inputTokens, row.outputTokens, row.cacheReadTokens, row.cacheWriteTokens, row.reasoningTokens, row.costUsd,
+    );
+    return result.changes > 0;
+  }
+
+  listSessionUsage(sessionKey: string): SessionUsageDbRow[] {
+    return this.db.prepare('SELECT * FROM session_usage WHERE session_key = ? ORDER BY id ASC').all(sessionKey) as SessionUsageDbRow[];
+  }
+
+  setChatMessagesRunMarker(ids: number[], runMarker: string): void {
+    const update = this.db.prepare('UPDATE chat_messages SET run_marker = ? WHERE id = ?');
+    this.db.transaction(() => { for (const id of ids) update.run(runMarker, id); })();
+  }
+
+  setGroupMessageRunMarker(id: number, runMarker: string): void {
+    this.db.prepare('UPDATE group_messages SET run_marker = ? WHERE id = ?').run(runMarker, id);
   }
 
   // --- Quick Commands ---
@@ -786,6 +985,9 @@ export class DB {
   deleteSession(id: string) {
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     this.db.prepare('DELETE FROM chat_messages WHERE session_key = ?').run(id);
+    // 协调器的通用表跟着会话走；session_usage 保留——用量是账，会话删了账不该跟着消失。
+    this.db.prepare('DELETE FROM run_tool_calls WHERE session_key = ?').run(id);
+    this.db.prepare('DELETE FROM run_sessions WHERE session_key = ?').run(id);
   }
 
   // --- Group Chats ---
@@ -819,6 +1021,11 @@ export class DB {
     // 这个库的级联是手写的，不是 FK 驱动的。新加一张表而忘了在这里补一行，
     // 后果不是报错，是孤儿行在库里越积越多而没人发现。
     this.db.prepare('DELETE FROM external_sessions WHERE group_id = ?').run(id);
+    // 群里每个外部成员在协调器里是 `room:<群>:member:<成员>` 一个会话（用量同样保留）。
+    // 按前缀比较而不用 LIKE：群 id 里的 `_` / `%` 在 LIKE 里是通配符。
+    const roomPrefix = `room:${id}:member:`;
+    this.db.prepare('DELETE FROM run_tool_calls WHERE substr(session_key, 1, ?) = ?').run(roomPrefix.length, roomPrefix);
+    this.db.prepare('DELETE FROM run_sessions WHERE substr(session_key, 1, ?) = ?').run(roomPrefix.length, roomPrefix);
     this.db.prepare('DELETE FROM group_chats WHERE id = ?').run(id);
   }
 

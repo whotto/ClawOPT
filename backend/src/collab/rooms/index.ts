@@ -58,7 +58,6 @@ export type {
 } from './room-messages';
 export {
   createRoomReconciliation,
-  getGroupWorkspaceForDisplay,
 } from './room-reconciliation';
 export type {
   RoomReconciliation,

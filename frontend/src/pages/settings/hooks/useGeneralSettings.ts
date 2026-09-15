@@ -2,6 +2,7 @@
 import { type ChangeEvent, useCallback, useState } from 'react';
 import { getDiagnostics } from '../../../api/diagnostics';
 import { persistChatHistoryPageRounds, readChatHistoryPageRounds } from '../../../utils/historyPagination';
+import { type ChatStreamTransport, persistChatStreamTransport, readChatStreamTransport } from '../../../utils/chatStreamTransport';
 import { normalizePreviewTimeoutSeconds, parsePreviewTimeoutSecondsInput } from '../shared/settingsHelpers';
 import { saveConfig } from '../../../api/config';
 import { applyLanguagePreference, normalizeLanguage, type SupportedLanguage } from '../../../i18n';
@@ -56,6 +57,8 @@ export function useGeneralSettings(deps: Pick<ReturnType<typeof useSettingsShare
   const [historyPageRoundsInput, setHistoryPageRoundsInput] = useState(() => String(readChatHistoryPageRounds()));
   const [previewTimeoutSecondsInput, setPreviewTimeoutSecondsInput] = useState(() => String(normalizePreviewTimeoutSeconds(undefined)));
   const [previewTimeoutError, setPreviewTimeoutError] = useState(false);
+  // 单聊流通道：按浏览器记，选了立即生效（下一次发送 / 接回起用），不经「保存」按钮。
+  const [chatStreamTransport, setChatStreamTransport] = useState<ChatStreamTransport>(() => readChatStreamTransport());
 
   const getVisualLength = (str: string) => {
     let len = 0;
@@ -148,6 +151,10 @@ export function useGeneralSettings(deps: Pick<ReturnType<typeof useSettingsShare
     setHistoryPageRoundsInput(digitsOnly);
   };
 
+  const handleChatStreamTransportChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setChatStreamTransport(persistChatStreamTransport(event.target.value));
+  };
+
   const currentLanguage = normalizeLanguage(i18n.resolvedLanguage || i18n.language);
 
   return {
@@ -179,6 +186,8 @@ export function useGeneralSettings(deps: Pick<ReturnType<typeof useSettingsShare
     handleLanguageChange,
     commitHistoryPageRounds,
     handleHistoryPageRoundsChange,
+    chatStreamTransport,
+    handleChatStreamTransportChange,
     currentLanguage,
   };
 }

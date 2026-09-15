@@ -200,6 +200,11 @@
     "context": "buildMetaPath"
   },
   {
+    "file": "core/db/native-build-check.ts",
+    "call": "readFileSync",
+    "context": "file"
+  },
+  {
     "file": "openclaw/cli.ts",
     "call": "readFileSync",
     "context": "packageJsonPath"

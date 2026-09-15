@@ -1,5 +1,4 @@
 import path from 'path';
-import type { Response as ExpressResponse } from 'express';
 
 import {
   type AgentProvisioner,
@@ -18,7 +17,7 @@ import {
   prepareAudioTranscriptsFromUploads,
   rewriteMessageWithWorkspaceUploads,
 } from '../../workspace';
-import { isStreamingClientOpen } from './chat-run-managers';
+import type { ChatStreamSink } from './chat-stream';
 import { rewriteOpenClawMediaPaths, splitChatProcessOutput } from './process-text';
 import type { SessionRuntime } from './session-runtime';
 
@@ -193,7 +192,8 @@ export function createDirectChatService(ctx: DirectChatServiceDeps) {
     assistantMessageId: number;
     message: string;
     modelUsed: string;
-    response: ExpressResponse;
+    /** 这一轮的帧出口（SSE 响应或 WebSocket 主题），见 chat-stream.ts。 */
+    stream: ChatStreamSink;
     signal?: AbortSignal;
     onEvent?: (event: Record<string, unknown>) => void;
     processStartTag?: string;
@@ -251,11 +251,7 @@ export function createDirectChatService(ctx: DirectChatServiceDeps) {
         modelUsed: params.modelUsed,
         model_used: params.modelUsed,
       };
-      if (isStreamingClientOpen(params.response)) {
-        try {
-          params.response.write(`data: ${JSON.stringify(event)}\n\n`);
-        } catch {}
-      }
+      params.stream.frame(event);
       params.onEvent?.(event);
     };
 
@@ -283,7 +279,7 @@ export function createDirectChatService(ctx: DirectChatServiceDeps) {
           throw new Error('Direct runtime returned an empty response.');
         }
         emitSnapshot('final');
-        params.response.end();
+        params.stream.end();
         return;
       }
 
@@ -343,7 +339,7 @@ export function createDirectChatService(ctx: DirectChatServiceDeps) {
 
       assertSessionInterruptionEpoch(params.sessionId, params.sessionInterruptionEpoch);
       emitSnapshot('final');
-      params.response.end();
+      params.stream.end();
     } catch (error) {
       throw error;
     }

@@ -17,6 +17,9 @@ export type {
   MessagePageInfo,
   MessagePageResult,
   MessageSearchMatch,
+  RunSessionRow,
+  RunToolCallRow,
+  SessionUsageDbRow,
   SessionRow,
   StoredFileRow,
 } from './db';

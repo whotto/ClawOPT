@@ -1,120 +1,51 @@
 import type { ChatRow, DB } from '../../core/db';
-import { type GatewayConnections, OpenClawClient } from '../../openclaw';
-import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
-import type { ChatRuns } from './active-run-manager';
 import {
-  CHAT_ABORT_RETRY_DELAYS_MS,
+  type GatewayConnections,
+  buildOpenClawChatSessionKey,
+  extractLatestAssistantOutcomeRecord,
+} from '../../openclaw';
+import type { RunCoordinator } from '../../runtime';
+import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
+import {
   CHAT_HISTORY_COMPLETION_PROBE_LIMIT,
-  CHAT_ORPHAN_ABORT_TIMEOUT_MS,
   CHAT_REGENERATE_LOOKBACK_LIMIT,
 } from './chat-constants';
-import { extractLatestAssistantOutcomeRecord } from './chat-history-reconciliation';
 import { createStructuredChatError } from './chat-messages';
+import type { ChatRuns } from './chat-run-managers';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
 import type { SessionRuntime } from './session-runtime';
-
-export function scheduleOpenClawSessionAbortRetry(
-  client: OpenClawClient,
-  sessionKey: string,
-  context: string,
-  attempt = 0,
-) {
-  if (attempt >= CHAT_ABORT_RETRY_DELAYS_MS.length) {
-    console.warn(`[chat] Exhausted OpenClaw abort retries for ${context} (${sessionKey}).`);
-    return;
-  }
-
-  const delay = CHAT_ABORT_RETRY_DELAYS_MS[attempt];
-  const timer = setTimeout(() => {
-    void client.abortChat({
-      sessionKey,
-      timeoutMs: CHAT_ORPHAN_ABORT_TIMEOUT_MS,
-    }).then((result) => {
-      if (result.aborted) {
-        return;
-      }
-      scheduleOpenClawSessionAbortRetry(client, sessionKey, context, attempt + 1);
-    }).catch((error) => {
-      const detail = error instanceof Error ? error.message : String(error);
-      console.warn(`[chat] OpenClaw abort retry ${attempt + 1} failed for ${context} (${sessionKey}): ${detail}`);
-      scheduleOpenClawSessionAbortRetry(client, sessionKey, context, attempt + 1);
-    });
-  }, delay);
-  timer.unref?.();
-}
-
-export async function abortOpenClawSessionRuns(
-  client: OpenClawClient,
-  sessionKey: string,
-  context: string,
-  options?: { retryOnMiss?: boolean },
-): Promise<{ aborted: boolean; runIds: string[] }> {
-  try {
-    const result = await client.abortChat({
-      sessionKey,
-      timeoutMs: CHAT_ORPHAN_ABORT_TIMEOUT_MS,
-    });
-    const runIds = Array.isArray(result.runIds) ? result.runIds : [];
-    if (!result.aborted && options?.retryOnMiss) {
-      scheduleOpenClawSessionAbortRetry(client, sessionKey, context);
-    }
-    return {
-      aborted: result.aborted,
-      runIds,
-    };
-  } catch (error) {
-    console.warn(`[chat] Failed to abort orphan OpenClaw runs for ${context} (${sessionKey}):`, error);
-    if (options?.retryOnMiss) {
-      scheduleOpenClawSessionAbortRetry(client, sessionKey, context);
-    }
-    return {
-      aborted: false,
-      runIds: [],
-    };
-  }
-}
 
 export type ChatLifecycleDeps = {
   db: DB;
   sessionManager: SessionManager;
   chatRuns: ChatRuns;
+  runCoordinator: RunCoordinator;
   sessionRuntime: SessionRuntime;
   gatewayConnections: GatewayConnections;
 };
 
 export function createChatLifecycle(ctx: ChatLifecycleDeps) {
   const { db, sessionManager } = ctx;
-  const { activeRunManager, localChatOperationManager, pendingChatPreparationManager } = ctx.chatRuns;
-  const { bumpSessionInterruptionEpoch, getSessionInterruptionEpoch, getSessionWorkspacePath } = ctx.sessionRuntime;
+  const { localChatOperationManager } = ctx.chatRuns;
+  const { runCoordinator } = ctx;
+  const { bumpSessionInterruptionEpoch, getSessionWorkspacePath } = ctx.sessionRuntime;
   const { disconnectConnection, getConnection } = ctx.gatewayConnections;
 
   // Force overlapping requests for the same session onto a fresh interruption epoch so
   // stale pending work or an older run cannot keep mutating state after a newer send begins.
+  // 网关运行（含准备阶段）在协调器里：中止它并等它收尾——准备阶段的占位行由投影器删掉，
+  // 运行中的以当前文本推终帧。本地操作（直连模型、生图）仍按原来的方式打断。
   async function interruptSessionStreamingStateForNewRun(sessionId: string): Promise<number> {
-    const interruptedEpoch = getSessionInterruptionEpoch(sessionId);
     const nextEpoch = bumpSessionInterruptionEpoch(sessionId);
-    const pendingPreparation = pendingChatPreparationManager.get(sessionId, interruptedEpoch);
-    const activeRun = activeRunManager.getRun(sessionId);
+    const hadCoordinatorRun = runCoordinator.isBusy(sessionId);
     const localOperation = localChatOperationManager.get(sessionId);
 
-    if (pendingPreparation) {
-      pendingChatPreparationManager.cancel(sessionId, interruptedEpoch);
+    if (hadCoordinatorRun) {
       try {
-        db.deleteMessage(pendingPreparation.messageId);
+        await runCoordinator.abort(sessionId, 'replaced');
       } catch (error) {
-        console.warn(
-          `[chat] Failed to delete interrupted pending assistant message ${pendingPreparation.messageId} for session ${sessionId}:`,
-          error,
-        );
-      }
-    }
-
-    if (activeRun) {
-      try {
-        await activeRunManager.abortRun(sessionId);
-      } catch (error) {
-        console.warn(`[chat] Failed to abort previous run ${activeRun.runId} for session ${sessionId}:`, error);
+        console.warn(`[chat] Failed to abort previous run for session ${sessionId}:`, error);
       }
     }
 
@@ -130,7 +61,7 @@ export function createChatLifecycle(ctx: ChatLifecycleDeps) {
       }
     }
 
-    if (pendingPreparation || activeRun || localOperation) {
+    if (hadCoordinatorRun || localOperation) {
       disconnectConnection(sessionId);
     }
 
@@ -138,11 +69,7 @@ export function createChatLifecycle(ctx: ChatLifecycleDeps) {
   }
 
   async function reconcileInactiveChatLatestMessage(sessionId: string): Promise<void> {
-    if (
-      activeRunManager.getRun(sessionId)
-      || pendingChatPreparationManager.get(sessionId)
-      || localChatOperationManager.get(sessionId)
-    ) {
+    if (runCoordinator.isBusy(sessionId) || localChatOperationManager.get(sessionId)) {
       return;
     }
 
@@ -200,9 +127,7 @@ export function createChatLifecycle(ctx: ChatLifecycleDeps) {
 
     try {
       const client = await getConnection(sessionId);
-      const finalSessionKey = sessionId.startsWith('agent:')
-        ? sessionId
-        : `agent:${agentId}:chat:${sessionId}`;
+      const finalSessionKey = buildOpenClawChatSessionKey(sessionId, agentId);
       const history = await client.getChatHistory(finalSessionKey, CHAT_HISTORY_COMPLETION_PROBE_LIMIT);
       const latestOutcomeRecord = extractLatestAssistantOutcomeRecord(history);
       const latestMessageCreatedAtMs = Date.parse(latestAssistantLikeMessage.created_at || '');

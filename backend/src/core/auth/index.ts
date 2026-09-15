@@ -8,6 +8,7 @@ export {
   createAuthMiddleware,
   getRequestIdentity,
   issueAuthCookie,
+  readHeadersAuthToken,
   readRequestAuthToken,
 } from './auth-middleware';
 export type {
@@ -53,6 +54,14 @@ export type {
   LoginMigrationDeps,
   LoginMigrationOutcome,
 } from './login-migration';
+export {
+  createResourceAccess,
+} from './resource-access';
+export type {
+  ResourceAccess,
+  ResourceAccessDeps,
+  ResourceLookup,
+} from './resource-access';
 export {
   registerUserRoutes,
 } from './user-routes';

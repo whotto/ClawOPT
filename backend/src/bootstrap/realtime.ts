@@ -1,0 +1,69 @@
+/**
+ * 把实时 WebSocket 通道装到 HTTP 服务上：鉴权、Host 白名单、主题授权、接回快照、交互答复，
+ * 全部从应用上下文里取——ws-server.ts 本身不认识任何业务表。
+ */
+import type { Server } from 'http';
+
+import { attachRealtimeWebSocketServer, parseRealtimeTopic } from '../core/realtime';
+import { externalSenderId, parseExternalSenderId } from '../collab/rooms';
+import type { RequestIdentity } from '../core/auth';
+import type { AppContext } from './context';
+import { isRequestHostAllowed } from './host-check';
+
+export function attachRealtimeServer(server: Server, ctx: AppContext) {
+  const { db, runCoordinator, access } = ctx;
+
+  /**
+   * 主题授权 = 资源存在 + 这个身份看得见（P5a 用户 ↔ Agent 授权，判据在 core/auth/resource-access.ts，与 HTTP 路由同一处）：
+   * - `session:<key>`：单聊会话 / 群外部成员会话 / 其他协调器会话（工作流节点），按其 Agent 判；
+   * - `room:<id>`：admin，或能看群里至少一个 Agent；
+   * - `agent:<id>`：名册里（单聊会话 / 群成员 / 角色）出现过，且能看这个 Agent（外部成员的 `ext:<运行时>:<id>` 按成员的 Agent 判）。
+   */
+  const canAccessSessionKey = (identity: RequestIdentity, sessionKey: string): boolean => {
+    if (access.canAccessRunSession(identity, sessionKey)) return true;
+    // 还没有会话行、但协调器里正在跑的（首轮刚提交）：按运行视图里的 Agent 判。
+    const active = runCoordinator.getActiveRun(sessionKey);
+    return !!active && access.canAccessAgent(identity, active.agentId);
+  };
+
+  const authorizeTopic = (topic: string, identity: RequestIdentity): boolean => {
+    const parsed = parseRealtimeTopic(topic);
+    if (!parsed) return false;
+    switch (parsed.kind) {
+      case 'session':
+        return canAccessSessionKey(identity, parsed.id);
+      case 'room':
+        return access.canAccessRoom(identity, parsed.id);
+      case 'agent': {
+        const external = parseExternalSenderId(parsed.id);
+        const agentId = external ? external.agentId : parsed.id;
+        const known = !!db.getSessionByAgentId(parsed.id)
+          || db.getCharacters().some((character) => character.agentId === parsed.id)
+          || db.listAllGroupMembers().some((member) => (
+            member.agent_id === parsed.id || externalSenderId(member.runtime || 'openclaw', member.agent_id) === parsed.id
+          ));
+        return known && access.canAccessAgent(identity, agentId);
+      }
+    }
+  };
+
+  const snapshotTopic = (topic: string) => {
+    const parsed = parseRealtimeTopic(topic);
+    if (parsed?.kind === 'session') return { sessions: [runCoordinator.snapshot(parsed.id)] };
+    return { sessions: runCoordinator.snapshotTopic(topic) };
+  };
+
+  return attachRealtimeWebSocketServer<RequestIdentity>(server, {
+    hub: ctx.realtime,
+    authenticate: (req) => ctx.auth.authenticateHeaders(req.headers),
+    isHostAllowed: (req) => isRequestHostAllowed(req.headers, ctx.configManager.getConfig().allowedHosts),
+    authorizeTopic,
+    snapshotTopic,
+    // 答复审批 / 澄清等同于在那个会话里操作：先判会话可见。
+    respondInteraction: (sessionKey, id, response, identity) => (
+      canAccessSessionKey(identity, sessionKey)
+        ? runCoordinator.respondInteraction(sessionKey, id, response)
+        : { handled: false, resolved: false, error: 'forbidden' }
+    ),
+  });
+}

@@ -47,9 +47,14 @@ import path from 'path';
 const SRC = path.resolve(__dirname, '..', 'src');
 const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
 
-/** 建立基线当天的实际数量。改大它需要显式修改本文件——那一刻就有人看见了。 */
-// 58：P4a 工作流 OpenClaw Runner 读图片附件（路径已过可服务路径闸门 + assertRegularFile）。
-const CURRENT_SITE_BUDGET = 58;
+/**
+ * 建立基线当天的实际数量。改大它需要显式修改本文件——那一刻就有人看见了。
+ *
+ * 57 → 58（P1a）：`core/db/native-build-check.ts` 读 better-sqlite3 的原生插件二进制做构建隐患检测。
+ * 路径来自 `require.resolve('better-sqlite3/package.json')`，不是数据给的；只读、不解析内容，只查一个符号串。
+ * 58 → 59（P4a）：工作流 OpenClaw Runner 读图片附件（路径已过可服务路径闸门 + assertRegularFile）。
+ */
+const CURRENT_SITE_BUDGET = 59;
 
 /**
  * 网关自己就是那唯一一处实现，不计入。

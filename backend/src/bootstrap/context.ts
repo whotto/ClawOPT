@@ -15,11 +15,12 @@
  */
 import fs from 'fs';
 
-import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
+import { AuthStore, createAuthMiddleware, createResourceAccess, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
 import { ConfigManager } from '../core/config';
 import { DB } from '../core/db';
 import { sharedFileStore } from '../core/files';
 import { EventBus } from '../core/events';
+import { RealtimeHub } from '../core/realtime';
 import { uploadDir } from '../core/paths';
 import { createGatewayConnections, createGatewayService, createOpenClawCliRunner, type OpenClawClient } from '../openclaw';
 import {
@@ -48,6 +49,7 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
+import { createOpenClawRuntimeAdapter, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import {
   createChatCommands,
@@ -95,7 +97,32 @@ export function createAppContext() {
   const agentProvisioner = new AgentProvisioner();
   const connections = new Map<string, OpenClawClient>();
 
-  const base = { db, configManager, sessionManager, authStore, userStore, loginLocks, agentProvisioner, connections };
+  /** 实时事件中枢：SSE 与 WebSocket 两条通道都从这里取事件。 */
+  const realtime = new RealtimeHub();
+  /** 业务事件总线：出站 Webhook 等下游在这里订阅，发布方不直接调下游。 */
+  const events = new EventBus();
+  /**
+   * 运行协调器：所有运行时（OpenClaw 网关、外部 Agent）的运行都经它；适配器只翻译事件。
+   * 运行 / 工具 / 审批的业务事件（`chat.run.*` 等）也只在这里发一次，覆盖所有表面。
+   */
+  const runCoordinator = new RunCoordinator({ hub: realtime, store: db, events });
+
+  /** OpenClaw 网关运行时适配器（单聊）。无状态，整个进程一个。 */
+  const openclawAdapter = createOpenClawRuntimeAdapter();
+
+  const base = {
+    db,
+    configManager,
+    sessionManager,
+    authStore,
+    userStore,
+    loginLocks,
+    agentProvisioner,
+    connections,
+    realtime,
+    runCoordinator,
+    openclawAdapter,
+  };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);
@@ -105,8 +132,6 @@ export function createAppContext() {
   const openclawUpdate = createOpenClawUpdateService({ imageGeneration, gatewayService });
   const agentSettings = createAgentSettings(base);
   const gatewayConnections = createGatewayConnections(base);
-  /** 业务事件总线：出站 Webhook 等下游在这里订阅，发布方不直接调下游。 */
-  const events = new EventBus();
   const automation = createAutomation({ ...base, gatewayConnections, events });
   const sessionRuntime = createSessionRuntime({ ...base, gatewayConnections });
   const chatMessages = createChatMessages({ sessionRuntime });
@@ -117,8 +142,17 @@ export function createAppContext() {
   const rooms = createRoomEngine({ ...base, roomRuntime, agentSettings, imageGeneration, gatewayConnections });
   const roomReconciliation = createRoomReconciliation({ ...base, rooms, roomRuntime, agentSettings, gatewayConnections });
   const auth = createAuthMiddleware(base);
+  /** 数据面资源（会话 / 群 / Agent 活动）的可见性：HTTP 路由与 /ws 主题授权共用。 */
+  const access = createResourceAccess({
+    canAccessAgent: auth.canAccessAgent,
+    lookup: {
+      chatSessionAgentId: (sessionId) => db.getSession(sessionId)?.agentId ?? null,
+      roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map((member) => member.agent_id) : null),
+      runSessionAgentId: (sessionKey) => db.getRunSession(sessionKey)?.agent_id ?? null,
+    },
+  });
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
-  const chatRuns = createChatRuns({ ...base, events });
+  const chatRuns = createChatRuns();
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
 
@@ -161,6 +195,7 @@ export function createAppContext() {
     rooms,
     roomReconciliation,
     auth,
+    access,
     packs,
     chatRuns,
     chatLifecycle,

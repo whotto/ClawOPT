@@ -1,4 +1,5 @@
 import express from 'express';
+import type { IncomingHttpHeaders } from 'http';
 
 import type { ConfigManager } from '../config';
 import { AUTH_LOGIN_REQUIRED_ERROR_CODE, StructuredRequestError } from '../http';
@@ -7,16 +8,25 @@ import { AUTH_COOKIE_NAME, type AuthStore, readCookie } from './auth-store';
 import { type AuthRole, roleAtLeast, type UserStore } from './user-store';
 
 export function readRequestAuthToken(req: express.Request): string {
-  const forwarded = req.header('x-clawopt-auth-token');
+  return readHeadersAuthToken(req.headers);
+}
+
+/**
+ * 从请求头里取令牌。HTTP 请求与 WebSocket 升级请求共用这一处——两条通道的判据不许分家。
+ * **不读查询串**：查询串会进访问日志、代理日志和浏览器历史。
+ */
+export function readHeadersAuthToken(headers: IncomingHttpHeaders): string {
+  const forwardedHeader = headers['x-clawopt-auth-token'];
+  const forwarded = Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader;
   if (forwarded) return normalizeCliText(forwarded);
-  const authorization = normalizeCliText(req.header('authorization'));
+  const authorization = normalizeCliText(headers.authorization);
   if (authorization.toLowerCase().startsWith('bearer ')) {
     return authorization.slice(7).trim();
   }
-  // Cookie 是 Web 端的主通道：SSE 的 EventSource 设不了自定义头，而前端有 80 处
-  // fetch 调用点——逐个加头既慢又必漏。同源请求自动带 cookie，一次覆盖全部。
+  // Cookie 是 Web 端的主通道：SSE 的 EventSource 与浏览器的 WebSocket 都设不了自定义头，
+  // 而前端有 80 处 fetch 调用点——逐个加头既慢又必漏。同源请求自动带 cookie，一次覆盖全部。
   // 头这条保留给 CLI 与脚本（CLAWOPT_TOKEN）。
-  return readCookie(req.headers.cookie, AUTH_COOKIE_NAME);
+  return readCookie(headers.cookie, AUTH_COOKIE_NAME);
 }
 
 export function issueAuthCookie(res: express.Response, token: string, maxAgeMs: number): void {
@@ -114,33 +124,39 @@ export function createAuthMiddleware(ctx: AuthMiddlewareDeps) {
     return new StructuredRequestError(401, AUTH_LOGIN_REQUIRED_ERROR_CODE, 'Login is required to perform this action.');
   }
 
-  function authenticate(req: express.Request): Outcome {
-    const cached = identities.get(req);
-    if (cached) return { ok: true, identity: cached };
-    if (!configManager.getConfig().loginEnabled) {
-      identities.set(req, IMPLICIT_OWNER);
-      return { ok: true, identity: IMPLICIT_OWNER };
-    }
-    const session = authStore.resolve(readRequestAuthToken(req));
+  /**
+   * 身份解析的唯一实现：HTTP 请求与 WebSocket 升级（以及连接期间的心跳复查）都走这里，
+   * 被停用的用户、被吊销 / 过期的会话在两条通道上同时失效。
+   */
+  function resolveIdentityFromHeaders(headers: IncomingHttpHeaders): Outcome {
+    if (!configManager.getConfig().loginEnabled) return { ok: true, identity: IMPLICIT_OWNER };
+    const session = authStore.resolve(readHeadersAuthToken(headers));
     if (!session) return { ok: false, error: loginRequired() };
     // 还没有任何用户（启动迁移没跑成）：仍是多用户之前的单主人模式，会话持有者就是主人。
     if (typeof session.userId !== 'number' && userStore.count() === 0) {
-      const owner: RequestIdentity = { ...IMPLICIT_OWNER, implicit: false };
-      identities.set(req, owner);
-      return { ok: true, identity: owner };
+      return { ok: true, identity: { ...IMPLICIT_OWNER, implicit: false } };
     }
     // 多用户之前签发的会话没有 userId：那时只有一个口令、一个主人，归属到第一个 super_admin。
     const user = typeof session.userId === 'number' ? userStore.get(session.userId) : userStore.firstActiveSuperAdmin();
     if (!user || user.status !== 'active') return { ok: false, error: loginRequired() };
-    const identity: RequestIdentity = {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      implicit: false,
-      mustChangePassword: user.mustChangePassword,
+    return {
+      ok: true,
+      identity: {
+        userId: user.id,
+        username: user.username,
+        role: user.role,
+        implicit: false,
+        mustChangePassword: user.mustChangePassword,
+      },
     };
-    identities.set(req, identity);
-    return { ok: true, identity };
+  }
+
+  function authenticate(req: express.Request): Outcome {
+    const cached = identities.get(req);
+    if (cached) return { ok: true, identity: cached };
+    const outcome = resolveIdentityFromHeaders(req.headers);
+    if (outcome.ok) identities.set(req, outcome.identity);
+    return outcome;
   }
 
   function requestPath(req: express.Request): string {
@@ -196,6 +212,16 @@ export function createAuthMiddleware(ctx: AuthMiddlewareDeps) {
     });
   }
 
+  /**
+   * WebSocket 升级与连接期间的复查用：与 HTTP 同一套身份解析。
+   * 登录关闭时是隐式主人；开启时校验会话令牌与用户状态。口令必须先改的用户不给实时通道（HTTP 上也只剩改口令几条路）。
+   */
+  function authenticateHeaders(headers: IncomingHttpHeaders): RequestIdentity | null {
+    const outcome = resolveIdentityFromHeaders(headers);
+    if (!outcome.ok || outcome.identity.mustChangePassword) return null;
+    return outcome.identity;
+  }
+
   return {
     requireAdminAuth,
     requireSuperAdmin,
@@ -203,6 +229,7 @@ export function createAuthMiddleware(ctx: AuthMiddlewareDeps) {
     requireAgentAccess,
     canAccessAgent,
     authenticate,
+    authenticateHeaders,
   };
 }
 export type AuthMiddleware = ReturnType<typeof createAuthMiddleware>;

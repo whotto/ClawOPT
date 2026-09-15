@@ -10,13 +10,14 @@
 ## 仓库结构
 - `backend/`: 后端服务、OpenClaw gateway 客户端、SQLite、agent/session/group/file 管理。按模块组织（P0 起），`backend/src/index.ts` 只负责启动：
   - `bootstrap/`: 组装与生命周期。`context.ts` 构造单例与服务（经 `ctx` 注入）；`app.ts` 按固定顺序注册中间件与路由（顺序即行为，由 `test/route-order.test.ts` 对照清单校验）；`server.ts` 监听、就绪状态、优雅停机；`startup-steps.ts` 拆分前就有的启动修复；`startup-tasks.ts` 启动一次性任务登记表；`health.ts` 的 `/livez` `/readyz` `/health`。
-  - `core/`: 与业务无关的底座，**不得依赖其他模块**。`db/`（控制面的表集中在 `control-plane-schema.ts`）、`auth/`（会话令牌、鉴权中间件与 `AUTH_PUBLIC_PATHS`、多用户 `user-store.ts`、登录 IP 锁 `login-lock.ts`、单一口令迁移 `login-migration.ts`、用户路由 `user-routes.ts`）、`files/`（可服务路径闸门、原子写、`SafeFileStore`）、`config/`（ClawOPT 自身配置）、`http/`（结构化错误与错误码、路由登记表与 OpenAPI、配置版本号）、`events/`（业务事件总线）、`logger/`、`paths/`、`process/`、`util/`。
-  - `openclaw/`: gateway 客户端与连接、`openclaw.json` 读写与名册门面、版本探测、CLI 定位、网关探测与重启、运行时补丁、设备配对，以及控制面的 CLI 统一调用口 `cli-runner.ts`。
-  - `runtime/`: 外部 Agent 运行时（`external-agents/`）与运行时不变量。
+  - `core/`: 与业务无关的底座，**不得依赖其他模块**。`db/`（控制面的表集中在 `control-plane-schema.ts`；原生插件构建隐患检测 `native-build-check.ts`）、`realtime/`（实时事件中枢与 `/ws` WebSocket 服务）、`auth/`（会话令牌、鉴权中间件与 `AUTH_PUBLIC_PATHS`、身份解析（HTTP 与 `/ws` 共用）、多用户 `user-store.ts`、登录 IP 锁 `login-lock.ts`、单一口令迁移 `login-migration.ts`、用户路由 `user-routes.ts`）、`files/`（可服务路径闸门、原子写、`SafeFileStore`）、`config/`（ClawOPT 自身配置）、`http/`（结构化错误与错误码、路由登记表与 OpenAPI、配置版本号）、`events/`（业务事件总线）、`logger/`、`paths/`、`process/`、`util/`。
+  - `openclaw/`: gateway 客户端与连接、`openclaw.json` 读写与名册门面、版本探测、CLI 定位、网关探测与重启、运行时补丁、设备配对、网关单聊协议辅助（`gateway-chat-run.ts`、`chat-history-reconciliation.ts`），以及控制面的 CLI 统一调用口 `cli-runner.ts`。
+  - `runtime/`: 执行平面的唯一入口（P1a 起）。`contract/`（`AgentRuntimeAdapter` 接口、能力声明、Responses 风格规范事件、事实来源仲裁表、文本去重）；`coordinator/`（运行协调器：会话行、run marker、陈旧事件、单会话单运行与队列、中止宽限、重放缓冲、工具调用原子落库、用量去重、终态顺序、审批/澄清注册表、工作区 diff 检查点缝、业务事件总线上的 `chat.run.*` / `chat.tool.*` / `chat.approval.*`）；`adapters/`（`openclaw` 网关单聊、`claude-code`）；`external-agents/`（CLI 命令构造、stream-json 解析、可注入的本机执行器）；运行时不变量。
   - `control/`: 控制面。agents（含克隆 `agent-clone.ts`、头像、引擎名册路由）/ characters / models（含生图、服务商编辑器 `provider-editor.ts`、连通性测试 `provider-probe.ts`、目录缓存与可见性 `model-catalog.ts`、审计 `provider-audit.ts`）/ gateway（浏览器、最大权限、主机接管）/ packs / presets / settings / commands / update / diagnostics，以及 P5a 新增的 cron / channels / skills / mcp / plugins / usage / logs（含网关服务状态卡）/ workspace-files（工作区身份文件）/ write-gate（写入审批）；`shared/` 放控制面共用的错误出口 `control-http.ts` 与引擎名册 `engine-roster.ts`。
   - `workspace/`: 上传、文件下载与预览、链接改写、文档与音频工具链。
-  - `collab/sessions/`: 单聊（会话、历史、消息、聊天运行管理）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账）。
-  - `automation/`: 自动化（P4a）。`workflow/`（规范化、编译器、判定、区域调度器、运行与证据仓储、引擎门面、状态广播、导入导出）、`schedules/`（cron 计划）、`hooks/`（入站钩子）、`webhooks/`（出站 Webhook outbox）、`kanban/`（原生看板）、`runner/`（Agent 名册、现有路径 Runner、假 Runner）、`ports.ts`（对执行平面的唯一依赖）、`shared/`（自有 schema、错误码、设置）。表与迁移住在模块里（`shared/schema.ts`），经 `DB.connection()` 共用连接。
+  - `collab/sessions/`: 单聊（会话、历史、消息、OpenClaw 运行的投影器 `openclaw-chat-projection.ts`、流出口 `chat-stream.ts`）；`collab/rooms/`: 群聊（群聊引擎、群工作区、群路由、对账、外部成员运行的投影器 `external-member-run.ts`、群聊帧唯一构造处 `room-frames.ts`）。
+  - `automation/`: 自动化（P4a）。`workflow/`（规范化、编译器、判定、区域调度器、运行与证据仓储、引擎门面、状态广播、导入导出）、`schedules/`（cron 计划）、`hooks/`（入站钩子）、`webhooks/`（出站 Webhook outbox）、`kanban/`（原生看板）、`runner/`（Agent 名册、`WorkflowAgentRunner` 实现、假 Runner）、`ports.ts`（对执行平面的唯一依赖）、`shared/`（自有 schema、错误码、设置）。表与迁移住在模块里（`shared/schema.ts`），经 `DB.connection()` 共用连接。
+  - `bootstrap/realtime.ts`: 把 `/ws` 装到 HTTP 服务上（与 HTTP 同一套身份解析、按用户的主题授权、接回快照、交互答复）。
   - 模块之间只经各自的 `index.ts`（barrel）互相导入；`*-routes.ts` 只由 bootstrap 注册，服务不得引用。由 `npm run boundaries:check` 机械校验。
 - `frontend/`: Web UI，包含单聊、群聊、设置、模型管理、文件预览等功能。`frontend/src/` 下：
   - `app/`: 应用壳。`App.tsx`（BrowserRouter + 鉴权）、`routes.tsx` 路由表、`routeState.ts` URL ↔ 视图状态纯函数（带单测，改路径形状两边一起改）、`AppShell.tsx`（侧栏 + Outlet）、`auth.tsx`（登录守卫）、壳层轮询 hooks，以及 `sidebar/` 侧栏（设置导航由 `sidebarNav.ts` 数据驱动，条目带 工作台/团队/自动化/系统 zone）。
@@ -24,7 +25,7 @@
   - `pages/`: 路由页面容器。`chat/`（单聊与群聊共用同一组件实例）、`settings/`（所有页签共用一个挂载实例；状态在 `hooks/`，页签在 `tabs/`，弹窗在 `modals/`，预设库在 `presets/`，模型页附加区在 `models/`）、`login/`；控制面页面按分区放 `team/`、`automation/`、`system/`，由 `SettingsPage` 挂载、各自管状态，共用 `control/useControlApi.ts`（读 JSON、错误本地化、当前用户）与 `components/control/ControlUi.tsx`（按钮、卡片、弹窗等与设置页同一套样式）。
   - `features/`: 页面内功能块。`chat/`（`hooks/` 状态与副作用、`components/` 展示层、`lib/` 纯函数、`message/` 消息气泡与过程块）、`files/`（文件预览，按格式分查看器）、`workflow/`（工作流画布 `@xyflow/react`、运行回放、定时 / 钩子 / 导入导出弹窗；`lib/graph.ts` 的保存校验是服务端编译器的镜像，reason 码一致）。
   - `pages/automation/`: 自动化区页面（工作流、看板、Webhook）。
-  - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`；控制面各资源在 `control.ts` 里按资源分组。组件里不要再直接写 `fetch`。
+  - `api/`: 唯一的 HTTP 出口，按资源分模块，只返回原始 Response；流式入口（单聊发送/重新生成/接回、群聊 EventSource）在 `stream.ts`，实时通道客户端（`/ws`，重连退避、重新订阅、旧 socket 丢弃）在 `ws.ts`；单聊逐帧读取统一经 `features/chat/lib/chatStream.ts`，SSE 与 WebSocket 给出同一串帧；控制面各资源在 `control.ts` 里按资源分组。组件里不要再直接写 `fetch`，也不要自己 `new WebSocket`。
   - `components/`: 跨页面复用的小组件；`utils/`: 与页面无关的纯逻辑（`message-merge`、`history-window` 等）；`locales/`: 三语文案。
   - 单个组件文件不超过 800 行；确需超过的在文件头写一行原因（目前只有 `features/chat/message/MessageBubble.tsx`）。
 - `docs/`: 项目截图和文档资源。
@@ -43,7 +44,8 @@
 - `npm run presets:check`: 比对 `presets/opt-team/` 与角色配置包源（默认 `../openclaw-agents`）；不一致退出码 1，发布前卡口。
 - `npm run presets:sync`: 把角色配置包同步进预设，并按 `PARAM_RULES` 把具体值换回 `{{...}}` 占位符。
 - `npm run boundaries:check`: 校验 `backend/src` 的模块边界（跨模块只经 barrel、`core` 不依赖业务模块、服务不引用路由文件、只有入口导入 `bootstrap`）；违规退出码 1。
-- `npm run harness:check`: 仓库不变量总入口，依次跑 `locales:check`、`boundaries:check`、`presets:check`；找不到角色配置包源目录时明确跳过 `presets:check` 并说明原因（可用 `CLAWOPT_PRESETS_SRC` 指定源目录），发布前的卡口仍是 `npm run presets:check` 本身。
+- `npm run harness:check`: 仓库不变量总入口，依次跑 `locales:check`、`boundaries:check`、`presets:check`、`native:sqlite`；找不到角色配置包源目录时明确跳过 `presets:check` 并说明原因（可用 `CLAWOPT_PRESETS_SRC` 指定源目录），发布前的卡口仍是 `npm run presets:check` 本身。
+- **better-sqlite3 在 Node 24 上 GC 时 abort**（`Assertion failed: (env) != nullptr`，栈里是 `Statement::~Statement → node::RemoveEnvironmentCleanupHook`）：不是业务代码的问题，是原生插件被**用 Node 24 后期头文件从源码编译**了（prebuild 下载失败时 `node-gyp rebuild` 兜底），头文件内联的 `ObjectWrap` 清理钩子在 GC 弱回调里找不到 Environment。修复命令：`cd backend && npm rebuild better-sqlite3`（prebuild-install 会优先取官方预编译包）；若它仍然走源码编译（该平台/版本没有预编译包），换 Node 20/22 跑。`npm run harness:check` 的 `native:sqlite` 与后端启动日志都会检出这种构建（判据在 `backend/src/core/db/native-build-check.ts`）。改用语句缓存**不能**绕开它（实测缓存版 0.8 秒内同样崩），别再往代码里找根因。
 - `cd backend && npm run openapi:generate`: 从路由登记表重新生成 `backend/openapi.json`（`-- --check` 只比对）。新增或改动路由后要重新生成，`test/openapi.test.ts` 会校验签入的文档是否过期。
 - `./deploy-release.sh [port]`: 安装依赖、构建并部署 user-level systemd 服务。
 - `npm run test`: 运行仓库级最小自动检查；当前仅覆盖前后端 TypeScript 类型检查，不等于完整业务测试。
@@ -82,6 +84,10 @@
 - `presets/opt-team/` 是角色配置包（`../openclaw-agents`）的**参数化副本**，唯一真值源在配置包一侧；改预设内容要改源再跑 `npm run presets:sync`，不要直接手改副本。副本里的 `{{USER_TITLE}}` / `{{USER_ROLE}}` / `{{USER_STRENGTH}}` / `{{USER_BLINDSPOT}}` / `{{AGENT_AVATAR}}` 由同步脚本按规则生成，手工拷贝会把占位符写死成具体值，装配器的参数填充随之失效。
 - 新增预设占位符时，必须同时改三处：`scripts/sync-presets.mjs` 的 `PARAM_RULES`、`presets/opt-team/preset.json` 的 `params`、以及装配器的 `fillPlaceholders` 覆盖范围。
 - 不要把对用户有意义的参数、阈值、开关、配置做成隐藏实现；应优先提供界面入口让用户配置。
+- **所有运行时的运行都经运行协调器（`backend/src/runtime/coordinator`），适配器只翻译。** OpenClaw 网关单聊与群聊外部成员（Claude Code）已迁入；直连模型与生图这两类单聊本地操作仍走 `LocalChatOperationManager`，迁移留给 P1b。分工：适配器（`runtime/adapters/*`）只负责启动、把原生输出翻译成规范事件、提供中止等控制钩子；投影器（各表面自己的，如 `openclaw-chat-projection.ts`、`external-member-run.ts`）只负责自己那一行消息与前端帧的形状；会话行、run marker、陈旧事件丢弃、单会话单运行与排队、中止宽限、重放缓冲、工具调用原子落库、用量去重、终态顺序（先清状态再发终态、队列空才写结束标记）、审批/澄清注册表**只在协调器里实现一次**。适配器或投影器里出现这些逻辑就是越界。
+- 新运行时接入必须同时交三样：能力声明（`defineCapabilities`，缺一项过不了类型检查）、事实来源仲裁表（`defineSourceOfTruth`：文本 / 工具 / 终态 / 用量 / 控制各信哪一路）、以及至少一条「同轮双路事件不重复」的用例（参照 `test/runtime-arbitration.test.ts`）。用量上报的 `callId` 必须是确定性的（运行时原生 id 为底），`session_usage` 的部分唯一索引靠它去重。执行器保持可注入：本机子进程与远程 relay 是同一个接口。
+- **实时帧只从实时中枢发**（`core/realtime` 的 `RealtimeHub`）。单聊帧是 `session:<id>` 主题的 `chat.frame`，群聊帧是 `room:<id>` 主题的 `room.frame`（唯一构造处 `room-frames.ts`）；SSE 与 WebSocket 都只是中枢的订阅者。不要再对 SSE 客户端直接 `res.write` 群聊或运行帧——那样 WebSocket 通道就收不到。
+- WebSocket 事件契约（`/ws`，协议注释在 `core/realtime/ws-server.ts`）：鉴权与 HTTP 同一个 httpOnly cookie、**同一套身份解析**（`auth.authenticateHeaders`，升级失败回 401，不收查询串令牌；心跳时重新解析，令牌吊销 / 用户停用 / 必须改口令即 4401 断开，授权被收回的已订阅主题退订并回 `realtime.topicRevoked`）、升级请求过 Host 白名单（与 HTTP 中间件共用 `bootstrap/host-check.ts`）；订阅 `session:` / `room:` / `agent:` 主题前**按连接的用户**逐个授权（判据在 `core/auth/resource-access.ts`，与 HTTP 数据面路由共用：admin 及以上全部；member 的 `session:` / `agent:` 要求 Agent 在授权里，`room:` 要求群里至少一个 Agent 在授权里），直发发起连接与 `interaction.respond` 同样按身份判；每个事件带 `id` 与 `topic`；主题无人订阅时事件直发发起连接（`agent:` 主题除外）；慢消费者按 4008 断开；`subscribe` 带 `resume` 时回协调器快照（活跃运行、重放缓冲、队列、待决交互的剩余时间、接回帧）。新增主题类型时 `bootstrap/realtime.ts` 的授权、`test/auth-coverage.test.ts` 的 `/ws` 用例与 `test/member-acl.test.ts` 的授权矩阵要一起改。前端单聊默认仍走 SSE，WebSocket 由「设置 → 通用 → 对话实时通道」按浏览器切换，真机验证通过后再改默认。
 - 涉及 `~/.openclaw`、agent provisioning、reset/delete 路由、任意文件下载/预览的改动，必须先说明影响范围、风险点和验证方式，再实施修改。
 
 ## 自动化模块（P4a）
@@ -92,7 +98,7 @@
 - 准入顺序固定：互斥锁 → 已有活跃运行 409 → 编译 → **静态执行上界 ≤1000** → Agent / 技能 / 附件预检 → 写运行行（此刻才算受理，HTTP 回 202）。任何预检失败都不得留下运行行。
 - 停止与致命错误**先落库再中止**（`scheduler.ts` 的 `triggerFatal`）；迟到的完成看到终态就丢弃。重启时活跃运行一律按失败收尾（fail closed），不续跑。
 - 每次运行的节点并发上限在界面「运行设置」里配（默认 2）；主机总内存 < 3GiB 或 Linux MemAvailable < 768MiB 时强制为 1（判据在 `shared/settings.ts`，不用 `os.freemem()` 判可用量）。
-- 出站 Webhook 是**数据库 outbox**（至少一次、按端点先进先出、退避加抖动），来源是业务事件总线（`core/events`，在 `bootstrap/context.ts` 实例化）。URL 地址策略统一在 `core/net`：协议白名单、**全部**解析记录查内网与保留段、投递时再查一遍并**钉住 IP**、不跟随重定向。`.clawpack` 远端拉取用同一份判据，不要再写第二份。
+- 出站 Webhook 是**数据库 outbox**（至少一次、按端点先进先出、退避加抖动），来源是业务事件总线（`core/events`，在 `bootstrap/context.ts` 实例化）。`chat.run.*`（started / completed / failed / aborted）、`chat.tool.*`、`chat.approval.*` **只由运行协调器发**（`publishBus`，覆盖单聊、群聊外部成员、工作流节点，负载里 `surface` / `runtime` 区分），不要在表面或适配器里再发一份；新增事件类型时 `webhook-events.ts` 的类型表与映射、三语文案一起改，`test/run-coordinator-business-events.test.ts` 守着发布点与装配。URL 地址策略统一在 `core/net`：协议白名单、**全部**解析记录查内网与保留段、投递时再查一遍并**钉住 IP**、不跟随重定向。`.clawpack` 远端拉取用同一份判据，不要再写第二份。
 - 入站钩子 `POST /api/hooks/workflows/:hookId` 与本机测试收件箱 `POST /api/hooks/webhook-test/:token` 是**有意公开**的，登记在 `AUTH_PUBLIC_PATHS`（条目支持 `:param` 单段匹配，判据在 `isAuthPublicPath`）。钩子的安全性全在处理器：HMAC-SHA256(secret, `时间戳.原始请求体`)、±5 分钟窗、签名防重放；密钥只在创建 / 轮换时返回一次。`express.json` 只为 `/api/hooks/` 保留原始请求体。
 - 导入预览令牌存数据库（TTL 5 分钟、一次性、摘要复核、id 重映射）；导出丢模型绑定与附件路径并扫凭据键。`.clawpack` 可附带工作流（只建定义、不运行），三道闸门不变。
 - 定时用 `croner` 的标准 cron 语义（Vixie OR、名字、IANA 时区、夏令时各触发一次）；触发占位表去重、错过即跳过（>60s）、重叠即跳过；只在 cron / 时区 / 启用变更时重算下一次。
@@ -120,7 +126,7 @@
 - 至少运行与改动范围对应的构建命令；跨前后端改动时优先运行 `npm run build`。
 - 若改动影响聊天、群聊、文件预览/上传、agent 管理或 OpenClaw 集成，应在真实 OpenClaw Linux 主机上验证；无法验证时标记 `TODO`。
 - 若改动影响 `MessageBubble`、`ProcessStepBlock`、`isLatest`、群聊 live 消息合并或群聊消息渲染展开/收起逻辑，必须做真实页面的多 agent 协作群 live 回归验证，并明确记录每条 assistant 消息是否出现 `long -> short` 回退。
-- 若改动影响单聊后端收尾链路，例如 `onFinal`、`scheduleCompletionProbe`、`probeCompletion`、`finalizeRun`，必须逐项对账并验证 `JSONL` 原始终态、`chat.history`、`chat_messages`、`/api/history/:sessionId`、真实页面 `DOM` 五处一致，且页面最终不能停在半句位置。
+- 若改动影响单聊后端收尾链路，例如 `onFinal`、`scheduleCompletionProbe`、`probeCompletion`、`finalizeRun`（P1a 起分别在 `backend/src/runtime/adapters/openclaw.ts` 的网关判定与 `collab/sessions/openclaw-chat-projection.ts` 的落库推帧里），必须逐项对账并验证 `JSONL` 原始终态、`chat.history`、`chat_messages`、`/api/history/:sessionId`、真实页面 `DOM` 五处一致，且页面最终不能停在半句位置。能在本机验的四处由 `backend/test/chat-run-fake-gateway.test.ts` 逐帧守着（迁移前录制的基线），改收尾链路时先跑它。
 - 发布前必须显式校验以下四项一致：根 `package.json.version`、目标 `git tag`、GitHub Release、实际发布 commit；若其中任一项不一致，不得把该版本视为已完成发布。
 - 仓库没有标准自动化保障时，用 `Unknown` 或 `TODO` 明确说明，不要猜测。
 - 新增配置项时，用户应可在界面中查看和配置；若暂时做不到，标记 `TODO` 并说明原因。
@@ -140,4 +146,5 @@
 - 若 tag 已推送但 GitHub Release 缺失，第一检查项就是对应的 `docs/release-notes-vX.Y.Z.md` 是否随 tag 所指 commit 一起存在；如果缺失，应补文件、提交、将 tag 重新指向新提交并重新推送，再等待 `Release Sync` 重跑成功。
 
 ## 已知残余风险
-- 同一 `sessionId` 叠发多条请求时，旧 run 的 `cleanup` 仍可能影响新 run 的活动状态、SSE 附着或最终消息落库；这是独立的并发风险，不能与已解决的“单聊半句截断”问题混为同一根因，也不能按“长文本被短文本覆盖”处理。
+- 同一 `sessionId` 叠发多条请求时，旧 run 的 `cleanup` 曾可能影响新 run 的活动状态、SSE 附着或最终消息落库。P1a 起网关运行由协调器按会话单运行管理：新请求先中止旧运行并等它收尾，旧运行之后到的事件按 run marker 当陈旧事件丢弃，SSE 流按 run id 绑定——这条风险在网关路径上已有结构性防护（`test/run-coordinator.test.ts` 的陈旧事件用例、假网关用例的「上一轮还在跑时发新消息」）。直连模型与生图两类本地操作仍靠中断 epoch，残余风险留给 P1b。它仍不能与“单聊半句截断”混为同一根因，也不能按“长文本被短文本覆盖”处理。
+- 本机开发机（Node 24）上若 `better-sqlite3` 是从源码编译的，后端会在 GC 时 abort；见上文「better-sqlite3 在 Node 24 上 GC 时 abort」。
