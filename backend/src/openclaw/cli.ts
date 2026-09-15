@@ -384,6 +384,14 @@ function getOpenClawExecutablePath() {
   );
 }
 
+/**
+ * 只找、不修：找不到就抛。控制面每个请求都可能调用它，不能像
+ * `ensureResolvedOpenClawExecutablePath` 那样顺手 `npm install -g`。
+ */
+export function findOpenClawExecutablePath(): string {
+  return getOpenClawExecutablePath();
+}
+
 export async function readOpenClawVersion() {
   try {
     const executablePath = await ensureResolvedOpenClawExecutablePath();

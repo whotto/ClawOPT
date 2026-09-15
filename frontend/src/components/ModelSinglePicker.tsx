@@ -5,6 +5,7 @@ type ModelOption = {
   alias?: string;
   primary?: boolean;
   input?: string[];
+  hidden?: boolean;
 };
 
 type ModelSinglePickerProps = {
@@ -58,6 +59,8 @@ export default function ModelSinglePicker({
   ];
 
   const filteredModels = availableModels.filter((model) => {
+    // 模型页「可见性白名单」隐藏的模型不进挑选器；当前选中的那个照常显示，免得选中项凭空消失。
+    if (model.hidden && model.id !== selectedModelId) return false;
     if (providerTab !== 'all' && model.id.split('/')[0] !== providerTab) return false;
     if (!searchQuery.trim()) return true;
 

@@ -276,7 +276,19 @@ export type UpdateProgressLayout = 'compact' | 'expanded';
 
 export type DeleteTarget = { type: 'host'; value: string } | { type: 'command'; id: number } | { type: 'model'; id: string } | { type: 'endpoint'; name: string };
 
-export type EndpointConfig = { id: string; baseUrl: string; apiKey: string; api: string };
+/**
+ * 服务商（端点）。`apiKey` 只在表单里用来**输入新值**——后端从不回传它，列表里只有 `hasApiKey`；
+ * `revision` 是后端对完整条目（含 key）求的版本号，保存时带回去做乐观锁。
+ */
+export type EndpointConfig = {
+  id: string;
+  baseUrl: string;
+  apiKey: string;
+  api: string;
+  hasApiKey?: boolean;
+  revision?: string;
+  contextLengths?: Record<string, number>;
+};
 
 export type SettingsProps = {
   isConnected: boolean;

@@ -15,12 +15,22 @@ import express from 'express';
 import net from 'net';
 import path from 'path';
 
-import { registerAuthGate, registerAuthRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
+import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
 import { registerExternalRuntimeRoutes } from '../runtime';
 import {
+  registerAgentRosterRoutes,
   registerAgentRoutes,
+  registerChannelsRoutes,
   registerCharacterRoutes,
+  registerCronRoutes,
+  registerMcpRoutes,
+  registerObservabilityRoutes,
+  registerPluginsRoutes,
+  registerProviderRoutes,
+  registerSkillsRoutes,
+  registerWorkspaceFilesRoutes,
+  registerWriteGateRoutes,
   registerCommandRoutes,
   registerDiagnosticsRoutes,
   registerGatewayRoutes,
@@ -50,6 +60,7 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   const app = express();
   const routes = new RouteRegistry(app);
   routes.markAdminGuard(ctx.auth.requireAdminAuth);
+  routes.markAdminGuard(ctx.auth.requireSuperAdmin);
   const { configManager } = ctx;
 
   const bootstrapApp = routes.forModule('bootstrap');
@@ -68,7 +79,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
       return compression.filter(req, res);
     },
   }));
-  bootstrapApp.use(express.json());
+  // 默认 100kb 装不下工作区身份文件编辑器（MEMORY.md 常过百 KB）与头像 data URL；4mb 是这两者的上限之和再留余量。
+  bootstrapApp.use(express.json({ limit: '4mb' }));
 
   // Host checking middleware for reverse proxies
   bootstrapApp.use((req, res, next) => {
@@ -103,6 +115,7 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   routes.markProtectedPrefix('/uploads');
 
   registerAuthRoutes(routes.forModule('core/auth'), ctx);
+  registerUserRoutes(routes.forModule('core/auth'), ctx);
   registerGatewayRoutes(routes.forModule('control/gateway'), ctx);
   registerModelRoutes(routes.forModule('control/models'), ctx);
   registerCharacterRoutes(routes.forModule('control/agents'), ctx);
@@ -115,6 +128,18 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerUploadRoutes(routes.forModule('workspace/uploads'), ctx);
   registerCommandRoutes(routes.forModule('control/commands'), ctx);
   registerFileRoutes(routes.forModule('workspace/files'), ctx);
+
+  // P5a 控制面。全部在闸门之后、SPA 兜底之前；写操作各自再挂 requireAdminAuth。
+  registerProviderRoutes(routes.forModule('control/models'), ctx);
+  registerAgentRosterRoutes(routes.forModule('control/agents'), ctx);
+  registerWorkspaceFilesRoutes(routes.forModule('control/workspace-files'), ctx);
+  registerWriteGateRoutes(routes.forModule('control/write-gate'), ctx);
+  registerCronRoutes(routes.forModule('control/cron'), ctx);
+  registerChannelsRoutes(routes.forModule('control/channels'), ctx);
+  registerSkillsRoutes(routes.forModule('control/skills'), ctx);
+  registerMcpRoutes(routes.forModule('control/mcp'), ctx);
+  registerPluginsRoutes(routes.forModule('control/plugins'), ctx);
+  registerObservabilityRoutes(routes.forModule('control/logs'), ctx);
 
   // Serve hashed static assets with long-lived cache (JS/CSS filenames include content hash)
   bootstrapApp.use('/assets', express.static(path.join(FRONTEND_DIST_DIR, 'assets'), {

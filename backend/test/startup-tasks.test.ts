@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { runStartupTasks, STARTUP_TASKS, type StartupTask } from '../src/bootstrap/startup-tasks';
+import { buildStartupTasks, runStartupTasks, type StartupTask } from '../src/bootstrap/startup-tasks';
 
 let dir: string;
 let statePath: string;
@@ -24,9 +24,13 @@ afterEach(() => {
 });
 
 describe('runStartupTasks', () => {
-  it('当前登记的任务数为零，且零任务时不创建记录文件', async () => {
-    expect(STARTUP_TASKS).toEqual([]);
-    const outcome = await runStartupTasks({ tasks: STARTUP_TASKS, statePath, log });
+  it('登记表的 id 清单与顺序（只追加，不改不删）', () => {
+    const tasks = buildStartupTasks({ db: { getConfig: () => undefined }, userStore: {} as any, log });
+    expect(tasks.map((task) => `${task.id}@${task.scope}`)).toEqual(['auth.login-password-to-super-admin@clawopt-data']);
+  });
+
+  it('零任务时不创建记录文件', async () => {
+    const outcome = await runStartupTasks({ tasks: [], statePath, log });
     expect(outcome).toEqual({ status: 'ok', ran: [], skipped: [] });
     expect(fs.existsSync(statePath)).toBe(false);
   });

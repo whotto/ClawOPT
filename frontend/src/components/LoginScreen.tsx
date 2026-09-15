@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { login } from '../api/auth';
+import { changePassword, login } from '../api/auth';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -41,11 +41,18 @@ function resolveLoginErrorMessage(data: LoginErrorResponse, t: (key: string, opt
   return t(AUTH_INVALID_PASSWORD_ERROR_CODE);
 }
 
+const inputClass = 'block w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all text-sm';
+
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const { t } = useTranslation();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  /** 迁移出来的默认口令账号：登录成功后必须先改口令，其余接口在改之前一律 403。 */
+  const [mustChange, setMustChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,14 +60,35 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setIsLoading(true);
 
     try {
-      const res = await login(password);
+      const res = await login(password, username.trim() || undefined);
       const data = await res.json().catch(() => ({}));
       if (data.success) {
         // 令牌由后端以 httpOnly cookie 下发，前端不持有、也读不到。
-        onLoginSuccess();
+        if (data.user?.mustChangePassword) setMustChange(true);
+        else onLoginSuccess();
       } else {
         setError(resolveLoginErrorMessage(data, t));
       }
+    } catch {
+      setError(t('auth.connectionFailed'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (newPassword !== confirmPassword) {
+      setError(t('auth.passwordMismatch'));
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await changePassword(password, newPassword);
+      const data = await res.json().catch(() => ({}));
+      if (data.success) onLoginSuccess();
+      else setError(resolveLoginErrorMessage(data, t));
     } catch {
       setError(t('auth.connectionFailed'));
     } finally {
@@ -78,34 +106,53 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">请输入登录密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(e); }}
-              placeholder="输入密码..."
-              autoFocus
-              className="block w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all text-sm"
-            />
-          </div>
-
-          {error && (
-            <div className="text-sm text-red-500 font-medium bg-red-50 px-3 py-2 rounded-lg">
-              {error}
+        {mustChange ? (
+          <form onSubmit={handleChangePassword} className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5">
+            <div>
+              <div className="text-base font-semibold text-gray-900">{t('auth.mustChangeTitle')}</div>
+              <p className="text-sm text-gray-500 mt-1">{t('auth.mustChangeHint')}</p>
             </div>
-          )}
+            <input type="password" autoComplete="new-password" value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setError(''); }} placeholder={t('auth.newPasswordPlaceholder')} autoFocus className={inputClass} />
+            <input type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }} placeholder={t('auth.confirmPasswordPlaceholder')} className={inputClass} />
+            {error && <div className="text-sm text-red-500 font-medium bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+            <button type="submit" disabled={isLoading || newPassword.length < 8} className="w-full py-3 text-sm font-semibold rounded-xl text-white bg-blue-600 hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              {isLoading ? t('auth.submitting') : t('auth.changePasswordSubmit')}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('auth.usernameLabel')}</label>
+              <input type="text" autoComplete="username" value={username} onChange={(e) => { setUsername(e.target.value); setError(''); }} placeholder={t('auth.usernamePlaceholder')} className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('auth.passwordLabel')}</label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                placeholder={t('auth.passwordPlaceholder')}
+                autoFocus
+                className={inputClass}
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={isLoading || !password}
-            className="w-full py-3 text-sm font-semibold rounded-xl text-white bg-blue-600 hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? '验证中...' : '登 录'}
-          </button>
-        </form>
+            {error && (
+              <div className="text-sm text-red-500 font-medium bg-red-50 px-3 py-2 rounded-lg">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading || !password}
+              className="w-full py-3 text-sm font-semibold rounded-xl text-white bg-blue-600 hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? t('auth.submitting') : t('auth.loginSubmit')}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

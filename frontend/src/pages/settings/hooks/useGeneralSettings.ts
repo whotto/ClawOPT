@@ -47,7 +47,8 @@ export function useGeneralSettings(deps: Pick<ReturnType<typeof useSettingsShare
   // --- General settings state ---
   const [aiName, setAiName] = useState(() => t('settings.general.aiNamePlaceholder'));
   const [loginEnabled, setLoginEnabled] = useState(false);
-  const [loginPassword, setLoginPassword] = useState('123456');
+  // 起手为空：空串在后端表示「不修改」。没有默认口令。
+  const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [generalSaved, setGeneralSaved] = useState(false);
   const [generalError, setGeneralError] = useState(false);

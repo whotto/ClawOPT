@@ -15,14 +15,32 @@
  */
 import fs from 'fs';
 
-import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword } from '../core/auth';
+import { AuthStore, createAuthMiddleware, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
 import { ConfigManager } from '../core/config';
 import { DB } from '../core/db';
+import { sharedFileStore } from '../core/files';
 import { uploadDir } from '../core/paths';
-import { createGatewayConnections, createGatewayService, type OpenClawClient } from '../openclaw';
+import { createGatewayConnections, createGatewayService, createOpenClawCliRunner, type OpenClawClient } from '../openclaw';
 import {
   AgentProvisioner,
+  createAgentAvatarStore,
+  createAgentCloneService,
   createAgentSettings,
+  createChannelsService,
+  createCronService,
+  createEngineRoster,
+  createGatewayStatusCache,
+  createLogsService,
+  createMcpService,
+  createModelCatalogStore,
+  createModelPrefsStore,
+  createPluginsService,
+  createProviderAudit,
+  createProviderEditor,
+  createSkillsService,
+  createUsageService,
+  createWorkspaceFilesService,
+  createWriteGateService,
   createAppUpdateService,
   createBrowserService,
   createImageGenerationService,
@@ -55,6 +73,9 @@ export function createAppContext() {
   const sessionManager = new SessionManager(db);
   /** 会话令牌存储：随机、可过期、可吊销。 */
   const authStore = new AuthStore(db);
+  /** 用户 / 角色 / Agent 授权与登录 IP 锁（P5a）。 */
+  const userStore = new UserStore(db.connection());
+  const loginLocks = new LoginLockStore(db.connection());
 
   // 迁移：把配置里的明文口令换成 scrypt 哈希。只做一次，之后配置里不再有明文。
   (() => {
@@ -72,7 +93,7 @@ export function createAppContext() {
   const agentProvisioner = new AgentProvisioner();
   const connections = new Map<string, OpenClawClient>();
 
-  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections };
+  const base = { db, configManager, sessionManager, authStore, userStore, loginLocks, agentProvisioner, connections };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);
@@ -95,6 +116,26 @@ export function createAppContext() {
   const chatRuns = createChatRuns(base);
   const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
+
+  // ---- P5a 控制面：一切引擎侧操作经同一个 CLI 调用口（写操作在进程内串行） ----
+  const openclawCli = createOpenClawCliRunner();
+  const engineRoster = createEngineRoster({ openclawCli });
+  const cron = createCronService({ openclawCli });
+  const mcp = createMcpService({ openclawCli });
+  const plugins = createPluginsService({ openclawCli });
+  const skills = createSkillsService({ openclawCli });
+  const channels = createChannelsService({ openclawCli });
+  const usage = createUsageService({ openclawCli });
+  const logs = createLogsService({ openclawCli });
+  const gatewayStatus = createGatewayStatusCache({ openclawCli });
+  const writeGate = createWriteGateService({ db, roster: engineRoster, fileStore: sharedFileStore });
+  const workspaceFiles = createWorkspaceFilesService({ roster: engineRoster, fileStore: sharedFileStore, writeGate });
+  const avatars = createAgentAvatarStore({ db });
+  const agentClone = createAgentCloneService({ agentProvisioner, sessionManager, agentSettings, openclawCli, avatars });
+  const providerEditor = createProviderEditor();
+  const providerAudit = createProviderAudit({ db });
+  const modelCatalog = createModelCatalogStore({ db });
+  const modelPrefs = createModelPrefsStore({ db });
 
   return {
     ...base,
@@ -119,6 +160,24 @@ export function createAppContext() {
     chatRuns,
     chatLifecycle,
     chatCommands,
+    openclawCli,
+    engineRoster,
+    cron,
+    mcp,
+    plugins,
+    skills,
+    channels,
+    usage,
+    logs,
+    gatewayStatus,
+    writeGate,
+    workspaceFiles,
+    avatars,
+    agentClone,
+    providerEditor,
+    providerAudit,
+    modelCatalog,
+    modelPrefs,
   };
 }
 

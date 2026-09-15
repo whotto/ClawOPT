@@ -112,7 +112,7 @@ const DEFAULT_CONFIG: Config = {
   language: 'zh-CN',
   aiName: 'OPT 团队',
   loginEnabled: false,
-  loginPassword: '123456',
+  // 没有默认登录口令：多用户之后口令在 users 表里，这个字段只剩迁移读取与「从未建过用户」时的兼容校验。
   allowedHosts: [],
   historyPageRounds: 30,
   previewConversionTimeoutSeconds: 60,

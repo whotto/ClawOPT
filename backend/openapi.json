@@ -19,7 +19,13 @@
       "name": "control/agents"
     },
     {
+      "name": "control/channels"
+    },
+    {
       "name": "control/commands"
+    },
+    {
+      "name": "control/cron"
     },
     {
       "name": "control/diagnostics"
@@ -28,10 +34,19 @@
       "name": "control/gateway"
     },
     {
+      "name": "control/logs"
+    },
+    {
+      "name": "control/mcp"
+    },
+    {
       "name": "control/models"
     },
     {
       "name": "control/packs"
+    },
+    {
+      "name": "control/plugins"
     },
     {
       "name": "control/presets"
@@ -40,7 +55,16 @@
       "name": "control/settings"
     },
     {
+      "name": "control/skills"
+    },
+    {
       "name": "control/update"
+    },
+    {
+      "name": "control/workspace-files"
+    },
+    {
+      "name": "control/write-gate"
     },
     {
       "name": "core/auth"
@@ -494,6 +518,244 @@
         "x-clawopt-order": 30
       }
     },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "getApiAuthMe",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/auth/me",
+        "x-clawopt-order": 31
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "operationId": "postApiAuthChangePassword",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/auth/change-password",
+        "x-clawopt-order": 32
+      }
+    },
+    "/api/users": {
+      "get": {
+        "operationId": "getApiUsers",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/users",
+        "x-clawopt-order": 33
+      },
+      "post": {
+        "operationId": "postApiUsers",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/users",
+        "x-clawopt-order": 34
+      }
+    },
+    "/api/users/{id}": {
+      "put": {
+        "operationId": "putApiUsersId",
+        "tags": [
+          "core/auth"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/users/:id",
+        "x-clawopt-order": 35
+      },
+      "delete": {
+        "operationId": "deleteApiUsersId",
+        "tags": [
+          "core/auth"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/users/:id",
+        "x-clawopt-order": 36
+      }
+    },
+    "/api/auth/locked-ips": {
+      "get": {
+        "operationId": "getApiAuthLockedIps",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/auth/locked-ips",
+        "x-clawopt-order": 37
+      },
+      "delete": {
+        "operationId": "deleteApiAuthLockedIps",
+        "tags": [
+          "core/auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/auth/locked-ips",
+        "x-clawopt-order": 38
+      }
+    },
     "/api/gateway/status": {
       "get": {
         "operationId": "getApiGatewayStatus",
@@ -519,7 +781,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/gateway/status",
-        "x-clawopt-order": 31
+        "x-clawopt-order": 39
       }
     },
     "/api/config/test": {
@@ -545,9 +807,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/config/test",
-        "x-clawopt-order": 32
+        "x-clawopt-order": 40
       }
     },
     "/api/config/detect-all": {
@@ -575,7 +837,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/config/detect-all",
-        "x-clawopt-order": 33
+        "x-clawopt-order": 41
       }
     },
     "/api/config/browser-health/status": {
@@ -603,7 +865,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/config/browser-health/status",
-        "x-clawopt-order": 34
+        "x-clawopt-order": 42
       }
     },
     "/api/config/browser-health": {
@@ -631,7 +893,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/config/browser-health",
-        "x-clawopt-order": 35
+        "x-clawopt-order": 43
       }
     },
     "/api/config/browser-headed-mode": {
@@ -659,7 +921,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/config/browser-headed-mode",
-        "x-clawopt-order": 36
+        "x-clawopt-order": 44
       },
       "post": {
         "operationId": "postApiConfigBrowserHeadedMode",
@@ -683,9 +945,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/config/browser-headed-mode",
-        "x-clawopt-order": 39
+        "x-clawopt-order": 47
       }
     },
     "/api/config/restart/status": {
@@ -713,7 +975,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/config/restart/status",
-        "x-clawopt-order": 37
+        "x-clawopt-order": 45
       }
     },
     "/api/config/restart/status/reset": {
@@ -739,9 +1001,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/config/restart/status/reset",
-        "x-clawopt-order": 38
+        "x-clawopt-order": 46
       }
     },
     "/api/config/browser-health/self-heal": {
@@ -767,9 +1029,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/config/browser-health/self-heal",
-        "x-clawopt-order": 40
+        "x-clawopt-order": 48
       }
     },
     "/api/config/max-permissions": {
@@ -797,7 +1059,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/config/max-permissions",
-        "x-clawopt-order": 41
+        "x-clawopt-order": 49
       },
       "post": {
         "operationId": "postApiConfigMaxPermissions",
@@ -821,9 +1083,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/config/max-permissions",
-        "x-clawopt-order": 42
+        "x-clawopt-order": 50
       }
     },
     "/api/config/max-permissions/device-pairing/approve": {
@@ -849,9 +1111,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/config/max-permissions/device-pairing/approve",
-        "x-clawopt-order": 43
+        "x-clawopt-order": 51
       }
     },
     "/api/config/restart": {
@@ -877,9 +1139,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/config/restart",
-        "x-clawopt-order": 44
+        "x-clawopt-order": 52
       }
     },
     "/api/models": {
@@ -907,7 +1169,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/models",
-        "x-clawopt-order": 45
+        "x-clawopt-order": 53
       }
     },
     "/api/models/fallbacks": {
@@ -935,7 +1197,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/models/fallbacks",
-        "x-clawopt-order": 46
+        "x-clawopt-order": 54
       },
       "put": {
         "operationId": "putApiModelsFallbacks",
@@ -959,9 +1221,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/fallbacks",
-        "x-clawopt-order": 47
+        "x-clawopt-order": 55
       }
     },
     "/api/models/image-generation": {
@@ -989,7 +1251,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/models/image-generation",
-        "x-clawopt-order": 48
+        "x-clawopt-order": 56
       },
       "put": {
         "operationId": "putApiModelsImageGeneration",
@@ -1013,9 +1275,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/image-generation",
-        "x-clawopt-order": 50
+        "x-clawopt-order": 58
       }
     },
     "/api/models/image-generation/providers": {
@@ -1043,7 +1305,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/models/image-generation/providers",
-        "x-clawopt-order": 49
+        "x-clawopt-order": 57
       }
     },
     "/api/models/test-image-generation": {
@@ -1069,9 +1331,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/test-image-generation",
-        "x-clawopt-order": 51
+        "x-clawopt-order": 59
       }
     },
     "/api/models/test": {
@@ -1097,9 +1359,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/test",
-        "x-clawopt-order": 52
+        "x-clawopt-order": 60
       }
     },
     "/api/models/discover": {
@@ -1127,7 +1389,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/models/discover",
-        "x-clawopt-order": 53
+        "x-clawopt-order": 61
       }
     },
     "/api/models/manage": {
@@ -1153,9 +1415,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/manage",
-        "x-clawopt-order": 54
+        "x-clawopt-order": 62
       },
       "delete": {
         "operationId": "deleteApiModelsManage",
@@ -1179,9 +1441,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/manage",
-        "x-clawopt-order": 55
+        "x-clawopt-order": 63
       },
       "put": {
         "operationId": "putApiModelsManage",
@@ -1205,9 +1467,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/manage",
-        "x-clawopt-order": 57
+        "x-clawopt-order": 65
       }
     },
     "/api/models/manage/default": {
@@ -1233,9 +1495,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/manage/default",
-        "x-clawopt-order": 56
+        "x-clawopt-order": 64
       }
     },
     "/api/endpoints/manage": {
@@ -1261,9 +1523,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/endpoints/manage",
-        "x-clawopt-order": 58
+        "x-clawopt-order": 66
       }
     },
     "/api/endpoints": {
@@ -1291,7 +1553,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/endpoints",
-        "x-clawopt-order": 59
+        "x-clawopt-order": 67
       },
       "post": {
         "operationId": "postApiEndpoints",
@@ -1315,9 +1577,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/endpoints",
-        "x-clawopt-order": 61
+        "x-clawopt-order": 69
       }
     },
     "/api/endpoints/test": {
@@ -1343,9 +1605,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/endpoints/test",
-        "x-clawopt-order": 60
+        "x-clawopt-order": 68
       }
     },
     "/api/characters": {
@@ -1373,7 +1635,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/characters",
-        "x-clawopt-order": 62
+        "x-clawopt-order": 70
       },
       "post": {
         "operationId": "postApiCharacters",
@@ -1397,9 +1659,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/characters",
-        "x-clawopt-order": 63
+        "x-clawopt-order": 71
       }
     },
     "/api/characters/{id}": {
@@ -1435,9 +1697,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/characters/:id",
-        "x-clawopt-order": 64
+        "x-clawopt-order": 72
       }
     },
     "/api/characters/{agentId}/user-md": {
@@ -1475,7 +1737,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/characters/:agentId/user-md",
-        "x-clawopt-order": 65
+        "x-clawopt-order": 73
       },
       "put": {
         "operationId": "putApiCharactersAgentIdUserMd",
@@ -1509,9 +1771,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/characters/:agentId/user-md",
-        "x-clawopt-order": 66
+        "x-clawopt-order": 74
       }
     },
     "/api/agents/orphans": {
@@ -1539,7 +1801,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/agents/orphans",
-        "x-clawopt-order": 67
+        "x-clawopt-order": 75
       }
     },
     "/api/agents/import": {
@@ -1567,7 +1829,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/agents/import",
-        "x-clawopt-order": 68
+        "x-clawopt-order": 76
       }
     },
     "/api/sessions": {
@@ -1595,7 +1857,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions",
-        "x-clawopt-order": 69
+        "x-clawopt-order": 77
       },
       "post": {
         "operationId": "postApiSessions",
@@ -1621,7 +1883,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions",
-        "x-clawopt-order": 76
+        "x-clawopt-order": 84
       }
     },
     "/api/packs/export": {
@@ -1649,7 +1911,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/packs/export",
-        "x-clawopt-order": 70
+        "x-clawopt-order": 78
       }
     },
     "/api/packs/share": {
@@ -1677,7 +1939,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/packs/share",
-        "x-clawopt-order": 71
+        "x-clawopt-order": 79
       }
     },
     "/api/packs/inspect": {
@@ -1705,7 +1967,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/packs/inspect",
-        "x-clawopt-order": 72
+        "x-clawopt-order": 80
       }
     },
     "/api/packs/install": {
@@ -1733,7 +1995,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/packs/install",
-        "x-clawopt-order": 73
+        "x-clawopt-order": 81
       }
     },
     "/api/presets": {
@@ -1761,7 +2023,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/presets",
-        "x-clawopt-order": 74
+        "x-clawopt-order": 82
       }
     },
     "/api/presets/{presetId}/install": {
@@ -1799,7 +2061,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/presets/:presetId/install",
-        "x-clawopt-order": 75
+        "x-clawopt-order": 83
       }
     },
     "/api/sessions/{id}": {
@@ -1837,7 +2099,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:id",
-        "x-clawopt-order": 77
+        "x-clawopt-order": 85
       },
       "delete": {
         "operationId": "deleteApiSessionsId",
@@ -1873,7 +2135,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:id",
-        "x-clawopt-order": 78
+        "x-clawopt-order": 86
       }
     },
     "/api/sessions/{id}/reset": {
@@ -1911,7 +2173,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:id/reset",
-        "x-clawopt-order": 79
+        "x-clawopt-order": 87
       }
     },
     "/api/sessions/{id}/configs": {
@@ -1949,7 +2211,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:id/configs",
-        "x-clawopt-order": 80
+        "x-clawopt-order": 88
       }
     },
     "/api/sessions/reorder": {
@@ -1977,7 +2239,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/reorder",
-        "x-clawopt-order": 81
+        "x-clawopt-order": 89
       }
     },
     "/api/history/{sessionId}": {
@@ -2015,7 +2277,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/history/:sessionId",
-        "x-clawopt-order": 82
+        "x-clawopt-order": 90
       }
     },
     "/api/history/{sessionId}/search": {
@@ -2053,7 +2315,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/history/:sessionId/search",
-        "x-clawopt-order": 83
+        "x-clawopt-order": 91
       }
     },
     "/api/chat/{sessionId}/active-run": {
@@ -2091,7 +2353,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/active-run",
-        "x-clawopt-order": 84
+        "x-clawopt-order": 92
       }
     },
     "/api/messages/{id}": {
@@ -2129,7 +2391,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/messages/:id",
-        "x-clawopt-order": 85
+        "x-clawopt-order": 93
       },
       "delete": {
         "operationId": "deleteApiMessagesId",
@@ -2165,7 +2427,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/messages/:id",
-        "x-clawopt-order": 86
+        "x-clawopt-order": 94
       }
     },
     "/api/chat": {
@@ -2193,7 +2455,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat",
-        "x-clawopt-order": 87
+        "x-clawopt-order": 95
       }
     },
     "/api/chat/regenerate": {
@@ -2221,7 +2483,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/regenerate",
-        "x-clawopt-order": 88
+        "x-clawopt-order": 96
       }
     },
     "/api/chat/attach/{sessionId}": {
@@ -2259,7 +2521,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/attach/:sessionId",
-        "x-clawopt-order": 89
+        "x-clawopt-order": 97
       }
     },
     "/api/chat/stop": {
@@ -2287,7 +2549,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/stop",
-        "x-clawopt-order": 90
+        "x-clawopt-order": 98
       }
     },
     "/api/chat/silent": {
@@ -2315,7 +2577,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/silent",
-        "x-clawopt-order": 91
+        "x-clawopt-order": 99
       }
     },
     "/api/files/upload": {
@@ -2343,7 +2605,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/upload",
-        "x-clawopt-order": 92
+        "x-clawopt-order": 100
       }
     },
     "/api/files": {
@@ -2371,7 +2633,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files",
-        "x-clawopt-order": 93
+        "x-clawopt-order": 101
       }
     },
     "/api/commands": {
@@ -2399,7 +2661,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/commands",
-        "x-clawopt-order": 94
+        "x-clawopt-order": 102
       },
       "post": {
         "operationId": "postApiCommands",
@@ -2423,9 +2685,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/commands",
-        "x-clawopt-order": 95
+        "x-clawopt-order": 103
       }
     },
     "/api/commands/{id}": {
@@ -2461,9 +2723,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/commands/:id",
-        "x-clawopt-order": 96
+        "x-clawopt-order": 104
       },
       "delete": {
         "operationId": "deleteApiCommandsId",
@@ -2497,9 +2759,9 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/commands/:id",
-        "x-clawopt-order": 97
+        "x-clawopt-order": 105
       }
     },
     "/uploads/{filename}": {
@@ -2537,7 +2799,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/uploads/:filename",
-        "x-clawopt-order": 98
+        "x-clawopt-order": 106
       }
     },
     "/openclaw/{path}": {
@@ -2575,7 +2837,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/^\\/openclaw\\/(.+)/",
-        "x-clawopt-order": 99
+        "x-clawopt-order": 107
       }
     },
     "/api/files/download": {
@@ -2603,7 +2865,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/download",
-        "x-clawopt-order": 100
+        "x-clawopt-order": 108
       }
     },
     "/api/files/capabilities": {
@@ -2631,7 +2893,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/capabilities",
-        "x-clawopt-order": 101
+        "x-clawopt-order": 109
       }
     },
     "/api/files/preview-data": {
@@ -2659,7 +2921,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/preview-data",
-        "x-clawopt-order": 102
+        "x-clawopt-order": 110
       }
     },
     "/api/files/html-preview/path/{encodedPath}/{wildcard}": {
@@ -2705,7 +2967,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/html-preview/path/:encodedPath/*",
-        "x-clawopt-order": 103
+        "x-clawopt-order": 111
       }
     },
     "/api/files/html-preview/upload/{filename}/{wildcard}": {
@@ -2751,7 +3013,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/html-preview/upload/:filename/*",
-        "x-clawopt-order": 104
+        "x-clawopt-order": 112
       }
     },
     "/api/files/preview": {
@@ -2779,7 +3041,2281 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/preview",
-        "x-clawopt-order": 105
+        "x-clawopt-order": 113
+      }
+    },
+    "/api/providers/audit": {
+      "get": {
+        "operationId": "getApiProvidersAudit",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/providers/audit",
+        "x-clawopt-order": 114
+      }
+    },
+    "/api/providers/{id}/catalog": {
+      "get": {
+        "operationId": "getApiProvidersIdCatalog",
+        "tags": [
+          "control/models"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/providers/:id/catalog",
+        "x-clawopt-order": 115
+      }
+    },
+    "/api/providers/{id}/catalog/refresh": {
+      "post": {
+        "operationId": "postApiProvidersIdCatalogRefresh",
+        "tags": [
+          "control/models"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/providers/:id/catalog/refresh",
+        "x-clawopt-order": 116
+      }
+    },
+    "/api/providers/{id}/catalog/restore": {
+      "post": {
+        "operationId": "postApiProvidersIdCatalogRestore",
+        "tags": [
+          "control/models"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/providers/:id/catalog/restore",
+        "x-clawopt-order": 117
+      }
+    },
+    "/api/providers/{id}/visibility": {
+      "put": {
+        "operationId": "putApiProvidersIdVisibility",
+        "tags": [
+          "control/models"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/providers/:id/visibility",
+        "x-clawopt-order": 118
+      }
+    },
+    "/api/providers/{id}/context-lengths": {
+      "put": {
+        "operationId": "putApiProvidersIdContextLengths",
+        "tags": [
+          "control/models"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/providers/:id/context-lengths",
+        "x-clawopt-order": 119
+      }
+    },
+    "/api/models/aliases": {
+      "get": {
+        "operationId": "getApiModelsAliases",
+        "tags": [
+          "control/models"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/models/aliases",
+        "x-clawopt-order": 120
+      }
+    },
+    "/api/models/aliases/{alias}": {
+      "put": {
+        "operationId": "putApiModelsAliasesAlias",
+        "tags": [
+          "control/models"
+        ],
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/models/aliases/:alias",
+        "x-clawopt-order": 121
+      },
+      "delete": {
+        "operationId": "deleteApiModelsAliasesAlias",
+        "tags": [
+          "control/models"
+        ],
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/models/aliases/:alias",
+        "x-clawopt-order": 122
+      }
+    },
+    "/api/engine/agents": {
+      "get": {
+        "operationId": "getApiEngineAgents",
+        "tags": [
+          "control/agents"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/engine/agents",
+        "x-clawopt-order": 123
+      }
+    },
+    "/api/agents/{agentId}/clone": {
+      "post": {
+        "operationId": "postApiAgentsAgentIdClone",
+        "tags": [
+          "control/agents"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/agents/:agentId/clone",
+        "x-clawopt-order": 124
+      }
+    },
+    "/api/agent-avatars": {
+      "get": {
+        "operationId": "getApiAgentAvatars",
+        "tags": [
+          "control/agents"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/agent-avatars",
+        "x-clawopt-order": 125
+      }
+    },
+    "/api/agents/{agentId}/avatar": {
+      "get": {
+        "operationId": "getApiAgentsAgentIdAvatar",
+        "tags": [
+          "control/agents"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/agents/:agentId/avatar",
+        "x-clawopt-order": 126
+      },
+      "put": {
+        "operationId": "putApiAgentsAgentIdAvatar",
+        "tags": [
+          "control/agents"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/agents/:agentId/avatar",
+        "x-clawopt-order": 127
+      },
+      "delete": {
+        "operationId": "deleteApiAgentsAgentIdAvatar",
+        "tags": [
+          "control/agents"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/agents/:agentId/avatar",
+        "x-clawopt-order": 128
+      }
+    },
+    "/api/agents/{agentId}/workspace-files": {
+      "get": {
+        "operationId": "getApiAgentsAgentIdWorkspaceFiles",
+        "tags": [
+          "control/workspace-files"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/agents/:agentId/workspace-files",
+        "x-clawopt-order": 129
+      }
+    },
+    "/api/agents/{agentId}/workspace-files/{name}": {
+      "get": {
+        "operationId": "getApiAgentsAgentIdWorkspaceFilesName",
+        "tags": [
+          "control/workspace-files"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/agents/:agentId/workspace-files/:name",
+        "x-clawopt-order": 130
+      },
+      "put": {
+        "operationId": "putApiAgentsAgentIdWorkspaceFilesName",
+        "tags": [
+          "control/workspace-files"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/agents/:agentId/workspace-files/:name",
+        "x-clawopt-order": 131
+      }
+    },
+    "/api/write-gate/settings": {
+      "get": {
+        "operationId": "getApiWriteGateSettings",
+        "tags": [
+          "control/write-gate"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/write-gate/settings",
+        "x-clawopt-order": 132
+      }
+    },
+    "/api/write-gate/settings/{agentId}": {
+      "put": {
+        "operationId": "putApiWriteGateSettingsAgentId",
+        "tags": [
+          "control/write-gate"
+        ],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/write-gate/settings/:agentId",
+        "x-clawopt-order": 133
+      }
+    },
+    "/api/write-gate/pending": {
+      "get": {
+        "operationId": "getApiWriteGatePending",
+        "tags": [
+          "control/write-gate"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/write-gate/pending",
+        "x-clawopt-order": 134
+      }
+    },
+    "/api/write-gate/pending/{id}": {
+      "get": {
+        "operationId": "getApiWriteGatePendingId",
+        "tags": [
+          "control/write-gate"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/write-gate/pending/:id",
+        "x-clawopt-order": 135
+      }
+    },
+    "/api/write-gate/pending/{id}/approve": {
+      "post": {
+        "operationId": "postApiWriteGatePendingIdApprove",
+        "tags": [
+          "control/write-gate"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/write-gate/pending/:id/approve",
+        "x-clawopt-order": 136
+      }
+    },
+    "/api/write-gate/pending/{id}/reject": {
+      "post": {
+        "operationId": "postApiWriteGatePendingIdReject",
+        "tags": [
+          "control/write-gate"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/write-gate/pending/:id/reject",
+        "x-clawopt-order": 137
+      }
+    },
+    "/api/cron/status": {
+      "get": {
+        "operationId": "getApiCronStatus",
+        "tags": [
+          "control/cron"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/cron/status",
+        "x-clawopt-order": 138
+      }
+    },
+    "/api/cron/jobs": {
+      "get": {
+        "operationId": "getApiCronJobs",
+        "tags": [
+          "control/cron"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/cron/jobs",
+        "x-clawopt-order": 139
+      },
+      "post": {
+        "operationId": "postApiCronJobs",
+        "tags": [
+          "control/cron"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/cron/jobs",
+        "x-clawopt-order": 140
+      }
+    },
+    "/api/cron/jobs/{id}": {
+      "put": {
+        "operationId": "putApiCronJobsId",
+        "tags": [
+          "control/cron"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/cron/jobs/:id",
+        "x-clawopt-order": 141
+      },
+      "delete": {
+        "operationId": "deleteApiCronJobsId",
+        "tags": [
+          "control/cron"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/cron/jobs/:id",
+        "x-clawopt-order": 145
+      }
+    },
+    "/api/cron/jobs/{id}/enable": {
+      "post": {
+        "operationId": "postApiCronJobsIdEnable",
+        "tags": [
+          "control/cron"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/cron/jobs/:id/enable",
+        "x-clawopt-order": 142
+      }
+    },
+    "/api/cron/jobs/{id}/disable": {
+      "post": {
+        "operationId": "postApiCronJobsIdDisable",
+        "tags": [
+          "control/cron"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/cron/jobs/:id/disable",
+        "x-clawopt-order": 143
+      }
+    },
+    "/api/cron/jobs/{id}/run": {
+      "post": {
+        "operationId": "postApiCronJobsIdRun",
+        "tags": [
+          "control/cron"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/cron/jobs/:id/run",
+        "x-clawopt-order": 144
+      }
+    },
+    "/api/cron/jobs/{id}/runs": {
+      "get": {
+        "operationId": "getApiCronJobsIdRuns",
+        "tags": [
+          "control/cron"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/cron/jobs/:id/runs",
+        "x-clawopt-order": 146
+      }
+    },
+    "/api/channels": {
+      "get": {
+        "operationId": "getApiChannels",
+        "tags": [
+          "control/channels"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/channels",
+        "x-clawopt-order": 147
+      },
+      "post": {
+        "operationId": "postApiChannels",
+        "tags": [
+          "control/channels"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/channels",
+        "x-clawopt-order": 151
+      }
+    },
+    "/api/channels/status": {
+      "get": {
+        "operationId": "getApiChannelsStatus",
+        "tags": [
+          "control/channels"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/channels/status",
+        "x-clawopt-order": 148
+      }
+    },
+    "/api/channels/probe": {
+      "post": {
+        "operationId": "postApiChannelsProbe",
+        "tags": [
+          "control/channels"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/channels/probe",
+        "x-clawopt-order": 149
+      }
+    },
+    "/api/channels/{channel}/capabilities": {
+      "get": {
+        "operationId": "getApiChannelsChannelCapabilities",
+        "tags": [
+          "control/channels"
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/channels/:channel/capabilities",
+        "x-clawopt-order": 150
+      }
+    },
+    "/api/channels/{channel}/login": {
+      "post": {
+        "operationId": "postApiChannelsChannelLogin",
+        "tags": [
+          "control/channels"
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/channels/:channel/login",
+        "x-clawopt-order": 152
+      }
+    },
+    "/api/channels/{channel}/logout": {
+      "post": {
+        "operationId": "postApiChannelsChannelLogout",
+        "tags": [
+          "control/channels"
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/channels/:channel/logout",
+        "x-clawopt-order": 153
+      }
+    },
+    "/api/channels/{channel}/clear-credentials": {
+      "post": {
+        "operationId": "postApiChannelsChannelClearCredentials",
+        "tags": [
+          "control/channels"
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/channels/:channel/clear-credentials",
+        "x-clawopt-order": 154
+      }
+    },
+    "/api/channels/{channel}": {
+      "delete": {
+        "operationId": "deleteApiChannelsChannel",
+        "tags": [
+          "control/channels"
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/channels/:channel",
+        "x-clawopt-order": 155
+      }
+    },
+    "/api/skills": {
+      "get": {
+        "operationId": "getApiSkills",
+        "tags": [
+          "control/skills"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/skills",
+        "x-clawopt-order": 156
+      }
+    },
+    "/api/skills/check": {
+      "get": {
+        "operationId": "getApiSkillsCheck",
+        "tags": [
+          "control/skills"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/skills/check",
+        "x-clawopt-order": 157
+      }
+    },
+    "/api/skills/search": {
+      "get": {
+        "operationId": "getApiSkillsSearch",
+        "tags": [
+          "control/skills"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/skills/search",
+        "x-clawopt-order": 158
+      }
+    },
+    "/api/skills/{name}": {
+      "get": {
+        "operationId": "getApiSkillsName",
+        "tags": [
+          "control/skills"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/skills/:name",
+        "x-clawopt-order": 159
+      }
+    },
+    "/api/skills/install": {
+      "post": {
+        "operationId": "postApiSkillsInstall",
+        "tags": [
+          "control/skills"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/skills/install",
+        "x-clawopt-order": 160
+      }
+    },
+    "/api/skills/update": {
+      "post": {
+        "operationId": "postApiSkillsUpdate",
+        "tags": [
+          "control/skills"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/skills/update",
+        "x-clawopt-order": 161
+      }
+    },
+    "/api/skills/verify": {
+      "post": {
+        "operationId": "postApiSkillsVerify",
+        "tags": [
+          "control/skills"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/skills/verify",
+        "x-clawopt-order": 162
+      }
+    },
+    "/api/skills/{key}/enabled": {
+      "put": {
+        "operationId": "putApiSkillsKeyEnabled",
+        "tags": [
+          "control/skills"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/skills/:key/enabled",
+        "x-clawopt-order": 163
+      }
+    },
+    "/api/mcp/servers": {
+      "get": {
+        "operationId": "getApiMcpServers",
+        "tags": [
+          "control/mcp"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/mcp/servers",
+        "x-clawopt-order": 164
+      }
+    },
+    "/api/mcp/servers/{name}": {
+      "put": {
+        "operationId": "putApiMcpServersName",
+        "tags": [
+          "control/mcp"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/mcp/servers/:name",
+        "x-clawopt-order": 165
+      },
+      "delete": {
+        "operationId": "deleteApiMcpServersName",
+        "tags": [
+          "control/mcp"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/mcp/servers/:name",
+        "x-clawopt-order": 166
+      }
+    },
+    "/api/mcp/servers/{name}/probe": {
+      "post": {
+        "operationId": "postApiMcpServersNameProbe",
+        "tags": [
+          "control/mcp"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/mcp/servers/:name/probe",
+        "x-clawopt-order": 167
+      }
+    },
+    "/api/mcp/servers/{name}/tools": {
+      "put": {
+        "operationId": "putApiMcpServersNameTools",
+        "tags": [
+          "control/mcp"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/mcp/servers/:name/tools",
+        "x-clawopt-order": 168
+      }
+    },
+    "/api/mcp/reload": {
+      "post": {
+        "operationId": "postApiMcpReload",
+        "tags": [
+          "control/mcp"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/mcp/reload",
+        "x-clawopt-order": 169
+      }
+    },
+    "/api/plugins": {
+      "get": {
+        "operationId": "getApiPlugins",
+        "tags": [
+          "control/plugins"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/plugins",
+        "x-clawopt-order": 170
+      }
+    },
+    "/api/plugins/{id}": {
+      "get": {
+        "operationId": "getApiPluginsId",
+        "tags": [
+          "control/plugins"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/plugins/:id",
+        "x-clawopt-order": 171
+      },
+      "delete": {
+        "operationId": "deleteApiPluginsId",
+        "tags": [
+          "control/plugins"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/plugins/:id",
+        "x-clawopt-order": 177
+      }
+    },
+    "/api/plugins/{id}/enable": {
+      "post": {
+        "operationId": "postApiPluginsIdEnable",
+        "tags": [
+          "control/plugins"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/plugins/:id/enable",
+        "x-clawopt-order": 172
+      }
+    },
+    "/api/plugins/{id}/disable": {
+      "post": {
+        "operationId": "postApiPluginsIdDisable",
+        "tags": [
+          "control/plugins"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/plugins/:id/disable",
+        "x-clawopt-order": 173
+      }
+    },
+    "/api/plugins/install": {
+      "post": {
+        "operationId": "postApiPluginsInstall",
+        "tags": [
+          "control/plugins"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/plugins/install",
+        "x-clawopt-order": 174
+      }
+    },
+    "/api/plugins/update-all": {
+      "post": {
+        "operationId": "postApiPluginsUpdateAll",
+        "tags": [
+          "control/plugins"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/plugins/update-all",
+        "x-clawopt-order": 175
+      }
+    },
+    "/api/plugins/{id}/update": {
+      "post": {
+        "operationId": "postApiPluginsIdUpdate",
+        "tags": [
+          "control/plugins"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/plugins/:id/update",
+        "x-clawopt-order": 176
+      }
+    },
+    "/api/usage/summary": {
+      "get": {
+        "operationId": "getApiUsageSummary",
+        "tags": [
+          "control/logs"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/usage/summary",
+        "x-clawopt-order": 178
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "operationId": "getApiLogs",
+        "tags": [
+          "control/logs"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": true,
+        "x-clawopt-express-path": "/api/logs",
+        "x-clawopt-order": 179
+      }
+    },
+    "/api/gateway/service-status": {
+      "get": {
+        "operationId": "getApiGatewayServiceStatus",
+        "tags": [
+          "control/logs"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/gateway/service-status",
+        "x-clawopt-order": 180
       }
     },
     "/api/groups": {
@@ -2807,7 +5343,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 108
+        "x-clawopt-order": 183
       },
       "post": {
         "operationId": "postApiGroups",
@@ -2833,7 +5369,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 109
+        "x-clawopt-order": 184
       }
     },
     "/api/groups/{id}": {
@@ -2871,7 +5407,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 110
+        "x-clawopt-order": 185
       },
       "delete": {
         "operationId": "deleteApiGroupsId",
@@ -2907,7 +5443,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 112
+        "x-clawopt-order": 187
       }
     },
     "/api/groups/reorder": {
@@ -2935,7 +5471,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/reorder",
-        "x-clawopt-order": 111
+        "x-clawopt-order": 186
       }
     },
     "/api/groups/{id}/reset": {
@@ -2973,7 +5509,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/reset",
-        "x-clawopt-order": 113
+        "x-clawopt-order": 188
       }
     },
     "/api/groups/{id}/messages": {
@@ -3011,7 +5547,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 114
+        "x-clawopt-order": 189
       },
       "post": {
         "operationId": "postApiGroupsIdMessages",
@@ -3047,7 +5583,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 117
+        "x-clawopt-order": 192
       }
     },
     "/api/groups/{id}/active-run": {
@@ -3085,7 +5621,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/active-run",
-        "x-clawopt-order": 115
+        "x-clawopt-order": 190
       }
     },
     "/api/groups/{id}/messages/search": {
@@ -3123,7 +5659,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/search",
-        "x-clawopt-order": 116
+        "x-clawopt-order": 191
       }
     },
     "/api/groups/{id}/stop": {
@@ -3161,7 +5697,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/stop",
-        "x-clawopt-order": 118
+        "x-clawopt-order": 193
       }
     },
     "/api/groups/{id}/messages/{msgId}": {
@@ -3207,7 +5743,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 119
+        "x-clawopt-order": 194
       },
       "delete": {
         "operationId": "deleteApiGroupsIdMessagesMsgId",
@@ -3251,7 +5787,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 120
+        "x-clawopt-order": 195
       }
     },
     "/api/groups/{id}/messages/regenerate": {
@@ -3289,7 +5825,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/regenerate",
-        "x-clawopt-order": 121
+        "x-clawopt-order": 196
       }
     },
     "/api/groups/{id}/events": {
@@ -3327,7 +5863,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/events",
-        "x-clawopt-order": 122
+        "x-clawopt-order": 197
       }
     }
   },

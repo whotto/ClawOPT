@@ -6,9 +6,20 @@
 // 这类书签由 legacyHashToPath 一次性换成新路径。
 
 export type ViewType = 'chat' | 'settings' | 'groups';
-export type SettingsTab = 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about';
+// P5a 起设置页签分三区（团队 / 自动化 / 系统），控制面页面也挂在 `/settings/:tab` 下：
+// 共用同一个壳层与侧栏，深链形状不变，老书签照常可用。
+export type SettingsTab =
+  | 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about'
+  | 'agents' | 'skills' | 'mcp' | 'users'
+  | 'cron'
+  | 'channels' | 'plugins' | 'usage' | 'logs';
 
-const SETTINGS_TABS: readonly SettingsTab[] = ['gateway', 'general', 'models', 'presets', 'commands', 'about'];
+export const SETTINGS_TABS: readonly SettingsTab[] = [
+  'gateway', 'general', 'models', 'presets', 'commands', 'about',
+  'agents', 'skills', 'mcp', 'users',
+  'cron',
+  'channels', 'plugins', 'usage', 'logs',
+];
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'gateway';
 
 export const LOGIN_PATH = '/login';
