@@ -198,7 +198,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     // 分叉出来的外部单聊：首轮从父会话的原生会话分叉（适配器按能力声明决定）。
     forkSource: (sessionId: string) => ctx.sessionOrg.getMeta(sessionId)?.parentSessionId ?? null,
     taskPlans: ctx.taskPlans,
-    uploadsRoot: uploadDir,
+    uploadsRoots: (session: SessionRow) => [path.join(agentProvisioner.getWorkspacePath(session.agentId || 'main'), 'uploads'), uploadDir],
   };
 
   function buildInjectedMessage(sessionInfo: SessionRow | undefined, agentId: string, rawMessage: string): string {

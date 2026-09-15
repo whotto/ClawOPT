@@ -87,8 +87,8 @@ export function externalModelTag(session: SessionRow): string {
 
 export type ExternalChatTurnDeps = {
   db: Pick<DB, 'updateMessage' | 'updateMessageEnvelope' | 'deleteMessage' | 'setChatMessagesRunMarker' | 'getSession' | 'saveSession'> & Partial<Pick<DB, 'getFilesBySession'>>;
-  /** 上传目录（附件重绑时校验真实路径在它下面）；不给就不重绑附件。 */
-  uploadsRoot?: string;
+  /** 这个会话允许的上传根（附件重绑时校验真实路径在它们下面）；不给就不重绑附件。 */
+  uploadsRoots?: (session: SessionRow) => string[];
   configManager: Pick<ConfigManager, 'getConfig'>;
   realtime: RealtimeHub;
   runCoordinator: RunCoordinator;
@@ -135,11 +135,11 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
   // 分叉出来的会话：第一轮从父会话的原生会话分叉（适配器按能力决定怎么做）。
   const forkParent = deps.forkSource?.(session.id) ?? null;
   // 附件：只认这个会话登记过的上传，换成真实本地路径（图片按运行时能力内联），见 chat-attachments.ts。
-  const binding = deps.uploadsRoot && deps.db.getFilesBySession
+  const binding = deps.uploadsRoots && deps.db.getFilesBySession
     ? bindUploadedAttachments({
       prompt: turn.prompt,
       sessionFiles: deps.db.getFilesBySession(session.id),
-      uploadsRoot: deps.uploadsRoot,
+      uploadsRoots: deps.uploadsRoots(session),
       imagesSupported: adapter.capabilities.images,
     })
     : { prompt: turn.prompt, images: [], attachments: [] };
@@ -205,8 +205,9 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
       if (!latest) return;
       if (outcome.kind === 'completed') {
         if (!latest.external_session_resumable) deps.db.saveSession({ ...latest, external_session_resumable: 1 });
-      } else if (outcome.kind === 'failed') {
+      } else if (outcome.kind === 'failed' && !command) {
         // 失败（含续话失败）：换一个新句柄，下一轮重新开始——不拿着一个续不上的原生会话每轮都失败。
+        // 会话命令（/usage /status /compact）失败不算：命令不支持不代表原生会话坏了，丢掉句柄会让之前的对话全部失忆。
         deps.db.saveSession({ ...latest, external_session_id: randomUUID(), external_session_resumable: 0 });
       }
     },

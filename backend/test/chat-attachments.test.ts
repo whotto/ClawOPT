@@ -31,7 +31,7 @@ describe('bindUploadedAttachments', () => {
         { original_name: 'shot.png', mime_type: 'image/png', stored_path: path.join(uploads, 'abc123.png') },
         { original_name: 'report.pdf', mime_type: 'application/pdf', stored_path: path.join(uploads, 'doc999.pdf') },
       ],
-      uploadsRoot: uploads,
+      uploadsRoots: [uploads],
       imagesSupported: true,
     });
     expect(binding.attachments.map((a) => a.name)).toEqual(['shot.png', 'report.pdf']);
@@ -47,7 +47,7 @@ describe('bindUploadedAttachments', () => {
         { original_name: 'a', mime_type: 'text/plain', stored_path: path.join(uploads, 'link000.txt') },
         { original_name: 'b', mime_type: 'image/png', stored_path: path.join(uploads, 'abc123.png') },
       ],
-      uploadsRoot: uploads,
+      uploadsRoots: [uploads],
       imagesSupported: false,
     });
     expect(binding.attachments.map((a) => a.name)).toEqual(['b']);
@@ -56,6 +56,6 @@ describe('bindUploadedAttachments', () => {
   });
 
   it('没有附件：原样', () => {
-    expect(bindUploadedAttachments({ prompt: 'hi', sessionFiles: [], uploadsRoot: uploads, imagesSupported: true })).toEqual({ prompt: 'hi', images: [], attachments: [] });
+    expect(bindUploadedAttachments({ prompt: 'hi', sessionFiles: [], uploadsRoots: [uploads], imagesSupported: true })).toEqual({ prompt: 'hi', images: [], attachments: [] });
   });
 });

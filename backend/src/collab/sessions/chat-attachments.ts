@@ -29,15 +29,18 @@ const UPLOAD_LINK = /!?\[([^\]]*)\]\((\/uploads\/([A-Za-z0-9._-]+))\)/g;
 export function bindUploadedAttachments(input: {
   prompt: string;
   sessionFiles: ReadonlyArray<Pick<StoredFileRow, 'original_name' | 'mime_type' | 'stored_path'>>;
-  uploadsRoot: string;
+  /** 允许的上传根（单聊上传落在会话 Agent 工作区的 uploads 下，也可能是全局上传目录）。 */
+  uploadsRoots: string[];
   imagesSupported: boolean;
 }): AttachmentBinding {
-  let root: string;
-  try {
-    root = fs.realpathSync(input.uploadsRoot);
-  } catch {
-    return { prompt: input.prompt, images: [], attachments: [] };
-  }
+  const roots = input.uploadsRoots.flatMap((root) => {
+    try {
+      return [fs.realpathSync(root)];
+    } catch {
+      return [];
+    }
+  });
+  if (roots.length === 0) return { prompt: input.prompt, images: [], attachments: [] };
   const byStoredName = new Map(input.sessionFiles.map((file) => [path.basename(file.stored_path), file]));
   const attachments: ResolvedAttachment[] = [];
   const seen = new Set<string>();
@@ -55,7 +58,7 @@ export function bindUploadedAttachments(input: {
     } catch {
       continue;
     }
-    if (real !== path.join(root, path.basename(real)) && !real.startsWith(`${root}${path.sep}`)) continue;
+    if (!roots.some((root) => real.startsWith(`${root}${path.sep}`))) continue;
     const mimeType = row.mime_type || 'application/octet-stream';
     attachments.push({ name: row.original_name || match[1] || storedName, path: real, mimeType, isImage: mimeType.startsWith('image/') });
   }

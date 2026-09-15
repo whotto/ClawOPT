@@ -117,6 +117,24 @@ describe('一轮外部运行时单聊', () => {
     expect(JSON.parse(row.content.slice(CHAT_COMMAND_RESULT_PREFIX.length))).toMatchObject({ command: 'status', status: { model: 'm1' } });
   });
 
+  it('会话命令失败（例如 global 模式不支持 /usage）：不换句柄、不丢续话', async () => {
+    const { db } = await runTurn(baseSession({ external_session_resumable: 1 }), '/usage', (run) => {
+      run.emit({ type: 'session.command', result: { command: 'usage', ok: false, error: 'not supported' } });
+      run.finish({ kind: 'failed', error: 'not supported' });
+    });
+    const row = db.sessions.get('cc-1')!;
+    expect(row.external_session_id).toBe('11111111-1111-4111-8111-111111111111');
+    expect(row.external_session_resumable).toBe(1);
+  });
+
+  it('运行中被停（含立即插入）却没出字没调工具：删掉空的助手行，不留空气泡', async () => {
+    const { db, events } = await runTurn(baseSession(), 'long task', (run) => {
+      run.finish({ kind: 'aborted', reason: 'queue_insertion', synced: true, phase: 'running' });
+    });
+    expect(db.messages.has(7)).toBe(false);
+    expect(events.some((e) => e.type === 'chat.stream.end')).toBe(true);
+  });
+
   it('运行时没登记：结构化错误 runtime.unknown，不提交运行', async () => {
     const session = baseSession({ external_runtime: 'ghost-cli' });
     const db = fakeDb(session);
