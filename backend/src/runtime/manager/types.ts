@@ -37,6 +37,8 @@ export interface RuntimeDescriptor {
   command: string;
   npmPackage?: string;
   pipPackage?: string;
+  /** pip 安装时带的 extras（hermes-agent 的 ACP 依赖在 `[acp]` 里，不带就起不来 `hermes acp`）。更新检查仍按包名查。 */
+  pipExtras?: string[];
   installKind: 'npm' | 'pip' | 'manual';
   versionArgs: string[];
   officialRegistry?: boolean;

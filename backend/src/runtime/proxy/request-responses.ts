@@ -94,7 +94,9 @@ function flattenTools(rawTools: unknown): IrTool[] {
       tools.push({
         name: unique('tool_search'),
         description: tool.description ?? 'Search for additional tools by keyword.',
-        parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+        parameters: tool.parameters && typeof tool.parameters === 'object'
+          ? tool.parameters
+          : { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
         origin: { kind: 'tool_search' },
       });
     } else if (tool.type === 'custom' && typeof tool.name === 'string') {
@@ -114,7 +116,13 @@ export function parseResponsesRequest(body: any): IrRequest {
   const system: string[] = [];
   if (typeof body?.instructions === 'string' && body.instructions) system.push(body.instructions);
 
-  const tools = flattenTools(body?.tools);
+  const inputItems: any[] = Array.isArray(body?.input) ? body.input : [];
+  const discovered = inputItems
+    .filter((item) => item && item.type === 'tool_search_output' && Array.isArray(item.tools))
+    .flatMap((item) => item.tools);
+  // tool_search 搜到的工具（Codex 放在 tool_search_output.tools 里回给模型，下一次请求的 tools 字段并不重复它们）
+  // 也要进上游的工具表：别家上游没有「搜到即可调用」的语义，不列进去模型就调不了（集成 P2 真 Codex + gpt-5.4 实测）。
+  const tools = flattenTools([...(Array.isArray(body?.tools) ? body.tools : []), ...discovered]);
   const flatNameOf = (name: string, namespace?: string): string => {
     const match = tools.find((tool) => {
       const origin = tool.origin;

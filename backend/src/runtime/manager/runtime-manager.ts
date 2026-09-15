@@ -468,17 +468,18 @@ export class LocalRuntimeManager implements RuntimeManager {
     const venv = this.venvDir(descriptor.id);
     const python = path.join(this.venvBinDir(descriptor.id), this.platform === 'win32' ? 'python.exe' : 'python');
     fs.mkdirSync(path.dirname(venv), { recursive: true, mode: 0o700 });
+    const pipSpec = descriptor.pipExtras?.length ? `${descriptor.pipPackage}[${descriptor.pipExtras.join(',')}]` : descriptor.pipPackage!;
     const [uv] = whichAll('uv', searchPath, this.platform);
     const steps: Array<{ command: string; args: string[]; display: string }> = [];
     const venvExists = whichAll(python, '', this.platform).length > 0;
     if (uv) {
       if (!venvExists) steps.push({ command: uv, args: ['venv', '--python', descriptor.pythonRequirement ?? '>=3.10', venv], display: `uv venv --python "${descriptor.pythonRequirement ?? '>=3.10'}" <data>/runtime/venvs/${descriptor.id}` });
-      steps.push({ command: uv, args: ['pip', 'install', '--python', python, '--upgrade', descriptor.pipPackage!], display: `uv pip install --python <venv>/bin/python --upgrade ${descriptor.pipPackage}` });
+      steps.push({ command: uv, args: ['pip', 'install', '--python', python, '--upgrade', pipSpec], display: `uv pip install --python <venv>/bin/python --upgrade ${pipSpec}` });
     } else {
       const [python3] = whichAll('python3', searchPath, this.platform);
       if (!python3) throw new RuntimeManagerError('runtime.pythonMissing', 422, 'Neither uv nor python3 was found');
       if (!venvExists) steps.push({ command: python3, args: ['-m', 'venv', venv], display: `python3 -m venv <data>/runtime/venvs/${descriptor.id}` });
-      steps.push({ command: python, args: ['-m', 'pip', 'install', '--upgrade', descriptor.pipPackage!], display: `<venv>/bin/python -m pip install --upgrade ${descriptor.pipPackage}` });
+      steps.push({ command: python, args: ['-m', 'pip', 'install', '--upgrade', pipSpec], display: `<venv>/bin/python -m pip install --upgrade ${pipSpec}` });
     }
     let last: ProcessResult | null = null;
     for (const step of steps) {

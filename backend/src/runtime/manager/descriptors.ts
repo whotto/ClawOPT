@@ -120,6 +120,8 @@ export const BUILTIN_RUNTIME_DESCRIPTORS: readonly RuntimeDescriptor[] = [
     command: 'hermes',
     // PyPI 上的 hermes-agent 落后于主线（0.19 vs 0.21，2026-09-15）；官方安装方式是从仓库可编辑安装。
     pipPackage: 'hermes-agent',
+    // `hermes acp` 需要 [acp]（不带就启动即退出："ACP dependencies not installed"），经 ACP 注入的 MCP 需要 [mcp]（不带就静默不注册）。集成 P2 实测 0.19.0。
+    pipExtras: ['acp', 'mcp'],
     installKind: 'pip',
     pythonRequirement: '>=3.11,<3.14',
     versionArgs: ['--version'],

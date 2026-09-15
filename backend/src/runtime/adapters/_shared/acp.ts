@@ -95,8 +95,11 @@ export function createAcpDriver(ctx: TurnDriverContext, options: AcpDriverOption
   const toolTitles = new Map<string, { name: string; args: unknown }>();
   const pendingPermissions = new Map<string, PendingPermission>();
 
-  const classify = (message: string, fallback: RuntimeMessageCode): RuntimeMessageCode =>
-    looksLikeAuthMissing(message) || /MISSING_CREDENTIAL|no api key|No LLM provider configured/i.test(message) ? 'runtime.notLoggedIn' : fallback;
+  const classify = (message: string, fallback: RuntimeMessageCode): RuntimeMessageCode => {
+    // 装了运行时但缺 ACP 依赖（hermes-agent 不带 [acp] extra 装的，集成 P2 真机实测）：按「没装好」报，界面引导去重装。
+    if (/ACP dependencies not installed|No module named ['"]?(?:acp|agent_client_protocol)/i.test(message)) return 'runtime.notInstalled';
+    return looksLikeAuthMissing(message) || /MISSING_CREDENTIAL|no api key|No LLM provider configured/i.test(message) ? 'runtime.notLoggedIn' : fallback;
+  };
 
   const handleUpdate = (params: any) => {
     if (!acceptingUpdates || !params || params.sessionId !== sessionId) return;

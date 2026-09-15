@@ -58,6 +58,26 @@ import { CanonicalTee } from './tee';
 import { isApiMode, type ApiMode, type CanonicalRuntimeEvent, type ProviderProxy, type ProxyTarget, type RegisteredProxyTarget } from './types';
 
 export const RUNTIME_PROXY_PREFIX = '/api/runtime-proxy';
+
+/**
+ * Responses 直通时的帧形状整理（spec 04 §2.6 末：序号与 created_at 归一）：
+ * 兼容 Responses 的上游不一定给 `response.created_at` / `sequence_number`，而 Grok 的反序列化缺了就整轮报
+ * `missing field created_at`（集成 P2 真 Grok 1.0.30 实测）。只补缺的，不改上游给了的值。返回是否改动。
+ */
+export function normalizeResponsesPassthroughFrame(payload: Record<string, any>, state: { createdAt: number; sequence: number }): boolean {
+  let changed = false;
+  if (payload.response && typeof payload.response === 'object' && typeof payload.response.created_at !== 'number') {
+    payload.response.created_at = state.createdAt;
+    changed = true;
+  }
+  if (typeof payload.sequence_number === 'number') {
+    state.sequence = payload.sequence_number + 1;
+  } else {
+    payload.sequence_number = state.sequence++;
+    changed = true;
+  }
+  return changed;
+}
 export const ENCRYPTED_THINKING_PROBE_BYTES = 64 * 1024;
 const UPSTREAM_HEADERS_TIMEOUT_MS = 5 * 60 * 1000;
 const UPSTREAM_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -649,6 +669,7 @@ export class LocalProviderProxy implements ProviderProxy {
         if (!json) throw new ProxyHttpError(502, 'api_error', 'Provider returned an empty or invalid body');
         for (const event of neutralFromResponsesJson(json)) tee.push(event);
         if (zeroFillUsage && !json.usage) json.usage = responsesUsageObject(null);
+        if (json.object === 'response' && typeof json.created_at !== 'number') json.created_at = Math.floor(Date.now() / 1000);
         res.json(json);
         return;
       }
@@ -656,16 +677,19 @@ export class LocalProviderProxy implements ProviderProxy {
       if (!mode || !upstream.body) throw await this.readUpstreamError(upstream);
       const decoder = new ResponsesStreamDecoder();
       this.startSse(res);
+      const frameShape = { createdAt: Math.floor(Date.now() / 1000), sequence: 0 };
       for await (const sse of readSseEvents(upstream.body, mode, signal)) {
         for (const event of decoder.push(sse)) tee.push(event);
         let data = sse.data;
-        if (zeroFillUsage) {
-          const payload = parseJsonSafe(data);
-          if (payload?.type === 'response.completed' && payload.response && !payload.response.usage) {
+        const payload = parseJsonSafe(data);
+        if (payload && typeof payload === 'object' && typeof payload.type === 'string') {
+          let changed = normalizeResponsesPassthroughFrame(payload, frameShape);
+          if (zeroFillUsage && payload.type === 'response.completed' && payload.response && !payload.response.usage) {
             // OpenCode 收不到用量就把结束原因当未知、无限重试：补一个全零的。
             payload.response.usage = responsesUsageObject(null);
-            data = JSON.stringify(payload);
+            changed = true;
           }
+          if (changed) data = JSON.stringify(payload);
         }
         res.write(formatSseEvent(sse.event, data));
       }

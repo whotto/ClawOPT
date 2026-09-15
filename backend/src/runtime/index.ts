@@ -15,6 +15,7 @@ export type {
 } from './adapters/_shared/process';
 export {
   RUNTIME_MESSAGE_CODES,
+  RuntimeAdapterError,
 } from './adapters/_shared/errors';
 export type {
   CodingAgentRuntimeAdapter,

@@ -216,7 +216,9 @@ export function clientToolItem(origin: IrToolOrigin | undefined, base: { id: str
     return { id: base.id, type: 'custom_tool_call', status: base.status, call_id: base.callId, name: origin.name, input: typeof args.input === 'string' ? args.input : base.arguments };
   }
   if (origin?.kind === 'tool_search') {
-    return { id: base.id, type: 'function_call', status: base.status, call_id: base.callId, name: 'tool_search', arguments: base.arguments };
+    // Codex 的 ResponseItem::ToolSearchCall：`execution: client` 表示由客户端执行搜索，参数是对象而不是字符串。
+    // 还原成普通 function_call 时 Codex 不认识 `tool_search` 这个函数，直接回 "aborted"（集成 P2 真机实测）。
+    return { id: base.id, type: 'tool_search_call', status: base.status, call_id: base.callId, execution: 'client', arguments: parseObject(base.arguments) };
   }
   return { id: base.id, type: 'function_call', status: base.status, call_id: base.callId, name: base.name, arguments: base.arguments };
 }

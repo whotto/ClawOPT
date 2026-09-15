@@ -322,6 +322,17 @@ describe('Hermes：ACP 往返与错误', () => {
     expect(await startRun(createHermesAdapter(h2.deps), baseRequest({ command: { kind: 'status' } })).done).toMatchObject({ code: 'runtime.commandUnsupported' });
   });
 
+  it('装了 hermes-agent 但没带 [acp] extra（集成 P2 真机，PyPI 0.19.0）：启动即退出 → runtime.notInstalled，而不是笼统的 exitNonZero', async () => {
+    const h = harness();
+    const run = startRun(createHermesAdapter(h.deps), baseRequest());
+    const proc = await h.exec.next();
+    proc.stderr("2026-09-15 02:11:35 [INFO] acp_adapter.entry: Starting hermes-agent ACP adapter\nACP dependencies not installed.\nInstall them with:  pip install -e '.[acp]'\n");
+    proc.close(1);
+    const outcome = await run.done as any;
+    expect(outcome).toMatchObject({ kind: 'failed', code: 'runtime.notInstalled' });
+    expect(outcome.error).toContain('ACP dependencies not installed');
+  });
+
   it('scoped 下换了模型：session/new 而不是 resume', async () => {
     const ah = acpHarness(DENY, { 'session/prompt': (msg) => [{ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } }] });
     const first = await runTurn({ h: ah, request: baseRequest({ mode: 'scoped', provider: SCOPED_PROVIDER }), mode: 'scoped' });

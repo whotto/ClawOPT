@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isAuthPublicPath } from '../src/core/auth';
 import { assertOutboundUrlAllowed, isLocalProvider, isPrivateAddress, resolveUpstreamEndpoint } from '../src/runtime';
+import { normalizeResponsesPassthroughFrame } from '../src/runtime/proxy/provider-proxy';
 import { SseParser } from '../src/runtime/proxy/sse';
 import { ChatStreamDecoder } from '../src/runtime/proxy/stream-decoders';
 import { CumulativeOrDelta } from '../src/runtime/proxy/stream-neutral';
@@ -89,5 +90,19 @@ describe('出站地址策略', () => {
     expect(isLocalProvider('local:my-vllm')).toBe(true);
     expect(isLocalProvider('openai')).toBe(false);
     expect(isLocalProvider('ollama-cloud')).toBe(false);
+  });
+});
+
+describe('Responses 直通帧整理', () => {
+  it('缺 created_at / sequence_number 才补；上游给了的不改', () => {
+    const state = { createdAt: 1789450000, sequence: 0 };
+    const a: any = { type: 'response.created', response: { id: 'r', status: 'in_progress' } };
+    expect(normalizeResponsesPassthroughFrame(a, state)).toBe(true);
+    expect(a).toMatchObject({ sequence_number: 0, response: { created_at: 1789450000 } });
+    const b: any = { type: 'response.output_text.delta', sequence_number: 7, delta: 'x' };
+    expect(normalizeResponsesPassthroughFrame(b, state)).toBe(false);
+    const c: any = { type: 'response.completed', response: { id: 'r', created_at: 42 } };
+    expect(normalizeResponsesPassthroughFrame(c, state)).toBe(true);
+    expect(c).toMatchObject({ sequence_number: 8, response: { created_at: 42 } });
   });
 });

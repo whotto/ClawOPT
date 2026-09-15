@@ -132,7 +132,11 @@ export function prepareClaudeCodeLaunch(ctx: PrepareContext): PreparedLaunch {
   if (ctx.resume.resumeNativeId) args.push('--resume', ctx.resume.resumeNativeId);
   else if (ctx.resume.createNativeId) args.push('--session-id', ctx.resume.createNativeId);
 
-  if (request.allowedTools?.length) args.push('--allowedTools', ...request.allowedTools);
+  // 注入的 MCP 服务是用户 / ClawOPT 显式配置的：它们的工具按服务名放进白名单（`mcp__<服务>`），
+  // 否则 headless 下 `--permission-prompts none` 会把每次 MCP 调用都拒掉（集成 P2 真机：ToolSearch 找到了工具、调用被拒）。
+  // 这是显式白名单，不是绕过权限：没注入的工具、Bash 之外的写操作照样按 CLI 自己的规则。
+  const allowedTools = [...(request.allowedTools ?? []), ...ctx.mcpServers.map((server) => `mcp__${server.name}`)];
+  if (allowedTools.length) args.push('--allowedTools', ...new Set(allowedTools));
   for (const dir of request.extraDirs ?? []) args.push('--add-dir', dir);
   if (typeof request.maxBudgetUsd === 'number') args.push('--max-budget-usd', String(request.maxBudgetUsd));
 

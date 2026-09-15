@@ -33,6 +33,7 @@ import {
 } from '../control';
 import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
+import { createScopedProviderResolver } from './scoped-provider-resolver';
 import {
   createChatCommands,
   createChatLifecycle,
@@ -96,6 +97,8 @@ export function createAppContext() {
   const runtimePlatform = createRuntimePlatform({
     dataDir: defaultRuntimeDataDir(),
     proxy: providerProxy,
+    // scoped 的上游：成员 / 会话配置里只有模型 id，地址与 key 在服务端从 ClawOPT 的模型配置取，只交给代理。
+    resolveScopedProvider: createScopedProviderResolver(agentProvisioner),
     isRuntimeBusy: (runtime) => runCoordinator.activeRuns().some((run) => run.runtime === runtime),
     stopRuntimeRuns: async (runtime) => {
       await Promise.all(runCoordinator.activeRuns()

@@ -271,7 +271,7 @@ describe('安装 / 升级 / 卸载', () => {
     const uvCalls = calls.filter((call) => call.command === uv);
     expect(uvCalls[0].args.slice(0, 3)).toEqual(['venv', '--python', '>=3.11,<3.14']);
     expect(uvCalls[0].args[3]).toMatch(/runtime-data-|kb-clawopt-manager-data-.*venvs\/hermes$/);
-    expect(uvCalls[1].args).toEqual(['pip', 'install', '--python', path.join(uvCalls[0].args[3], 'bin', 'python'), '--upgrade', 'hermes-agent']);
+    expect(uvCalls[1].args).toEqual(['pip', 'install', '--python', path.join(uvCalls[0].args[3], 'bin', 'python'), '--upgrade', 'hermes-agent[acp,mcp]']);
     expect(calls.some((call) => /(^|\/)pip3?$/.test(call.command))).toBe(false);
     expect(result.status).toMatchObject({ installed: true, version: '0.19.0', source: 'managed-venv', managed: true });
     expect(result.status.update).toMatchObject({ state: 'available', latestVersion: '0.20.0' });

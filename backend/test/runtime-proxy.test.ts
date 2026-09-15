@@ -261,6 +261,47 @@ describe('Responses 客户端（Codex / Grok / OpenCode）', () => {
     expect(harness.events.filter((e) => e.type === 'response.output_item.done').length).toBe(3);
   });
 
+  /**
+   * 形状取自集成 P2 时真 Codex 0.153.4（模型 gpt-5.4，MCP 工具延迟加载）发给代理的请求：
+   * `tools` 里是 `{type: 'tool_search', execution: 'client'}`；搜到的命名空间工具只出现在历史的 `tool_search_output.tools` 里。
+   * 修之前：还原成 `function_call name=tool_search`，Codex 不认、回 "aborted"；搜到的工具不进上游工具表，模型调不了。
+   */
+  it('→ Chat 上游：tool_search 还原成 tool_search_call（execution: client，参数是对象）；tool_search_output 里搜到的工具进上游工具表', async () => {
+    const registered = harness.proxy.register(target({ provider: 'openrouter', model: 'qwen3-coder', runtime: 'codex' }));
+    const searchCall = 'data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_search_1","type":"function","function":{"name":"tool_search","arguments":"{\\"query\\":\\"echo\\"}"}}]},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n';
+    const echoCall = 'data: {"id":"c2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_echo_1","type":"function","function":{"name":"mcp__echo_mcp__echo","arguments":"{\\"text\\":\\"hi\\"}"}}]},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n';
+    harness.replies.push({ headers: SSE_HEADERS, body: searchCall }, { headers: SSE_HEADERS, body: echoCall });
+    const baseTools = [
+      { type: 'function', name: 'exec_command', parameters: { type: 'object' } },
+      { type: 'tool_search', execution: 'client', description: 'Search deferred tools', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
+    ];
+    const first = await postJson(`${localize(harness, registered.responsesBaseUrl)}/responses`, {
+      model: 'gpt-5.4', stream: true, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'call echo' }] }], tools: baseTools,
+    }, { authorization: `Bearer ${registered.token}` });
+    const firstDone = parseSseText(first.text).map((f) => f.data).filter((f) => f.type === 'response.output_item.done').map((f) => f.item);
+    expect(firstDone).toEqual([expect.objectContaining({ type: 'tool_search_call', call_id: 'call_search_1', execution: 'client', arguments: { query: 'echo' } })]);
+
+    const second = await postJson(`${localize(harness, registered.responsesBaseUrl)}/responses`, {
+      model: 'gpt-5.4',
+      stream: true,
+      tools: baseTools,
+      input: [
+        { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'call echo' }] },
+        { type: 'tool_search_call', id: 'fc_1', call_id: 'call_search_1', status: 'completed', execution: 'client', arguments: { query: 'echo' } },
+        {
+          type: 'tool_search_output', id: 'tso_1', call_id: 'call_search_1', status: 'completed', execution: 'client',
+          tools: [{ type: 'namespace', name: 'mcp__echo_mcp', description: 'Tools in the mcp__echo_mcp namespace.', tools: [{ type: 'function', name: 'echo', strict: false, defer_loading: true, parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } }] }],
+        },
+      ],
+    }, { authorization: `Bearer ${registered.token}` });
+    const upstreamSecond = harness.upstreamRequests[1].body;
+    expect(upstreamSecond.tools.map((t: any) => t.function.name)).toEqual(['exec_command', 'tool_search', 'mcp__echo_mcp__echo']);
+    expect(upstreamSecond.messages.find((m: any) => m.role === 'assistant').tool_calls[0]).toMatchObject({ id: 'call_search_1', function: { name: 'tool_search', arguments: '{"query":"echo"}' } });
+    expect(upstreamSecond.messages.find((m: any) => m.role === 'tool')).toMatchObject({ tool_call_id: 'call_search_1' });
+    const secondDone = parseSseText(second.text).map((f) => f.data).filter((f) => f.type === 'response.output_item.done').map((f) => f.item);
+    expect(secondDone).toEqual([expect.objectContaining({ type: 'function_call', name: 'echo', namespace: 'mcp__echo_mcp', call_id: 'call_echo_1', arguments: '{"text":"hi"}' })]);
+  });
+
   it('→ Chat 上游（Grok）：system 改 developer、去掉 max_output_tokens', async () => {
     const registered = harness.proxy.register(target({ provider: 'xai', model: 'grok-code', runtime: 'grok', baseUrl: 'https://upstream.test/v1' }));
     harness.replies.push({ body: JSON.stringify({ id: 'g1', choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }) });
@@ -325,6 +366,12 @@ describe('Responses 客户端（Codex / Grok / OpenCode）', () => {
     expect(truncated).not.toContain('�');
     const completed = parseSseText(res.text).map((f) => f.data).find((f) => f.type === 'response.completed');
     expect(completed.response.usage).toMatchObject({ input_tokens: 0, output_tokens: 0 });
+    // 上游没给 response.created_at（兼容 Responses 的上游常见）：直通时补上，同一流里一致；上游给的序号原样保留。
+    // Grok 1.0.30 缺这个字段整轮报 `missing field created_at`（集成 P2 真机）。
+    const frames = parseSseText(res.text).map((f) => f.data);
+    const createdAts = frames.filter((f) => f.response).map((f) => f.response.created_at);
+    expect(createdAts.every((value) => typeof value === 'number' && value === createdAts[0])).toBe(true);
+    expect(frames.map((f) => f.sequence_number)).toEqual([0, 1, 2]);
   });
 });
 
