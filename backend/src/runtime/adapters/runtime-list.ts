@@ -23,7 +23,7 @@ export interface ExternalRuntimeDescriptor {
 }
 
 /** 真机验证过首轮与续话的运行时（P2，2026-09-15，本机 global 模式）。 */
-const VERIFIED_RUNTIMES = new Set(['claude-code']);
+const VERIFIED_RUNTIMES = new Set(['claude-code', 'codex', 'pi']);
 
 export const EXTERNAL_RUNTIMES: readonly ExternalRuntimeDescriptor[] = CODING_AGENT_DEFINITIONS.map((definition) => ({
   id: definition.descriptor.id,
