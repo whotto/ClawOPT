@@ -1,8 +1,8 @@
-// 侧栏「智能体」页签的组织视图：Recent、分类、未分类、归档分组（可折叠），行菜单挪分类 / 归档，
+// 侧栏「智能体」页签的组织视图：置顶、Recent、分类、未分类、归档分组（可折叠），行菜单挪分类 / 归档，
 // 整理面板（新建分类、Recent 数量、只看人建的），管理员的批量删除（部分失败逐个说明）。
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, FolderInput, MoreHorizontal, Pencil, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, FolderInput, MoreHorizontal, Pencil, Pin, PinOff, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { useAccess } from '../../app/access';
 import type { SidebarProps } from '../../app/sidebar/Sidebar';
 import { SessionCard } from '../../app/sidebar/SidebarCards';
@@ -36,7 +36,7 @@ export function OrganizedSessionList({ sidebar, onShowInfo, renderFlat }: {
 }) {
   const { t } = useTranslation();
   const canManage = useAccess().can('agents.manage');
-  const { organization, load, createCategory, renameCategory, deleteCategory, moveToCategory, setArchived, batchDelete } = useSessionOrgStore();
+  const { organization, load, createCategory, renameCategory, deleteCategory, moveToCategory, setArchived, setPinned, batchDelete } = useSessionOrgStore();
   // 偏好只在用户操作时写（加载不写）。
   const [prefs, setPrefsState] = useState<SessionOrgPrefs>(() => readPrefs());
   const setPrefs = (next: SessionOrgPrefs) => { setPrefsState(next); writePrefs(next); };
@@ -58,7 +58,8 @@ export function OrganizedSessionList({ sidebar, onShowInfo, renderFlat }: {
   );
   // 有分类 / 归档 / 筛选 / 批量时整张列表按组渲染；否则 Recent（如有）加原来的可拖拽平铺列表。
   const organized = sections.some((section) => section.kind === 'category' || section.kind === 'archived') || prefs.humanOnly || batchMode;
-  const visibleSections = organized ? sections : sections.filter((section) => section.kind === 'recent');
+  // 平铺模式下置顶组与 Recent 照样显示在拖拽列表上面（置顶的会话在平铺列表里仍然出现：那份顺序是拖拽排出来的，不拆）。
+  const visibleSections = organized ? sections : sections.filter((section) => section.kind === 'recent' || section.kind === 'pinned');
   const nameOf = (id: string) => sidebar.sessions.find((s) => s.id === id)?.name || id;
 
   const reportFailure = (payload: any, fallbackKey: string) => {
@@ -73,6 +74,7 @@ export function OrganizedSessionList({ sidebar, onShowInfo, renderFlat }: {
   };
 
   const sectionTitle = (section: SessionSection<SessionItem>) => {
+    if (section.kind === 'pinned') return t('sessionOrg.pinned');
     if (section.kind === 'recent') return t('sessionOrg.recent');
     if (section.kind === 'archived') return t('sessionOrg.archived');
     if (section.kind === 'uncategorized') return t('sessionOrg.uncategorized');
@@ -131,6 +133,19 @@ export function OrganizedSessionList({ sidebar, onShowInfo, renderFlat }: {
               </button>
             ))}
             <div className="my-1 border-t border-gray-100" />
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-50"
+              data-testid="session-org-pin"
+              onClick={async () => {
+                setMenuFor(null);
+                const result = await setPinned(session.id, !info?.pinnedAt);
+                if (!result.ok) reportFailure(result.payload, 'sessionOrg.actionFailed');
+              }}
+            >
+              {info?.pinnedAt ? <PinOff className="h-3.5 w-3.5 text-gray-400" /> : <Pin className="h-3.5 w-3.5 text-gray-400" />}
+              {info?.pinnedAt ? t('sessionOrg.unpin') : t('sessionOrg.pin')}
+            </button>
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-50"
@@ -233,7 +248,7 @@ export function OrganizedSessionList({ sidebar, onShowInfo, renderFlat }: {
             <input type="checkbox" className="accent-blue-600" checked={prefs.humanOnly} onChange={(event) => setPrefs({ ...prefs, humanOnly: event.target.checked })} />
             {t('sessionOrg.humanOnly')}
           </label>
-          <p className="text-[11px] text-gray-400">{t('sessionOrg.pinsHint')}</p>
+          <p className="text-[11px] text-gray-400">{t('sessionOrg.prefsHint')}</p>
         </div>
       )}
 

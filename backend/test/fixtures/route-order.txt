@@ -129,6 +129,7 @@ PUT /api/session-categories/:categoryId
 DELETE /api/session-categories/:categoryId
 PUT /api/sessions/:id/category
 PUT /api/sessions/:id/archive
+PUT /api/sessions/:id/pin
 PUT /api/sessions/:id/title
 GET /api/sessions/:id/export
 POST /api/sessions/:id/fork

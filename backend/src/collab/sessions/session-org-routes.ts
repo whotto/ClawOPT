@@ -3,7 +3,7 @@
  *
  * 授权：
  * - 分类的建改删只动**自己的**分类（按用户存，见 `session-org-store.ts`），登录即可；
- * - 按会话的操作（挪分类、归档、改标题、导出）先过 `chatSessionParamGuard`：看不见的会话 403；
+ * - 按会话的操作（挪分类、置顶、归档、改标题、导出）先过 `chatSessionParamGuard`：看不见的会话 403；
  * - 组织视图 `GET /api/session-organization` 只回看得见的会话；
  * - 分叉会新建一个外部运行时单聊，与建会话同级：`requireAdminAuth`。
  */
@@ -102,6 +102,7 @@ export function registerSessionOrgRoutes(app: RouteApp, ctx: SessionOrgRoutesDep
           // 指向已删分类的归属按未分类显示（删分类是事务，这里只是防御）。
           categoryId: entry?.categoryId && knownCategories.has(entry.categoryId) ? entry.categoryId : null,
           archived: entry?.archived ?? false,
+          pinnedAt: entry?.pinnedAt ?? null,
           title: info?.title ?? null,
           titleSource: info?.titleSource ?? null,
           humanCreated: isHumanCreatedSession(session, info),
@@ -150,6 +151,12 @@ export function registerSessionOrgRoutes(app: RouteApp, ctx: SessionOrgRoutesDep
   app.put('/api/sessions/:id/archive', guardSessionId, (req, res) => {
     if (!ctx.sessionManager.getSession(req.params.id)) return res.status(404).json(buildStructuredApiError(SESSION_ORG_ERROR.sessionNotFound));
     ctx.sessionOrg.setArchived(owner(req), req.params.id, req.body?.archived !== false);
+    res.json({ success: true });
+  });
+
+  app.put('/api/sessions/:id/pin', guardSessionId, (req, res) => {
+    if (!ctx.sessionManager.getSession(req.params.id)) return res.status(404).json(buildStructuredApiError(SESSION_ORG_ERROR.sessionNotFound));
+    ctx.sessionOrg.setPinned(owner(req), req.params.id, req.body?.pinned !== false);
     res.json({ success: true });
   });
 

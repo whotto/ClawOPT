@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import {
   batchDeleteSessions, createSessionCategory, deleteSessionCategory, getSessionOrganization,
-  moveSessionToCategory, renameSessionCategory, renameSessionTitle, setSessionArchived,
+  moveSessionToCategory, renameSessionCategory, renameSessionTitle, setSessionArchived, setSessionPinned,
 } from '../../api/sessions';
 import { normalizeOrganization, type SessionOrganization } from './sessionOrganization';
 
@@ -17,6 +17,7 @@ type SessionOrgState = {
   deleteCategory: (id: number) => Promise<ActionResult>;
   moveToCategory: (sessionId: string, categoryId: number | null) => Promise<ActionResult>;
   setArchived: (sessionId: string, archived: boolean) => Promise<ActionResult>;
+  setPinned: (sessionId: string, pinned: boolean) => Promise<ActionResult>;
   renameTitle: (sessionId: string, title: string) => Promise<ActionResult>;
   batchDelete: (ids: string[]) => Promise<ActionResult>;
 };
@@ -53,6 +54,7 @@ export const useSessionOrgStore = create<SessionOrgState>((set, get) => ({
   deleteCategory: (id) => run(() => deleteSessionCategory(id), get().load),
   moveToCategory: (sessionId, categoryId) => run(() => moveSessionToCategory(sessionId, categoryId), get().load),
   setArchived: (sessionId, archived) => run(() => setSessionArchived(sessionId, archived), get().load),
+  setPinned: (sessionId, pinned) => run(() => setSessionPinned(sessionId, pinned), get().load),
   renameTitle: (sessionId, title) => run(() => renameSessionTitle(sessionId, title), get().load),
   batchDelete: (ids) => run(() => batchDeleteSessions(ids), get().load),
 }));

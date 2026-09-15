@@ -1,13 +1,15 @@
-// 侧栏会话组织（P1b）：分类、Recent、归档、只看人建的——纯函数，带单测。
+// 侧栏会话组织（P1b）：置顶、分类、Recent、归档、只看人建的——纯函数，带单测。
 //
 // 服务端 `GET /api/session-organization` 按用户给分类与每个会话的归属；这里只负责把「看得见的会话列表」排成分组。
-// 置顶沿用侧栏已有的「收藏」（同一个概念不做两份）。
+// 置顶按账号存在服务端（侧栏「收藏」是全局配置、不分用户，不能拿来当每个人的置顶）。
 
 export type SessionCategory = { id: number; name: string };
 
 export type SessionOrgInfo = {
   categoryId: number | null;
   archived: boolean;
+  /** 置顶时间（epoch ms）；null = 没置顶。 */
+  pinnedAt: number | null;
   title: string | null;
   titleSource: 'auto' | 'runtime' | 'manual' | null;
   humanCreated: boolean;
@@ -22,6 +24,7 @@ export type SessionOrganization = {
 };
 
 export type SessionSection<T> =
+  | { kind: 'pinned'; key: 'pinned'; items: T[] }
   | { kind: 'recent'; key: 'recent'; items: T[] }
   | { kind: 'category'; key: string; category: SessionCategory; items: T[] }
   | { kind: 'uncategorized'; key: 'uncategorized'; items: T[] }
@@ -47,6 +50,7 @@ export function normalizeOrganization(payload: any): SessionOrganization {
     sessions[id] = {
       categoryId: Number.isInteger(info?.categoryId) ? info.categoryId : null,
       archived: info?.archived === true,
+      pinnedAt: typeof info?.pinnedAt === 'number' && info.pinnedAt > 0 && info?.archived !== true ? info.pinnedAt : null,
       title: typeof info?.title === 'string' ? info.title : null,
       titleSource: ['auto', 'runtime', 'manual'].includes(info?.titleSource) ? info.titleSource : null,
       humanCreated: info?.humanCreated !== false,
@@ -61,6 +65,7 @@ export function normalizeOrganization(payload: any): SessionOrganization {
 /**
  * 分组规则：
  * - 「只看人建的」开着时先滤掉诊断 / 自动化会话；
+ * - 置顶：最上面一组，后置顶的在上；置顶的会话**离开**它的分类 / 未分类与 Recent（已经在最上面了，不重复出现）；
  * - Recent：未归档里最近活动的前 N 个（快捷入口，**不**把会话从它的分类里拿走）；没有活动时间的不进 Recent；
  * - 分类：只列非空的，按名字排；指向不存在分类的归属当未分类；
  * - 归档：单独一组，不进 Recent、不进分类。
@@ -73,9 +78,14 @@ export function buildSessionSections<T extends { id: string }>(
 ): SessionSection<T>[] {
   const infoOf = (id: string) => organization?.sessions[id];
   const visible = options.humanOnly ? sessions.filter((s) => infoOf(s.id)?.humanCreated !== false) : sessions;
-  const active = visible.filter((s) => !infoOf(s.id)?.archived);
+  const unarchived = visible.filter((s) => !infoOf(s.id)?.archived);
   const archived = visible.filter((s) => infoOf(s.id)?.archived);
+  const pinned = unarchived
+    .filter((s) => typeof infoOf(s.id)?.pinnedAt === 'number')
+    .sort((a, b) => (infoOf(b.id)!.pinnedAt as number) - (infoOf(a.id)!.pinnedAt as number));
+  const active = unarchived.filter((s) => typeof infoOf(s.id)?.pinnedAt !== 'number');
   const sections: SessionSection<T>[] = [];
+  if (pinned.length > 0) sections.push({ kind: 'pinned', key: 'pinned', items: pinned });
 
   if (options.showRecent && organization) {
     const recent = active

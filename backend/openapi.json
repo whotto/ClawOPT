@@ -3661,6 +3661,44 @@
         "x-clawopt-order": 130
       }
     },
+    "/api/sessions/{id}/pin": {
+      "put": {
+        "operationId": "putApiSessionsIdPin",
+        "tags": [
+          "collab/sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "authTokenHeader": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Response shape is not described yet (see the route handler)."
+          }
+        },
+        "x-clawopt-public": false,
+        "x-clawopt-admin-only": false,
+        "x-clawopt-express-path": "/api/sessions/:id/pin",
+        "x-clawopt-order": 131
+      }
+    },
     "/api/sessions/{id}/title": {
       "put": {
         "operationId": "putApiSessionsIdTitle",
@@ -3696,7 +3734,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:id/title",
-        "x-clawopt-order": 131
+        "x-clawopt-order": 132
       }
     },
     "/api/sessions/{id}/export": {
@@ -3734,7 +3772,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:id/export",
-        "x-clawopt-order": 132
+        "x-clawopt-order": 133
       }
     },
     "/api/sessions/{id}/fork": {
@@ -3772,7 +3810,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/sessions/:id/fork",
-        "x-clawopt-order": 133
+        "x-clawopt-order": 134
       }
     },
     "/api/chat": {
@@ -3800,7 +3838,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat",
-        "x-clawopt-order": 134
+        "x-clawopt-order": 135
       }
     },
     "/api/chat/regenerate": {
@@ -3828,7 +3866,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/regenerate",
-        "x-clawopt-order": 135
+        "x-clawopt-order": 136
       }
     },
     "/api/chat/attach/{sessionId}": {
@@ -3866,7 +3904,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/attach/:sessionId",
-        "x-clawopt-order": 136
+        "x-clawopt-order": 137
       }
     },
     "/api/chat/stop": {
@@ -3894,7 +3932,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/stop",
-        "x-clawopt-order": 137
+        "x-clawopt-order": 138
       }
     },
     "/api/chat/silent": {
@@ -3922,7 +3960,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/silent",
-        "x-clawopt-order": 138
+        "x-clawopt-order": 139
       }
     },
     "/api/chat/{sessionId}/state": {
@@ -3960,7 +3998,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/state",
-        "x-clawopt-order": 139
+        "x-clawopt-order": 140
       }
     },
     "/api/chat/{sessionId}/context-usage": {
@@ -3998,7 +4036,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/context-usage",
-        "x-clawopt-order": 140
+        "x-clawopt-order": 141
       }
     },
     "/api/chat/{sessionId}/task-plans": {
@@ -4036,7 +4074,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/task-plans",
-        "x-clawopt-order": 141
+        "x-clawopt-order": 142
       }
     },
     "/api/chat/{sessionId}/tool-calls": {
@@ -4074,7 +4112,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/tool-calls",
-        "x-clawopt-order": 142
+        "x-clawopt-order": 143
       }
     },
     "/api/chat/{sessionId}/tool-calls/{callRowId}": {
@@ -4120,7 +4158,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/tool-calls/:callRowId",
-        "x-clawopt-order": 143
+        "x-clawopt-order": 144
       }
     },
     "/api/chat/{sessionId}/queue/{queueId}": {
@@ -4166,7 +4204,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/queue/:queueId",
-        "x-clawopt-order": 144
+        "x-clawopt-order": 145
       }
     },
     "/api/chat/{sessionId}/queue/{queueId}/insert": {
@@ -4212,7 +4250,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/queue/:queueId/insert",
-        "x-clawopt-order": 145
+        "x-clawopt-order": 146
       }
     },
     "/api/chat/{sessionId}/events": {
@@ -4250,7 +4288,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/chat/:sessionId/events",
-        "x-clawopt-order": 146
+        "x-clawopt-order": 147
       }
     },
     "/api/search/chat": {
@@ -4278,7 +4316,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/search/chat",
-        "x-clawopt-order": 147
+        "x-clawopt-order": 148
       }
     },
     "/api/sessions/{sessionId}/workspace-changes": {
@@ -4316,7 +4354,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:sessionId/workspace-changes",
-        "x-clawopt-order": 148
+        "x-clawopt-order": 149
       }
     },
     "/api/sessions/{sessionId}/workspace-changes/{changeId}/files/{fileId}": {
@@ -4370,7 +4408,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/sessions/:sessionId/workspace-changes/:changeId/files/:fileId",
-        "x-clawopt-order": 149
+        "x-clawopt-order": 150
       }
     },
     "/api/run-approvals": {
@@ -4398,7 +4436,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/run-approvals",
-        "x-clawopt-order": 150
+        "x-clawopt-order": 151
       }
     },
     "/api/run-approvals/{id}/respond": {
@@ -4436,7 +4474,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/run-approvals/:id/respond",
-        "x-clawopt-order": 151
+        "x-clawopt-order": 152
       }
     },
     "/api/files/upload": {
@@ -4464,7 +4502,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/upload",
-        "x-clawopt-order": 152
+        "x-clawopt-order": 153
       }
     },
     "/api/files": {
@@ -4492,7 +4530,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files",
-        "x-clawopt-order": 153
+        "x-clawopt-order": 154
       }
     },
     "/api/commands": {
@@ -4520,7 +4558,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/commands",
-        "x-clawopt-order": 154
+        "x-clawopt-order": 155
       },
       "post": {
         "operationId": "postApiCommands",
@@ -4546,7 +4584,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/commands",
-        "x-clawopt-order": 155
+        "x-clawopt-order": 156
       }
     },
     "/api/commands/{id}": {
@@ -4584,7 +4622,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/commands/:id",
-        "x-clawopt-order": 156
+        "x-clawopt-order": 157
       },
       "delete": {
         "operationId": "deleteApiCommandsId",
@@ -4620,7 +4658,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/commands/:id",
-        "x-clawopt-order": 157
+        "x-clawopt-order": 158
       }
     },
     "/uploads/{filename}": {
@@ -4658,7 +4696,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/uploads/:filename",
-        "x-clawopt-order": 158
+        "x-clawopt-order": 159
       }
     },
     "/openclaw/{path}": {
@@ -4696,7 +4734,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/^\\/openclaw\\/(.+)/",
-        "x-clawopt-order": 159
+        "x-clawopt-order": 160
       }
     },
     "/api/files/download": {
@@ -4724,7 +4762,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/download",
-        "x-clawopt-order": 160
+        "x-clawopt-order": 161
       }
     },
     "/api/files/capabilities": {
@@ -4752,7 +4790,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/capabilities",
-        "x-clawopt-order": 161
+        "x-clawopt-order": 162
       }
     },
     "/api/files/preview-data": {
@@ -4780,7 +4818,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/preview-data",
-        "x-clawopt-order": 162
+        "x-clawopt-order": 163
       }
     },
     "/api/files/html-preview/path/{encodedPath}/{wildcard}": {
@@ -4826,7 +4864,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/html-preview/path/:encodedPath/*",
-        "x-clawopt-order": 163
+        "x-clawopt-order": 164
       }
     },
     "/api/files/html-preview/upload/{filename}/{wildcard}": {
@@ -4872,7 +4910,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/html-preview/upload/:filename/*",
-        "x-clawopt-order": 164
+        "x-clawopt-order": 165
       }
     },
     "/api/files/preview": {
@@ -4900,7 +4938,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/files/preview",
-        "x-clawopt-order": 165
+        "x-clawopt-order": 166
       }
     },
     "/api/workflows": {
@@ -4928,7 +4966,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows",
-        "x-clawopt-order": 166
+        "x-clawopt-order": 167
       },
       "post": {
         "operationId": "postApiWorkflows",
@@ -4954,7 +4992,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows",
-        "x-clawopt-order": 167
+        "x-clawopt-order": 168
       }
     },
     "/api/workflows/batch-delete": {
@@ -4982,7 +5020,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/batch-delete",
-        "x-clawopt-order": 168
+        "x-clawopt-order": 169
       }
     },
     "/api/workflows/import/preview": {
@@ -5010,7 +5048,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/import/preview",
-        "x-clawopt-order": 169
+        "x-clawopt-order": 170
       }
     },
     "/api/workflows/import/confirm": {
@@ -5038,7 +5076,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/import/confirm",
-        "x-clawopt-order": 170
+        "x-clawopt-order": 171
       }
     },
     "/api/workflows/import/cancel": {
@@ -5066,7 +5104,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/import/cancel",
-        "x-clawopt-order": 171
+        "x-clawopt-order": 172
       }
     },
     "/api/workflows/agents": {
@@ -5094,7 +5132,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/agents",
-        "x-clawopt-order": 172
+        "x-clawopt-order": 173
       }
     },
     "/api/workflows/pending-approvals": {
@@ -5122,7 +5160,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/pending-approvals",
-        "x-clawopt-order": 173
+        "x-clawopt-order": 174
       }
     },
     "/api/workflows/settings": {
@@ -5150,7 +5188,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/settings",
-        "x-clawopt-order": 174
+        "x-clawopt-order": 175
       },
       "put": {
         "operationId": "putApiWorkflowsSettings",
@@ -5176,7 +5214,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/settings",
-        "x-clawopt-order": 175
+        "x-clawopt-order": 176
       }
     },
     "/api/workflows/{id}": {
@@ -5214,7 +5252,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id",
-        "x-clawopt-order": 176
+        "x-clawopt-order": 177
       },
       "patch": {
         "operationId": "patchApiWorkflowsId",
@@ -5250,7 +5288,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id",
-        "x-clawopt-order": 177
+        "x-clawopt-order": 178
       },
       "delete": {
         "operationId": "deleteApiWorkflowsId",
@@ -5286,7 +5324,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id",
-        "x-clawopt-order": 178
+        "x-clawopt-order": 179
       }
     },
     "/api/workflows/{id}/export": {
@@ -5324,7 +5362,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/export",
-        "x-clawopt-order": 179
+        "x-clawopt-order": 180
       }
     },
     "/api/workflows/{id}/run": {
@@ -5362,7 +5400,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/run",
-        "x-clawopt-order": 180
+        "x-clawopt-order": 181
       }
     },
     "/api/workflows/{id}/runs": {
@@ -5400,7 +5438,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/runs",
-        "x-clawopt-order": 181
+        "x-clawopt-order": 182
       }
     },
     "/api/workflows/{id}/runs/{runId}": {
@@ -5446,7 +5484,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/runs/:runId",
-        "x-clawopt-order": 182
+        "x-clawopt-order": 183
       },
       "delete": {
         "operationId": "deleteApiWorkflowsIdRunsRunId",
@@ -5490,7 +5528,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/runs/:runId",
-        "x-clawopt-order": 185
+        "x-clawopt-order": 186
       }
     },
     "/api/workflows/{id}/runs/{runId}/transcript": {
@@ -5536,7 +5574,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/transcript",
-        "x-clawopt-order": 183
+        "x-clawopt-order": 184
       }
     },
     "/api/workflows/{id}/runs/{runId}/stop": {
@@ -5582,7 +5620,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/stop",
-        "x-clawopt-order": 184
+        "x-clawopt-order": 185
       }
     },
     "/api/workflows/{id}/runs/{runId}/nodes/{nodeId}/approval": {
@@ -5636,7 +5674,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/nodes/:nodeId/approval",
-        "x-clawopt-order": 186
+        "x-clawopt-order": 187
       }
     },
     "/api/workflows/{id}/runs/{runId}/rerun-from-node": {
@@ -5682,7 +5720,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/runs/:runId/rerun-from-node",
-        "x-clawopt-order": 187
+        "x-clawopt-order": 188
       }
     },
     "/api/workflows/{id}/events": {
@@ -5720,7 +5758,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/events",
-        "x-clawopt-order": 188
+        "x-clawopt-order": 189
       }
     },
     "/api/workflows/{id}/schedules": {
@@ -5758,7 +5796,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/schedules",
-        "x-clawopt-order": 189
+        "x-clawopt-order": 190
       },
       "post": {
         "operationId": "postApiWorkflowsIdSchedules",
@@ -5794,7 +5832,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/schedules",
-        "x-clawopt-order": 190
+        "x-clawopt-order": 191
       }
     },
     "/api/workflows/{id}/schedules/{scheduleId}": {
@@ -5840,7 +5878,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/schedules/:scheduleId",
-        "x-clawopt-order": 191
+        "x-clawopt-order": 192
       },
       "delete": {
         "operationId": "deleteApiWorkflowsIdSchedulesScheduleId",
@@ -5884,7 +5922,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/schedules/:scheduleId",
-        "x-clawopt-order": 192
+        "x-clawopt-order": 193
       }
     },
     "/api/workflows/{id}/schedules/{scheduleId}/events": {
@@ -5930,7 +5968,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/schedules/:scheduleId/events",
-        "x-clawopt-order": 193
+        "x-clawopt-order": 194
       }
     },
     "/api/workflows/{id}/hooks": {
@@ -5968,7 +6006,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/workflows/:id/hooks",
-        "x-clawopt-order": 194
+        "x-clawopt-order": 195
       },
       "post": {
         "operationId": "postApiWorkflowsIdHooks",
@@ -6004,7 +6042,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/hooks",
-        "x-clawopt-order": 195
+        "x-clawopt-order": 196
       }
     },
     "/api/workflows/{id}/hooks/{hookId}": {
@@ -6050,7 +6088,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/hooks/:hookId",
-        "x-clawopt-order": 196
+        "x-clawopt-order": 197
       },
       "delete": {
         "operationId": "deleteApiWorkflowsIdHooksHookId",
@@ -6094,7 +6132,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/hooks/:hookId",
-        "x-clawopt-order": 198
+        "x-clawopt-order": 199
       }
     },
     "/api/workflows/{id}/hooks/{hookId}/rotate-secret": {
@@ -6140,7 +6178,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/workflows/:id/hooks/:hookId/rotate-secret",
-        "x-clawopt-order": 197
+        "x-clawopt-order": 198
       }
     },
     "/api/hooks/workflows/{hookId}": {
@@ -6168,7 +6206,7 @@
         "x-clawopt-public": true,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/hooks/workflows/:hookId",
-        "x-clawopt-order": 199
+        "x-clawopt-order": 200
       }
     },
     "/api/hooks/webhook-test/{token}": {
@@ -6196,7 +6234,7 @@
         "x-clawopt-public": true,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/hooks/webhook-test/:token",
-        "x-clawopt-order": 200
+        "x-clawopt-order": 201
       }
     },
     "/api/webhooks/event-types": {
@@ -6224,7 +6262,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/webhooks/event-types",
-        "x-clawopt-order": 201
+        "x-clawopt-order": 202
       }
     },
     "/api/webhooks/endpoints": {
@@ -6252,7 +6290,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/endpoints",
-        "x-clawopt-order": 202
+        "x-clawopt-order": 203
       },
       "post": {
         "operationId": "postApiWebhooksEndpoints",
@@ -6278,7 +6316,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/endpoints",
-        "x-clawopt-order": 203
+        "x-clawopt-order": 204
       }
     },
     "/api/webhooks/endpoints/{endpointId}": {
@@ -6316,7 +6354,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId",
-        "x-clawopt-order": 204
+        "x-clawopt-order": 205
       },
       "delete": {
         "operationId": "deleteApiWebhooksEndpointsEndpointId",
@@ -6352,7 +6390,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId",
-        "x-clawopt-order": 205
+        "x-clawopt-order": 206
       }
     },
     "/api/webhooks/endpoints/{endpointId}/test": {
@@ -6390,7 +6428,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId/test",
-        "x-clawopt-order": 206
+        "x-clawopt-order": 207
       }
     },
     "/api/webhooks/endpoints/{endpointId}/deliveries": {
@@ -6428,7 +6466,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/endpoints/:endpointId/deliveries",
-        "x-clawopt-order": 207
+        "x-clawopt-order": 208
       }
     },
     "/api/webhooks/local-test-target": {
@@ -6456,7 +6494,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/local-test-target",
-        "x-clawopt-order": 208
+        "x-clawopt-order": 209
       }
     },
     "/api/webhooks/local-test-events": {
@@ -6484,7 +6522,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/local-test-events",
-        "x-clawopt-order": 209
+        "x-clawopt-order": 210
       },
       "delete": {
         "operationId": "deleteApiWebhooksLocalTestEvents",
@@ -6510,7 +6548,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/webhooks/local-test-events",
-        "x-clawopt-order": 210
+        "x-clawopt-order": 211
       }
     },
     "/api/kanban/boards": {
@@ -6538,7 +6576,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/kanban/boards",
-        "x-clawopt-order": 211
+        "x-clawopt-order": 212
       },
       "post": {
         "operationId": "postApiKanbanBoards",
@@ -6564,7 +6602,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/kanban/boards",
-        "x-clawopt-order": 212
+        "x-clawopt-order": 213
       }
     },
     "/api/kanban/boards/{boardId}": {
@@ -6602,7 +6640,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/kanban/boards/:boardId",
-        "x-clawopt-order": 213
+        "x-clawopt-order": 214
       }
     },
     "/api/kanban/boards/{boardId}/tasks": {
@@ -6640,7 +6678,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/kanban/boards/:boardId/tasks",
-        "x-clawopt-order": 214
+        "x-clawopt-order": 215
       },
       "post": {
         "operationId": "postApiKanbanBoardsBoardIdTasks",
@@ -6676,7 +6714,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/kanban/boards/:boardId/tasks",
-        "x-clawopt-order": 215
+        "x-clawopt-order": 216
       }
     },
     "/api/kanban/tasks/bulk": {
@@ -6704,7 +6742,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/kanban/tasks/bulk",
-        "x-clawopt-order": 216
+        "x-clawopt-order": 217
       }
     },
     "/api/kanban/links": {
@@ -6732,7 +6770,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/kanban/links",
-        "x-clawopt-order": 217
+        "x-clawopt-order": 218
       },
       "delete": {
         "operationId": "deleteApiKanbanLinks",
@@ -6758,7 +6796,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/kanban/links",
-        "x-clawopt-order": 218
+        "x-clawopt-order": 219
       }
     },
     "/api/kanban/tasks/{taskId}": {
@@ -6796,7 +6834,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/kanban/tasks/:taskId",
-        "x-clawopt-order": 219
+        "x-clawopt-order": 220
       },
       "patch": {
         "operationId": "patchApiKanbanTasksTaskId",
@@ -6832,7 +6870,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/kanban/tasks/:taskId",
-        "x-clawopt-order": 220
+        "x-clawopt-order": 221
       }
     },
     "/api/kanban/tasks/{taskId}/actions": {
@@ -6870,7 +6908,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/kanban/tasks/:taskId/actions",
-        "x-clawopt-order": 221
+        "x-clawopt-order": 222
       }
     },
     "/api/kanban/tasks/{taskId}/comments": {
@@ -6908,7 +6946,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/kanban/tasks/:taskId/comments",
-        "x-clawopt-order": 222
+        "x-clawopt-order": 223
       }
     },
     "/api/providers/audit": {
@@ -6936,7 +6974,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/providers/audit",
-        "x-clawopt-order": 223
+        "x-clawopt-order": 224
       }
     },
     "/api/providers/{id}/catalog": {
@@ -6974,7 +7012,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/providers/:id/catalog",
-        "x-clawopt-order": 224
+        "x-clawopt-order": 225
       }
     },
     "/api/providers/{id}/catalog/refresh": {
@@ -7012,7 +7050,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/providers/:id/catalog/refresh",
-        "x-clawopt-order": 225
+        "x-clawopt-order": 226
       }
     },
     "/api/providers/{id}/catalog/restore": {
@@ -7050,7 +7088,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/providers/:id/catalog/restore",
-        "x-clawopt-order": 226
+        "x-clawopt-order": 227
       }
     },
     "/api/providers/{id}/visibility": {
@@ -7088,7 +7126,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/providers/:id/visibility",
-        "x-clawopt-order": 227
+        "x-clawopt-order": 228
       }
     },
     "/api/providers/{id}/context-lengths": {
@@ -7126,7 +7164,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/providers/:id/context-lengths",
-        "x-clawopt-order": 228
+        "x-clawopt-order": 229
       }
     },
     "/api/models/aliases": {
@@ -7154,7 +7192,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/models/aliases",
-        "x-clawopt-order": 229
+        "x-clawopt-order": 230
       }
     },
     "/api/models/aliases/{alias}": {
@@ -7192,7 +7230,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/aliases/:alias",
-        "x-clawopt-order": 230
+        "x-clawopt-order": 231
       },
       "delete": {
         "operationId": "deleteApiModelsAliasesAlias",
@@ -7228,7 +7266,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/models/aliases/:alias",
-        "x-clawopt-order": 231
+        "x-clawopt-order": 232
       }
     },
     "/api/engine/agents": {
@@ -7256,7 +7294,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/engine/agents",
-        "x-clawopt-order": 232
+        "x-clawopt-order": 233
       }
     },
     "/api/agents/{agentId}/clone": {
@@ -7294,7 +7332,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/agents/:agentId/clone",
-        "x-clawopt-order": 233
+        "x-clawopt-order": 234
       }
     },
     "/api/agent-avatars": {
@@ -7322,7 +7360,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/agent-avatars",
-        "x-clawopt-order": 234
+        "x-clawopt-order": 235
       }
     },
     "/api/agents/{agentId}/avatar": {
@@ -7360,7 +7398,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/agents/:agentId/avatar",
-        "x-clawopt-order": 235
+        "x-clawopt-order": 236
       },
       "put": {
         "operationId": "putApiAgentsAgentIdAvatar",
@@ -7396,7 +7434,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/agents/:agentId/avatar",
-        "x-clawopt-order": 236
+        "x-clawopt-order": 237
       },
       "delete": {
         "operationId": "deleteApiAgentsAgentIdAvatar",
@@ -7432,7 +7470,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/agents/:agentId/avatar",
-        "x-clawopt-order": 237
+        "x-clawopt-order": 238
       }
     },
     "/api/agents/{agentId}/workspace-files": {
@@ -7470,7 +7508,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/agents/:agentId/workspace-files",
-        "x-clawopt-order": 238
+        "x-clawopt-order": 239
       }
     },
     "/api/agents/{agentId}/workspace-files/{name}": {
@@ -7516,7 +7554,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/agents/:agentId/workspace-files/:name",
-        "x-clawopt-order": 239
+        "x-clawopt-order": 240
       },
       "put": {
         "operationId": "putApiAgentsAgentIdWorkspaceFilesName",
@@ -7560,7 +7598,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/agents/:agentId/workspace-files/:name",
-        "x-clawopt-order": 240
+        "x-clawopt-order": 241
       }
     },
     "/api/write-gate/settings": {
@@ -7588,7 +7626,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/write-gate/settings",
-        "x-clawopt-order": 241
+        "x-clawopt-order": 242
       }
     },
     "/api/write-gate/settings/{agentId}": {
@@ -7626,7 +7664,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/write-gate/settings/:agentId",
-        "x-clawopt-order": 242
+        "x-clawopt-order": 243
       }
     },
     "/api/write-gate/pending": {
@@ -7654,7 +7692,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/write-gate/pending",
-        "x-clawopt-order": 243
+        "x-clawopt-order": 244
       }
     },
     "/api/write-gate/pending/{id}": {
@@ -7692,7 +7730,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/write-gate/pending/:id",
-        "x-clawopt-order": 244
+        "x-clawopt-order": 245
       }
     },
     "/api/write-gate/pending/{id}/approve": {
@@ -7730,7 +7768,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/write-gate/pending/:id/approve",
-        "x-clawopt-order": 245
+        "x-clawopt-order": 246
       }
     },
     "/api/write-gate/pending/{id}/reject": {
@@ -7768,7 +7806,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/write-gate/pending/:id/reject",
-        "x-clawopt-order": 246
+        "x-clawopt-order": 247
       }
     },
     "/api/cron/status": {
@@ -7796,7 +7834,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/cron/status",
-        "x-clawopt-order": 247
+        "x-clawopt-order": 248
       }
     },
     "/api/cron/jobs": {
@@ -7824,7 +7862,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/cron/jobs",
-        "x-clawopt-order": 248
+        "x-clawopt-order": 249
       },
       "post": {
         "operationId": "postApiCronJobs",
@@ -7850,7 +7888,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/cron/jobs",
-        "x-clawopt-order": 249
+        "x-clawopt-order": 250
       }
     },
     "/api/cron/jobs/{id}": {
@@ -7888,7 +7926,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/cron/jobs/:id",
-        "x-clawopt-order": 250
+        "x-clawopt-order": 251
       },
       "delete": {
         "operationId": "deleteApiCronJobsId",
@@ -7924,7 +7962,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/cron/jobs/:id",
-        "x-clawopt-order": 254
+        "x-clawopt-order": 255
       }
     },
     "/api/cron/jobs/{id}/enable": {
@@ -7962,7 +8000,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/cron/jobs/:id/enable",
-        "x-clawopt-order": 251
+        "x-clawopt-order": 252
       }
     },
     "/api/cron/jobs/{id}/disable": {
@@ -8000,7 +8038,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/cron/jobs/:id/disable",
-        "x-clawopt-order": 252
+        "x-clawopt-order": 253
       }
     },
     "/api/cron/jobs/{id}/run": {
@@ -8038,7 +8076,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/cron/jobs/:id/run",
-        "x-clawopt-order": 253
+        "x-clawopt-order": 254
       }
     },
     "/api/cron/jobs/{id}/runs": {
@@ -8076,7 +8114,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/cron/jobs/:id/runs",
-        "x-clawopt-order": 255
+        "x-clawopt-order": 256
       }
     },
     "/api/channels": {
@@ -8104,7 +8142,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/channels",
-        "x-clawopt-order": 256
+        "x-clawopt-order": 257
       },
       "post": {
         "operationId": "postApiChannels",
@@ -8130,7 +8168,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/channels",
-        "x-clawopt-order": 260
+        "x-clawopt-order": 261
       }
     },
     "/api/channels/status": {
@@ -8158,7 +8196,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/channels/status",
-        "x-clawopt-order": 257
+        "x-clawopt-order": 258
       }
     },
     "/api/channels/probe": {
@@ -8186,7 +8224,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/channels/probe",
-        "x-clawopt-order": 258
+        "x-clawopt-order": 259
       }
     },
     "/api/channels/{channel}/capabilities": {
@@ -8224,7 +8262,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/channels/:channel/capabilities",
-        "x-clawopt-order": 259
+        "x-clawopt-order": 260
       }
     },
     "/api/channels/{channel}/login": {
@@ -8262,7 +8300,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/channels/:channel/login",
-        "x-clawopt-order": 261
+        "x-clawopt-order": 262
       }
     },
     "/api/channels/{channel}/logout": {
@@ -8300,7 +8338,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/channels/:channel/logout",
-        "x-clawopt-order": 262
+        "x-clawopt-order": 263
       }
     },
     "/api/channels/{channel}/clear-credentials": {
@@ -8338,7 +8376,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/channels/:channel/clear-credentials",
-        "x-clawopt-order": 263
+        "x-clawopt-order": 264
       }
     },
     "/api/channels/{channel}": {
@@ -8376,7 +8414,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/channels/:channel",
-        "x-clawopt-order": 264
+        "x-clawopt-order": 265
       }
     },
     "/api/skills": {
@@ -8404,7 +8442,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/skills",
-        "x-clawopt-order": 265
+        "x-clawopt-order": 266
       }
     },
     "/api/skills/check": {
@@ -8432,7 +8470,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/skills/check",
-        "x-clawopt-order": 266
+        "x-clawopt-order": 267
       }
     },
     "/api/skills/search": {
@@ -8460,7 +8498,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/skills/search",
-        "x-clawopt-order": 267
+        "x-clawopt-order": 268
       }
     },
     "/api/skills/{name}": {
@@ -8498,7 +8536,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/skills/:name",
-        "x-clawopt-order": 268
+        "x-clawopt-order": 269
       }
     },
     "/api/skills/install": {
@@ -8526,7 +8564,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/skills/install",
-        "x-clawopt-order": 269
+        "x-clawopt-order": 270
       }
     },
     "/api/skills/update": {
@@ -8554,7 +8592,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/skills/update",
-        "x-clawopt-order": 270
+        "x-clawopt-order": 271
       }
     },
     "/api/skills/verify": {
@@ -8582,7 +8620,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/skills/verify",
-        "x-clawopt-order": 271
+        "x-clawopt-order": 272
       }
     },
     "/api/skills/{key}/enabled": {
@@ -8620,7 +8658,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/skills/:key/enabled",
-        "x-clawopt-order": 272
+        "x-clawopt-order": 273
       }
     },
     "/api/mcp/servers": {
@@ -8648,7 +8686,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/mcp/servers",
-        "x-clawopt-order": 273
+        "x-clawopt-order": 274
       }
     },
     "/api/mcp/servers/{name}": {
@@ -8686,7 +8724,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/mcp/servers/:name",
-        "x-clawopt-order": 274
+        "x-clawopt-order": 275
       },
       "delete": {
         "operationId": "deleteApiMcpServersName",
@@ -8722,7 +8760,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/mcp/servers/:name",
-        "x-clawopt-order": 275
+        "x-clawopt-order": 276
       }
     },
     "/api/mcp/servers/{name}/probe": {
@@ -8760,7 +8798,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/mcp/servers/:name/probe",
-        "x-clawopt-order": 276
+        "x-clawopt-order": 277
       }
     },
     "/api/mcp/servers/{name}/tools": {
@@ -8798,7 +8836,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/mcp/servers/:name/tools",
-        "x-clawopt-order": 277
+        "x-clawopt-order": 278
       }
     },
     "/api/mcp/reload": {
@@ -8826,7 +8864,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/mcp/reload",
-        "x-clawopt-order": 278
+        "x-clawopt-order": 279
       }
     },
     "/api/plugins": {
@@ -8854,7 +8892,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/plugins",
-        "x-clawopt-order": 279
+        "x-clawopt-order": 280
       }
     },
     "/api/plugins/{id}": {
@@ -8892,7 +8930,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/plugins/:id",
-        "x-clawopt-order": 280
+        "x-clawopt-order": 281
       },
       "delete": {
         "operationId": "deleteApiPluginsId",
@@ -8928,7 +8966,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/:id",
-        "x-clawopt-order": 286
+        "x-clawopt-order": 287
       }
     },
     "/api/plugins/{id}/enable": {
@@ -8966,7 +9004,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/:id/enable",
-        "x-clawopt-order": 281
+        "x-clawopt-order": 282
       }
     },
     "/api/plugins/{id}/disable": {
@@ -9004,7 +9042,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/:id/disable",
-        "x-clawopt-order": 282
+        "x-clawopt-order": 283
       }
     },
     "/api/plugins/install": {
@@ -9032,7 +9070,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/install",
-        "x-clawopt-order": 283
+        "x-clawopt-order": 284
       }
     },
     "/api/plugins/update-all": {
@@ -9060,7 +9098,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/update-all",
-        "x-clawopt-order": 284
+        "x-clawopt-order": 285
       }
     },
     "/api/plugins/{id}/update": {
@@ -9098,7 +9136,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/plugins/:id/update",
-        "x-clawopt-order": 285
+        "x-clawopt-order": 286
       }
     },
     "/api/usage/summary": {
@@ -9126,7 +9164,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/usage/summary",
-        "x-clawopt-order": 287
+        "x-clawopt-order": 288
       }
     },
     "/api/logs": {
@@ -9154,7 +9192,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/logs",
-        "x-clawopt-order": 288
+        "x-clawopt-order": 289
       }
     },
     "/api/gateway/service-status": {
@@ -9182,7 +9220,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/gateway/service-status",
-        "x-clawopt-order": 289
+        "x-clawopt-order": 290
       }
     },
     "/api/groups": {
@@ -9210,7 +9248,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 292
+        "x-clawopt-order": 293
       },
       "post": {
         "operationId": "postApiGroups",
@@ -9236,7 +9274,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups",
-        "x-clawopt-order": 293
+        "x-clawopt-order": 294
       }
     },
     "/api/groups/{id}": {
@@ -9274,7 +9312,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 294
+        "x-clawopt-order": 295
       },
       "delete": {
         "operationId": "deleteApiGroupsId",
@@ -9310,7 +9348,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id",
-        "x-clawopt-order": 296
+        "x-clawopt-order": 297
       }
     },
     "/api/groups/reorder": {
@@ -9338,7 +9376,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/reorder",
-        "x-clawopt-order": 295
+        "x-clawopt-order": 296
       }
     },
     "/api/groups/{id}/reset": {
@@ -9376,7 +9414,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/reset",
-        "x-clawopt-order": 297
+        "x-clawopt-order": 298
       }
     },
     "/api/groups/{id}/messages": {
@@ -9414,7 +9452,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 298
+        "x-clawopt-order": 299
       },
       "post": {
         "operationId": "postApiGroupsIdMessages",
@@ -9450,7 +9488,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages",
-        "x-clawopt-order": 301
+        "x-clawopt-order": 302
       }
     },
     "/api/groups/{id}/active-run": {
@@ -9488,7 +9526,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/active-run",
-        "x-clawopt-order": 299
+        "x-clawopt-order": 300
       }
     },
     "/api/groups/{id}/messages/search": {
@@ -9526,7 +9564,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/search",
-        "x-clawopt-order": 300
+        "x-clawopt-order": 301
       }
     },
     "/api/groups/{id}/stop": {
@@ -9564,7 +9602,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/stop",
-        "x-clawopt-order": 302
+        "x-clawopt-order": 303
       }
     },
     "/api/groups/{id}/messages/{msgId}": {
@@ -9610,7 +9648,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 303
+        "x-clawopt-order": 304
       },
       "delete": {
         "operationId": "deleteApiGroupsIdMessagesMsgId",
@@ -9654,7 +9692,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/:msgId",
-        "x-clawopt-order": 304
+        "x-clawopt-order": 305
       }
     },
     "/api/groups/{id}/messages/regenerate": {
@@ -9692,7 +9730,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/messages/regenerate",
-        "x-clawopt-order": 305
+        "x-clawopt-order": 306
       }
     },
     "/api/groups/{id}/events": {
@@ -9730,7 +9768,7 @@
         "x-clawopt-public": false,
         "x-clawopt-admin-only": false,
         "x-clawopt-express-path": "/api/groups/:id/events",
-        "x-clawopt-order": 306
+        "x-clawopt-order": 307
       }
     }
   },

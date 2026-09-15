@@ -58,6 +58,10 @@ export function setSessionArchived(sessionId: string, archived: boolean) {
   return apiFetch(`/sessions/${encodeURIComponent(sessionId)}/archive`, jsonInit('PUT', { archived }));
 }
 
+export function setSessionPinned(sessionId: string, pinned: boolean) {
+  return apiFetch(`/sessions/${encodeURIComponent(sessionId)}/pin`, jsonInit('PUT', { pinned }));
+}
+
 export function renameSessionTitle(sessionId: string, title: string) {
   return apiFetch(`/sessions/${encodeURIComponent(sessionId)}/title`, jsonInit('PUT', { title }));
 }

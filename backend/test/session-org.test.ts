@@ -42,8 +42,32 @@ describe('分类（按用户）', () => {
     expect(store.setCategory('user:1', 's2', other.id)).toBe('category_not_found');
     store.setArchived('user:1', 's1', true);
     expect(store.deleteCategory('user:1', category.id)).toBe(true);
-    expect(store.entries('user:1').get('s1')).toEqual({ categoryId: null, archived: true });
+    expect(store.entries('user:1').get('s1')).toEqual({ categoryId: null, archived: true, pinnedAt: null });
     expect(store.deleteCategory('user:1', category.id)).toBe(false);
+  });
+
+  it('置顶按用户：重复置顶不刷新顺序；归档取消置顶；置顶归档的会话会取消归档', () => {
+    const { store } = memoryStore();
+    store.setPinned('user:1', 's1', true, 100);
+    store.setPinned('user:1', 's1', true, 200);
+    expect(store.entries('user:1').get('s1')).toMatchObject({ pinnedAt: 100, archived: false });
+    expect(store.entries('user:2').get('s1')).toBeUndefined();
+    store.setArchived('user:1', 's1', true, 300);
+    expect(store.entries('user:1').get('s1')).toMatchObject({ pinnedAt: null, archived: true });
+    store.setPinned('user:1', 's1', true, 400);
+    expect(store.entries('user:1').get('s1')).toMatchObject({ pinnedAt: 400, archived: false });
+    store.setPinned('user:1', 's1', false, 500);
+    expect(store.entries('user:1').get('s1')).toMatchObject({ pinnedAt: null });
+  });
+
+  it('老库的 session_org 没有置顶列：打开时补一列，已有归属保留', () => {
+    const db = new Database(':memory:');
+    db.exec('CREATE TABLE session_org (owner_key TEXT NOT NULL, session_id TEXT NOT NULL, category_id INTEGER, archived INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, PRIMARY KEY (owner_key, session_id))');
+    db.prepare('INSERT INTO session_org VALUES (?, ?, ?, ?, ?)').run('owner', 's1', null, 1, 1);
+    const store = new SessionOrgStore(db);
+    expect(store.entries('owner').get('s1')).toEqual({ categoryId: null, archived: true, pinnedAt: null });
+    store.setPinned('owner', 's1', true, 9);
+    expect(store.entries('owner').get('s1')).toEqual({ categoryId: null, archived: false, pinnedAt: 9 });
   });
 
   it('改名撞名 409（conflict），不存在 not_found', () => {
@@ -123,10 +147,14 @@ describe('会话组织接口（真实路由，单用户）', () => {
     expect(created.status).toBe(201);
     expect((await json('/api/sessions/org-s1/category', { method: 'PUT', body: JSON.stringify({ categoryId: 99999 }) })).status).toBe(404);
     expect((await json('/api/sessions/org-s1/category', { method: 'PUT', body: JSON.stringify({ categoryId: created.body.category.id }) })).status).toBe(200);
+    expect((await json('/api/sessions/org-s1/pin', { method: 'PUT', body: JSON.stringify({ pinned: true }) })).status).toBe(200);
+    expect((await json('/api/session-organization')).body.sessions['org-s1'].pinnedAt).toEqual(expect.any(Number));
+    // 不存在的会话与看不见的会话同样回 403（守卫在前，不泄露存在性）
+    expect((await json('/api/sessions/org-missing/pin', { method: 'PUT', body: JSON.stringify({ pinned: true }) })).status).toBe(403);
     expect((await json('/api/sessions/org-s1/archive', { method: 'PUT', body: JSON.stringify({ archived: true }) })).status).toBe(200);
     expect((await json('/api/sessions/org-s1/title', { method: 'PUT', body: JSON.stringify({ title: 'Deploy notes' }) })).body).toMatchObject({ title: 'Deploy notes', titleSource: 'manual' });
     const org = await json('/api/session-organization');
-    expect(org.body.sessions['org-s1']).toMatchObject({ categoryId: created.body.category.id, archived: true, title: 'Deploy notes', titleSource: 'manual', humanCreated: true });
+    expect(org.body.sessions['org-s1']).toMatchObject({ categoryId: created.body.category.id, archived: true, pinnedAt: null, title: 'Deploy notes', titleSource: 'manual', humanCreated: true });
 
     const exportedJson = await fetch(`${h.baseUrl}/api/sessions/org-s1/export?format=json`);
     expect(exportedJson.headers.get('content-disposition')).toContain('attachment');

@@ -1,18 +1,19 @@
 /**
- * 单聊会话的组织与元数据（P1b）：分类、归档、对话标题、来历（人建 / 诊断 / 自动化）、分叉血缘。
+ * 单聊会话的组织与元数据（P1b）：分类、置顶、归档、对话标题、来历（人建 / 诊断 / 自动化）、分叉血缘。
  *
  * ## 为什么不加在 sessions 表上
  *
  * ClawOPT 的单聊会话 = 一个 Agent 的一条连续对话，`sessions` 行是**全局**的（名字是 Agent 显示名，
  * 建改删会装配 / 撤销 Agent，只有管理员能动）。「怎么整理侧栏」却是**每个人自己的事**：
  * member 看到的是过滤过的列表，按它去改一份全局状态，会把别人的整理弄乱（侧栏收藏吃过这个亏）。
- * 所以分类与归档按用户存（`owner_key`），对话标题、来历、血缘跟着会话走（全局一份），全部在本文件的表里，
+ * 所以分类、置顶与归档按用户存（`owner_key`），对话标题、来历、血缘跟着会话走（全局一份），全部在本文件的表里，
  * `sessions` 行与 `db.ts` 一个字都不动；会话被删时由 `SessionManager` 的 `sessionDeleted` 事件清理。
  *
  * ## 表
  *
  * - `session_categories(id, owner_key, name, name_key)`：`name_key` = 空白折叠 + 小写，(owner_key, name_key) 唯一；
- * - `session_org(owner_key, session_id, category_id, archived)`：每人每会话一行，没有行 = 未分类、未归档；
+ * - `session_org(owner_key, session_id, category_id, archived, pinned_at)`：每人每会话一行，没有行 = 未分类、未置顶、未归档；
+ *   `pinned_at` 非空 = 置顶，置顶组按它倒序（后置顶的在上）；
  * - `session_meta(session_id, title, title_source, origin, parent_session_id, fork_point_message_id)`。
  */
 import type Database from 'better-sqlite3';
@@ -27,7 +28,7 @@ export type SessionTitleSource = 'auto' | 'runtime' | 'manual';
 export type SessionOrigin = 'human' | 'diagnosis' | 'automation';
 
 export type SessionCategory = { id: number; name: string; createdAt: number; updatedAt: number };
-export type SessionOrgEntry = { categoryId: number | null; archived: boolean };
+export type SessionOrgEntry = { categoryId: number | null; archived: boolean; pinnedAt: number | null };
 export type SessionMeta = {
   title: string | null;
   titleSource: SessionTitleSource | null;
@@ -53,6 +54,7 @@ export function applySessionOrgSchema(db: Database.Database): void {
       session_id TEXT NOT NULL,
       category_id INTEGER,
       archived INTEGER NOT NULL DEFAULT 0,
+      pinned_at INTEGER,
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (owner_key, session_id)
     );
@@ -68,6 +70,9 @@ export function applySessionOrgSchema(db: Database.Database): void {
       updated_at INTEGER NOT NULL
     );
   `);
+  // 置顶列晚于表本身加入（P1b 收尾）：已经建过表的库补一列，只加不改。
+  const columns = db.prepare('PRAGMA table_info(session_org)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'pinned_at')) db.exec('ALTER TABLE session_org ADD COLUMN pinned_at INTEGER');
 }
 
 /** 登录关闭（单用户部署）时的隐式所有者，与用户 id 的形状分开，免得撞上某个真实用户。 */
@@ -191,18 +196,19 @@ export class SessionOrgStore {
   // ---------------------------------------------------------------- 会话归属（按用户）
 
   entries(owner: string): Map<string, SessionOrgEntry> {
-    const rows = this.db.prepare('SELECT session_id, category_id, archived FROM session_org WHERE owner_key = ?')
-      .all(owner) as Array<{ session_id: string; category_id: number | null; archived: number }>;
-    return new Map(rows.map((row) => [row.session_id, { categoryId: row.category_id, archived: row.archived === 1 }]));
+    const rows = this.db.prepare('SELECT session_id, category_id, archived, pinned_at FROM session_org WHERE owner_key = ?')
+      .all(owner) as Array<{ session_id: string; category_id: number | null; archived: number; pinned_at: number | null }>;
+    return new Map(rows.map((row) => [row.session_id, { categoryId: row.category_id, archived: row.archived === 1, pinnedAt: row.pinned_at ?? null }]));
   }
 
   private upsertEntry(owner: string, sessionId: string, patch: Partial<SessionOrgEntry>, now: number): void {
-    const current = this.entries(owner).get(sessionId) ?? { categoryId: null, archived: false };
+    const current = this.entries(owner).get(sessionId) ?? { categoryId: null, archived: false, pinnedAt: null };
     const next = { ...current, ...patch };
     this.db.prepare(`
-      INSERT INTO session_org (owner_key, session_id, category_id, archived, updated_at) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(owner_key, session_id) DO UPDATE SET category_id = excluded.category_id, archived = excluded.archived, updated_at = excluded.updated_at
-    `).run(owner, sessionId, next.categoryId, next.archived ? 1 : 0, now);
+      INSERT INTO session_org (owner_key, session_id, category_id, archived, pinned_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(owner_key, session_id) DO UPDATE SET category_id = excluded.category_id, archived = excluded.archived,
+        pinned_at = excluded.pinned_at, updated_at = excluded.updated_at
+    `).run(owner, sessionId, next.categoryId, next.archived ? 1 : 0, next.pinnedAt, now);
   }
 
   /** 挪到分类（null = 未分类）。分类不是这个人的或不存在 → `category_not_found`。 */
@@ -212,8 +218,20 @@ export class SessionOrgStore {
     return 'ok';
   }
 
+  /** 归档会顺手取消置顶：置顶组只放在用的对话，一个归档了还钉在最上面的会话两头都说不通。 */
   setArchived(owner: string, sessionId: string, archived: boolean, now = Date.now()): void {
-    this.upsertEntry(owner, sessionId, { archived }, now);
+    this.upsertEntry(owner, sessionId, archived ? { archived, pinnedAt: null } : { archived }, now);
+  }
+
+  /** 置顶 / 取消置顶。已置顶再置顶不刷新时间（顺序不跳）；置顶一个归档的会话会把它取消归档。 */
+  setPinned(owner: string, sessionId: string, pinned: boolean, now = Date.now()): void {
+    const current = this.entries(owner).get(sessionId);
+    if (pinned) {
+      if (current?.pinnedAt && !current.archived) return;
+      this.upsertEntry(owner, sessionId, { pinnedAt: current?.pinnedAt ?? now, archived: false }, now);
+      return;
+    }
+    if (current?.pinnedAt) this.upsertEntry(owner, sessionId, { pinnedAt: null }, now);
   }
 
   // ---------------------------------------------------------------- 元数据（跟着会话）

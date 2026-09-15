@@ -272,9 +272,10 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
       ['/api/chat/s-other/events'],
       ['/api/chat/s-other/queue/q-1', { method: 'DELETE' }],
       ['/api/chat/s-other/queue/q-1/insert', { method: 'POST' }],
-      // P1b 会话组织：挪分类、归档、改标题、导出按会话判；分叉与批量删除是管理员的
+      // P1b 会话组织：挪分类、置顶、归档、改标题、导出按会话判；分叉与批量删除是管理员的
       ['/api/sessions/s-other/category', { method: 'PUT', body: JSON.stringify({ categoryId: null }) }],
       ['/api/sessions/s-other/archive', { method: 'PUT', body: JSON.stringify({ archived: true }) }],
+      ['/api/sessions/s-other/pin', { method: 'PUT', body: JSON.stringify({ pinned: true }) }],
       ['/api/sessions/s-other/title', { method: 'PUT', body: JSON.stringify({ title: 'x' }) }],
       ['/api/sessions/s-other/export?format=json'],
       ['/api/sessions/s-main/fork', post({})],

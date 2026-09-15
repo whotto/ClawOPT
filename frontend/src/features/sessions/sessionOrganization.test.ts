@@ -56,3 +56,25 @@ describe('偏好与批量删除提示', () => {
     expect(summarizeBatchDelete({ deleted: ['x', 'y'], failed: [] }, (id) => names[id]).kind).toBe('ok');
   });
 });
+
+describe('置顶', () => {
+  it('置顶组在最上面、后置顶的在上；置顶的会话离开分类与 Recent；归档的会话不算置顶', () => {
+    const pinnedOrg = normalizeOrganization({
+      categories: [{ id: 1, name: 'Alpha' }],
+      sessions: {
+        a: { categoryId: 1, lastActivityAt: 300, pinnedAt: 10 },
+        b: { lastActivityAt: 500, pinnedAt: 20 },
+        c: { categoryId: 1, lastActivityAt: 100 },
+        d: { archived: true, pinnedAt: 30, lastActivityAt: 900 },
+      },
+    });
+    const sections = buildSessionSections([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], pinnedOrg, { humanOnly: false, recentCount: 5, showRecent: true });
+    expect(sections.map((s) => [s.key, s.items.map((i) => i.id)])).toEqual([
+      ['pinned', ['b', 'a']],
+      ['recent', ['c']],
+      ['category:1', ['c']],
+      ['uncategorized', []],
+      ['archived', ['d']],
+    ]);
+  });
+});
