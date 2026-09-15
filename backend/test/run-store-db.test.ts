@@ -69,6 +69,27 @@ describe('run_tool_calls 与 run_sessions', () => {
     ]);
   });
 
+  it('删会话 / 删群时清掉协调器的会话行与工具调用，用量保留；群 id 里的 _ 不当通配符', () => {
+    const toolCall = (sessionKey: string) => ({
+      sessionKey, runId: 'r', runMarker: `m-${sessionKey}`, callId: 'c', name: 'Read', arguments: '{}',
+      output: 'x', status: 'completed', startedAt: 1, completedAt: 2,
+    });
+    for (const key of ['chat-del', 'room:g_1:member:m1', 'room:gx1:member:m1']) {
+      db.ensureRunSession({ sessionKey: key, surface: 'chat', runtime: 'openclaw', agentId: 'main' });
+      db.persistToolCalls([toolCall(key)]);
+      db.recordSessionUsage(usageRow(`u-${key}`, { sessionKey: key }));
+    }
+    db.deleteSession('chat-del');
+    db.deleteGroupChat('g_1');
+    expect(db.getRunSession('chat-del')).toBeUndefined();
+    expect(db.listRunToolCalls('chat-del')).toEqual([]);
+    expect(db.getRunSession('room:g_1:member:m1')).toBeUndefined();
+    expect(db.listRunToolCalls('room:g_1:member:m1')).toEqual([]);
+    expect(db.getRunSession('room:gx1:member:m1'), '`g_1` 按 LIKE 会误删 `gx1` 的行').toBeDefined();
+    expect(db.listSessionUsage('chat-del')).toHaveLength(1);
+    expect(db.listSessionUsage('room:g_1:member:m1')).toHaveLength(1);
+  });
+
   it('新一轮重开会话行（清掉 ended_at），结束时写 end_reason', () => {
     db.ensureRunSession({ sessionKey: 'chat-1', surface: 'chat', runtime: 'openclaw', agentId: 'main', title: 'first' });
     db.markRunSessionEnded('chat-1', 'complete');

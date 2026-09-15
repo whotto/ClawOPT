@@ -974,6 +974,9 @@ export class DB {
   deleteSession(id: string) {
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     this.db.prepare('DELETE FROM chat_messages WHERE session_key = ?').run(id);
+    // 协调器的通用表跟着会话走；session_usage 保留——用量是账，会话删了账不该跟着消失。
+    this.db.prepare('DELETE FROM run_tool_calls WHERE session_key = ?').run(id);
+    this.db.prepare('DELETE FROM run_sessions WHERE session_key = ?').run(id);
   }
 
   // --- Group Chats ---
@@ -1007,6 +1010,11 @@ export class DB {
     // 这个库的级联是手写的，不是 FK 驱动的。新加一张表而忘了在这里补一行，
     // 后果不是报错，是孤儿行在库里越积越多而没人发现。
     this.db.prepare('DELETE FROM external_sessions WHERE group_id = ?').run(id);
+    // 群里每个外部成员在协调器里是 `room:<群>:member:<成员>` 一个会话（用量同样保留）。
+    // 按前缀比较而不用 LIKE：群 id 里的 `_` / `%` 在 LIKE 里是通配符。
+    const roomPrefix = `room:${id}:member:`;
+    this.db.prepare('DELETE FROM run_tool_calls WHERE substr(session_key, 1, ?) = ?').run(roomPrefix.length, roomPrefix);
+    this.db.prepare('DELETE FROM run_sessions WHERE substr(session_key, 1, ?) = ?').run(roomPrefix.length, roomPrefix);
     this.db.prepare('DELETE FROM group_chats WHERE id = ?').run(id);
   }
 
