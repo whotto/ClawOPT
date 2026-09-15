@@ -71,6 +71,13 @@ describe('外部运行时会话配置', () => {
     expect(parseExternalSessionConfig('{bad')).toEqual({ mode: 'global' });
   });
 
+  it('工具白名单：只收「名字」或「名字(规则)」，去重、最多 50 项；空了就不带这个键', () => {
+    const normalized = JSON.parse(normalizeExternalSessionConfig({ allowedTools: [' Write ', 'Edit', 'Write', 'Bash(git status:*)', 'Bash --dangerously-skip-permissions', 'Edit Write', 'x\ny', 42, '(oops)', 'Bash((nested))'] }));
+    expect(normalized).toEqual({ mode: 'global', allowedTools: ['Write', 'Edit', 'Bash(git status:*)'] });
+    expect(JSON.parse(normalizeExternalSessionConfig({ allowedTools: ['--oops'] }))).toEqual({ mode: 'global' });
+    expect(parseExternalSessionConfig(JSON.stringify({ allowedTools: Array.from({ length: 60 }, (_, i) => `Tool${i}`) })).allowedTools).toHaveLength(50);
+  });
+
   it('/compact 带指令、/status、/usage（/context 同 usage）是会话命令；普通文本不是', () => {
     expect(parseExternalChatCommand('/compact 保留结论')).toEqual({ kind: 'compact', instructions: '保留结论' });
     expect(parseExternalChatCommand('/status')).toEqual({ kind: 'status' });
@@ -90,6 +97,7 @@ describe('一轮外部运行时单聊', () => {
     const request = runs[0].context.request as any;
     expect(request).toMatchObject({ mode: 'scoped', prompt: 'fix the bug', workspace: '/work/repo', owner: { kind: 'session', sessionId: 'cc-1' }, sessionId: '11111111-1111-4111-8111-111111111111', resume: false, runtimeConfig: { model: 'deepseek/deepseek-v4' }, reasoningEffort: 'high' });
     expect(runs[0].context.proxyMode).toBe('scoped');
+    expect(request.allowedTools).toBeUndefined();
     expect(db.messages.get(7)?.content).toBe('done');
     expect(events.filter((e) => e.type === 'chat.frame').map((e: any) => e.payload.frame.type)).toContain('final');
     expect(db.sessions.get('cc-1')?.external_session_resumable).toBe(1);
@@ -102,6 +110,12 @@ describe('一轮外部运行时单聊', () => {
     const row = db.sessions.get('cc-1')!;
     expect(row.external_session_resumable).toBe(0);
     expect(row.external_session_id).not.toBe('11111111-1111-4111-8111-111111111111');
+  });
+
+  it('会话配置里的工具白名单原样进运行请求（Claude Code 据此加 --allowedTools）', async () => {
+    const session = baseSession({ external_config: JSON.stringify({ mode: 'global', allowedTools: ['Write', 'Edit'] }) });
+    const { runs } = await runTurn(session, 'make a file', (run) => run.finish({ kind: 'completed', outputText: 'ok' }));
+    expect((runs[0].context.request as any).allowedTools).toEqual(['Write', 'Edit']);
   });
 
   it('/status：命令交给运行时，结果落成结构化 system 消息（不是正文）', async () => {

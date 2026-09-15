@@ -33,9 +33,24 @@ export interface ExternalSessionConfig {
   model?: string;
   reasoningEffort?: string;
   workingDir?: string;
+  /**
+   * 显式放行的工具（Claude Code `--allowedTools` 的写法，例如 `Write`、`Edit`、`Bash(git status:*)`），与群成员配置同一个键。
+   * headless 下会弹权限的工具一律拒绝，不放行就改不了文件；这是逐项白名单，不是 `--dangerously-skip-permissions`。
+   */
+  allowedTools?: string[];
 }
 
 const EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+const ALLOWED_TOOL_PATTERN = /^[A-Za-z][A-Za-z0-9_]*(?:\([^()\n\r]{1,200}\))?$/;
+export const EXTERNAL_SESSION_MAX_ALLOWED_TOOLS = 50;
+
+/** 工具白名单：只收 `名字` 或 `名字(规则)` 形状的字符串（不收空白分隔的多项、换行、嵌套括号），去重，最多 50 项。 */
+function parseAllowedTools(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const tools = [...new Set(raw.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter((item) => ALLOWED_TOOL_PATTERN.test(item)))]
+    .slice(0, EXTERNAL_SESSION_MAX_ALLOWED_TOOLS);
+  return tools.length ? tools : undefined;
+}
 
 /** 读会话上的外部运行时配置；坏 JSON 按默认（global）处理，不让这个会话彻底不能用。 */
 export function parseExternalSessionConfig(raw: string | null | undefined): ExternalSessionConfig {
@@ -53,6 +68,7 @@ export function parseExternalSessionConfig(raw: string | null | undefined): Exte
     model: text('model'),
     reasoningEffort: effort && EFFORTS.has(effort) ? effort : undefined,
     workingDir: text('workingDir'),
+    allowedTools: parseAllowedTools(value.allowedTools),
   };
 }
 
@@ -165,6 +181,7 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
       resume: Boolean(latest.external_session_resumable),
       model: config.mode === 'global' ? config.model : undefined,
       reasoningEffort: config.reasoningEffort,
+      ...(config.allowedTools ? { allowedTools: config.allowedTools } : {}),
       runtimeConfig: { ...config },
       command,
       ...(forkParent ? { forkFrom: { kind: 'session' as const, sessionId: forkParent } } : {}),
