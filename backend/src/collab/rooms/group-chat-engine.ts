@@ -54,6 +54,13 @@ import { canonicalizeAssistantWorkspaceArtifacts } from '../../workspace';
 import { shouldUseConfiguredImageGenerationModel } from '../../control';
 
 const DEFAULT_MAX_CHAIN_DEPTH = 6;
+
+/**
+ * 发消息的人能直接叫起哪些 Agent（按 agent_id）。只约束用户发起的第一跳；
+ * Agent 之间的链式转交按既有深度规则继续（member 只发起了第一跳，见 AGENTS.md）。
+ */
+export type WakePredicate = (agentId: string) => boolean;
+const WAKE_ANY: WakePredicate = () => true;
 const GROUP_STREAM_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 const GROUP_STREAM_COMPLETION_PROBE_DELAY_MS = 1200;
 const GROUP_STREAM_COMPLETION_WAIT_TIMEOUT_MS = 1500;
@@ -1353,27 +1360,50 @@ export class GroupChatEngine extends EventEmitter {
     return members.find((m) => m.agent_id === parsed.agentId && (m.runtime || 'openclaw') === parsed.runtime);
   }
 
-  private resolveTargetAgentIds(groupId: string, content: string, members: GroupMemberRow[]): string[] {
-    let targetAgentIds = this.parseMentions(content, members);
+  /**
+   * 用户这条消息直接叫起谁（链式转交不在这里，见 sendToAgent）。
+   *
+   * `canWake` 是发消息的人能叫起的 Agent（member 只能叫起授权给自己的；admin 与内部调用不传 = 全部）：
+   * - @了人：只路由到 `canWake` 放行的；@到的全不放行就谁也不叫——不能因为 @ 的人不让叫，就改叫别人；
+   * - `/new`：只发给放行的成员；
+   * - 没 @：回复上一个发言的 Agent（放行时），否则第一个放行的成员；一个都没有就不派发。
+   * 被挡下的 @ 仍然作为正文落库，由路由层回结构化提示（`groups.mentionNotPermitted`，见 blockedMentions）。
+   */
+  private resolveTargetAgentIds(groupId: string, content: string, members: GroupMemberRow[], canWake: WakePredicate = WAKE_ANY): string[] {
+    const permitted = members.filter((member) => canWake(member.agent_id));
 
     if (content.trim() === '/new') {
-      return members.map((member) => member.agent_id);
+      return permitted.map((member) => member.agent_id);
     }
 
-    if (targetAgentIds.length === 0) {
-      const recent = this.db.getRecentGroupMessages(groupId, 5);
-      const lastAgent = [...recent].reverse().find((message) => (
-        message.sender_type === 'agent'
-        && message.sender_id !== 'system'
-      ));
-      if (lastAgent?.sender_id) {
-        targetAgentIds = [lastAgent.sender_id];
-      } else {
-        targetAgentIds = [members[0].agent_id];
-      }
+    const mentioned = this.parseMentions(content, members);
+    if (mentioned.length > 0) {
+      return mentioned.filter((agentId) => canWake(agentId));
     }
 
-    return targetAgentIds;
+    const recent = this.db.getRecentGroupMessages(groupId, 5);
+    const lastAgent = [...recent].reverse().find((message) => (
+      message.sender_type === 'agent'
+      && message.sender_id !== 'system'
+    ));
+    if (lastAgent?.sender_id) {
+      const lastMember = this.resolveMemberByAgentRef(members, lastAgent.sender_id);
+      if (canWake(lastMember?.agent_id ?? lastAgent.sender_id)) return [lastAgent.sender_id];
+    }
+    return permitted.length > 0 ? [permitted[0].agent_id] : [];
+  }
+
+  /** 这条消息里 @到、但发消息的人叫不起的成员（@all 同样按成员逐个算）。 */
+  blockedMentions(groupId: string, content: string, canWake: WakePredicate): GroupMemberRow[] {
+    const members = this.resolveMembers(this.db.getGroupMembers(groupId));
+    const mentioned = new Set(this.parseMentions(content, members));
+    return members.filter((member) => mentioned.has(member.agent_id) && !canWake(member.agent_id));
+  }
+
+  /** 按成员引用（agent_id 或外部成员的 sender_id）判能不能叫起；引用不到成员时按引用本身判。 */
+  canWakeMemberRef(groupId: string, ref: string, canWake: WakePredicate): boolean {
+    const members = this.resolveMembers(this.db.getGroupMembers(groupId));
+    return canWake(this.resolveMemberByAgentRef(members, ref)?.agent_id ?? ref);
   }
 
   private async dispatchExistingUserMessage(
@@ -1383,8 +1413,9 @@ export class GroupChatEngine extends EventEmitter {
     members: GroupMemberRow[],
     userMsgId: number,
     resetEpoch: number,
+    canWake: WakePredicate = WAKE_ANY,
   ): Promise<void> {
-    const targetAgentIds = this.resolveTargetAgentIds(groupId, content, members);
+    const targetAgentIds = this.resolveTargetAgentIds(groupId, content, members, canWake);
     let currentParentId: number | undefined = userMsgId;
 
     for (const agentId of targetAgentIds) {
@@ -1501,7 +1532,7 @@ export class GroupChatEngine extends EventEmitter {
   /**
    * Send a user message to the group chat, route to agents.
    */
-  async sendUserMessage(groupId: string, content: string, specifiedParentId?: number): Promise<void> {
+  async sendUserMessage(groupId: string, content: string, specifiedParentId?: number, canWake: WakePredicate = WAKE_ANY): Promise<void> {
     // **这里不再握整轮群锁。**
     //
     // 原来整轮派发都握着它：一个 Claude Code 跑 10 分钟，整个群 10 分钟不能说话，
@@ -1538,7 +1569,7 @@ export class GroupChatEngine extends EventEmitter {
       });
 
       this.emit('message', { groupId, id: userMsgId, parent_id: computedParentId, sender_type: 'user', sender_name: '用户', content, created_at: new Date().toISOString() });
-      await this.dispatchExistingUserMessage(groupId, group.name, content, members, userMsgId, resetEpoch);
+      await this.dispatchExistingUserMessage(groupId, group.name, content, members, userMsgId, resetEpoch, canWake);
     } catch (error) {
       if (!(error instanceof GroupResetInterruptedError)) {
         throw error;
@@ -1548,7 +1579,7 @@ export class GroupChatEngine extends EventEmitter {
     }
   }
 
-  async rerunUserMessage(groupId: string, userMessageId: number): Promise<void> {
+  async rerunUserMessage(groupId: string, userMessageId: number, canWake: WakePredicate = WAKE_ANY): Promise<void> {
     if (this.processingGroups.has(groupId)) {
       if (!this.isGroupLockStale(groupId)) {
         const error = new Error('Group run already in progress.');
@@ -1592,6 +1623,7 @@ export class GroupChatEngine extends EventEmitter {
         members,
         userMessageId,
         resetEpoch,
+        canWake,
       );
     } catch (error) {
       if (!(error instanceof GroupResetInterruptedError)) {

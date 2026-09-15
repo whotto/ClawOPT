@@ -8,6 +8,7 @@ import {
   mapGroupMsg,
   mapHttpErrorResponse,
   mergeHistoryMessages,
+  resolveGroupSendNotice,
   resolveSubmitError,
 } from './messageMapping';
 import { buildNavDotSummary, sanitizeNavSummaryText } from './navSummary';
@@ -123,5 +124,21 @@ describe('scrollGeometry and agent colors', () => {
     const members = [{ agent_id: 'x' }, { agent_id: 'y' }] as Parameters<typeof getAgentColor>[1];
     expect(getAgentColor('y', members)).toBe('bg-emerald-500');
     expect(getAgentColor('missing', members)).toBe('bg-blue-500');
+  });
+});
+
+describe('resolveGroupSendNotice', () => {
+  const t = ((key: string, params?: Record<string, unknown>) => `${key}|${params?.agents ?? ''}`) as unknown as TFunction;
+
+  it('群里 @ 了没有叫起的成员：按界面语言拼名字', () => {
+    const payload = { success: true, notice: { messageCode: 'groups.mentionNotPermitted', messageParams: { agents: '产品, 测试' }, agentNames: ['产品', '测试'] } };
+    expect(resolveGroupSendNotice(payload, t, 'zh-CN')).toBe('groups.mentionNotPermitted|产品、测试');
+    expect(resolveGroupSendNotice(payload, t, 'en')).toBe('groups.mentionNotPermitted|产品, 测试');
+  });
+
+  it('没有提示或载荷不对：空串', () => {
+    expect(resolveGroupSendNotice({ success: true }, t, 'en')).toBe('');
+    expect(resolveGroupSendNotice(null, t, 'en')).toBe('');
+    expect(resolveGroupSendNotice({ notice: { agentNames: ['x'] } }, t, 'en')).toBe('');
   });
 });

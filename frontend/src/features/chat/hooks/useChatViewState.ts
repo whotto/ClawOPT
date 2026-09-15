@@ -29,6 +29,8 @@ export function useChatViewState(props: ChatViewProps) {
   // 发送/上传/加载失败时说人话。此前这些路径只把输入退回输入框、
   // 或者 catch {} 了事——用户看到消息弹回来却不知道为什么，只能反复重试。
   const [submitError, setSubmitError] = useState('');
+  // 发送成功但有需要说明的情况（群里 @ 了没有分配给自己的 Agent，没有叫起）：与失败提示分开，不用红色。
+  const [submitNotice, setSubmitNotice] = useState('');
   const [activeLeafId, setActiveLeafId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -216,7 +218,7 @@ export function useChatViewState(props: ChatViewProps) {
   return {
     props, t, i18n, mode, onMenuClick, sessions, isChat, isGroup, activeKey, currentLocale,
     messages, setMessages, input, setInput, isLoading, setIsLoading, submitError, setSubmitError,
-    activeLeafId, setActiveLeafId, editingMessageId, setEditingMessageId, editContent,
+    submitNotice, setSubmitNotice, activeLeafId, setActiveLeafId, editingMessageId, setEditingMessageId, editContent,
     setEditContent, editExistingAttachments, setEditExistingAttachments, editPendingFiles,
     setEditPendingFiles, editIsDragging, copiedId, setCopiedId, inputPreview, setInputPreview,
     pendingFiles, setPendingFiles, isDragging, setIsDragging, previewFile, setPreviewFile,

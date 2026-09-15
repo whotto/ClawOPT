@@ -231,7 +231,8 @@
     "idInvalid": "團隊 ID 只允許字母、數字、底線和連字號",
     "idAlreadyExists": "團隊 ID \"{{groupId}}\" 已存在",
     "notFound": "團隊不存在",
-    "runInProgress": "上一輪還在跑（已經 {{minutes}} 分鐘）。等它結束，或者點停止再發。卡住超過 15 分鐘後，新訊息會自動接管。"
+    "runInProgress": "上一輪還在跑（已經 {{minutes}} 分鐘）。等它結束，或者點停止再發。卡住超過 15 分鐘後，新訊息會自動接管。",
+    "mentionNotPermitted": "訊息已送出，但 {{agents}} 沒有指派給你，沒有喚起他們。"
   },
   "chat": {
     "defineRoles": "設定角色提示詞",

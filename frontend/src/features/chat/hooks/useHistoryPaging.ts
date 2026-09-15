@@ -13,7 +13,7 @@ import type { ChatHistoryFetch } from './useChatHistoryFetch';
 type HistoryPagingContext = Pick<
   ChatViewState & ChatPresence & MessagePatchQueue & HistoryEdgePrompt & ChatHistoryFetch,
   't' | 'mode' | 'isGroup' | 'activeKey' | 'messages' | 'setMessages' | 'setIsLoading' |
-  'setSubmitError' | 'setActiveLeafId' | 'isInitialLoading' | 'setIsInitialLoading' |
+  'setSubmitError' | 'setSubmitNotice' | 'setActiveLeafId' | 'isInitialLoading' | 'setIsInitialLoading' |
   'isLoadingOlder' | 'setIsLoadingOlder' | 'historyPageRounds' | 'historyEdgePrompt' |
   'setHistoryPageNotice' | 'pageInfo' | 'setPageInfo' | 'setTypingAgents' | 'groupRunState' |
   'scrollContainerRef' | 'messagesRef' | 'activeLeafIdRef' | 'lastAppliedHistoryPageRoundsRef' |
@@ -29,7 +29,7 @@ type HistoryPagingContext = Pick<
 
 export function useHistoryPaging(c: HistoryPagingContext) {
   const {
-    t, mode, isGroup, activeKey, messages, setMessages, setIsLoading, setSubmitError,
+    t, mode, isGroup, activeKey, messages, setMessages, setIsLoading, setSubmitError, setSubmitNotice,
     setActiveLeafId, isInitialLoading, setIsInitialLoading, isLoadingOlder, setIsLoadingOlder,
     historyPageRounds, historyEdgePrompt, setHistoryPageNotice, pageInfo, setPageInfo,
     setTypingAgents, groupRunState, scrollContainerRef, messagesRef, activeLeafIdRef,
@@ -78,6 +78,7 @@ export function useHistoryPaging(c: HistoryPagingContext) {
       setPageInfo(result.pageInfo);
       setActiveLeafId(result.activeLeafId);
       setSubmitError('');
+      setSubmitNotice('');
     } catch (error: any) {
       // 之前是 catch {}：showSkeleton 已经把消息清空了，加载失败就变成一个
       // 「空会话」——用户以为聊天记录没了，实际只是这次没拉到。必须说清楚。

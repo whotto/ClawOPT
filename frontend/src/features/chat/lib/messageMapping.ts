@@ -113,6 +113,18 @@ export function resolveSubmitError(
   return String(t(fallbackKey));
 }
 
+/**
+ * 群聊发送成功后的提示（不是错误）：后端在 `notice` 里说明哪些 @ 没有叫起（member 未被授权的 Agent）。
+ * 名字按界面语言拼接；没有提示返回空串。
+ */
+export function resolveGroupSendNotice(payload: unknown, t: TFunction, locale: string): string {
+  const notice = (payload as { notice?: { messageCode?: unknown; agentNames?: unknown } } | null)?.notice;
+  if (!notice || typeof notice.messageCode !== 'string') return '';
+  const names = Array.isArray(notice.agentNames) ? notice.agentNames.filter((name): name is string => typeof name === 'string' && name.length > 0) : [];
+  const separator = locale.startsWith('zh') ? '、' : ', ';
+  return String(t(notice.messageCode, { agents: names.join(separator) }));
+}
+
 // 群聊消息行（DB / SSE 载荷）→ ChatMessage。
 export function mapGroupMsg(m: any): ChatMessage {
   return {

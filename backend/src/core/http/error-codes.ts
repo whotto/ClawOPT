@@ -34,6 +34,8 @@ export const GROUP_ID_INVALID_ERROR_CODE = 'groups.idInvalid';
 export const GROUP_ID_ALREADY_EXISTS_ERROR_CODE = 'groups.idAlreadyExists';
 export const GROUP_NOT_FOUND_ERROR_CODE = 'groups.notFound';
 export const GROUP_RUN_IN_PROGRESS_ERROR_CODE = 'groups.runInProgress';
+/** 不是错误：消息已发出，但 @到的成员里有发消息的人叫不起的（member 未被授权的 Agent），这些人没有被叫起。 */
+export const GROUP_MENTION_NOT_PERMITTED_MESSAGE_CODE = 'groups.mentionNotPermitted';
 export const MODEL_CREATE_FAILED_ERROR_CODE = 'models.createFailed';
 export const MODEL_UPDATE_FAILED_ERROR_CODE = 'models.updateFailed';
 export const MODEL_DELETE_FAILED_ERROR_CODE = 'models.deleteFailed';

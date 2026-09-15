@@ -14,6 +14,7 @@ type ComposerProps = Pick<
   'handleFileChange' | 'removePendingFile' | 'handlePaste' | 'handleSubmit' | 'handleStop' |
   'handleGroupInputChange' | 'getFilteredMembers' | 'insertMention' | 'handleKeyDown' | 't' |
   'isChat' | 'isGroup' | 'input' | 'setInput' | 'isLoading' | 'submitError' | 'setSubmitError' |
+  'submitNotice' | 'setSubmitNotice' |
   'inputPreview' | 'setInputPreview' | 'pendingFiles' | 'quotedMessage' | 'setQuotedMessage' |
   'showCommands' | 'setShowCommands' | 'allCommands' | 'filteredCommands' | 'setFilteredCommands' |
   'commandIndex' | 'setCommandIndex' | 'showMentionPopup' | 'setShowMentionPopup' |
@@ -26,7 +27,7 @@ export function Composer(c: ComposerProps) {
   const {
     handleFileChange, removePendingFile, handlePaste, handleSubmit, handleStop,
     handleGroupInputChange, getFilteredMembers, insertMention, handleKeyDown, t, isChat, isGroup,
-    input, setInput, isLoading, submitError, setSubmitError, inputPreview, setInputPreview,
+    input, setInput, isLoading, submitError, setSubmitError, submitNotice, setSubmitNotice, inputPreview, setInputPreview,
     pendingFiles, quotedMessage, setQuotedMessage, showCommands, setShowCommands, allCommands,
     filteredCommands, setFilteredCommands, commandIndex, setCommandIndex, showMentionPopup,
     setShowMentionPopup, setMentionFilter, mentionIndex, setMentionIndex, fileInputRef,
@@ -44,6 +45,21 @@ export function Composer(c: ComposerProps) {
               type="button"
               onClick={() => setSubmitError('')}
               className="shrink-0 text-red-400 hover:text-red-600"
+              aria-label={t('common.close')}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* 发送成功但要说明的情况（如 @ 了没有分配给自己的 Agent）：琥珀色，与失败提示区分，可手动关闭 */}
+        {submitNotice && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <span className="flex-1 min-w-0 break-words">{submitNotice}</span>
+            <button
+              type="button"
+              onClick={() => setSubmitNotice('')}
+              className="shrink-0 text-amber-400 hover:text-amber-600"
               aria-label={t('common.close')}
             >
               <X className="w-4 h-4" />

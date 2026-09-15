@@ -231,7 +231,8 @@
     "idInvalid": "团队 ID 只允许字母、数字、下划线和连字符",
     "idAlreadyExists": "团队 ID \"{{groupId}}\" 已存在",
     "notFound": "团队不存在",
-    "runInProgress": "上一轮还在跑（已经 {{minutes}} 分钟）。等它结束，或者点停止再发。卡住超过 15 分钟后，新消息会自动接管。"
+    "runInProgress": "上一轮还在跑（已经 {{minutes}} 分钟）。等它结束，或者点停止再发。卡住超过 15 分钟后，新消息会自动接管。",
+    "mentionNotPermitted": "消息已发出，但 {{agents}} 没有分配给你，没有叫起他们。"
   },
   "chat": {
     "defineRoles": "设定角色提示词",

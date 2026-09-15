@@ -10,6 +10,7 @@ import { readChatStreamTransport } from '../../../utils/chatStreamTransport';
 import { openChatTurnStream } from '../lib/chatStream';
 import {
   mapStreamingErrorUpdate, mapHttpErrorResponse, createClientStructuredChatError,
+  resolveGroupSendNotice,
   resolveSubmitError,
 } from '../lib/messageMapping';
 import type { ChatViewState } from './useChatViewState';
@@ -24,7 +25,7 @@ import type { MessageActions } from './useMessageActions';
 type ComposerActionsContext = Pick<
   ChatViewState & ChatPresence & MessagePatchQueue & HistoryScroll & ChatHistoryFetch & GroupEvents & MessageActions,
   't' | 'sessions' | 'isChat' | 'isGroup' | 'activeKey' | 'setMessages' | 'input' | 'setInput' |
-  'isLoading' | 'setIsLoading' | 'setSubmitError' | 'setActiveLeafId' | 'editingMessageId' |
+  'isLoading' | 'setIsLoading' | 'setSubmitError' | 'setSubmitNotice' | 'currentLocale' | 'setActiveLeafId' | 'editingMessageId' |
   'pendingFiles' | 'setPendingFiles' | 'isDragging' | 'setIsDragging' | 'quotedMessage' |
   'setQuotedMessage' | 'setFileErrorModalOpen' | 'setFileErrorMessage' | 'currentModel' |
   'showCommands' | 'setShowCommands' | 'filteredCommands' | 'commandIndex' | 'setCommandIndex' |
@@ -41,7 +42,7 @@ type ComposerActionsContext = Pick<
 export function useComposerActions(c: ComposerActionsContext) {
   const {
     t, sessions, isChat, isGroup, activeKey, setMessages, input, setInput, isLoading, setIsLoading,
-    setSubmitError, setActiveLeafId, editingMessageId, pendingFiles, setPendingFiles, isDragging,
+    setSubmitError, setSubmitNotice, currentLocale, setActiveLeafId, editingMessageId, pendingFiles, setPendingFiles, isDragging,
     setIsDragging, quotedMessage, setQuotedMessage, setFileErrorModalOpen, setFileErrorMessage,
     currentModel, showCommands, setShowCommands, filteredCommands, commandIndex, setCommandIndex,
     setTypingAgents, setGroupRunState, showMentionPopup, setShowMentionPopup, mentionFilter,
@@ -132,6 +133,7 @@ export function useComposerActions(c: ComposerActionsContext) {
     if (e) e.preventDefault();
     if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || isLoading || isGroupBusy) return;
     setSubmitError('');
+    setSubmitNotice('');
     const currentInput = input.trim(); const currentFiles = [...pendingFiles]; const currentQuote = quotedMessage;
     const submitLeafId = prepareLatestHistoryWindowForSubmit();
     setInput(''); setPendingFiles([]); setQuotedMessage(null); setIsLoading(true);
@@ -304,6 +306,7 @@ export function useComposerActions(c: ComposerActionsContext) {
           }
           return;
         }
+        setSubmitNotice(resolveGroupSendNotice(await response.json().catch(() => null), t, currentLocale));
       } catch (error: any) {
         setInput(currentInput);
         setPendingFiles(currentFiles);

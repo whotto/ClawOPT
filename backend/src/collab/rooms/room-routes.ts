@@ -9,6 +9,7 @@ import {
   GROUP_ID_CONTAINS_WHITESPACE_ERROR_CODE,
   GROUP_ID_INVALID_ERROR_CODE,
   GROUP_ID_REQUIRED_ERROR_CODE,
+  GROUP_MENTION_NOT_PERMITTED_MESSAGE_CODE,
   GROUP_NOT_FOUND_ERROR_CODE,
   GROUP_RUN_IN_PROGRESS_ERROR_CODE,
   type RouteApp,
@@ -66,6 +67,15 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
   const guardManageRoom: express.RequestHandler = (req, res, next) => (
     ctx.access.canManageRoom(getRequestIdentity(req), String(req.params.id ?? '')) ? next() : sendResourceForbidden(res)
   );
+  /**
+   * 发消息的人能直接叫起的 Agent（admin 全部；member 只有授权给自己的）。
+   * 只管用户发起的第一跳：@、没 @ 时的默认回复对象、编辑后重跑、重新生成某个 Agent 的回复；
+   * Agent 回复里的 @ 转交按既有链深规则继续，不再按发起人过滤（AGENTS.md「群聊叫起」）。
+   */
+  const wakePredicateFor = (req: express.Request) => {
+    const identity = getRequestIdentity(req);
+    return (agentId: string) => ctx.access.canAccessAgent(identity, agentId);
+  };
   const guardMemberAgents: express.RequestHandler = (req, res, next) => {
     const members = Array.isArray(req.body?.members) ? req.body.members : [];
     const identity = getRequestIdentity(req);
@@ -375,11 +385,21 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         ? Number(parsedParentId)
         : undefined;
 
+      // 被挡下的 @ 照样作为正文落库，只是不叫起；回一条结构化提示让界面说清楚为什么没人回。
+      const canWake = wakePredicateFor(req);
+      const blocked = groupChatEngine.blockedMentions(req.params.id, content, canWake);
+      const agentNames = blocked.map((member) => member.display_name);
+
       // Respond immediately, processing happens async
-      res.json({ success: true });
+      res.json({
+        success: true,
+        ...(agentNames.length > 0
+          ? { notice: { messageCode: GROUP_MENTION_NOT_PERMITTED_MESSAGE_CODE, messageParams: { agents: agentNames.join(', ') }, agentNames } }
+          : {}),
+      });
 
       // Process message in background
-      (groupChatEngine as any).sendUserMessage(req.params.id, content, parentId).catch((err: any) => {
+      groupChatEngine.sendUserMessage(req.params.id, content, parentId, canWake).catch((err: any) => {
         console.error('[GroupChat] Error processing message:', err);
       });
     } catch (err: any) {
@@ -478,7 +498,7 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       }
 
       if (shouldRerun) {
-        void groupChatEngine.rerunUserMessage(req.params.id, messageId).catch((err: any) => {
+        void groupChatEngine.rerunUserMessage(req.params.id, messageId, wakePredicateFor(req)).catch((err: any) => {
           console.error('[GroupChat] Error rerunning edited user message:', err);
         });
       }
@@ -518,6 +538,10 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       
       if (!targetMsg || targetMsg.sender_type !== 'agent' || !targetMsg.sender_id) {
          return res.status(400).json({ success: false, error: 'Cannot regenerate this message' });
+      }
+      // 重新生成 = 叫起写这条回复的 Agent：发起人叫不起就 403，且不删原回复。
+      if (!groupChatEngine.canWakeMemberRef(req.params.id, targetMsg.sender_id, wakePredicateFor(req))) {
+        return sendResourceForbidden(res);
       }
 
       // 与发消息走同一把群锁。原先这里不查锁：正在流式输出的那条被点「重新生成」，

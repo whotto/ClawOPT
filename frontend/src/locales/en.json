@@ -231,7 +231,8 @@
     "idInvalid": "Team ID may only contain letters, numbers, underscores, and hyphens",
     "idAlreadyExists": "Team ID \"{{groupId}}\" already exists",
     "notFound": "Team not found",
-    "runInProgress": "The previous run is still going ({{minutes}} min). Wait for it, or press stop and resend. After 15 minutes stuck, a new message takes over automatically."
+    "runInProgress": "The previous run is still going ({{minutes}} min). Wait for it, or press stop and resend. After 15 minutes stuck, a new message takes over automatically.",
+    "mentionNotPermitted": "Message sent. Not assigned to you, so not notified: {{agents}}."
   },
   "chat": {
     "defineRoles": "Define role prompts",
