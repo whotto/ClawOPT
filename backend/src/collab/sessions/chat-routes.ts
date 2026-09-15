@@ -72,6 +72,7 @@ import type { SessionOrgStore } from './session-org-store';
 import { buildCommandResultFrame, serializeCommandResultContent } from './chat-command-result';
 import { compactCommandResult, computeContextUsage, resolveContextWindow, usageCommandResult } from './context-usage';
 import { createOpenClawChatProjection } from './openclaw-chat-projection';
+import { withSessionTitle } from './session-title';
 import { type TaskPlanStore, withTaskPlans } from './task-plans';
 import { rewriteOpenClawMediaPaths } from './process-text';
 import type { SessionManager } from './session-manager';
@@ -98,7 +99,7 @@ export type ChatRoutesDeps = {
   /** 外部运行时单聊（会话行上有 external_runtime）按运行时 id 取适配器。 */
   runtimePlatform: Pick<RuntimePlatform, 'createAdapter'>;
   /** 对话标题（第一条用户消息 → 自动标题）与分叉血缘。 */
-  sessionOrg: Pick<SessionOrgStore, 'recordUserMessageForTitle' | 'getMeta'>;
+  sessionOrg: Pick<SessionOrgStore, 'recordUserMessageForTitle' | 'getMeta' | 'proposeTitle'>;
   taskPlans: TaskPlanStore;
 };
 
@@ -198,6 +199,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
     // 分叉出来的外部单聊：首轮从父会话的原生会话分叉（适配器按能力声明决定）。
     forkSource: (sessionId: string) => ctx.sessionOrg.getMeta(sessionId)?.parentSessionId ?? null,
     taskPlans: ctx.taskPlans,
+    sessionTitles: ctx.sessionOrg,
     uploadsRoots: (session: SessionRow) => [path.join(agentProvisioner.getWorkspacePath(session.agentId || 'main'), 'uploads'), uploadDir],
   };
 
@@ -372,7 +374,7 @@ export function registerChatRoutes(app: RouteApp, ctx: ChatRoutesDeps): void {
         const inner = innerProjector ? innerProjector(run) : undefined;
         // 生图优先或直连模型：本地投影器持帧桥（没出图时终态交给内层网关投影器）。纯网关一轮直接用网关投影器。
         const surface = plan.directImageModel || !inner ? createLocalChatTaskProjection(localProjectionDeps(run), inner) : inner;
-        return withTaskPlans(ctx.taskPlans, run, () => rows.assistantMessageId, surface);
+        return withSessionTitle(ctx.sessionOrg, run, withTaskPlans(ctx.taskPlans, run, () => rows.assistantMessageId, surface));
       },
       origin: options.origin,
       workspacePath: getSessionWorkspacePath(sessionId),

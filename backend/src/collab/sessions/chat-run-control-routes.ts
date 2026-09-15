@@ -23,6 +23,7 @@ import { chatSessionTopic, openSseResponse, writeSseFrame } from './chat-stream'
 import { CHAT_USER_MESSAGE_EVENT } from './chat-turn-rows';
 import type { ContextUsage } from './context-usage';
 import { getToolCallFull, listToolTraces, parseMessageIdList } from './tool-trace';
+import { SESSION_TITLE_EVENT } from './session-title';
 import { TASK_PLAN_EVENT, type TaskPlanStore } from './task-plans';
 
 export type ChatRunControlDeps = {
@@ -53,6 +54,7 @@ export const CHAT_LIVE_EVENT_TYPES: ReadonlySet<string> = new Set([
   'session.command',
   'workspace.diff.completed',
   TASK_PLAN_EVENT,
+  SESSION_TITLE_EVENT,
   'approval.requested',
   'approval.resolved',
   'clarify.requested',

@@ -21,6 +21,8 @@ import { createStructuredChatError } from './chat-messages';
 import { chatSessionTopic, type ChatStreamSink, streamNewChatRunToSse } from './chat-stream';
 import { ChatTurnRows } from './chat-turn-rows';
 import { createExternalChatProjection } from './external-chat-projection';
+import type { SessionOrgStore } from './session-org-store';
+import { withSessionTitle } from './session-title';
 import { type TaskPlanStore, withTaskPlans } from './task-plans';
 import { bindUploadedAttachments } from './chat-attachments';
 
@@ -96,6 +98,8 @@ export type ExternalChatTurnDeps = {
   defaultWorkspace: (sessionId: string) => string;
   /** 任务计划卡（运行时发的计划 / TodoWrite / update_plan）；不给就不跟踪。 */
   taskPlans?: TaskPlanStore;
+  /** 运行时提议的会话标题（`session.title`）按标题优先级落库并推 `session.title.updated`；不给就不收。 */
+  sessionTitles?: Pick<SessionOrgStore, 'proposeTitle' | 'getMeta'>;
   /** 这个会话是从哪个单聊分叉出来的（没有返回 null）。 */
   forkSource?: (sessionId: string) => string | null;
 };
@@ -198,7 +202,8 @@ export function buildExternalChatSubmission(deps: ExternalChatTurnDeps, turn: {
         modelUsed: modelTag,
         command: command?.kind === 'turn' ? undefined : command?.kind,
       });
-      return deps.taskPlans ? withTaskPlans(deps.taskPlans, run, () => rows.assistantMessageId, projector) : projector;
+      const planned = deps.taskPlans ? withTaskPlans(deps.taskPlans, run, () => rows.assistantMessageId, projector) : projector;
+      return deps.sessionTitles ? withSessionTitle(deps.sessionTitles, run, planned) : planned;
     },
     onFinished: (outcome: AdapterRunOutcome) => {
       const latest = deps.db.getSession(session.id);

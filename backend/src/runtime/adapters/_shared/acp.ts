@@ -135,8 +135,14 @@ export function createAcpDriver(ctx: TurnDriverContext, options: AcpDriverOption
         // 条目带上 ACP 原生的 status（pending / in_progress / completed），单聊计划卡要显示进度。
         emitter.plan({ entries: Array.isArray(update.entries) ? update.entries.map((entry: any) => ({ content: String(entry?.content ?? ''), status: typeof entry?.status === 'string' ? entry.status : 'pending' })) : [] });
         return;
+      case 'session_info_update': {
+        // 运行时起的会话标题（Hermes 按第一句话起、同名加「#2」）。只转成提议，收不收由表面按标题优先级定。
+        const title = typeof update.title === 'string' ? update.title.replace(/\s+/g, ' ').trim() : '';
+        if (title) ctx.emitControl({ type: 'session.title', title });
+        return;
+      }
       default:
-        return; // usage_update（上下文占用，不计费）、available_commands_update、session_info_update、user_message_chunk
+        return; // usage_update（上下文占用，不计费）、available_commands_update、user_message_chunk
     }
   };
 

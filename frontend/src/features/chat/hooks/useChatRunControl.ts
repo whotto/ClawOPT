@@ -18,6 +18,7 @@ import {
 } from '../run/chatRunState';
 import { parseChatTurnEcho, planPeerTurnMessages } from '../run/peerTurns';
 import { resolveSubmitError } from '../lib/messageMapping';
+import { useSessionOrgStore } from '../../sessions/sessionOrgStore';
 import type { ChatViewState } from './useChatViewState';
 
 type ChatRunControlContext = Pick<
@@ -98,6 +99,11 @@ export function useChatRunControl(c: ChatRunControlContext) {
       const ready = terminalWaitersRef.current.filter((waiter) => waiter.messageId === payload.message_id);
       terminalWaitersRef.current = terminalWaitersRef.current.filter((waiter) => waiter.messageId !== payload.message_id);
       ready.forEach((waiter) => waiter.resolve(type));
+    }
+    // 对话标题：运行时提议被收下（session.title.updated），或一轮结束（第一条消息的自动标题已落库）时重拉组织视图。
+    if (event.event === 'session.title.updated' || event.event === 'run.completed') {
+      void useSessionOrgStore.getState().load();
+      if (event.event === 'session.title.updated') return;
     }
     if (event.event === 'task.plan.updated') {
       setLivePlan(payload);

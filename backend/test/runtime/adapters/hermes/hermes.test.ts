@@ -211,6 +211,27 @@ describe('Hermes：ACP 往返与错误', () => {
     expect(await run.done).toMatchObject({ kind: 'failed', code: 'runtime.notLoggedIn' });
   });
 
+  it('会话标题（真实录制 session_info_update）：转成 session.title 提议，空标题不发', async () => {
+    const fixture = loadAcpFixture('hermes', 'real-scoped-basic-acp.jsonl');
+    const { run, proc } = await runTurn({ fixture, request: baseRequest({ mode: 'scoped', provider: SCOPED_PROVIDER }), mode: 'scoped' });
+    await closeWhenStdinEnds(proc);
+    await run.done;
+    expect(run.canonical().filter((e) => e.type === 'session.title')).toEqual([{ type: 'session.title', title: 'Say hello in 3 words.' }]);
+
+    const blank = await runTurn({
+      overrides: {
+        'session/prompt': (msg) => [
+          { jsonrpc: '2.0', method: 'session/update', params: { sessionId: DENY_SESSION, update: { sessionUpdate: 'session_info_update', title: '   ' } } },
+          { jsonrpc: '2.0', method: 'session/update', params: { sessionId: DENY_SESSION, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'ok' } } } },
+          { jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } },
+        ],
+      },
+    });
+    await closeWhenStdinEnds(blank.proc);
+    await blank.run.done;
+    expect(blank.run.canonical().some((e) => e.type === 'session.title')).toBe(false);
+  });
+
   it('续话（真实录制）：resume 期间重放的历史不算本轮输出；只有 resume 应答之后的才算', async () => {
     const fixture = loadAcpFixture('hermes', 'real-resume-acp.jsonl');
     const resumedId = '32372d72-8435-4426-8ad7-488cc840ab8f';
