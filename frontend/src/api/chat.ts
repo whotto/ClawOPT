@@ -27,6 +27,11 @@ export function deleteMessage(messageId: string) {
   return apiFetch(`/messages/${messageId}`, { method: 'DELETE' });
 }
 
+/** 上下文占用：运行时报的最近一次模型调用占用 + 模型配置里的窗口。 */
+export function getChatContextUsage(sessionId: string, signal?: AbortSignal) {
+  return apiFetch(`/chat/${encodeURIComponent(sessionId)}/context-usage`, { signal });
+}
+
 /** 单聊运行控制快照：活跃运行、服务端队列、插入状态、待答审批（P1b）。 */
 export function getChatRunState(sessionId: string, signal?: AbortSignal) {
   return apiFetch(`/chat/${encodeURIComponent(sessionId)}/state`, { signal });

@@ -263,7 +263,8 @@
     "commandWhileRunning": "回复进行中，内建命令要等这一轮结束再用",
     "sessionBusy": "这个对话正忙，请稍后再发",
     "queueItemNotFound": "这条排队消息已经不在队列里了",
-    "queueInsertionPending": "已有一条消息正在插入，请等它开始"
+    "queueInsertionPending": "已有一条消息正在插入，请等它开始",
+    "contextWindowTooSmall": "上下文超出了模型窗口：先发 /compact 压缩对话，或在模型设置里调大上下文长度、缩短这条输入"
   },
   "group": {
     "maxChainDepthReached": "链式转发已达到最大深度 ({{maxDepth}} 轮)",
@@ -2491,5 +2492,13 @@
       "forkNothingToFork": "还没有可以分叉的原生会话（先成功对话一轮）",
       "batchIdsInvalid": "请选择 1–200 个对话"
     }
+  },
+  "contextUsage": {
+    "usedOfWindow": "上下文 {{used}} / {{window}} · 剩余 {{remaining}}",
+    "usedOnly": "上下文 {{used}}",
+    "approximate": "（约）",
+    "hint": "运行时报告的最近一次模型调用占用（含缓存）",
+    "compactHint": "上下文快满了：发 /compact 让运行时压缩对话",
+    "suggestCompact": "建议 /compact"
   }
 }

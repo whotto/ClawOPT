@@ -8,6 +8,7 @@ import {
 } from '../../../utils/markdownMath';
 import { getAgentColor } from '../lib/agentColors';
 import type { ChatController } from '../hooks/useChatController';
+import { ContextUsageBadge } from './ContextUsageBadge';
 
 type ComposerProps = Pick<
   ChatController,
@@ -20,7 +21,7 @@ type ComposerProps = Pick<
   'commandIndex' | 'setCommandIndex' | 'showMentionPopup' | 'setShowMentionPopup' |
   'setMentionFilter' | 'mentionIndex' | 'setMentionIndex' | 'fileInputRef' | 'textareaRef' |
   'commandListRef' | 'currentGroup' | 'currentSession' | 'resolveGroupMemberDisplayName' |
-  'hasDraftToSend' | 'isGroupBusy'
+  'hasDraftToSend' | 'isGroupBusy' | 'activeKey' | 'usageTick'
 >;
 
 export function Composer(c: ComposerProps) {
@@ -32,7 +33,7 @@ export function Composer(c: ComposerProps) {
     filteredCommands, setFilteredCommands, commandIndex, setCommandIndex, showMentionPopup,
     setShowMentionPopup, setMentionFilter, mentionIndex, setMentionIndex, fileInputRef,
     textareaRef, commandListRef, currentGroup, currentSession, resolveGroupMemberDisplayName,
-    hasDraftToSend, isGroupBusy,
+    hasDraftToSend, isGroupBusy, activeKey, usageTick,
   } = c;
   return (
     <div className="px-4 sm:px-6 pb-6 sm:pb-4 pt-2 flex-shrink-0 bg-white">
@@ -263,6 +264,11 @@ export function Composer(c: ComposerProps) {
               )}
             </div>
           </form>
+          {isChat && activeKey && (
+            <div className="mt-1.5 flex justify-end px-1">
+              <ContextUsageBadge sessionId={activeKey} refreshKey={usageTick} />
+            </div>
+          )}
         </div>
       </div>
     </div>

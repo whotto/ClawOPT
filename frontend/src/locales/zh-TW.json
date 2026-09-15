@@ -263,7 +263,8 @@
     "commandWhileRunning": "回覆進行中，內建命令要等這一輪結束再用",
     "sessionBusy": "這個對話正忙，請稍後再傳",
     "queueItemNotFound": "這則排隊訊息已經不在佇列裡了",
-    "queueInsertionPending": "已有一則訊息正在插入，請等它開始"
+    "queueInsertionPending": "已有一則訊息正在插入，請等它開始",
+    "contextWindowTooSmall": "上下文超出了模型視窗：先傳 /compact 壓縮對話，或在模型設定裡調大上下文長度、縮短這則輸入"
   },
   "group": {
     "maxChainDepthReached": "鏈式轉發已達到最大深度 ({{maxDepth}} 輪)",
@@ -2491,5 +2492,13 @@
       "forkNothingToFork": "還沒有可以分叉的原生工作階段（先成功對話一輪）",
       "batchIdsInvalid": "請選取 1–200 個對話"
     }
+  },
+  "contextUsage": {
+    "usedOfWindow": "上下文 {{used}} / {{window}} · 剩餘 {{remaining}}",
+    "usedOnly": "上下文 {{used}}",
+    "approximate": "（約）",
+    "hint": "執行環境回報的最近一次模型呼叫佔用（含快取）",
+    "compactHint": "上下文快滿了：傳 /compact 讓執行環境壓縮對話",
+    "suggestCompact": "建議 /compact"
   }
 }

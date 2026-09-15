@@ -36,6 +36,8 @@ export function useChatRunControl(c: ChatRunControlContext) {
   const locallyStreamedRefsRef = useRef<Set<string>>(new Set());
   const [attachRequest, setAttachRequest] = useState(0);
   const [insertPendingQueueId, setInsertPendingQueueId] = useState<string | null>(null);
+  /** 用量可能变了（报了用量、一轮结束）：上下文占用徽标据此重拉。 */
+  const [usageTick, setUsageTick] = useState(0);
 
   const requestAttach = useCallback(() => {
     // 本地流正在读（发起方自己）或接回流已经挂着：不重复接回。
@@ -67,6 +69,9 @@ export function useChatRunControl(c: ChatRunControlContext) {
     if (generation !== generationRef.current) return;
     setRunState((previous) => applyChatLiveEvent(previous, generation, event));
     const payload = event.payload ?? {};
+    if (event.event === 'usage.updated' || event.event === 'run.completed' || event.event === 'run.failed' || event.event === 'run.aborted' || event.event === 'session.command') {
+      setUsageTick((value) => value + 1);
+    }
     if (event.event === 'chat.user_message') {
       const echo = parseChatTurnEcho(payload);
       if (!echo) return;
@@ -162,7 +167,7 @@ export function useChatRunControl(c: ChatRunControlContext) {
 
   return {
     runState, refreshRunState, locallyStreamedRefsRef, attachRequest, requestAttach,
-    cancelQueued, insertQueued, insertPendingQueueId,
+    cancelQueued, insertQueued, insertPendingQueueId, usageTick,
   };
 }
 

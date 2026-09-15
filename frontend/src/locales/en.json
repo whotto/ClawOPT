@@ -263,7 +263,8 @@
     "commandWhileRunning": "Built-in commands are available once the current reply finishes",
     "sessionBusy": "This conversation is busy. Try again in a moment",
     "queueItemNotFound": "This queued message is no longer in the queue",
-    "queueInsertionPending": "Another message is already being inserted. Wait for it to start"
+    "queueInsertionPending": "Another message is already being inserted. Wait for it to start",
+    "contextWindowTooSmall": "The conversation no longer fits the model's context window. Send /compact to compact it, or raise the context length in model settings and shorten this message"
   },
   "group": {
     "maxChainDepthReached": "Chain forwarding reached the maximum depth ({{maxDepth}} rounds)",
@@ -2491,5 +2492,13 @@
       "forkNothingToFork": "There's no native session to fork yet (finish one turn first)",
       "batchIdsInvalid": "Select 1–200 conversations"
     }
+  },
+  "contextUsage": {
+    "usedOfWindow": "Context {{used}} / {{window}} · {{remaining}} left",
+    "usedOnly": "Context {{used}}",
+    "approximate": "(approx.)",
+    "hint": "Tokens used by the most recent model call, as reported by the runtime (including cache)",
+    "compactHint": "Context is almost full: send /compact to let the runtime compact the conversation",
+    "suggestCompact": "Try /compact"
   }
 }
