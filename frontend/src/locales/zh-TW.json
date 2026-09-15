@@ -337,6 +337,30 @@
     "viewSource": "原始碼",
     "viewRendered": "渲染"
   },
+  "filePreviewSafety": {
+    "zipBlocked": "檔案未通過安全檢查，已停止預覽：{{reason}}。仍可下載查看。",
+    "zip": {
+      "notZip": "不是有效的 Office（ZIP）檔案包",
+      "truncated": "檔案包不完整或已損壞",
+      "multiDisk": "不支援分卷壓縮檔",
+      "zip64": "不支援 ZIP64 格式的檔案包",
+      "tooManyEntries": "檔案包內的項目超過 10000 個",
+      "entryTooLarge": "有項目解壓縮後超過 64 MB",
+      "totalTooLarge": "檔案包解壓縮後合計超過 128 MB",
+      "suspiciousRatio": "有項目的壓縮比異常偏高（疑似壓縮炸彈）",
+      "inconsistent": "檔案包目錄結構前後不一致"
+    },
+    "tableTimeout": "表格解析耗時過長，已停止。請下載後查看。",
+    "tableSheetsTruncated": "只顯示前 {{shown}} 個工作表，共 {{total}} 個。",
+    "tableTruncated": "顯示 {{rows}} 列 × {{cols}} 欄，全表共 {{totalRows}} 列 × {{totalCols}} 欄。",
+    "tableTruncatedAtLeast": "顯示 {{rows}} 列 × {{cols}} 欄，全表超過 {{totalRows}} 列、共 {{totalCols}} 欄。",
+    "tableCellsClipped": "超過 {{chars}} 個字元的儲存格已截斷。",
+    "tableEmpty": "這個工作表是空的",
+    "htmlSandboxNotice": "安全預覽：已停用指令碼、表單與網路請求",
+    "htmlImagesSkipped": "有 {{count}} 張圖片未載入（外部位址、過大或無法讀取）",
+    "htmlFrameTitle": "HTML 預覽",
+    "htmlPreparing": "正在準備安全預覽..."
+  },
   "unifiedChat": {
     "untitledRole": "未命名角色",
     "imageTooLargeAfterCompression": "圖片 \"{{name}}\" 過大（{{originalSize}}），壓縮後仍超過 {{limit}} 限制",

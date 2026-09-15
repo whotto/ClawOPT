@@ -337,6 +337,30 @@
     "viewSource": "Source",
     "viewRendered": "Rendered"
   },
+  "filePreviewSafety": {
+    "zipBlocked": "This file failed the safety check, so preview is disabled: {{reason}}. You can still download it.",
+    "zip": {
+      "notZip": "the file is not a valid Office (ZIP) package",
+      "truncated": "the package is truncated or damaged",
+      "multiDisk": "split (multi-volume) packages are not supported",
+      "zip64": "ZIP64 packages are not supported",
+      "tooManyEntries": "the package contains more than 10,000 entries",
+      "entryTooLarge": "an entry would expand to more than 64 MB",
+      "totalTooLarge": "the package would expand to more than 128 MB in total",
+      "suspiciousRatio": "an entry has an abnormally high compression ratio (possible ZIP bomb)",
+      "inconsistent": "the package directory is inconsistent"
+    },
+    "tableTimeout": "Parsing the table took too long and was stopped. Download the file to view it.",
+    "tableSheetsTruncated": "Showing the first {{shown}} of {{total}} sheets.",
+    "tableTruncated": "Showing {{rows}} rows × {{cols}} columns out of {{totalRows}} rows × {{totalCols}} columns.",
+    "tableTruncatedAtLeast": "Showing {{rows}} rows × {{cols}} columns; the sheet has more than {{totalRows}} rows and {{totalCols}} columns.",
+    "tableCellsClipped": "Cells longer than {{chars}} characters are clipped.",
+    "tableEmpty": "This sheet is empty",
+    "htmlSandboxNotice": "Safe preview: scripts, forms and network requests are disabled",
+    "htmlImagesSkipped": "{{count}} image(s) were not loaded (external, oversized, or unavailable)",
+    "htmlFrameTitle": "HTML preview",
+    "htmlPreparing": "Preparing a safe preview..."
+  },
   "unifiedChat": {
     "untitledRole": "Untitled role",
     "imageTooLargeAfterCompression": "Image \"{{name}}\" is too large ({{originalSize}}). It still exceeds the {{limit}} limit after compression.",

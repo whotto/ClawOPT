@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { getFileCapabilities } from '../../../api/files';
+import type { TablePreviewResult } from './table/tableParsing';
 
 export const TEXT_SELECTION_STYLE = {
   userSelect: 'text' as const,
@@ -92,7 +93,7 @@ export function buildRenderedHtmlDocument(content: string): string {
 
 export type PreviewState = 
   | { status: 'loading' }
-  | { status: 'ready'; type: 'image' | 'video' | 'audio' | 'pdf' | 'html' | 'text' | 'code' | 'epub' | 'unsupported'; content?: string; pdfUrl?: string; pdfData?: Uint8Array; epubData?: ArrayBuffer }
+  | { status: 'ready'; type: 'image' | 'video' | 'audio' | 'pdf' | 'html' | 'text' | 'code' | 'epub' | 'table' | 'unsupported'; content?: string; pdfUrl?: string; pdfData?: Uint8Array; epubData?: ArrayBuffer; table?: TablePreviewResult }
   | { status: 'error'; message: string };
 
 // Cache capabilities result
