@@ -134,6 +134,7 @@ describe('单聊服务端队列（真实路由）', () => {
     await waitUntil(() => gw.sent.length === 2);
     expect(String(gw.sent[1].message)).toContain('urgent');
 
+    await waitUntil(() => live.frames.some((f) => f.event === 'queue.insertion.updated' && f.payload.cleared));
     const aborted = live.frames.find((f) => f.event === 'run.aborted');
     expect(aborted.payload).toMatchObject({ interrupted: true, stop_reason: 'queue_insertion', interruption_mode: 'immediate' });
     const phases = live.frames.filter((f) => f.event === 'queue.insertion.updated').map((f) => f.payload.phase ?? `cleared:${f.payload.reason}`);
