@@ -16,6 +16,18 @@ export type ChatStreamOpenResult =
 
 export const CHAT_FRAME_EVENT = 'chat.frame';
 export const CHAT_STREAM_END_EVENT = 'chat.stream.end';
+/**
+ * 实时通道在这么久里连不上（反向代理没放行 Upgrade、公司网络拦 WebSocket……）就退回 SSE。
+ * 开关打开不该让发送按钮在一个连不上的通道上转圈。
+ */
+export const WS_READY_TIMEOUT_MS = 5000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    promise.then((value) => { clearTimeout(timer); resolve(value); }, () => { clearTimeout(timer); resolve(null); });
+  });
+}
 
 /** SSE 响应体里的 `data: {...}` 帧。解析失败的行跳过（与原来逐行 try/catch 一致）。 */
 export async function* readSseChatFrames(response: Response): AsyncGenerator<ChatStreamFrame> {
@@ -153,17 +165,25 @@ export async function openChatTurnStream(params: {
   client: () => RealtimeClient;
   post: (headers: Record<string, string>) => Promise<Response>;
   signal?: AbortSignal;
+  readyTimeoutMs?: number;
 }): Promise<ChatStreamOpenResult> {
-  if (params.transport === 'sse') {
+  const overSse = async (): Promise<ChatStreamOpenResult> => {
     const response = await params.post({});
     if (!response.ok || !response.body) return { ok: false, response };
     return { ok: true, events: readSseChatFrames(response) };
-  }
+  };
+  if (params.transport === 'sse') return overSse();
 
   const client = params.client();
-  const connectionId = await client.ready();
+  const timeoutMs = params.readyTimeoutMs ?? WS_READY_TIMEOUT_MS;
+  const connectionId = await withTimeout(client.ready(), timeoutMs);
+  if (!connectionId) return overSse();
   const collector = collectSessionFrames(client, params.sessionId, params.signal);
-  await collector.ready;
+  const ack = await withTimeout(collector.ready, timeoutMs);
+  if (!ack?.ok) {
+    collector.finish();
+    return overSse();
+  }
   let response: Response;
   try {
     response = await params.post({ 'X-ClawOPT-Stream': 'ws', 'X-ClawOPT-WS-Connection': connectionId });
@@ -199,6 +219,7 @@ export async function openChatAttachStream(params: {
   client: () => RealtimeClient;
   attachOverHttp: () => Promise<Response>;
   signal?: AbortSignal;
+  readyTimeoutMs?: number;
 }): Promise<{ kind: 'inactive' } | { kind: 'failed' } | { kind: 'events'; events: AsyncIterable<ChatStreamFrame> }> {
   const overHttp = async () => {
     const response = await params.attachOverHttp();
@@ -210,10 +231,11 @@ export async function openChatAttachStream(params: {
   if (params.transport === 'sse') return overHttp();
 
   const client = params.client();
-  await client.ready();
+  const timeoutMs = params.readyTimeoutMs ?? WS_READY_TIMEOUT_MS;
+  if (!await withTimeout(client.ready(), timeoutMs)) return overHttp();
   const collector = collectSessionFrames(client, params.sessionId, params.signal);
-  const ack = await collector.ready;
-  const session = ack.ok ? snapshotForSession(ack.snapshot) : null;
+  const ack = await withTimeout(collector.ready, timeoutMs);
+  const session = ack?.ok ? snapshotForSession(ack.snapshot) : null;
   const runMessageId = session?.activeRun?.meta?.messageId;
   if (typeof runMessageId !== 'number') {
     collector.finish();

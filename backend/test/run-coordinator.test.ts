@@ -186,6 +186,15 @@ describe('中止与宽限', () => {
     expect(coordinator.isBusy('s1')).toBe(false);
   });
 
+  it('投影器建不起来（例如写库失败）：这一轮按失败收尾，会话不被永久占住，适配器根本不启动', async () => {
+    const { coordinator, scripted, submission } = setup();
+    const result = await coordinator.submit(submission({ projector: () => { throw new Error('disk full'); } }), 'reject') as any;
+    const terminal = await result.completion;
+    expect(terminal.outcome).toMatchObject({ kind: 'failed', error: 'disk full', stopReason: 'projector_failed' });
+    expect(coordinator.isBusy('s1')).toBe(false);
+    expect(scripted.runs).toHaveLength(0);
+  });
+
   it('没有运行时 abort 被忽略', async () => {
     const { coordinator } = setup();
     expect(await coordinator.abort('nope', 'user_stop')).toEqual({ aborted: false, synced: false, ignored: true });

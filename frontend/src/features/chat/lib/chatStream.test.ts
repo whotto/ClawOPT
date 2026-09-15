@@ -81,6 +81,19 @@ describe('openChatTurnStream（WebSocket）', () => {
     ]);
   });
 
+  it('实时通道连不上：超时后这一轮退回 SSE，不让发送按钮一直转圈', async () => {
+    const stuck = { ready: () => new Promise<string>(() => {}), subscribe: () => { throw new Error('不该订阅'); } };
+    let headers: Record<string, string> | null = null;
+    const result = await openChatTurnStream({
+      transport: 'ws', sessionId: 's1', readyTimeoutMs: 10,
+      client: () => stuck as unknown as RealtimeClient,
+      post: async (h) => { headers = h; return new Response('data: {"type":"final","text":"via sse"}\n\n'); },
+    });
+    expect(headers).toEqual({});
+    if (!result.ok) throw new Error('expected ok');
+    expect(await collect(result.events)).toEqual([{ type: 'final', text: 'via sse' }]);
+  });
+
   it('HTTP 失败原样交还响应，不等帧', async () => {
     const realtime = new FakeRealtime();
     const result = await openChatTurnStream({

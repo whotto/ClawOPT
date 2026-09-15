@@ -230,9 +230,37 @@ export class RunCoordinator {
       if (phase === 'resolved') state!.replay.remove(replayKey);
       return;
     }
-    // 运行已经结束（中止收尾时）：没有运行上下文，直接发到会话主题。
-    this.hub.publish({ topic: `session:${view.sessionKey}`, type, payload, runId: view.runId });
+    // 运行已经不在（请求比它的运行活得久的边角情况）：没有运行上下文，发到请求时记下的主题。
+    const topic = this.interactionTopics.get(view.id);
+    if (topic) this.hub.publish({ topic, type, payload, runId: view.runId });
     state?.replay.remove(replayKey);
+    if (phase === 'resolved') this.interactionTopics.delete(view.id);
+  }
+
+  /** 交互请求 id → 发起它的运行的主题。 */
+  private readonly interactionTopics = new Map<string, string>();
+
+  private requestInteraction(run: ActiveRun, event: Extract<AdapterEvent['event'], { type: 'approval.requested' | 'clarify.requested' }>): void {
+    const id = event.type === 'approval.requested' ? event.request.approvalId : event.request.clarifyId;
+    this.interactionTopics.set(id, run.submission.topics[0]);
+    try {
+      if (event.type === 'approval.requested') {
+        this.interactions.requestApproval(run.submission.sessionKey, run.runId, event.request).then((outcome) => {
+          this.interactionTopics.delete(id);
+          if (!run.terminalHandled) run.handle?.resolveApproval?.(id, outcome.decision);
+        });
+      } else {
+        this.interactions.requestClarify(run.submission.sessionKey, run.runId, event.request).then((outcome) => {
+          this.interactionTopics.delete(id);
+          if (!run.terminalHandled) run.handle?.resolveClarify?.(id, outcome.response);
+        });
+      }
+    } catch (error) {
+      // 同一个 id 重复请求：运行时串了。按拒绝回给它，不把异常抛回适配器的事件回调里。
+      this.log(`[RunCoordinator] interaction request rejected (${id}): ${(error as Error)?.message}`);
+      if (event.type === 'approval.requested') run.handle?.resolveApproval?.(id, 'deny');
+      else run.handle?.resolveClarify?.(id, '');
+    }
   }
 
   // ---------------------------------------------------------------- 提交
@@ -305,15 +333,21 @@ export class RunCoordinator {
       this.log(`[RunCoordinator] ensureRunSession failed for ${submission.sessionKey}: ${(error as Error)?.message}`);
     }
 
-    run.projector = submission.projector({
-      runId: run.runId,
-      runMarker: run.runMarker,
-      sessionKey: submission.sessionKey,
-      primaryTopic: submission.topics[0],
-      startedAt: run.startedAt,
-      publish: (type, payload, options) => this.publish(run, type, payload, { topic: options?.topic, replay: options?.replay }),
-      adapterStatus: () => run.handle?.status() ?? { phase: 'preparing' },
-    });
+    let projectorError: unknown = null;
+    try {
+      run.projector = submission.projector({
+        runId: run.runId,
+        runMarker: run.runMarker,
+        sessionKey: submission.sessionKey,
+        primaryTopic: submission.topics[0],
+        startedAt: run.startedAt,
+        publish: (type, payload, options) => this.publish(run, type, payload, { topic: options?.topic, replay: options?.replay }),
+        adapterStatus: () => run.handle?.status() ?? { phase: 'preparing' },
+      });
+    } catch (error) {
+      // 投影器都建不起来（例如写库失败）：这一轮不启动，但会话必须回到空闲——不能让一次异常把会话永久占住。
+      projectorError = error;
+    }
 
     this.publish(run, 'run.started', {
       run_id: run.runId,
@@ -325,6 +359,11 @@ export class RunCoordinator {
       meta: submission.meta ?? {},
     }, { allTopics: true, replay: { mode: 'replace', key: 'run.started' } });
 
+    if (projectorError) {
+      this.log(`[RunCoordinator] projector failed to start for ${submission.sessionKey}: ${(projectorError as Error)?.message}`);
+      void this.finalize(run, { kind: 'failed', error: (projectorError as Error)?.message || String(projectorError), stopReason: 'projector_failed' });
+      return run;
+    }
     void this.launch(run);
     return run;
   }
@@ -465,14 +504,8 @@ export class RunCoordinator {
         break;
       }
       case 'approval.requested':
-        this.interactions.requestApproval(run.submission.sessionKey, run.runId, event.request).then((outcome) => {
-          if (!run.terminalHandled) run.handle?.resolveApproval?.(event.request.approvalId, outcome.decision);
-        });
-        break;
       case 'clarify.requested':
-        this.interactions.requestClarify(run.submission.sessionKey, run.runId, event.request).then((outcome) => {
-          if (!run.terminalHandled) run.handle?.resolveClarify?.(event.request.clarifyId, outcome.response);
-        });
+        this.requestInteraction(run, event);
         break;
       case 'runtime.native_session':
         run.nativeSessionId = event.nativeSessionId;
