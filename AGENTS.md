@@ -93,7 +93,7 @@
 编码类外部运行时（Claude Code / Codex / Pi / Grok / OpenCode / DeepSeek Harness / Hermes Agent）在 `backend/src/runtime/adapters/<运行时>/`，共用件在 `_shared/`，唯一清单是 `registry.ts`（成员运行时选择器、群聊派发、运行时管理器都从它取）。
 - **适配器只翻译。** 一份 `RuntimeDefinition` = 描述符 + 能力 + 仲裁表 + `prepare`（产出要写的文件、参数、启动环境，**纯数据**，金样用例直接比）+ `createDriver`（原生输出 → 规范事件）。会话行、排队、陈旧、落库、用量去重、审批注册表都在协调器；写进驱动就是越界。
 - **以 `close` 判完成，不是 `exit`。** `exit` 可能先于 stdout 排空，最后一行（API 错误、用量）会丢。驱动只在 `finish()`（close 之后）决定成败；中止是 SIGINT 整个进程组、1.5 秒后 SIGKILL、等 close 才确认已停。子进程只经注入的 `ProcessExecutor` 起（`_shared/process.ts`），驱动与测试都不直接 `spawn`。
-- **子进程环境是白名单**（`_shared/env.ts`，名单本身只有 `manager/path-env.ts` 的 `CHILD_ENV_ALLOWLIST` 一份）：scoped 只有白名单 + 启动变量；global 额外放行运行时声明的凭据变量（按名字），仍然不是整份环境。管理器合并出来的环境会再过一遍名单——守卫用例对着「把整份环境合并进来」的假管理器证明会红。
+- **子进程环境是白名单**（`_shared/env.ts`，名单本身只有 `manager/path-env.ts` 的 `CHILD_ENV_ALLOWLIST` 一份）：scoped 只有白名单 + 启动变量；global 额外放行运行时声明的凭据变量（按名字；`CLAWOPT_*` 任何模式都不放行——凭据模式 `_AUTH_TOKEN$` 之类会把它顺出去），仍然不是整份环境。`test/runtime/adapters/shared/child-env-guard.test.ts` 对七个运行时 × 两种模式逐一校验。管理器合并出来的环境会再过一遍名单——守卫用例对着「把整份环境合并进来」的假管理器证明会红。
 - **key 不进任何配置文件。** 上游 key 只进本地代理的内存；CLI 拿到的是代理令牌，而令牌也只进进程环境，文件里只写引用（Codex `env_key`、Pi `$VAR`、OpenCode `{env:VAR}`、Grok `env_key`、DSH `apiKeyEnv`、Hermes `${VAR}`；Claude 的 settings.json 里不写 `ANTHROPIC_API_KEY`）。每个运行时都有一条「生成的文件里没有 key 与令牌」的用例。
 - **prompt 走 stdin 或文件，从不进 argv**（ARG_MAX、`ps` 可见、OpenCode 还会给带空格的位置参数加字面引号）。
 - **不重定向 HOME / XDG。** 运行时 home 由平台发：`manager.homes.ensureHome(运行时, request.owner)` → `<数据目录>/runtime/<运行时>/<sha256(归属)>`（单聊按会话、群聊按 (群, 成员) 稳定，带 `.clawopt-home.json` 标记，删归属与定期清扫时回收），只经各 CLI 自己的指针变量生效。global 模式**不做影子 home**：本机 Codex 是 ChatGPT OAuth，影子副本刷新令牌会让用户真实的登录失效（Grok 同理）。

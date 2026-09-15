@@ -30,11 +30,19 @@ export interface ChildEnvInput {
   globalCredentialEnv: readonly RegExp[];
 }
 
+/**
+ * ClawOPT 自己的变量（登录令牌、数据目录、它自己用的上游 key…）**任何模式都不放行**。
+ * 运行时的凭据模式是按名字形状写的（`_AUTH_TOKEN$`、`_API_KEY$`），不排除的话 `CLAWOPT_AUTH_TOKEN` 会顺着它漏出去
+ * （集成 P2 时守卫第一次跑就抓到了 pi / opencode / dsh / hermes 四个）。适配器自己在启动环境里设的 `CLAWOPT_*`（代理令牌）不受影响。
+ */
+const NEVER_INHERITED = /^CLAWOPT_/i;
+
 export function buildChildEnv(input: ChildEnvInput): NodeJS.ProcessEnv {
   const passthrough: Record<string, string> = {};
   if (input.mode === 'global') {
     for (const [name, value] of Object.entries(input.processEnv)) {
-      if (typeof value === 'string' && input.globalCredentialEnv.some((re) => re.test(name))) passthrough[name] = value;
+      if (typeof value !== 'string' || NEVER_INHERITED.test(name)) continue;
+      if (input.globalCredentialEnv.some((re) => re.test(name))) passthrough[name] = value;
     }
   }
   const merged = input.manager.childEnv({ ...passthrough, ...input.launchEnv });
