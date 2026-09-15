@@ -17,7 +17,9 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
    * 主题授权 = 资源存在 + 这个身份看得见（P5a 用户 ↔ Agent 授权，判据在 core/auth/resource-access.ts，与 HTTP 路由同一处）：
    * - `session:<key>`：单聊会话 / 群外部成员会话 / 其他协调器会话（工作流节点），按其 Agent 判；
    * - `room:<id>`：admin，或能看群里至少一个 Agent；
-   * - `agent:<id>`：名册里（单聊会话 / 群成员 / 角色）出现过，且能看这个 Agent（外部成员的 `ext:<运行时>:<id>` 按成员的 Agent 判）。
+   * - `agent:<id>`：名册里（单聊会话 / 群成员 / 角色）出现过，且能看这个 Agent（外部成员的 `ext:<运行时>:<id>` 按成员的 Agent 判）；
+ * - `workflow:<id>`：admin，或工作流里每个节点的 Agent 都能看；
+ * - `approvals:workflows`：任何已登录用户（事件不带内容）。
    */
   const canAccessSessionKey = (identity: RequestIdentity, sessionKey: string): boolean => {
     if (access.canAccessRunSession(identity, sessionKey)) return true;
@@ -34,6 +36,11 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
         return canAccessSessionKey(identity, parsed.id);
       case 'room':
         return access.canAccessRoom(identity, parsed.id);
+      case 'workflow':
+        return access.canAccessWorkflow(identity, ctx.automation.workflowAgentIds(parsed.id));
+      case 'approvals':
+        // 只是「待审批集合变了」的提醒，不带内容；列表本身经 HTTP 按用户过滤。
+        return parsed.id === 'workflows';
       case 'agent': {
         const external = parseExternalSenderId(parsed.id);
         const agentId = external ? external.agentId : parsed.id;
@@ -50,6 +57,8 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
   const snapshotTopic = (topic: string) => {
     const parsed = parseRealtimeTopic(topic);
     if (parsed?.kind === 'session') return { sessions: [runCoordinator.snapshot(parsed.id)] };
+    if (parsed?.kind === 'workflow') return { workflow: ctx.automation.hub.snapshot(parsed.id) };
+    if (parsed?.kind === 'approvals') return {};
     return { sessions: runCoordinator.snapshotTopic(topic) };
   };
 

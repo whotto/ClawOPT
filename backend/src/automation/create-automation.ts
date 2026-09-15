@@ -13,6 +13,7 @@ import type { DB } from '../core/db';
 import type { EventBus } from '../core/events';
 import { resolveServablePath } from '../core/files';
 import { uploadDir, workflowWorkspacesDir } from '../core/paths';
+import type { RealtimeHub } from '../core/realtime';
 import type { GatewayConnections, OpenClawClient } from '../openclaw';
 import type { AgentRuntimeAdapter, OpenClawChatRunRequest, RunCoordinator } from '../runtime';
 import { createKanbanService } from './kanban/kanban-service';
@@ -20,7 +21,7 @@ import { createKanbanStore } from './kanban/kanban-store';
 import { createInboundHooks } from './hooks/inbound-hooks';
 import type { AttachmentResolver, WorkflowAgentRunner } from './ports';
 import { createAgentDirectory } from './runner/agent-directory';
-import { createCoordinatorRunner, workflowSessionKey } from './runner/coordinator-runner';
+import { createCoordinatorRunner, workflowAgentId, workflowSessionKey } from './runner/coordinator-runner';
 import { createFakeRunner } from './runner/fake-runner';
 import { createScheduleService } from './schedules/schedule-service';
 import { ensureAutomationSchema } from './shared/schema';
@@ -45,6 +46,8 @@ export type AutomationDeps = {
   runCoordinator: RunCoordinator;
   openclawAdapter: AgentRuntimeAdapter<OpenClawChatRunRequest>;
   events: EventBus;
+  /** 实时中枢：工作流状态流走 `workflow:<id>` 主题。 */
+  realtime: Pick<RealtimeHub, 'publish'>;
   /** 测试注入；缺省按环境变量选择。 */
   runner?: WorkflowAgentRunner;
   fakeRunner?: boolean;
@@ -62,7 +65,9 @@ export function createAutomation(deps: AutomationDeps) {
   const settings = createAutomationSettings(connection);
   const defs = createDefinitionStore(connection);
   const runStore = createRunStore(connection);
-  const hub = createStatusHub(runStore);
+  const hub = createStatusHub(runStore, {
+    publish: (topic, type, payload) => { deps.realtime.publish({ topic, type, payload }); },
+  });
   const directory = createAgentDirectory({
     sessionManager: deps.sessionManager,
     workspacePathFor: (agentId) => deps.agentProvisioner.getWorkspacePath(agentId),
@@ -207,8 +212,16 @@ export function createAutomation(deps: AutomationDeps) {
     };
   };
 
+  /** 工作流用到的全部 Agent（授权判据：member 要全部都有权）。工作流不存在返回 null。 */
+  const workflowAgentIds = (workflowId: string): string[] | null => {
+    const def = defs.get(workflowId);
+    if (!def) return null;
+    return [...new Set(def.nodes.map((item) => workflowAgentId(item.data.agent)))];
+  };
+
   return {
     nodeSession,
+    workflowAgentIds,
     packBundles,
     fakeRunner,
     settings,

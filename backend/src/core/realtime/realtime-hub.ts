@@ -30,16 +30,22 @@ export type RealtimePublishInput<TPayload = unknown> = Omit<RealtimeEvent<TPaylo
 
 export type RealtimeListener = (event: RealtimeEvent) => void;
 
-export const REALTIME_TOPIC_PATTERN = /^(session|room|agent):[^\s]{1,256}$/;
+/**
+ * 主题种类：`session:<会话键>` / `room:<群>` / `agent:<Agent>`（P1a），`workflow:<工作流>`（工作流状态流），
+ * `approvals:workflows`（工作流待审批集合变了的提醒，不带内容，客户端据此重新拉自己看得见的列表）。
+ */
+export const REALTIME_TOPIC_KINDS = ['session', 'room', 'agent', 'workflow', 'approvals'] as const;
+export type RealtimeTopicKind = typeof REALTIME_TOPIC_KINDS[number];
+export const REALTIME_TOPIC_PATTERN = /^(session|room|agent|workflow|approvals):[^\s]{1,256}$/;
 
 export function isRealtimeTopic(topic: unknown): topic is string {
   return typeof topic === 'string' && REALTIME_TOPIC_PATTERN.test(topic);
 }
 
-export function parseRealtimeTopic(topic: string): { kind: 'session' | 'room' | 'agent'; id: string } | null {
+export function parseRealtimeTopic(topic: string): { kind: RealtimeTopicKind; id: string } | null {
   if (!isRealtimeTopic(topic)) return null;
   const separator = topic.indexOf(':');
-  return { kind: topic.slice(0, separator) as 'session' | 'room' | 'agent', id: topic.slice(separator + 1) };
+  return { kind: topic.slice(0, separator) as RealtimeTopicKind, id: topic.slice(separator + 1) };
 }
 
 export class RealtimeHub {

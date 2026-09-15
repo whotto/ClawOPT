@@ -3,7 +3,8 @@
  *
  * 场景：Agent `main` 授权给 member，`other` 不授权。
  * - 单聊会话 s-main（main）/ s-other（other）；
- * - 群 g-main（成员含 main）/ g-other（只有 other）。
+ * - 群 g-main（成员含 main）/ g-other（只有 other）；
+ * - 工作流 wf-main（main 节点）/ wf-other（other 节点）/ wf-external（Claude Code 节点）。
  *
  * 矩阵：super_admin / admin 全部可见；member 只见授权 Agent 的会话、含授权 Agent 的群、授权 Agent 的活动主题；
  * 被停用的用户与被吊销的会话在升级时就 401。
@@ -15,10 +16,14 @@ import { AUTH_COOKIE_NAME } from '../src/core/auth';
 import { startAppHarness, type AppHarness } from './helpers/app-harness';
 
 let h: AppHarness;
+const previousFakeRunner = process.env.CLAWOPT_WORKFLOW_FAKE_RUNNER;
+const workflows = { main: '', other: '', external: '' };
 const tokens: Record<'owner' | 'admin' | 'member', string> = { owner: '', admin: '', member: '' };
 let memberId = 0;
 
 beforeAll(async () => {
+  // 工作流用确定性假 Runner：这里只验授权，不起进程、不连网关。
+  process.env.CLAWOPT_WORKFLOW_FAKE_RUNNER = '1';
   h = await startAppHarness({ attachRealtime: true });
   const { ctx } = h;
   const owner = ctx.userStore.create({ username: 'owner', password: 'owner-pass-1234', role: 'super_admin' });
@@ -38,9 +43,26 @@ beforeAll(async () => {
   ctx.db.saveGroupMember({ id: 'gm-other-in-main', group_id: 'g-main', agent_id: 'other', display_name: 'Other', position: 1 });
   ctx.db.saveGroupChat({ id: 'g-other', name: 'G other' });
   ctx.db.saveGroupMember({ id: 'gm-other', group_id: 'g-other', agent_id: 'other', display_name: 'Other', position: 0 });
+
+  const workflowNode = (agent: Record<string, string>, input = '[fake:output done]') => ({
+    id: 'n1', type: 'agent', position: { x: 0, y: 0 }, data: { title: 'N1', agent, input, approvalRequired: true },
+  });
+  const createWorkflow = (name: string, agent: Record<string, string>) => ctx.automation.workflows.create({ name, nodes: [workflowNode(agent)], edges: [] }).id;
+  workflows.main = createWorkflow('wf-main', { kind: 'openclaw', id: 'main' });
+  workflows.other = createWorkflow('wf-other', { kind: 'openclaw', id: 'other' });
+  workflows.external = createWorkflow('wf-external', { kind: 'external', id: 'claude-code', runtime: 'claude-code' });
 });
 
-afterAll(async () => { await h?.close(); });
+afterAll(async () => {
+  await h?.close();
+  if (previousFakeRunner === undefined) delete process.env.CLAWOPT_WORKFLOW_FAKE_RUNNER;
+  else process.env.CLAWOPT_WORKFLOW_FAKE_RUNNER = previousFakeRunner;
+});
+
+const api = (token: string, path: string, init: RequestInit = {}) => fetch(`${h.baseUrl}${path}`, {
+  ...init,
+  headers: { cookie: `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}`, 'content-type': 'application/json', ...(init.headers ?? {}) },
+});
 
 type WsClient = { socket: WebSocket; messages: any[]; request: (message: Record<string, unknown>) => Promise<any>; closed: Promise<number> };
 
@@ -128,5 +150,71 @@ describe('/ws 主题授权按用户 ↔ Agent', () => {
     await (await connectWs(token)).socket.close();
     h.ctx.authStore.revoke(token);
     await expect(connectWs(token)).rejects.toThrow('401');
+  });
+});
+
+describe('工作流实时：workflow:<id> 主题与 SSE 兜底、待办中心', () => {
+  const workflowTopics = () => [`workflow:${workflows.main}`, `workflow:${workflows.other}`, `workflow:${workflows.external}`, 'workflow:missing', 'approvals:workflows'];
+
+  it('admin 全部可订阅；member 只有全部节点 Agent 都授权的工作流（外部运行时节点不可见）', async () => {
+    expect(await topicVerdicts(tokens.admin, workflowTopics())).toEqual({
+      [`workflow:${workflows.main}`]: 'ok',
+      [`workflow:${workflows.other}`]: 'ok',
+      [`workflow:${workflows.external}`]: 'ok',
+      'workflow:missing': 'realtime.topicForbidden',
+      'approvals:workflows': 'ok',
+    });
+    expect(await topicVerdicts(tokens.member, workflowTopics())).toEqual({
+      [`workflow:${workflows.main}`]: 'ok',
+      [`workflow:${workflows.other}`]: 'realtime.topicForbidden',
+      [`workflow:${workflows.external}`]: 'realtime.topicForbidden',
+      'workflow:missing': 'realtime.topicForbidden',
+      'approvals:workflows': 'ok',
+    });
+  });
+
+  it('SSE 兜底同一判据：member 打不开没授权的工作流状态流（404），授权的照常', async () => {
+    const denied = await api(tokens.member, `/api/workflows/${workflows.other}/events`);
+    expect(denied.status).toBe(404);
+    const controller = new AbortController();
+    const allowed = await api(tokens.member, `/api/workflows/${workflows.main}/events`, { signal: controller.signal });
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get('content-type')).toContain('text/event-stream');
+    controller.abort();
+  });
+
+  it('运行起来：订阅者收到快照与 workflow.status；待审批提醒到达；待办列表按用户过滤', async () => {
+    const member = await connectWs(tokens.member);
+    const subscribed = await member.request({ type: 'subscribe', topic: `workflow:${workflows.main}`, resume: true });
+    expect(subscribed).toMatchObject({ type: 'subscribed', snapshot: { workflow: { status: null } } });
+    await member.request({ type: 'subscribe', topic: 'approvals:workflows' });
+
+    const started = await api(tokens.admin, `/api/workflows/${workflows.main}/run`, { method: 'POST', body: '{}' });
+    expect(started.status).toBe(202);
+    const startedOther = await api(tokens.admin, `/api/workflows/${workflows.other}/run`, { method: 'POST', body: '{}' });
+    expect(startedOther.status).toBe(202);
+    const until = async (check: () => boolean) => {
+      const deadline = Date.now() + 5000;
+      while (!check() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+    await until(() => h.ctx.automation.engine.pendingApprovals().length === 2);
+    await until(() => member.messages.some((m) => m.topic === 'approvals:workflows') && member.messages.some((m) => m.topic === `workflow:${workflows.main}` && m.event === 'workflow.status'));
+
+    expect(member.messages.some((m) => m.type === 'event' && m.topic === `workflow:${workflows.main}` && m.event === 'workflow.status')).toBe(true);
+    expect(member.messages.some((m) => m.type === 'event' && m.topic === `workflow:${workflows.other}`)).toBe(false);
+    expect(member.messages.some((m) => m.type === 'event' && m.topic === 'approvals:workflows' && m.event === 'workflow.approvals.changed')).toBe(true);
+    expect(member.messages.filter((m) => m.type === 'event' && m.topic === 'approvals:workflows').every((m) => JSON.stringify(m.payload) === '{}')).toBe(true);
+
+    const adminList = await (await api(tokens.admin, '/api/workflows/pending-approvals')).json() as any;
+    const memberList = await (await api(tokens.member, '/api/workflows/pending-approvals')).json() as any;
+    expect(adminList.approvals.map((item: any) => item.workflowId).sort()).toEqual([workflows.main, workflows.other].sort());
+    expect(memberList.approvals.map((item: any) => item.workflowId)).toEqual([workflows.main]);
+    member.socket.close();
+
+    for (const id of [workflows.main, workflows.other]) {
+      const [pending] = h.ctx.automation.engine.pendingApprovals().filter((item: any) => item.workflowId === id);
+      h.ctx.automation.engine.resolveApproval(id, pending.runId, pending.nodeId, { approved: false, executionId: pending.executionId });
+      await h.ctx.automation.engine.waitForRun(pending.runId);
+    }
   });
 });

@@ -1,32 +1,34 @@
 // 待办中心（工作流审批来源）：应用级常驻，列出所有工作流里挂起的审批，可直接批准 / 拒绝或跳到画布。
 // 当前正在看的那个工作流的审批不重复显示（画布侧栏里已经有）。窄屏贴底。
+// 刷新由 `/ws` 的 approvals:workflows 提醒驱动（不带内容，列表经 HTTP 按用户过滤）；订阅不到退回 5 秒轮询。
 import { Check, ExternalLink, ShieldCheck, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listPendingWorkflowApprovals, resolveNodeApproval } from '../../../api/automation';
 import { requestJson } from '../lib/request';
+import { watchPendingApprovals } from '../lib/workflowStream';
 
 type PendingApproval = { workflowId: string; workflowName: string; runId: string; nodeId: string; nodeTitle: string; executionId: string };
 
-const POLL_MS = 5000;
 
 export default function PendingApprovalsTray({ visibleWorkflowId, onOpen }: { visibleWorkflowId: string | null; onOpen: (workflowId: string) => void }) {
   const { t } = useTranslation();
   const [items, setItems] = useState<PendingApproval[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const timer = useRef<number | null>(null);
 
   useEffect(() => {
     let stopped = false;
-    const poll = async () => {
+    let seq = 0;
+    const reload = async () => {
+      const current = ++seq;
       const result = await requestJson<{ approvals: PendingApproval[] }>(listPendingWorkflowApprovals());
-      if (!stopped && result.ok) setItems(result.data.approvals);
-      if (!stopped) timer.current = window.setTimeout(poll, POLL_MS);
+      // 连续提醒时只收最后一次请求的结果，不让慢回来的旧列表覆盖新的。
+      if (!stopped && result.ok && current === seq) setItems(result.data.approvals);
     };
-    void poll();
+    const stop = watchPendingApprovals(() => { void reload(); });
     return () => {
       stopped = true;
-      if (timer.current) window.clearTimeout(timer.current);
+      stop();
     };
   }, []);
 

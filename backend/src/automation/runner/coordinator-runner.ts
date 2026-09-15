@@ -33,6 +33,11 @@ export function workflowSessionKey(sessionId: string): string {
   return `workflow:${sessionId}`;
 }
 
+/** 协调器会话里的 Agent id：OpenClaw 用角色 id；外部运行时没有角色，用 `ext:<运行时>:workflow`。授权按它判。 */
+export function workflowAgentId(ref: { kind: string; id: string; runtime?: string }): string {
+  return ref.kind === 'openclaw' ? ref.id : `ext:${ref.runtime ?? ref.id}:workflow`;
+}
+
 type ExternalAdapterFactory = () => AgentRuntimeAdapter<ExternalRunRequest>;
 
 const DEFAULT_EXTERNAL_ADAPTERS: Record<string, ExternalAdapterFactory> = {
@@ -134,7 +139,7 @@ export function createCoordinatorRunner(deps: CoordinatorRunnerDeps): WorkflowAg
         sessionKey,
         surface: 'workflow',
         topics: [`session:${sessionKey}`],
-        agentId: isOpenClaw ? req.agentRef.id : `ext:${runtime}:workflow`,
+        agentId: workflowAgentId(req.agentRef),
         title: 'workflow',
         adapter,
         request,

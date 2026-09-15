@@ -4,6 +4,7 @@
  */
 import express from 'express';
 
+import { getRequestIdentity, type ResourceAccess } from '../core/auth';
 import type { RouteApp } from '../core/http';
 import type { Automation } from './create-automation';
 import { AutomationError, WORKFLOW_ERROR, notFound } from './shared/errors';
@@ -12,7 +13,7 @@ import { MAX_CONCURRENT_NODES_LIMIT } from './shared/settings';
 import { clampInt, pick, uniqueStrings } from './shared/util';
 import { workflowTopic, type HubMessage } from './workflow/status-hub';
 
-export type WorkflowRoutesDeps = { automation: Automation };
+export type WorkflowRoutesDeps = { automation: Automation; access: ResourceAccess };
 
 const WORKFLOW_SSE_KEEPALIVE_MS = 25_000;
 
@@ -46,7 +47,13 @@ export function registerWorkflowRoutes(app: RouteApp, ctx: WorkflowRoutesDeps): 
   app.post('/api/workflows/import/cancel', handle((req) => ({ success: true, canceled: automation().workflows.cancelImport(bodyOf(req).token) })));
 
   app.get('/api/workflows/agents', handle(async () => ({ success: true, agents: await automation().directory.list(), fakeRunner: automation().fakeRunner })));
-  app.get('/api/workflows/pending-approvals', handle(() => ({ success: true, approvals: automation().engine.pendingApprovals() })));
+  // 待办中心的数据源（WS 的 approvals:workflows 只提醒「变了」）：按用户过滤到看得见的工作流。
+  app.get('/api/workflows/pending-approvals', handle((req) => {
+    const identity = getRequestIdentity(req);
+    const approvals = automation().engine.pendingApprovals()
+      .filter((item) => ctx.access.canAccessWorkflow(identity, automation().workflowAgentIds(item.workflowId)));
+    return { success: true, approvals };
+  }));
   app.get('/api/workflows/settings', handle(() => ({ success: true, concurrency: automation().settings.effectiveConcurrency(), maxConcurrencyLimit: MAX_CONCURRENT_NODES_LIMIT })));
   app.put('/api/workflows/settings', handle((req) => {
     const raw = pick(bodyOf(req), 'max_concurrent_nodes', 'maxConcurrentNodes');
@@ -143,9 +150,17 @@ export function registerWorkflowRoutes(app: RouteApp, ctx: WorkflowRoutesDeps): 
     return { success: true, status: 'accepted', run };
   }));
 
-  /** 状态流：先推当前状态，再推增量证据。`since=<seq>&runId=` 让重连从已有序号续上。 */
+  /**
+   * 状态流的 SSE 兜底（主通道是 `/ws` 的 `workflow:<id>` 主题）：先推当前状态，再推增量证据。
+   * `since=<seq>&runId=` 让重连从已有序号续上。授权与 WS 主题同一判据。
+   */
   app.get('/api/workflows/:id/events', (req, res) => {
     const workflowId = req.params.id;
+    if (!ctx.access.canAccessWorkflow(getRequestIdentity(req), automation().workflowAgentIds(workflowId))) {
+      const error = notFound(WORKFLOW_ERROR.notFound, workflowId).toRequestError();
+      res.status(error.status).json(error.payload);
+      return;
+    }
     openSse(res);
     const runId = typeof req.query.runId === 'string' ? req.query.runId : '';
     const since = Number(req.query.since);

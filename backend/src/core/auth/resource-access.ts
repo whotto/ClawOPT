@@ -10,6 +10,7 @@
  * | 群 | 群里至少一个成员的 Agent 在授权里 |
  * | 协调器会话键 `room:<群>:member:<成员>` | 同群 |
  * | 其他协调器会话（工作流节点等） | `run_sessions.agent_id` 在授权里 |
+ * | 工作流（状态流、待审批） | 工作流里**每个**节点的 Agent 都在授权里（外部运行时节点对 member 一律不可见） |
  *
  * HTTP 路由（列表过滤、按 id 取、流、停止）与 `/ws` 主题授权都经这一处——两条通道的判据不许分家。
  * 资源不存在时一律返回 false：「不存在」与「无权看」对 member 不可区分，不泄露存在性。
@@ -59,8 +60,16 @@ export function createResourceAccess({ canAccessAgent, lookup }: ResourceAccessD
     return canAccessAgent(identity, agentId);
   }
 
+  /** `agentIds` 为 null 表示工作流不存在。 */
+  function canAccessWorkflow(identity: RequestIdentity, agentIds: string[] | null): boolean {
+    if (agentIds === null) return false;
+    if (isAdmin(identity)) return true;
+    return agentIds.every((agentId) => canAccessAgent(identity, agentId));
+  }
+
   return {
     isAdmin,
+    canAccessWorkflow,
     canAccessAgent,
     canAccessRoom,
     canAccessChatSession,

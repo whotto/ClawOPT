@@ -4,7 +4,6 @@ import {
   getNodeTranscript,
   getWorkflowRun,
   listWorkflowRuns,
-  openWorkflowEvents,
   rerunFromNode,
   resolveNodeApproval,
   runWorkflow,
@@ -12,13 +11,11 @@ import {
 } from '../../../api/automation';
 import { emptyEvidence, isRunLive, maxSeq, mergeEvidence } from '../lib/evidence';
 import { requestJson, type ApiError } from '../lib/request';
+import { subscribeWorkflowStream } from '../lib/workflowStream';
 import type { RunEvidence, RunRecord, RuntimeStatus, Transcript } from '../lib/types';
 
-type HubStatus = { type: 'status'; status: RuntimeStatus };
-type HubEvidence = { type: 'evidence'; runId: string; sinceSeq: number; seq: number; evidence: RunEvidence };
-
 /**
- * 运行历史、选中运行的快照与证据、实时状态流（SSE，增量合并）、以及运行相关动作。
+ * 运行历史、选中运行的快照与证据、实时状态流（WebSocket 主题，SSE 兜底；增量合并）、以及运行相关动作。
  * 自动跟随：用户刚启动的运行在活着期间自动选中，除非用户手动取消选中（按运行 id 记住）。
  */
 export function useWorkflowRuns(workflowId: string | null) {
@@ -68,14 +65,10 @@ export function useWorkflowRuns(workflowId: string | null) {
     void loadRun(selectedRunId);
   }, [selectedRunId, loadRun]);
 
-  // 状态流：话题 workflow:<id>。选中运行时带上已有序号，断线重连只补增量。
+  // 状态流：`/ws` 的 workflow:<id> 主题（订阅不到退回 SSE，SSE 带已有序号续传）。增量按选中运行过滤合并。
   useEffect(() => {
     if (!workflowId) return;
-    const since = selectedRef.current ? { runId: selectedRef.current, seq: maxSeq(evidenceRef.current) } : undefined;
-    const source = openWorkflowEvents(workflowId, since);
-    const onStatus = (event: MessageEvent) => {
-      const message = JSON.parse(event.data) as HubStatus;
-      const status = message.status;
+    const onStatus = (status: RuntimeStatus) => {
       setRuntime(status);
       setRuns((current) => {
         if (!status.runId) return current;
@@ -92,15 +85,14 @@ export function useWorkflowRuns(workflowId: string | null) {
         setSelectedRunId(status.runId);
       }
     };
-    const onEvidence = (event: MessageEvent) => {
-      const message = JSON.parse(event.data) as HubEvidence;
-      if (message.runId !== selectedRef.current) return;
-      setEvidence((current) => mergeEvidence(current, message.evidence));
+    const onEvidence = (runId: string, delta: RunEvidence) => {
+      if (runId !== selectedRef.current) return;
+      setEvidence((current) => mergeEvidence(current, delta));
     };
-    source.addEventListener('status', onStatus);
-    source.addEventListener('evidence', onEvidence);
-    return () => source.close();
-    // 选中运行变化不重连：增量里带 runId，按当前选中过滤即可
+    return subscribeWorkflowStream(workflowId, { onStatus, onEvidence }, {
+      since: () => (selectedRef.current ? { runId: selectedRef.current, seq: maxSeq(evidenceRef.current) } : undefined),
+    });
+    // 选中运行变化不重订：增量里带 runId，按当前选中过滤即可
   }, [workflowId, reloadRuns]);
 
   const selectRun = useCallback((runId: string | null) => {

@@ -29,7 +29,7 @@ export const resolveNodeApproval = (id: string, runId: string, nodeId: string, a
 export const rerunFromNode = (id: string, runId: string, body: { node_id: string; preserve_start_node: boolean; timeout_ms?: number | null }) =>
   apiFetch(`${wf(id)}/runs/${encodeURIComponent(runId)}/rerun-from-node`, jsonInit('POST', body));
 
-/** 状态流（SSE）：先推当前状态，再推增量证据；`since` 让重连从已有序号续上。 */
+/** 状态流的 SSE 兜底（主通道是 `/ws` 的 `workflow:<id>` 主题，见 features/workflow/lib/workflowStream.ts）：先推当前状态，再推增量证据；`since` 让重连从已有序号续上。 */
 export function openWorkflowEvents(id: string, since?: { runId: string; seq: number }): EventSource {
   const query = since ? `?runId=${encodeURIComponent(since.runId)}&since=${since.seq}` : '';
   return new EventSource(`${API_BASE}${wf(id)}/events${query}`);

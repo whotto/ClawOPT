@@ -73,11 +73,11 @@ export const defaultHandler: ScriptedHandler = (req: AgentRunRequest) => {
   return { ok: true, output: out ? out[1] : `done ${task}`, sessionId: req.sessionId };
 };
 
-export function setupEngine(options: { handler?: ScriptedHandler; directory?: AgentDirectory; concurrency?: number; now?: () => number } = {}) {
+export function setupEngine(options: { handler?: ScriptedHandler; directory?: AgentDirectory; concurrency?: number; now?: () => number; publish?: (topic: string, type: string, payload: unknown) => void } = {}) {
   const db = memoryDb();
   const defs = createDefinitionStore(db);
   const runStore = createRunStore(db);
-  const hub = createStatusHub(runStore);
+  const hub = createStatusHub(runStore, { publish: options.publish });
   const settings = createAutomationSettings(db, () => ({ totalBytes: 16 * 1024 ** 3, availableBytes: null }));
   if (options.concurrency) settings.setConfiguredConcurrency(options.concurrency);
   const runner = createScriptedRunner(options.handler ?? defaultHandler);

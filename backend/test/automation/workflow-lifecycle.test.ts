@@ -263,6 +263,42 @@ describe('增量推送', () => {
     expect(messages[0].topic).toBe(`workflow:${def.id}`);
   });
 
+  it('WS 主题广播：workflow:<id> 上的状态与增量合起来就是全部证据；新订阅者的快照是当前状态 + 全部证据', async () => {
+    const published: Array<{ topic: string; type: string; payload: any }> = [];
+    const t = setupEngine({ publish: (topic, type, payload) => published.push({ topic, type, payload }) });
+    const def = t.create([node('a'), node('b')], [edge('a', 'b')]);
+    const run = await t.engine.startRun(def.id);
+    await t.engine.waitForRun(run.id);
+
+    const onTopic = published.filter((item) => item.topic === `workflow:${def.id}`);
+    expect(new Set(onTopic.map((item) => item.type))).toEqual(new Set(['workflow.status', 'workflow.evidence']));
+    expect(onTopic.filter((item) => item.type === 'workflow.status').at(-1)!.payload.status.status).toBe('completed');
+    const full = t.runStore.evidence(run.id);
+    const broadcastExecutions = new Set(onTopic.filter((item) => item.type === 'workflow.evidence').flatMap((item) => item.payload.evidence.nodeExecutions.map((row: any) => row.executionId)));
+    expect(broadcastExecutions).toEqual(new Set(full.nodeExecutions.map((row) => row.executionId)));
+    const broadcastEdges = onTopic.filter((item) => item.type === 'workflow.evidence').flatMap((item) => item.payload.evidence.edgeEvaluations.map((row: any) => row.id));
+    expect(new Set(broadcastEdges)).toEqual(new Set(full.edgeEvaluations.map((row) => row.id)));
+
+    const snapshot = t.hub.snapshot(def.id);
+    expect(snapshot).toMatchObject({ runId: run.id, status: { status: 'completed' } });
+    expect(snapshot.evidence!.nodeExecutions).toHaveLength(full.nodeExecutions.length);
+    expect(t.hub.snapshot('missing')).toEqual({ status: null, runId: null, evidence: null });
+  });
+
+  it('待审批集合变化时发不带内容的 approvals:workflows 提醒（挂起一次、答复一次）', async () => {
+    const published: Array<{ topic: string; type: string; payload: any }> = [];
+    const t = setupEngine({ publish: (topic, type, payload) => published.push({ topic, type, payload }) });
+    const def = t.create([node({ id: 'a', approval: true })]);
+    const run = await t.engine.startRun(def.id);
+    await waitFor(() => t.engine.pendingApprovals().length === 1);
+    const reminders = () => published.filter((item) => item.topic === 'approvals:workflows');
+    expect(reminders()).toEqual([{ topic: 'approvals:workflows', type: 'workflow.approvals.changed', payload: {} }]);
+    const [pending] = t.engine.pendingApprovals();
+    t.engine.resolveApproval(def.id, run.id, pending.nodeId, { approved: true, executionId: pending.executionId });
+    await t.engine.waitForRun(run.id);
+    expect(reminders()).toHaveLength(2);
+  });
+
   it('断线重连带 since：不重收已有的证据', async () => {
     const t = setupEngine();
     const { run, def } = await t.run([node('a'), node('b')], [edge('a', 'b')]);

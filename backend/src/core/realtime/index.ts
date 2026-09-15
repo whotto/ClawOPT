@@ -1,10 +1,12 @@
 export {
+  REALTIME_TOPIC_KINDS,
   REALTIME_TOPIC_PATTERN,
   RealtimeHub,
   isRealtimeTopic,
   parseRealtimeTopic,
 } from './realtime-hub';
 export type {
+  RealtimeTopicKind,
   RealtimeEvent,
   RealtimeListener,
   RealtimePublishInput,
