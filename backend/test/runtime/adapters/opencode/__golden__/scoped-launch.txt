@@ -1,0 +1,60 @@
+$ /usr/local/bin/cli
+  "run"
+  "--format"
+  "json"
+  "--auto"
+  "--thinking"
+  "-m"
+  "clawopt/deepseek-v4"
+cwd: /work/project
+stdin: pipe
+env:
+  CLAWOPT_OPENCODE_API_KEY=clawopt_proxy_token_abcdefghijkl
+  HOME=/home/user
+  LANG=en_US.UTF-8
+  OPENCODE_CONFIG_CONTENT={
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
+  "share": "disabled",
+  "permission": {
+    "*": "allow"
+  },
+  "enabled_providers": [
+    "clawopt"
+  ],
+  "model": "clawopt/deepseek-v4",
+  "provider": {
+    "clawopt": {
+      "npm": "@ai-sdk/openai",
+      "name": "deepseek",
+      "options": {
+        "baseURL": "http://127.0.0.1:3150/api/codex-proxy/route_1/v1",
+        "apiKey": "{env:CLAWOPT_OPENCODE_API_KEY}"
+      },
+      "models": {
+        "deepseek-v4": {
+          "name": "deepseek-v4",
+          "attachment": true,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        }
+      }
+    }
+  }
+}
+  OPENCODE_DB=/data/clawopt/runtime/opencode/2b46da50e52b8a2b5406b373aae6f55b/opencode.db
+  OPENCODE_DISABLE_AUTOUPDATE=1
+  OPENCODE_DISABLE_CLAUDE_CODE=1
+  PATH=/usr/local/bin:/usr/bin:/bin
+stdin-data: "reply with ok"
