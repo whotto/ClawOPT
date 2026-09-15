@@ -2,6 +2,7 @@
 import { Activity, Check, ChevronDown, Edit2, Library, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import type { SettingsController } from '../useSettingsController';
+import { draftForSelection } from '../shared/fallbackAutosave';
 import ModelSinglePicker from '../../../components/ModelSinglePicker';
 import ModelFallbackEditor from '../../../components/ModelFallbackEditor';
 import ModelsExtrasPanel from '../models/ModelsExtrasPanel';
@@ -56,8 +57,7 @@ export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
     setDiscoveredModels,
     setEditingAlias,
     setEditingInput,
-    setGlobalFallbackMode,
-    setGlobalFallbacks,
+    changeGlobalFallbacks,
     setImageGenerationFallbackMode,
     setImageGenerationFallbacks,
     setImageGenerationModelId,
@@ -447,7 +447,7 @@ export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
             role="switch"
             aria-checked={globalFallbackMode !== 'disabled'}
             aria-label={t('settings.models.globalFallbackTitle')}
-            onClick={() => setGlobalFallbackMode((prev) => prev === 'disabled' ? 'custom' : 'disabled')}
+            onClick={() => changeGlobalFallbacks({ mode: globalFallbackMode === 'disabled' ? 'custom' : 'disabled', fallbacks: globalFallbacks })}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${globalFallbackMode !== 'disabled' ? 'bg-blue-600' : 'bg-gray-200'}`}
           >
             <span
@@ -475,16 +475,9 @@ export default function ModelsTab({ ctx }: { ctx: SettingsController }) {
               return labelA.localeCompare(labelB, undefined, { sensitivity: 'base' });
             })}
             mode={globalFallbackMode}
-            onModeChange={(mode) => setGlobalFallbackMode(mode)}
+            onModeChange={(mode) => changeGlobalFallbacks({ mode, fallbacks: globalFallbacks })}
             selectedModelIds={globalFallbacks}
-            onSelectedModelIdsChange={(ids) => {
-              setGlobalFallbacks(ids);
-              if (ids.length === 0) {
-                setGlobalFallbackMode('disabled');
-              } else if (globalFallbackMode !== 'custom') {
-                setGlobalFallbackMode('custom');
-              }
-            }}
+            onSelectedModelIdsChange={(ids) => changeGlobalFallbacks(draftForSelection(ids))}
             excludedModelIds={currentPrimaryModelId ? [currentPrimaryModelId] : []}
             title=""
             description=""

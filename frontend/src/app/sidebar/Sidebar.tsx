@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAccess } from '../access';
 import type { AutomationSection, SettingsTab, ViewType } from '../routeState';
 import AutomationNav from './AutomationNav';
 import AgentEditorModal from './AgentEditorModal';
@@ -95,7 +96,9 @@ export default function Sidebar(props: SidebarProps) {
   const groupDetails = useGroupDetails();
   const { groups, groupsLoaded, reloadGroups, reorderGroups } = useSidebarGroups();
   const groupEditor = useGroupEditor({ t, groups, reloadGroups, onSelectGroup, navigateTo, settingsTab, activeGroupId, currentView });
-  usePruneSidebarFavorites(favorites, sessions, sessionsLoaded, groups, groupsLoaded);
+  // 只有看得到全部会话与群的角色（能管理 Agent）才按列表清理收藏；member 的列表是过滤过的。
+  const listsComplete = useAccess().can('agents.manage');
+  usePruneSidebarFavorites(favorites, sessions, sessionsLoaded, groups, groupsLoaded, listsComplete);
 
   if (currentView === 'settings' || currentView === 'automation') {
     return (

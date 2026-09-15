@@ -19,7 +19,14 @@ import {
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
-import { SETTINGS_TABS, type AutomationSection, type SettingsTab } from '../routeState';
+import {
+  SETTINGS_TABS,
+  automationSectionCapability,
+  settingsTabCapability,
+  type AutomationSection,
+  type RouteCapabilities,
+  type SettingsTab,
+} from '../routeState';
 
 /**
  * 导航分区：团队 / 自动化 / 系统（工作台就是对话本身，不在设置侧栏里）。
@@ -65,6 +72,17 @@ export function navItemsMissingFromRoutes(): SettingsTab[] {
   return SETTINGS_TABS.filter((tab) => !listed.has(tab));
 }
 
+/** 侧栏里的设置页签顺序（路由纠偏「第一个有入口的页签」按它取）。 */
+export const SETTINGS_NAV_TAB_ORDER: readonly SettingsTab[] = SETTINGS_NAV_ITEMS.map((item) => item.tab);
+
+/** 按服务端给的能力清单挑出有入口的设置页签；分区里一个都没有就整个分区不画。能力未加载时什么都不画。 */
+export function visibleSettingsNav(capabilities: RouteCapabilities): { zone: SidebarNavZone; labelKey: string; items: SettingsNavItem[] }[] {
+  if (!capabilities) return [];
+  return SETTINGS_NAV_ZONES
+    .map(({ zone, labelKey }) => ({ zone, labelKey, items: SETTINGS_NAV_ITEMS.filter((item) => item.zone === zone && capabilities.has(settingsTabCapability(item.tab))) }))
+    .filter((group) => group.items.length > 0);
+}
+
 type AutomationNavItem = {
   section: AutomationSection;
   icon: LucideIcon;
@@ -78,3 +96,9 @@ export const AUTOMATION_NAV_ITEMS: readonly AutomationNavItem[] = [
   { section: 'kanban', icon: SquareKanban, labelKey: 'automation.nav.kanban', zone: 'automation' },
   { section: 'webhooks', icon: Webhook, labelKey: 'automation.nav.webhooks', zone: 'automation' },
 ];
+
+/** 按能力清单挑出有入口的自动化页面；能力未加载时为空。 */
+export function visibleAutomationNav(capabilities: RouteCapabilities): AutomationNavItem[] {
+  if (!capabilities) return [];
+  return AUTOMATION_NAV_ITEMS.filter((item) => capabilities.has(automationSectionCapability(item.section)));
+}

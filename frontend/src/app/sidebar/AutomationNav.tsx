@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { AutomationSection } from '../routeState';
-import { AUTOMATION_NAV_ITEMS } from './sidebarNav';
+import { useAccess } from '../access';
+import { visibleAutomationNav } from './sidebarNav';
 
 /** 自动化模式下的侧栏导航：分区标题 + 工作流 / 看板 / Webhook，样式与设置导航一致。 */
 export default function AutomationNav({
@@ -11,10 +12,11 @@ export default function AutomationNav({
   onOpen: (section: AutomationSection) => void;
 }) {
   const { t } = useTranslation();
+  const { capabilities } = useAccess();
   return (
     <nav className="flex-1 px-4 py-2 space-y-1">
       <p className="px-4 pt-1 pb-2 text-xs font-semibold text-gray-400">{t('automation.nav.zone')}</p>
-      {AUTOMATION_NAV_ITEMS.map(({ section: item, icon: Icon, labelKey }) => (
+      {visibleAutomationNav(capabilities).map(({ section: item, icon: Icon, labelKey }) => (
         <button
           key={item}
           onClick={() => onOpen(item)}

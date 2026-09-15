@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SETTINGS_TABS,
+  enforceRouteCapabilities,
   formatAppPath,
   legacyHashToPath,
   parseAppPath,
@@ -179,5 +180,37 @@ describe('automation routes', () => {
     expect(shouldReplaceHistory({ view: 'automation', section: 'kanban', workflowId: null }, next)).toBe(false);
     expect(shouldReplaceHistory({ view: 'automation', section: 'workflows', workflowId: 'w0' }, { ...next, workflowId: null })).toBe(true);
     expect(shouldReplaceHistory({ view: 'chat', sessionId: 'a' }, next)).toBe(false);
+  });
+});
+
+describe('enforceRouteCapabilities', () => {
+  const member = new Set(['settings.agents', 'settings.about', 'automation.workflows', 'automation.kanban']);
+  const navOrder = ['agents', 'presets', 'about'] as const;
+
+  it('能力未加载：不纠偏', () => {
+    const state: AppRouteState = { ...base, view: 'settings', settingsTab: 'users' };
+    expect(enforceRouteCapabilities(state, null)).toBe(state);
+  });
+
+  it('进了没有入口的设置页签：换到侧栏顺序里第一个有入口的', () => {
+    expect(enforceRouteCapabilities({ ...base, view: 'settings', settingsTab: 'users' }, member, navOrder)).toMatchObject({ view: 'settings', settingsTab: 'agents' });
+    expect(enforceRouteCapabilities({ ...base, view: 'settings', settingsTab: 'gateway' }, new Set(['settings.about']), navOrder)).toMatchObject({ view: 'settings', settingsTab: 'about' });
+  });
+
+  it('有入口的页签原样；设置区一个入口都没有就回对话', () => {
+    const allowed: AppRouteState = { ...base, view: 'settings', settingsTab: 'about' };
+    expect(enforceRouteCapabilities(allowed, member, navOrder)).toBe(allowed);
+    expect(enforceRouteCapabilities({ ...base, view: 'settings', settingsTab: 'logs' }, new Set(), navOrder)).toMatchObject({ view: 'chat' });
+  });
+
+  it('自动化区：没有入口的页面换到第一个有入口的并清掉选中的工作流；一个都没有回对话', () => {
+    expect(enforceRouteCapabilities({ ...base, view: 'automation', automationSection: 'webhooks', workflowId: 'wf' }, member)).toMatchObject({ view: 'automation', automationSection: 'workflows', workflowId: null });
+    expect(enforceRouteCapabilities({ ...base, view: 'automation', automationSection: 'kanban' }, new Set(['automation.webhooks']))).toMatchObject({ automationSection: 'webhooks' });
+    expect(enforceRouteCapabilities({ ...base, view: 'automation', automationSection: 'kanban' }, new Set())).toMatchObject({ view: 'chat' });
+  });
+
+  it('对话视图不受影响', () => {
+    const chat: AppRouteState = { ...base, view: 'chat' };
+    expect(enforceRouteCapabilities(chat, new Set())).toBe(chat);
   });
 });

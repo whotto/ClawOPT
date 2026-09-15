@@ -16,7 +16,7 @@ export type SettingsTab =
 /** 自动化区的页面：`/automation/workflows[/:id]`、`/automation/kanban`、`/automation/webhooks`。 */
 export type AutomationSection = 'workflows' | 'kanban' | 'webhooks';
 
-const AUTOMATION_SECTIONS: readonly AutomationSection[] = ['workflows', 'kanban', 'webhooks'];
+export const AUTOMATION_SECTIONS: readonly AutomationSection[] = ['workflows', 'kanban', 'webhooks'];
 const DEFAULT_AUTOMATION_SECTION: AutomationSection = 'workflows';
 
 function isAutomationSection(value: unknown): value is AutomationSection {
@@ -157,6 +157,40 @@ export function legacyHashToPath(hash: string): string | null {
   if (head === 'group' && param) return `/groups/${param}`;
   if (head === 'settings' && param) return `/settings/${param}`;
   return null;
+}
+
+// ---- 能力清单（`GET /api/auth/me` 的 `capabilities`，服务端按角色算） ----
+
+/** 已加载的能力 id；null = 还没拿到，不做任何纠偏。 */
+export type RouteCapabilities = ReadonlySet<string> | null;
+
+export const settingsTabCapability = (tab: SettingsTab) => `settings.${tab}`;
+export const automationSectionCapability = (section: AutomationSection) => `automation.${section}`;
+
+/**
+ * 按能力清单纠偏视图状态：进了没有入口的设置页签 / 自动化页面，换到第一个有入口的
+ * （`tabOrder` 传侧栏的显示顺序）；整个区一个入口都没有就回对话。能力未加载时原样返回。
+ * 这里只管「给不给入口」；真正的授权在后端，越权请求照样 403。
+ */
+export function enforceRouteCapabilities(
+  state: AppRouteState,
+  capabilities: RouteCapabilities,
+  tabOrder: readonly SettingsTab[] = SETTINGS_TABS,
+): AppRouteState {
+  if (!capabilities) return state;
+  if (state.view === 'settings' && !capabilities.has(settingsTabCapability(state.settingsTab))) {
+    const firstTab = tabOrder.find((tab) => capabilities.has(settingsTabCapability(tab)));
+    return firstTab ? { ...state, settingsTab: firstTab } : { ...state, view: 'chat', settingsTab: DEFAULT_SETTINGS_TAB };
+  }
+  if (state.view === 'automation') {
+    const section = state.automationSection ?? DEFAULT_AUTOMATION_SECTION;
+    if (capabilities.has(automationSectionCapability(section))) return state;
+    const firstSection = AUTOMATION_SECTIONS.find((item) => capabilities.has(automationSectionCapability(item)));
+    return firstSection
+      ? { ...state, automationSection: firstSection, workflowId: null }
+      : { ...state, view: 'chat' };
+  }
+  return state;
 }
 
 // ---- localStorage 记忆（键名沿用改路由前，老用户的上次选择继续生效） ----

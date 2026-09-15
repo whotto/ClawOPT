@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { observabilityApi } from '../../api/control';
-import { Button, Card, EmptyState, ErrorBanner, inputClass, LoadingRow, PageIntro, type ErrorDisplay } from '../../components/control/ControlUi';
+import { Button, Card, EmptyState, ErrorBanner, inputClass, LoadingRow, NoPermissionState, PageIntro, type ErrorDisplay } from '../../components/control/ControlUi';
 import { readApi, useErrorDisplay } from '../control/useControlApi';
 
 type LogLine = { ts: string | null; level: string; source: string; subsystem: string | null; message: string };
@@ -27,13 +27,16 @@ export default function LogsPage() {
   const [limit, setLimit] = useState(300);
   const [lines, setLines] = useState<LogLine[] | null>(null);
   const [error, setError] = useState<ErrorDisplay | null>(null);
+  const [forbidden, setForbidden] = useState(false);
 
   const load = useCallback(async () => {
     setLines(null);
     setError(null);
     try {
       const result = await readApi<{ lines: LogLine[] }>(observabilityApi.logs({ source, level, q: query, limit }));
+      setForbidden(result.status === 403);
       if (result.ok) setLines(result.data.lines);
+      else if (result.status === 403) setLines([]);
       else {
         setLines([]);
         setError(errors.fromResult(result, 'control.logs.loadFailed'));
@@ -48,6 +51,8 @@ export default function LogsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (forbidden) return <NoPermissionState />;
 
   return (
     <div className="space-y-6">

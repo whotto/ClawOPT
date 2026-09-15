@@ -74,6 +74,28 @@
 - **多用户与授权（P5a）**：角色 `super_admin` > `admin` > `member`。`requireAdminAuth` 是 admin 及以上（它自己完成鉴权，注册在全局闸门之前的路由也能靠它），`requireSuperAdmin` 管用户，`requireAgentAccess` 校验路径参数 `:agentId` 在授权内。**改状态的控制面路由一律挂管理员闸门**，由 `test/control-plane-auth.test.ts` 按登记表逐条校验并用 member 会话真打（新增路由忘挂闸门会红）。登录未开启时请求按「隐式 super_admin」处理，单用户部署行为不变。
 - **数据面按用户 ↔ Agent 过滤**（判据只在 `core/auth/resource-access.ts`，HTTP 与 `/ws` 共用）：单聊会话看会话的 Agent；群看「至少一个 Agent 在授权里」，改群结构（改成员 / 重置 / 删群）要求群里**每个** Agent 都在授权里，建群 / 加成员要求引用的 Agent 都在授权里；按消息 id 的改删先找到所属会话 / 群再判，群消息删除按路径里的群收窄。`GET /api/sessions`（侧栏与 Agents 页）与 `GET /api/groups` 按用户过滤；取 / SSE 流 / 停 / 发 / 改删消息看不见的资源回 403 `auth.agentForbidden`。建 / 改 / 删单聊会话会装配或撤销 OpenClaw Agent，挂 `requireAdminAuth`。新增按会话 / 群 id 取数据的路由必须挂 `chatSessionParamGuard` / `guardRoom` 这一类守卫，`test/member-acl.test.ts` 的矩阵要跟着加一行。
 - **群聊叫起（谁能叫起哪个 Agent）**：「看得见群」不等于「能叫起群里每个 Agent」。用户发起的**第一跳**只叫起发消息的人授权内的 Agent（`group-chat-engine.ts` 的 `resolveTargetAgentIds` + 路由传入的 `WakePredicate`，判据是 `ResourceAccess.canAccessAgent`）：@ 到的只路由到放行的，@ 到的全不放行就谁也不叫（不改叫别人）；`@all` 与 `/new` 只发给放行的成员；不 @ 时回复上一个发言的 Agent（放行时），否则第一个放行的成员；编辑自己的消息触发重跑同样过滤；重新生成某条 Agent 回复要求能叫起该 Agent，否则 403 且不删原回复。被挡下的 @ 仍作为正文落库，发送接口回 `notice: { messageCode: 'groups.mentionNotPermitted', messageParams, agentNames }`，输入区用琥珀色提示（与失败提示分开）。**有意的选择**：Agent 回复里的 @ 转交（链式）按既有链深规则继续、不再按发起人过滤——member 只发起了第一跳，后续是群里 Agent 之间的协作，按发起人逐跳收窄会让含未授权成员的群协作在第二跳静默中断；风险是 member 可以借授权 Agent 的回复间接叫起未授权的 Agent，缓解靠链深上限与群结构只能由对群里每个 Agent 都有权的人修改。矩阵在 `test/group-wake-acl.test.ts`。
+- **授权矩阵（v1.9 收口后）**。判据只有两处：路由闸门（`requireAdminAuth` / `requireSuperAdmin`）与 `core/auth/resource-access.ts`；「member 可」一列都指「资源归属授权给自己的 Agent」。
+
+  | 资源 | super_admin | admin | member | 守着它的用例 |
+  |---|---|---|---|---|
+  | 用户增删改、用户列表 | 可 | 403 | 403 | `users-acl`、`control-plane-auth` |
+  | 登录 IP 锁、日志、引擎全局用量、控制面一切写操作 | 可 | 可 | 403 | `control-plane-auth`、`capabilities` |
+  | 单聊会话：列表 / 历史 / 流 / 发 / 停 / 改删消息 | 可 | 可 | 自己 Agent 的 | `member-acl` |
+  | 建 / 改 / 删单聊会话（装配或撤销 Agent） | 可 | 可 | 403 | `member-acl` |
+  | 群：看 / 发 / 停 / 改删消息 | 可 | 可 | 群里至少一个自己的 Agent | `member-acl` |
+  | 群：改结构（成员 / 重置 / 删群）；建群 / 加成员 | 可 | 可 | 群里（或引用的）每个 Agent 都是自己的 | `member-acl` |
+  | 群里叫起 Agent（第一跳：@、默认回复对象、编辑重跑、重新生成） | 全部 | 全部 | 只叫起自己的，其余 @ 落库不叫起并回 `groups.mentionNotPermitted` | `group-wake-acl` |
+  | 按路径出文件（`/uploads`、`/openclaw`、download、preview、preview-data、html-preview） | 过闸门即可 | 过闸门即可 | 过闸门 + 归属是自己的 Agent / 看得见的群 / 自己会话登记的上传；无主文件 403 | `files-acl` |
+  | 上传；上传记录列表 | 可 | 可 | 目标会话 / 群看得见（不带上下文 403）；列表过滤 | `files-acl` |
+  | 工作流：列表 / 读 / 导出 / 运行 / 停止 / 重跑 / 审批 / 证据与转录 / 定时与钩子的读 / 状态流 | 可 | 可 | 每个节点 Agent 都是自己的（外部运行时节点不算） | `automation-acl`、`member-acl` |
+  | 工作流：建改删 / 批量删 / 导入 / 运行设置 / 删运行 / 定时与钩子的建改删与轮换密钥 | 可 | 可 | 403 `auth.forbidden` | `automation-acl` |
+  | 看板任务：列表与计数 / 详情 / 评论 / complete / block / dispatch | 可 | 可 | 负责 Agent 是自己的（无负责人、外部运行时负责人不可见） | `automation-acl` |
+  | 看板管理、建改任务、批量、链接、move / unblock / reclaim / archive | 可 | 可 | 403 | `automation-acl` |
+  | 出站 Webhook（端点、投递、本机测试收件箱） | 可 | 可 | 403（事件类型清单可读） | `automation-acl` |
+  | `/ws` 主题 `session:` / `agent:` / `room:` / `workflow:`；`approvals:workflows` | 全部 | 全部 | 同上各行判据；待办提醒任何登录用户（列表按用户过滤） | `member-acl` |
+
+- **界面入口按服务端能力清单显示**：`GET /api/auth/me` 回 `capabilities`（`core/auth/capabilities.ts` 按角色派生：`settings.<页签>`、`automation.<页面>`、`<资源>.manage`），前端 `app/access.tsx` 在壳层拉一次，侧栏分区与页签（`visibleSettingsNav` / `visibleAutomationNav`）、路由纠偏（`routeState.ts` 的 `enforceRouteCapabilities`：进了没入口的页签换到侧栏顺序里第一个有入口的，一个都没有回对话，改写地址栏用 replace）、管理按钮（新建 / 编辑 / 删除 Agent、工作流编辑与定时钩子导入导出、看板管理）都只认这份清单，**客户端不写「哪个角色看哪个页签」**。每条能力可带代表路由，`test/capabilities.test.ts` 对照登记表校验闸门与能力的最低角色一致，并要求前端每个页签 / 自动化页面都有对应能力——新增页签或改闸门时两边一起改。数据接口回 403 的页面显示 `NoPermissionState`（三语），不要拿「还没有数据」的空态顶替。
+- **加载不许写**：页面挂载读到服务端的值，不得因为「状态变了」再写回去。全局故障转移（`pages/settings/shared/fallbackAutosave.ts`：读到走 `loaded()`、只有用户操作走 `edited()`）与侧栏收藏（`createFavoritesSync`：与服务端已确认值相同不写）都按这个判据；member 的会话 / 群列表是过滤过的，不据此清理全局收藏。
 - **没有默认账号与默认口令**：不再回落 123456。用户只经三条路出现：启动一次性任务把管理员设过的口令迁成 `admin`（默认口令只在「登录已开启」时迁出且必须先改口令，改之前其余接口一律 403）、通用设置首次开启登录时设口令、super_admin 在用户页新建。**最后一个启用中的 super_admin 不能降级、停用、删除**；改角色 / 停用 / 删除 / 重置口令会作废该用户全部会话。登录失败按来源 IP 计数锁定（5 次 / 15 分钟），只有 TCP 对端是本机回环时才信转发头。
 - **控制面对引擎的一切操作经 `backend/src/openclaw/cli-runner.ts`**：参数数组（不拼 shell）、`--json` 解析、stderr 脱敏、错误映射为 `openclaw.*` messageCode、写操作进程内串行。设了 `CLAWOPT_OPENCLAW_PROFILE` 就给每次调用注入 `--profile <name>`——验收与测试用它把引擎状态隔离到 `~/.openclaw-<name>`，**不要拿真实 `~/.openclaw` 跑写操作**。注意 `--profile` 下默认工作区仍落在 `~/.openclaw/workspace-<name>`（真实目录下），验收要显式给工作区并在结束后清理。
 - **配置编辑器一律带版本号**：服务商、上下文长度、MCP 服务器、定时任务、工作区身份文件都走「锁内读当前 → 比版本号 → 写」，不符回 412 `REVISION_CONFLICT` + 当前（已脱敏）视图，缺版本号同样拒绝；前端收到 412 提示「已在别处修改」并载入最新内容。锁外比完再写等于没比。

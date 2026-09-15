@@ -2,6 +2,7 @@
 // 状态都在 features/workflow/hooks 里；这里只做编排与模式切换。
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAccess } from '../../../app/access';
 import EdgeEditorDrawer from '../../../features/workflow/components/EdgeEditorDrawer';
 import HooksModal from '../../../features/workflow/components/HooksModal';
 import ImportExportModal from '../../../features/workflow/components/ImportExportModal';
@@ -26,6 +27,8 @@ type BudgetRequest = { kind: 'run' } | { kind: 'rerun'; nodeId: string; preserve
 
 export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workflowId: string | null; onSelectWorkflow: (id: string | null) => void }) {
   const { t } = useTranslation();
+  // 能力清单里没有 workflows.manage（member）：只读画布，能运行、审批、看运行记录，不能改定义与定时 / 钩子。
+  const canManage = useAccess().can('workflows.manage');
   const list = useWorkflowList();
   const editor = useWorkflowEditor(workflowId, list.reload);
   const runs = useWorkflowRuns(workflowId);
@@ -84,7 +87,7 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
 
   const nodeMenu = (nodeId: string): ContextMenuAction[] => {
     if (!replay || !run) {
-      return [{ key: 'delete', label: t('common.delete'), danger: true, onSelect: () => editor.removeElements([nodeId], []) }];
+      return canManage ? [{ key: 'delete', label: t('common.delete'), danger: true, onSelect: () => editor.removeElements([nodeId], []) }] : [];
     }
     const live = isRunLive(run.status);
     const executions = epoch.nodeExecutions.filter((row) => row.nodeId === nodeId);
@@ -115,6 +118,7 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
         <WorkflowListPanel
           workflows={list.workflows}
           activeId={workflowId}
+          canManage={canManage}
           onSelect={(id) => { runs.selectRun(null); onSelectWorkflow(id); }}
           onCreate={async (name) => { const created = await list.create(name); if (created) onSelectWorkflow(created.id); }}
           onDelete={async (ids) => { await list.remove(ids); if (workflowId && ids.includes(workflowId)) onSelectWorkflow(null); }}
@@ -126,12 +130,12 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
             {!list.workflows.length && <option value="">{t('automation.list.empty')}</option>}
             {list.workflows.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <button
+          {canManage && <button
             className="shrink-0 px-3 py-2 text-sm rounded-xl border border-gray-200 bg-white text-gray-700"
             onClick={async () => { const created = await list.create(t('automation.list.newName', { count: list.workflows.length + 1 })); if (created) onSelectWorkflow(created.id); }}
           >
             {t('automation.list.create')}
-          </button>
+          </button>}
         </div>
         {workflowId && editor.definition ? (
           <>
@@ -139,6 +143,7 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
               name={editor.name}
               onName={editor.setName}
               replay={replay}
+              canManage={canManage}
               dirty={editor.dirty}
               saving={editor.saving}
               canUndo={editor.canUndo}
@@ -166,7 +171,7 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
                   nodes={canvasNodes}
                   edges={canvasEdges}
                   context={{
-                    mode: replay ? 'replay' : 'edit',
+                    mode: replay ? 'replay' : canManage ? 'edit' : 'readonly',
                     agents: list.agents,
                     statusOf,
                     errorOf,
@@ -190,7 +195,7 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
                   nodeMenu={nodeMenu}
                   edgeMenu={edgeMenu}
                 />
-                {!editor.nodes.length && !replay && (
+                {!editor.nodes.length && !replay && canManage && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <p className="text-sm text-gray-400">{defaultAgent ? t('automation.canvas.emptyHint') : t('automation.canvas.noAgents')}</p>
                   </div>
@@ -219,7 +224,7 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
                     edges={canvasEdges.map(fromCanvasEdge)}
                     onSelect={(id) => { runs.selectRun(id); if (!id) setTranscriptNode(null); }}
                     onStop={(id) => void runs.stop(id)}
-                    onDelete={(id) => void runs.removeRun(id)}
+                    onDelete={canManage ? (id) => void runs.removeRun(id) : null}
                     onOpenExecution={(nodeId, executionId) => setTranscriptNode({ nodeId, executionId })}
                   />
                 </div>

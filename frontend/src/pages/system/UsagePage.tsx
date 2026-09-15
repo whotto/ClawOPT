@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { observabilityApi } from '../../api/control';
-import { Button, Card, ErrorBanner, formatNumber, LoadingRow, Notice, PageIntro, type ErrorDisplay } from '../../components/control/ControlUi';
+import { Button, Card, ErrorBanner, formatNumber, LoadingRow, NoPermissionState, Notice, PageIntro, type ErrorDisplay } from '../../components/control/ControlUi';
 import { readApi, useErrorDisplay } from '../control/useControlApi';
 
 type Totals = { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; totalCost: number; missingCostEntries: number };
@@ -57,14 +57,16 @@ export default function UsagePage() {
   const [days, setDays] = useState(30);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<ErrorDisplay | null>(null);
+  const [forbidden, setForbidden] = useState(false);
 
   const load = useCallback(async () => {
     setSummary(null);
     setError(null);
     try {
       const result = await readApi<Summary>(observabilityApi.usage(days));
+      setForbidden(result.status === 403);
       if (result.ok) setSummary(result.data);
-      else setError(errors.fromResult(result, 'control.usage.loadFailed'));
+      else if (result.status !== 403) setError(errors.fromResult(result, 'control.usage.loadFailed'));
     } catch (exception) {
       setError(errors.fromException(exception));
     }
@@ -79,6 +81,8 @@ export default function UsagePage() {
   const breakdown = summary?.breakdown.available ? summary.breakdown : null;
   const maxDaily = Math.max(1, ...(cost?.daily ?? []).map((day) => day.totalTokens));
   const cacheBase = cost ? cost.totals.input + cost.totals.cacheRead : 0;
+
+  if (forbidden) return <NoPermissionState />;
 
   return (
     <div className="space-y-6">

@@ -1,11 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
+import { useAccess } from '../access';
 import type { AgentEditorState } from './useAgentEditor';
 import type { GroupEditorState } from './useGroupEditor';
 
 /** 「+ 新建 智能体 / 工作群」按钮组：重置对应表单并打开弹窗。 */
 export default function NewButtons({ editor, groupEditor }: { editor: AgentEditorState; groupEditor: GroupEditorState }) {
   const { t } = useTranslation();
+  // 新建 Agent 会装配 OpenClaw Agent，是管理员的事；member 只能用自己的 Agent 建群。
+  const canCreateAgent = useAccess().can('agents.manage');
   const { syncGlobalFallbackEnabled, setModalMode, setEditingSessionId, setSubmitError, setNewSessionData, setIsModalOpen } = editor;
   const {
     setGroupModalMode, setEditingGroupId, setNewGroupId, setNewGroupName, setNewGroupDesc, setNewGroupSystemPrompt,
@@ -19,7 +22,7 @@ export default function NewButtons({ editor, groupEditor }: { editor: AgentEdito
           {t('sidebar.newBtn')}
         </span>
         <div className="group flex flex-1 border border-gray-300 rounded-xl overflow-hidden bg-white transition-colors hover:border-orange-300">
-          <button 
+          {canCreateAgent && <button
             onClick={async () => {
               await syncGlobalFallbackEnabled();
               setModalMode('create');
@@ -49,7 +52,7 @@ export default function NewButtons({ editor, groupEditor }: { editor: AgentEdito
             className="flex-1 py-2 px-3 text-gray-600 hover:bg-amber-50 hover:text-gray-900 hover:font-semibold transition-colors font-normal text-sm active:scale-95 text-center border-r border-gray-300 hover:border-orange-300 group-hover:border-orange-300"
           >
             {t('sidebar.agentGroup')}
-          </button>
+          </button>}
           <button
             onClick={() => {
               setGroupModalMode('create');

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { requestActiveContextRefresh, type ActiveContextRefreshDetail } from '../utils/contextRefresh';
+import { SETTINGS_NAV_TAB_ORDER } from './sidebar/sidebarNav';
 import {
   NAV_STORAGE_KEYS,
+  enforceRouteCapabilities,
   formatAppPath,
   parseAppPath,
   resolveRouteState,
@@ -10,6 +12,7 @@ import {
   storedSelectionToState,
   type AppRouteState,
   type AutomationSection,
+  type RouteCapabilities,
   type SettingsTab,
   type ViewType,
 } from './routeState';
@@ -32,7 +35,7 @@ function readStoredRouteState(): AppRouteState {
  * 地址栏变化（首屏、前进后退、手输地址）在渲染期就折算进状态，不会有一帧用旧状态渲染新页面；
  * 状态变化（侧栏点击等）在提交后写回地址栏。
  */
-export function useAppNavigation() {
+export function useAppNavigation(capabilities: RouteCapabilities = null) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -77,10 +80,30 @@ export function useAppNavigation() {
     setIsMobileMenuOpen(false);
   }
 
+  // 能力清单 → 状态：进了没有入口的页签 / 自动化页面（深链、旧书签、记忆的上次页签），渲染期就换到第一个有入口的，
+  // 不先挂一帧没权限的页面；改写地址栏用 replace，后退键不会回到被纠偏掉的地址。
+  const autoSelectionRef = useRef(false);
+  const enforced = enforceRouteCapabilities({
+    view: currentView,
+    settingsTab,
+    sessionId: activeSessionId,
+    groupId: activeGroupId,
+    automationSection,
+    workflowId: activeWorkflowId,
+  }, capabilities, SETTINGS_NAV_TAB_ORDER);
+  if (enforced.view !== currentView || enforced.settingsTab !== settingsTab || (enforced.automationSection ?? automationSection) !== automationSection) {
+    autoSelectionRef.current = true;
+    setCurrentView(enforced.view);
+    setSettingsTab(enforced.settingsTab);
+    if (enforced.automationSection && enforced.automationSection !== automationSection) {
+      setAutomationSection(enforced.automationSection);
+      setActiveWorkflowId(enforced.workflowId ?? null);
+    }
+  }
+
   // 状态 → 地址栏。
   const pathnameRef = useRef(location.pathname);
   pathnameRef.current = location.pathname;
-  const autoSelectionRef = useRef(false);
   useEffect(() => {
     const state: AppRouteState = { view: currentView, settingsTab, sessionId: activeSessionId, groupId: activeGroupId, automationSection, workflowId: activeWorkflowId };
     const desired = formatAppPath(state);

@@ -1097,7 +1097,9 @@
       "networkError": "Network request failed",
       "changedElsewhere": "Changed elsewhere. To avoid overwriting those changes, reload the latest version before saving.",
       "reloadLatest": "Reload latest",
-      "saved": "Saved"
+      "saved": "Saved",
+      "noPermissionTitle": "No permission",
+      "noPermissionDescription": "Your account cannot use this area. Ask an administrator to change your role or assigned agents."
     },
     "cron": {
       "title": "Scheduled jobs",
@@ -2032,7 +2034,9 @@
       "kanban_bulkTooLarge": "At most {{max}} tasks at once",
       "kanban_bulkFailed": "{{count}} tasks could not be processed",
       "kanban_linkCycle": "That dependency would create a cycle",
-      "kanban_defaultBoardProtected": "The default board cannot be archived"
+      "kanban_defaultBoardProtected": "The default board cannot be archived",
+      "auth_forbidden": "Only administrators can do this",
+      "auth_agentForbidden": "This involves an agent that is not assigned to you"
     }
   }
 }

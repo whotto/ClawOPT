@@ -3,7 +3,8 @@ import { Lock, Pencil, Plus, RefreshCw, Trash2, Unlock } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usersApi } from '../../api/control';
-import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorBanner, formatTime, inputClass, labelClass, LoadingRow, Modal, Notice, PageIntro, type ErrorDisplay } from '../../components/control/ControlUi';
+import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorBanner, formatTime, inputClass, labelClass, LoadingRow, Modal, NoPermissionState, Notice, PageIntro, type ErrorDisplay } from '../../components/control/ControlUi';
+import { useAccess } from '../../app/access';
 import { useShellContext } from '../../app/shellContext';
 import { readApi, useCurrentUser, useErrorDisplay } from '../control/useControlApi';
 
@@ -90,8 +91,12 @@ export default function UsersPage() {
   const { t, i18n } = useTranslation();
   const errors = useErrorDisplay();
   const shell = useShellContext();
-  const { user: me, isSuperAdmin } = useCurrentUser();
+  const { user: me } = useCurrentUser();
+  // 用户列表与增删改只给 super_admin（users.manage）；admin 进这一页只管登录 IP 锁。
+  const { can, capabilities } = useAccess();
+  const canManageUsers = can('users.manage');
   const [users, setUsers] = useState<User[] | null>(null);
+  const [usersForbidden, setUsersForbidden] = useState(false);
   const [locks, setLocks] = useState<IpLock[]>([]);
   const [error, setError] = useState<ErrorDisplay | null>(null);
   const [editing, setEditing] = useState<User | 'new' | null>(null);
@@ -101,11 +106,17 @@ export default function UsersPage() {
   const agentIds = [...new Set(shell.sessions.map((session) => session.agentId || session.id).filter(Boolean))] as string[];
 
   const load = useCallback(async () => {
+    if (!capabilities) return;
     setError(null);
     try {
-      const [list, locked] = await Promise.all([readApi<{ users: User[] }>(usersApi.list()), readApi<{ locks: IpLock[] }>(usersApi.lockedIps())]);
-      if (list.ok) setUsers(list.data.users);
-      else {
+      const [list, locked] = await Promise.all([
+        canManageUsers ? readApi<{ users: User[] }>(usersApi.list()) : Promise.resolve(null),
+        readApi<{ locks: IpLock[] }>(usersApi.lockedIps()),
+      ]);
+      // 403 是「没有权限」，不是「还没有用户」：两种空态不能混。
+      setUsersForbidden(!list || list.status === 403);
+      if (list?.ok) setUsers(list.data.users);
+      else if (list && list.status !== 403) {
         setUsers([]);
         setError(errors.fromResult(list, 'control.users.loadFailed'));
       }
@@ -114,7 +125,7 @@ export default function UsersPage() {
       setUsers([]);
       setError(errors.fromException(exception));
     }
-  }, [errors]);
+  }, [errors, capabilities, canManageUsers]);
 
   useEffect(() => {
     void load();
@@ -143,14 +154,14 @@ export default function UsersPage() {
         actions={(
           <>
             <Button onClick={() => void load()}><RefreshCw className="w-4 h-4" />{t('control.common.refresh')}</Button>
-            {isSuperAdmin && <Button variant="primary" onClick={() => setEditing('new')}><Plus className="w-4 h-4" />{t('control.users.create')}</Button>}
+            {canManageUsers && !usersForbidden && <Button variant="primary" onClick={() => setEditing('new')}><Plus className="w-4 h-4" />{t('control.users.create')}</Button>}
           </>
         )}
       />
       <ErrorBanner error={error} onClose={() => setError(null)} />
       {me?.implicit && <Notice tone="blue">{t('control.users.loginDisabledHint')}</Notice>}
 
-      {users === null ? <LoadingRow /> : users.length === 0 ? <EmptyState>{t('control.users.empty')}</EmptyState> : (
+      {usersForbidden ? <NoPermissionState /> : users === null ? <LoadingRow /> : users.length === 0 ? <EmptyState>{t('control.users.empty')}</EmptyState> : (
         <Card className="divide-y divide-gray-100">
           {users.map((user) => (
             <div key={user.id} className="p-4 flex flex-col md:flex-row md:items-center gap-3">
@@ -167,7 +178,7 @@ export default function UsersPage() {
                   {user.role === 'member' && <span>{t('control.users.agents')}: {user.agentIds.join(', ') || '—'}</span>}
                 </div>
               </div>
-              {isSuperAdmin && (
+              {canManageUsers && (
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => setEditing(user)}><Pencil className="w-3.5 h-3.5" />{t('common.edit')}</Button>
                   {me?.id !== user.id && <Button size="sm" variant="danger" onClick={() => setDeleting(user)}><Trash2 className="w-3.5 h-3.5" />{t('common.delete')}</Button>}

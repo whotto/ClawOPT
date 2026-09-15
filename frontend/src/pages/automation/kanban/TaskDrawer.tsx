@@ -24,7 +24,9 @@ const MOVE: Record<KanbanStatus, KanbanStatus[]> = {
   running: [], blocked: ['todo'], review: ['ready'], done: ['ready'], archived: ['todo'],
 };
 
-export default function TaskDrawer({ taskId, agents, tasks, onChanged, onClose }: {
+export default function TaskDrawer({ taskId, canManage, agents, tasks, onChanged, onClose }: {
+  /** 移动、解除阻塞、收回、归档、改任务与依赖链接是管理员的；派活、完成、阻塞、评论对自己的任务都能做。 */
+  canManage: boolean;
   taskId: string;
   agents: AgentEntry[];
   tasks: Task[];
@@ -80,12 +82,12 @@ export default function TaskDrawer({ taskId, agents, tasks, onChanged, onClose }
           <h4 className="text-xs font-semibold text-gray-500">{t('automation.kanban.actionsTitle')}</h4>
           <div className="flex flex-wrap gap-2">
             {status === 'ready' && <button className={primaryButton} disabled={!task.assignee} title={!task.assignee ? t('automation.kanban.needAssignee') : undefined} onClick={() => void act(taskAction(task.id, { action: 'dispatch' }))}>{t('automation.kanban.actions.dispatch')}</button>}
-            {['blocked', 'scheduled'].includes(status) && <button className={secondaryButton} onClick={() => void act(taskAction(task.id, { action: 'unblock' }))}>{t('automation.kanban.actions.unblock')}</button>}
-            {status === 'running' && <button className={secondaryButton} onClick={() => void act(taskAction(task.id, { action: 'reclaim' }))}>{t('automation.kanban.actions.reclaim')}</button>}
-            {MOVE[status].map((to) => (
+            {canManage && ['blocked', 'scheduled'].includes(status) && <button className={secondaryButton} onClick={() => void act(taskAction(task.id, { action: 'unblock' }))}>{t('automation.kanban.actions.unblock')}</button>}
+            {canManage && status === 'running' && <button className={secondaryButton} onClick={() => void act(taskAction(task.id, { action: 'reclaim' }))}>{t('automation.kanban.actions.reclaim')}</button>}
+            {canManage && MOVE[status].map((to) => (
               <button key={to} className={secondaryButton} onClick={() => void act(taskAction(task.id, { action: 'move', status: to }))}>{t('automation.kanban.moveTo', { status: t(`automation.kanban.statuses.${to}`) })}</button>
             ))}
-            {!['running', 'archived'].includes(status) && <button className={secondaryButton} onClick={() => void act(taskAction(task.id, { action: 'archive' }))}>{t('automation.kanban.actions.archive')}</button>}
+            {canManage && !['running', 'archived'].includes(status) && <button className={secondaryButton} onClick={() => void act(taskAction(task.id, { action: 'archive' }))}>{t('automation.kanban.actions.archive')}</button>}
           </div>
           {['running', 'ready', 'blocked', 'review'].includes(status) && (
             <div className="flex gap-2">
@@ -104,7 +106,7 @@ export default function TaskDrawer({ taskId, agents, tasks, onChanged, onClose }
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold text-gray-500">{t('automation.kanban.detailsTitle')}</h4>
-            {!edit && status !== 'running' && (
+            {canManage && !edit && status !== 'running' && (
               <button className="text-xs text-blue-600" onClick={() => setEdit({ title: task.title, body: task.body, priority: String(task.priority), assignee: task.assignee ? agentKey(task.assignee) : '', workspace: task.workspacePath ?? '' })}>{t('common.edit')}</button>
             )}
           </div>
@@ -157,16 +159,16 @@ export default function TaskDrawer({ taskId, agents, tasks, onChanged, onClose }
           {[...detail.parents.map((id) => ({ id, parent: true })), ...detail.children.map((id) => ({ id, parent: false }))].map((link) => (
             <div key={`${link.parent}:${link.id}`} className="flex items-center justify-between text-xs text-gray-600">
               <span>{link.parent ? t('automation.kanban.parent') : t('automation.kanban.child')}: {titleOf(link.id)}</span>
-              <button className="text-red-600" onClick={() => void act(link.parent ? unlinkTasks(link.id, task.id) : unlinkTasks(task.id, link.id))}>{t('common.delete')}</button>
+              {canManage && <button className="text-red-600" onClick={() => void act(link.parent ? unlinkTasks(link.id, task.id) : unlinkTasks(task.id, link.id))}>{t('common.delete')}</button>}
             </div>
           ))}
-          <div className="flex gap-2">
+          {canManage && <div className="flex gap-2">
             <select className={selectClass} value={parentPick} onChange={(event) => setParentPick(event.target.value)}>
               <option value="">{t('automation.kanban.pickParent')}</option>
               {tasks.filter((item) => item.id !== task.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
             </select>
             <button className={secondaryButton} disabled={!parentPick} onClick={() => void act(linkTasks(parentPick, task.id)).then(() => setParentPick(''))}>{t('automation.kanban.addParent')}</button>
-          </div>
+          </div>}
         </section>
 
         <section className="space-y-2">

@@ -27,7 +27,8 @@ export default function RunPanel({ runs, selectedRun, evidence, nodes, edges, on
   edges: WfEdge[];
   onSelect: (runId: string | null) => void;
   onStop: (runId: string) => void;
-  onDelete: (runId: string) => void;
+  /** 删运行是管理员的；不给就不显示删除按钮。 */
+  onDelete: ((runId: string) => void) | null;
   onOpenExecution: (nodeId: string, executionId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -77,7 +78,7 @@ export default function RunPanel({ runs, selectedRun, evidence, nodes, edges, on
         <StatusBadge status={selectedRun.status} />
         <span className="flex-1" />
         {live && <button className={iconButton} title={t('automation.runs.stop')} onClick={() => onStop(selectedRun.id)}><Square className="w-4 h-4" /></button>}
-        {!live && <button className={iconButton} title={t('common.delete')} onClick={() => onDelete(selectedRun.id)}><Trash2 className="w-4 h-4" /></button>}
+        {!live && onDelete && <button className={iconButton} title={t('common.delete')} onClick={() => onDelete(selectedRun.id)}><Trash2 className="w-4 h-4" /></button>}
       </div>
       <div className="px-4 py-3 border-b border-gray-100 space-y-1 text-xs text-gray-600">
         <div>{t('automation.runs.started')}: {formatTime(selectedRun.startedAt)}</div>

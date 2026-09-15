@@ -17,6 +17,13 @@ export type {
   RequestIdentity,
 } from './auth-middleware';
 export {
+  CAPABILITY_RULES,
+  capabilitiesForRole,
+} from './capabilities';
+export type {
+  CapabilityRule,
+} from './capabilities';
+export {
   registerAuthGate,
   registerAuthRoutes,
   sendUserStoreError,

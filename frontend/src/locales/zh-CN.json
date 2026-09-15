@@ -1097,7 +1097,9 @@
       "networkError": "网络请求失败",
       "changedElsewhere": "已在别处修改：为避免覆盖对方的改动，请重新载入最新内容后再保存",
       "reloadLatest": "载入最新内容",
-      "saved": "已保存"
+      "saved": "已保存",
+      "noPermissionTitle": "没有权限",
+      "noPermissionDescription": "你的账号不能使用这里。需要的话，请管理员调整你的角色或分配的 Agent。"
     },
     "cron": {
       "title": "定时任务",
@@ -2032,7 +2034,9 @@
       "kanban_bulkTooLarge": "一次最多操作 {{max}} 个任务",
       "kanban_bulkFailed": "有 {{count}} 个任务没能处理",
       "kanban_linkCycle": "依赖会形成环，已拒绝",
-      "kanban_defaultBoardProtected": "默认看板不能归档"
+      "kanban_defaultBoardProtected": "默认看板不能归档",
+      "auth_forbidden": "只有管理员可以这样做",
+      "auth_agentForbidden": "涉及没有分配给你的 Agent"
     }
   }
 }

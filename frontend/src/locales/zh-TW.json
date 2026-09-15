@@ -1097,7 +1097,9 @@
       "networkError": "網絡請求失敗",
       "changedElsewhere": "已在別處修改：為避免覆蓋對方的改動，請重新載入最新內容後再保存",
       "reloadLatest": "載入最新內容",
-      "saved": "已保存"
+      "saved": "已保存",
+      "noPermissionTitle": "沒有權限",
+      "noPermissionDescription": "你的帳號不能使用這裡。需要的話，請管理員調整你的角色或指派的 Agent。"
     },
     "cron": {
       "title": "定時任務",
@@ -2032,7 +2034,9 @@
       "kanban_bulkTooLarge": "一次最多操作 {{max}} 個任務",
       "kanban_bulkFailed": "有 {{count}} 個任務沒能處理",
       "kanban_linkCycle": "依賴會形成環，已拒絕",
-      "kanban_defaultBoardProtected": "預設看板不能歸檔"
+      "kanban_defaultBoardProtected": "預設看板不能歸檔",
+      "auth_forbidden": "只有管理員可以這樣做",
+      "auth_agentForbidden": "涉及沒有指派給你的 Agent"
     }
   }
 }

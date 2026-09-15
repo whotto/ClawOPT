@@ -145,3 +145,27 @@ export function pruneSidebarFavorites(
     order: nextOrder,
   };
 }
+
+/**
+ * 收藏回写服务端的判据：只有和服务端最后一次确认的值**不同**才写。
+ * 之前是「状态一变就写」：挂载读到服务端的值、清理一次什么都没删掉，都会原样 POST 回去——
+ * 每次打开页面多出好几次写配置。与全局故障转移同一类「加载即写」，同样按值判。
+ */
+export function createFavoritesSync(save: (favorites: SidebarFavorites) => void) {
+  let confirmed: string | null = null;
+  return {
+    /** 服务端给出的值（挂载读取）：记为已确认，不写。 */
+    synced(favorites: SidebarFavorites): void {
+      confirmed = JSON.stringify(favorites);
+    },
+    /** 本地状态变化：还没与服务端对齐时不写；与已确认值相同时不写；否则写并记为已确认。 */
+    changed(favorites: SidebarFavorites): boolean {
+      if (confirmed === null) return false;
+      const next = JSON.stringify(favorites);
+      if (next === confirmed) return false;
+      confirmed = next;
+      save(favorites);
+      return true;
+    },
+  };
+}

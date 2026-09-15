@@ -1,5 +1,5 @@
 // 控制面页面共用的小部件。样式与设置页一致：白底、浅灰边框、圆角 xl/2xl、蓝色主按钮、无阴影。
-import { AlertTriangle, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Loader2, Lock, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -113,6 +113,21 @@ export function Notice({ children, tone = 'amber' }: { children: ReactNode; tone
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return <div className="bg-white rounded-2xl border border-gray-200 px-4 py-12 text-center text-gray-400 text-sm">{children}</div>;
+}
+
+/**
+ * 没有权限的空态：页面或区块的数据接口回 403、或当前账号没有这个入口时显示。
+ * 不要用「还没有数据」一类的空态顶替——那会让人以为数据被清空了。
+ */
+export function NoPermissionState() {
+  const { t } = useTranslation();
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 px-4 py-12 text-center">
+      <Lock className="w-6 h-6 mx-auto text-gray-300" />
+      <div className="mt-3 text-sm font-semibold text-gray-700">{t('control.common.noPermissionTitle')}</div>
+      <p className="mt-1 text-sm text-gray-400 max-w-md mx-auto">{t('control.common.noPermissionDescription')}</p>
+    </div>
+  );
 }
 
 export function LoadingRow() {

@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { rosterApi } from '../../api/control';
 import { useShellContext } from '../../app/shellContext';
 import { Badge, Button, Card, EmptyState, ErrorBanner, inputClass, labelClass, Modal, Notice, PageIntro, type ErrorDisplay } from '../../components/control/ControlUi';
-import { readApi, useCurrentUser, useErrorDisplay } from '../control/useControlApi';
+import { useAccess } from '../../app/access';
+import { readApi, useErrorDisplay } from '../control/useControlApi';
 import WorkspaceFilesEditor from './WorkspaceFilesEditor';
 import WriteGatePanel from './WriteGatePanel';
 
@@ -62,7 +63,7 @@ export default function AgentsPage() {
   const { t } = useTranslation();
   const errors = useErrorDisplay();
   const shell = useShellContext();
-  const { isAdmin } = useCurrentUser();
+  const isAdmin = useAccess().can('agents.manage');
   const [avatars, setAvatars] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<string>('');
   const [tab, setTab] = useState<'files' | 'writeGate'>('files');

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getSidebarFavorites, saveSidebarFavorites } from '../../api/sidebar';
 import type { ViewType } from '../routeState';
 import {
+  createFavoritesSync,
   SIDEBAR_FAVORITES_STORAGE_KEY,
   SIDEBAR_LIST_TAB_STORAGE_KEY,
   normalizeSidebarFavorites,
@@ -32,6 +33,7 @@ export function useSidebarListTab(currentView: ViewType) {
 export function useSidebarFavorites() {
   const [sidebarFavorites, setSidebarFavorites] = useState<SidebarFavorites>(() => readSidebarFavorites());
   const [sidebarFavoritesLoaded, setSidebarFavoritesLoaded] = useState(false);
+  const [favoritesSync] = useState(() => createFavoritesSync((favorites) => { void saveSidebarFavorites(favorites).catch(() => {}); }));
 
   useEffect(() => {
     try {
@@ -54,12 +56,9 @@ export function useSidebarFavorites() {
         const hasRemoteFavorites = remoteFavorites.order.length > 0;
         const hasLocalFavorites = localFavorites.order.length > 0;
 
-        if (!hasRemoteFavorites && hasLocalFavorites) {
-          setSidebarFavorites(localFavorites);
-          await saveSidebarFavorites(localFavorites).catch(() => {});
-        } else {
-          setSidebarFavorites(remoteFavorites);
-        }
+        // 服务端的值记为已确认；服务端为空而本地有时，由下面的回写 effect 当作一次真实变化推上去。
+        favoritesSync.synced(remoteFavorites);
+        setSidebarFavorites(!hasRemoteFavorites && hasLocalFavorites ? localFavorites : remoteFavorites);
       } catch {
         if (!cancelled) {
           setSidebarFavorites(localFavorites);
@@ -80,9 +79,8 @@ export function useSidebarFavorites() {
 
   useEffect(() => {
     if (!sidebarFavoritesLoaded) return;
-
-    void saveSidebarFavorites(sidebarFavorites).catch(() => {});
-  }, [sidebarFavorites, sidebarFavoritesLoaded]);
+    favoritesSync.changed(sidebarFavorites);
+  }, [sidebarFavorites, sidebarFavoritesLoaded, favoritesSync]);
 
   const isFavorite = (type: SidebarFavoriteType, id: string) => sidebarFavorites[type].includes(id);
 
@@ -101,18 +99,24 @@ export function useSidebarFavorites() {
   return { sidebarFavorites, setSidebarFavorites, sidebarFavoritesLoaded, isFavorite, toggleFavorite, reorderFavorites };
 }
 
-/** 会话与群都加载完之后，清掉指向已删除对象的收藏。 */
+/**
+ * 会话与群都加载完之后，清掉指向已删除对象的收藏。
+ *
+ * `listsComplete` 为 false（member：会话与群列表按授权过滤过）时不清理——「看不见」不等于「被删了」，
+ * 收藏是全局存的，按过滤后的列表清理会把管理员收藏的别的 Agent 一并删掉。
+ */
 export function usePruneSidebarFavorites(
   favorites: ReturnType<typeof useSidebarFavorites>,
   sessions: { id: string }[],
   sessionsLoaded: boolean,
   groups: { id: string }[],
   groupsLoaded: boolean,
+  listsComplete: boolean,
 ) {
   const { sidebarFavoritesLoaded, setSidebarFavorites } = favorites;
   useEffect(() => {
-    if (!sidebarFavoritesLoaded || !sessionsLoaded || !groupsLoaded) return;
+    if (!listsComplete || !sidebarFavoritesLoaded || !sessionsLoaded || !groupsLoaded) return;
 
     setSidebarFavorites((prev) => pruneSidebarFavorites(prev, sessions, groups));
-  }, [groups, groupsLoaded, sessions, sessionsLoaded, sidebarFavoritesLoaded]);
+  }, [groups, groupsLoaded, sessions, sessionsLoaded, sidebarFavoritesLoaded, listsComplete]);
 }

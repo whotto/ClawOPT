@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { SettingsTab, ViewType } from '../routeState';
-import { SETTINGS_NAV_ITEMS, SETTINGS_NAV_ZONES } from './sidebarNav';
+import { useAccess } from '../access';
+import { visibleSettingsNav } from './sidebarNav';
 
 export default function SettingsNav({
   settingsTab,
@@ -10,12 +11,13 @@ export default function SettingsNav({
   navigateTo: (view: ViewType, tab?: SettingsTab, openMenu?: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const { capabilities } = useAccess();
   return (
     <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-4">
-      {SETTINGS_NAV_ZONES.map(({ zone, labelKey: zoneLabelKey }) => (
+      {visibleSettingsNav(capabilities).map(({ zone, labelKey: zoneLabelKey, items }) => (
         <div key={zone} className="space-y-1">
           <div className="px-4 pb-1 text-xs font-semibold text-gray-400">{t(zoneLabelKey)}</div>
-          {SETTINGS_NAV_ITEMS.filter((item) => item.zone === zone).map(({ tab, icon: Icon, labelKey }) => (
+          {items.map(({ tab, icon: Icon, labelKey }) => (
             <button
               key={tab}
               onClick={() => navigateTo('settings', tab, false)}

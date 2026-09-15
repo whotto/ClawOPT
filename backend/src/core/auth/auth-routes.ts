@@ -11,6 +11,7 @@ import {
   readRequestAuthToken,
 } from './auth-middleware';
 import { type AuthStore, verifyPassword } from './auth-store';
+import { capabilitiesForRole } from './capabilities';
 import { type LoginLockStore, resolveClientIp } from './login-lock';
 import { LEGACY_DEFAULT_LOGIN_PASSWORD } from './login-migration';
 import { type UserStore, UserStoreError } from './user-store';
@@ -141,6 +142,8 @@ export function registerAuthRoutes(app: RouteApp, ctx: AuthRoutesDeps): void {
         mustChangePassword: identity.mustChangePassword,
         // null = 不受限（admin 及以上，或登录未开启）
         agentIds,
+        // 界面入口（侧栏分区、页签、管理按钮）按这份清单显示；授权仍在各路由闸门。
+        capabilities: capabilitiesForRole(identity.role),
       },
     });
   });

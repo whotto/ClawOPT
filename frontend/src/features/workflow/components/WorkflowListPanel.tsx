@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next';
 import type { WorkflowSummary } from '../lib/types';
 import { iconButton, inputClass, primaryButton } from './ui';
 
-export default function WorkflowListPanel({ workflows, activeId, onSelect, onCreate, onDelete }: {
+export default function WorkflowListPanel({ workflows, activeId, canManage, onSelect, onCreate, onDelete }: {
   workflows: WorkflowSummary[];
+  /** 新建与批量删除是管理员的（workflows.manage）。 */
+  canManage: boolean;
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: (name: string) => void;
@@ -29,8 +31,8 @@ export default function WorkflowListPanel({ workflows, activeId, onSelect, onCre
     <div className="flex flex-col h-full">
       <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-1">
         <span className="flex-1 text-sm font-semibold text-gray-900">{t('automation.list.title')}</span>
-        <button className={iconButton} title={t('automation.list.batch')} onClick={() => { setSelecting(!selecting); setSelected([]); }}><CheckSquare className="w-4 h-4" /></button>
-        <button className={iconButton} title={t('automation.list.create')} onClick={() => setCreating(true)}><Plus className="w-4 h-4" /></button>
+        {canManage && <button className={iconButton} title={t('automation.list.batch')} onClick={() => { setSelecting(!selecting); setSelected([]); }}><CheckSquare className="w-4 h-4" /></button>}
+        {canManage && <button className={iconButton} title={t('automation.list.create')} onClick={() => setCreating(true)}><Plus className="w-4 h-4" /></button>}
       </div>
       {creating && (
         <div className="p-3 border-b border-gray-100 space-y-2">

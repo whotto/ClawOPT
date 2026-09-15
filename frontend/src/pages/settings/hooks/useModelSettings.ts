@@ -4,6 +4,7 @@ import { EMPTY_INLINE_ERROR, type EndpointConfig, type InlineErrorState, type Se
 import type { ModelFallbackMode } from '../../../components/ModelFallbackEditor';
 import { getImageGenerationModel, getModelFallbacks, listModels, saveImageGenerationModel, saveModelFallbacks, setDefaultModel, updateModel } from '../../../api/models';
 import { resolveStructuredErrorDisplay } from '../shared/settingsHelpers';
+import { createFallbackAutosave, fallbackSaveBody, type FallbackDraft } from '../shared/fallbackAutosave';
 import { listEndpoints, saveEndpoint, testEndpoint } from '../../../api/endpoints';
 import type { useSettingsShared } from './useSettingsShared';
 
@@ -41,9 +42,9 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
   const [globalFallbackMode, setGlobalFallbackMode] = useState<ModelFallbackMode>('disabled');
   const [globalFallbackError, setGlobalFallbackError] = useState<InlineErrorState>(EMPTY_INLINE_ERROR);
   const [, setIsSavingGlobalFallbacks] = useState(false);
-  const globalFallbackAutosaveTimerRef = useRef<number | null>(null);
-  const globalFallbackAutosaveUnlockTimerRef = useRef<number | null>(null);
-  const suppressGlobalFallbackAutosaveRef = useRef(true);
+  // 自动保存只由 changeGlobalFallbacks（用户操作）触发；读到服务端的值走 loaded()，不写。见 shared/fallbackAutosave.ts。
+  const saveGlobalFallbacksRef = useRef<(draft: FallbackDraft) => void>(() => undefined);
+  const [globalFallbackAutosave] = useState(() => createFallbackAutosave({ save: (draft) => saveGlobalFallbacksRef.current(draft) }));
 
   const modelSupportsImageGeneration = (model: { input?: string[] }) => (
     (model.input || []).some((capability) => {
@@ -118,17 +119,10 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         const nextFallbacks = Array.isArray(data?.config?.fallbacks) ? data.config.fallbacks : [];
-        suppressGlobalFallbackAutosaveRef.current = true;
-        if (globalFallbackAutosaveUnlockTimerRef.current !== null) {
-          window.clearTimeout(globalFallbackAutosaveUnlockTimerRef.current);
-        }
+        globalFallbackAutosave.loaded();
         setGlobalFallbacks(nextFallbacks);
         setGlobalFallbackMode(nextFallbacks.length > 0 ? 'custom' : 'disabled');
         setGlobalFallbackError(EMPTY_INLINE_ERROR);
-        globalFallbackAutosaveUnlockTimerRef.current = window.setTimeout(() => {
-          suppressGlobalFallbackAutosaveRef.current = false;
-          globalFallbackAutosaveUnlockTimerRef.current = null;
-        }, 0);
       } else {
         setGlobalFallbackError(resolveStructuredErrorDisplay(data, t, 'settings.models.globalFallbackSaveFailed'));
       }
@@ -152,28 +146,18 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
     }
   };
 
-  const handleSaveGlobalFallbacks = async () => {
+  const handleSaveGlobalFallbacks = async (draft: FallbackDraft) => {
     setIsSavingGlobalFallbacks(true);
     setGlobalFallbackError(EMPTY_INLINE_ERROR);
 
     try {
-      const res = await saveModelFallbacks({
-          fallbacks: globalFallbackMode === 'disabled' ? [] : globalFallbacks,
-        });
+      const res = await saveModelFallbacks(fallbackSaveBody(draft));
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
         const nextFallbacks = Array.isArray(data?.config?.fallbacks) ? data.config.fallbacks : [];
-        suppressGlobalFallbackAutosaveRef.current = true;
-        if (globalFallbackAutosaveUnlockTimerRef.current !== null) {
-          window.clearTimeout(globalFallbackAutosaveUnlockTimerRef.current);
-        }
         setGlobalFallbacks(nextFallbacks);
         setGlobalFallbackMode(nextFallbacks.length > 0 ? 'custom' : 'disabled');
-        globalFallbackAutosaveUnlockTimerRef.current = window.setTimeout(() => {
-          suppressGlobalFallbackAutosaveRef.current = false;
-          globalFallbackAutosaveUnlockTimerRef.current = null;
-        }, 0);
         return;
       }
 
@@ -223,37 +207,15 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
     }
   };
 
-  useEffect(() => {
-    if (suppressGlobalFallbackAutosaveRef.current) return;
-    if (globalFallbackMode === 'custom' && globalFallbacks.length === 0) return;
+  saveGlobalFallbacksRef.current = (draft) => { void handleSaveGlobalFallbacks(draft); };
+  useEffect(() => () => globalFallbackAutosave.dispose(), [globalFallbackAutosave]);
 
-    if (globalFallbackAutosaveTimerRef.current !== null) {
-      window.clearTimeout(globalFallbackAutosaveTimerRef.current);
-    }
-
-    globalFallbackAutosaveTimerRef.current = window.setTimeout(() => {
-      void handleSaveGlobalFallbacks();
-      globalFallbackAutosaveTimerRef.current = null;
-    }, 180);
-
-    return () => {
-      if (globalFallbackAutosaveTimerRef.current !== null) {
-        window.clearTimeout(globalFallbackAutosaveTimerRef.current);
-        globalFallbackAutosaveTimerRef.current = null;
-      }
-    };
-  }, [globalFallbackMode, globalFallbacks]);
-
-  useEffect(() => {
-    return () => {
-      if (globalFallbackAutosaveTimerRef.current !== null) {
-        window.clearTimeout(globalFallbackAutosaveTimerRef.current);
-      }
-      if (globalFallbackAutosaveUnlockTimerRef.current !== null) {
-        window.clearTimeout(globalFallbackAutosaveUnlockTimerRef.current);
-      }
-    };
-  }, []);
+  /** 用户在界面上改了全局故障转移（开关、模式、勾选）：更新界面并去抖保存这份草稿。 */
+  const changeGlobalFallbacks = (draft: FallbackDraft) => {
+    setGlobalFallbackMode(draft.mode);
+    setGlobalFallbacks(draft.fallbacks);
+    globalFallbackAutosave.edited(draft);
+  };
 
   const handleDeleteModel = (id: string, isPrimary: boolean) => {
     setDeleteTarget({ type: 'model', id });
@@ -493,15 +455,12 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
     isSavingImageGenerationModel,
     setIsSavingImageGenerationModel,
     globalFallbacks,
-    setGlobalFallbacks,
     globalFallbackMode,
-    setGlobalFallbackMode,
+    // 界面只经 changeGlobalFallbacks 改（带自动保存）；不导出原始 setter，免得绕开「只有用户操作才写」。
+    changeGlobalFallbacks,
     globalFallbackError,
     setGlobalFallbackError,
     setIsSavingGlobalFallbacks,
-    globalFallbackAutosaveTimerRef,
-    globalFallbackAutosaveUnlockTimerRef,
-    suppressGlobalFallbackAutosaveRef,
     modelSupportsImageGeneration,
     sortModelsByDisplayName,
     editingModelId,
@@ -533,7 +492,6 @@ export function useModelSettings(deps: Pick<SettingsProps & ReturnType<typeof us
     fetchImageGenerationModelConfig,
     fetchGlobalFallbacks,
     fetchEndpoints,
-    handleSaveGlobalFallbacks,
     handleSaveImageGenerationModelConfig,
     handleDeleteModel,
     handleSaveDefaultModelSelection,

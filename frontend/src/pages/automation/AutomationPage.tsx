@@ -3,7 +3,10 @@
 import { Menu } from 'lucide-react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAccess } from '../../app/access';
+import { automationSectionCapability } from '../../app/routeState';
 import { useShellContext } from '../../app/shellContext';
+import { LoadingRow, NoPermissionState } from '../../components/control/ControlUi';
 import KanbanPage from './kanban/KanbanPage';
 import WebhooksPage from './webhooks/WebhooksPage';
 import WorkflowsPage from './workflows/WorkflowsPage';
@@ -12,6 +15,10 @@ export default function AutomationPage() {
   const { t } = useTranslation();
   const shell = useShellContext();
   const { automationSection, activeWorkflowId, openAutomation } = shell;
+  const { capabilities } = useAccess();
+  // 能力清单到手前不挂正文（没入口的页面不先发会被 403 的请求）；没入口时壳层会纠偏路由。
+  const ready = capabilities !== null;
+  const forbidden = ready && !capabilities.has(automationSectionCapability(automationSection));
   const selectWorkflow = useCallback((id: string | null) => openAutomation('workflows', id), [openAutomation]);
 
   return (
@@ -23,9 +30,11 @@ export default function AutomationPage() {
         <h2 className="text-xl font-bold text-gray-900">{t(`automation.nav.${automationSection}`)}</h2>
       </header>
       <div className="flex-1 min-h-0">
-        {automationSection === 'workflows' && <WorkflowsPage workflowId={activeWorkflowId} onSelectWorkflow={selectWorkflow} />}
-        {automationSection === 'kanban' && <KanbanPage />}
-        {automationSection === 'webhooks' && <WebhooksPage />}
+        {!ready && <LoadingRow />}
+        {forbidden && <div className="p-4 sm:p-6"><NoPermissionState /></div>}
+        {ready && !forbidden && automationSection === 'workflows' && <WorkflowsPage workflowId={activeWorkflowId} onSelectWorkflow={selectWorkflow} />}
+        {ready && !forbidden && automationSection === 'kanban' && <KanbanPage />}
+        {ready && !forbidden && automationSection === 'webhooks' && <WebhooksPage />}
       </div>
     </div>
   );

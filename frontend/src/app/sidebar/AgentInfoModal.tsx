@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useAccess } from '../access';
 import { Edit2, RefreshCw, Share2, Trash2, X } from 'lucide-react';
 import type { SidebarProps } from './Sidebar';
 import { FavoriteButton } from './SidebarCards';
@@ -20,6 +21,10 @@ export default function AgentInfoModal({
   favorites: Pick<ReturnType<typeof useSidebarFavorites>, 'isFavorite' | 'toggleFavorite'>;
 }) {
   const { t } = useTranslation();
+  // 编辑 / 删除会改动或撤销 OpenClaw Agent、导出配置包在预设库里：都是管理员的入口。重置只清自己的会话，照常给。
+  const { can } = useAccess();
+  const canManageAgents = can('agents.manage');
+  const canExportPack = can('settings.presets');
   const { availableModels, navigateTo } = sidebar;
   const { viewingSession, setIsInfoModalOpen, infoActiveTab, setInfoActiveTab, confirmResetSession, confirmDeleteSession } = actions;
   const { getRuntimeModeLabel, getEffectiveSystemPromptModeLabel, getEffectiveToolModeLabel, handleStartEdit } = editor;
@@ -171,7 +176,7 @@ export default function AgentInfoModal({
           >
             {t('common.close')}
           </button>
-          <button
+          {canExportPack && <button
             onClick={() => {
               try {
                 localStorage.setItem('clawopt_pack_export', JSON.stringify({ kind: 'agent', id: viewingSession.id, name: viewingSession.name }));
@@ -183,14 +188,14 @@ export default function AgentInfoModal({
           >
             <Share2 className="hidden sm:block w-4 h-4" />
             {t('sidebar.exportPack')}
-          </button>
-          <button
+          </button>}
+          {canManageAgents && <button
             onClick={() => handleStartEdit(null, viewingSession)}
             className="flex-1 flex items-center justify-center sm:gap-2 px-4 py-2.5 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 rounded-xl font-bold transition-all"
           >
             <Edit2 className="hidden sm:block w-4 h-4" />
             {t('common.edit')}
-          </button>
+          </button>}
           <button
             onClick={(e) => { setIsInfoModalOpen(false); confirmResetSession(e, viewingSession.id); }}
             className="flex-1 flex items-center justify-center sm:gap-2 px-4 py-2.5 bg-orange-50 text-orange-600 border border-orange-100 hover:bg-orange-100 hover:border-orange-200 rounded-xl font-bold transition-all"
@@ -198,14 +203,14 @@ export default function AgentInfoModal({
             <RefreshCw className="hidden sm:block w-4 h-4" />
             {t('common.reset')}
           </button>
-          <button
+          {canManageAgents && <button
             onClick={(e) => { setIsInfoModalOpen(false); confirmDeleteSession(e, viewingSession.id); }}
             disabled={viewingSession.id === 'main' || viewingSession.agentId === 'main'}
             className="flex-1 flex items-center justify-center sm:gap-2 px-4 py-2.5 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Trash2 className="hidden sm:block w-4 h-4" />
             {t('common.delete')}
-          </button>
+          </button>}
         </div>
       </div>
     </div>

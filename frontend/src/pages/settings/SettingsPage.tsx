@@ -1,7 +1,9 @@
 import { Menu } from 'lucide-react';
 import type { ComponentType } from 'react';
+import { useAccess } from '../../app/access';
 import { useShellContext } from '../../app/shellContext';
-import type { SettingsTab } from '../../app/routeState';
+import { settingsTabCapability, type SettingsTab } from '../../app/routeState';
+import { LoadingRow, NoPermissionState } from '../../components/control/ControlUi';
 import CronPage from '../automation/CronPage';
 import ChannelsPage from '../system/ChannelsPage';
 import LogsPage from '../system/LogsPage';
@@ -54,6 +56,10 @@ export default function SettingsPage() {
   });
   const { t, settingsTab, onMenuClick, onAgentsChanged } = ctx;
   const ControlPage = CONTROL_PAGES[settingsTab];
+  // 能力清单还没到手：先不挂页签正文（免得没入口的页面先发一轮会被 403 的请求）；
+  // 到手且当前页签没有入口：壳层会把路由换到第一个有入口的页签，这一帧显示没有权限。
+  const { capabilities } = useAccess();
+  const forbidden = capabilities !== null && !capabilities.has(settingsTabCapability(settingsTab));
 
   const headerTitle = ControlPage
     ? t(`control.headerTitle.${settingsTab}`)
@@ -82,7 +88,15 @@ export default function SettingsPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:p-8">
-        {ControlPage ? (
+        {capabilities === null ? (
+          <div className="max-w-2xl mx-auto">
+            <LoadingRow />
+          </div>
+        ) : forbidden ? (
+          <div className="max-w-2xl mx-auto">
+            <NoPermissionState />
+          </div>
+        ) : ControlPage ? (
           <div className="max-w-6xl mx-auto">
             <ControlPage />
           </div>

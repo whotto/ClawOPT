@@ -7268,7 +7268,7 @@
           }
         },
         "x-clawopt-public": false,
-        "x-clawopt-admin-only": false,
+        "x-clawopt-admin-only": true,
         "x-clawopt-express-path": "/api/usage/summary",
         "x-clawopt-order": 235
       }

@@ -3,6 +3,7 @@
 import { CheckSquare, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAccess } from '../../../app/access';
 import { ErrorBanner, Field, Modal, fieldClass, inputClass, primaryButton, secondaryButton, selectClass } from '../../../features/workflow/components/ui';
 import { agentKey } from '../../../features/workflow/components/canvasContext';
 import { describeError } from '../../../features/workflow/lib/request';
@@ -18,6 +19,8 @@ function age(ms: number, t: (key: string, options?: Record<string, unknown>) => 
 
 export default function KanbanPage() {
   const { t } = useTranslation();
+  // 看板管理、建任务、批量是管理员的（kanban.manage）；member 只看分给自己 Agent 的任务，能评论、完成、阻塞、派活。
+  const canManage = useAccess().can('kanban.manage');
   const kanban = useKanban();
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({ title: '', body: '', assignee: '', priority: '0', status: 'todo' });
@@ -57,7 +60,7 @@ export default function KanbanPage() {
           <select className={`${fieldClass} w-auto`} value={kanban.boardId} onChange={(event) => kanban.setBoardId(event.target.value)}>
             {kanban.boards.map((item) => <option key={item.id} value={item.id}>{item.id === 'default' ? t('automation.kanban.defaultBoard') : item.name}</option>)}
           </select>
-          {boardName === null ? (
+          {!canManage ? null : boardName === null ? (
             <button className={secondaryButton} onClick={() => setBoardName('')}>
               <Plus className="w-4 h-4" />{t('automation.kanban.newBoard')}
             </button>
@@ -78,8 +81,8 @@ export default function KanbanPage() {
             {kanban.agents.map((entry) => <option key={agentKey(entry.ref)} value={entry.ref.id}>{entry.name}</option>)}
           </select>
           <span className="flex-1" />
-          <button className={secondaryButton} onClick={() => { setSelecting(!selecting); setSelected([]); }}><CheckSquare className="w-4 h-4" />{t('automation.kanban.bulk')}</button>
-          <button className={primaryButton} onClick={() => setCreating(true)}><Plus className="w-4 h-4" />{t('automation.kanban.newTask')}</button>
+          {canManage && <button className={secondaryButton} onClick={() => { setSelecting(!selecting); setSelected([]); }}><CheckSquare className="w-4 h-4" />{t('automation.kanban.bulk')}</button>}
+          {canManage && <button className={primaryButton} onClick={() => setCreating(true)}><Plus className="w-4 h-4" />{t('automation.kanban.newTask')}</button>}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {KANBAN_STATUSES.map((status) => (
@@ -155,7 +158,7 @@ export default function KanbanPage() {
           </div>
         </Modal>
       )}
-      {openTaskId && <TaskDrawer taskId={openTaskId} agents={kanban.agents} tasks={kanban.allTasks} onChanged={() => void kanban.reload()} onClose={() => setOpenTaskId(null)} />}
+      {openTaskId && <TaskDrawer taskId={openTaskId} canManage={canManage} agents={kanban.agents} tasks={kanban.allTasks} onChanged={() => void kanban.reload()} onClose={() => setOpenTaskId(null)} />}
     </div>
   );
 }

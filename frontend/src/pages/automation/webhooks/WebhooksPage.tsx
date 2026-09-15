@@ -2,6 +2,7 @@
 import { Inbox, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { NoPermissionState } from '../../../components/control/ControlUi';
 import {
   clearWebhookLocalTestEvents,
   createWebhookEndpoint,
@@ -36,12 +37,14 @@ export default function WebhooksPage() {
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean; text: string } | null>(null);
   const [deliveries, setDeliveries] = useState<{ id: string; rows: Delivery[] } | null>(null);
   const [inbox, setInbox] = useState<TestEvent[]>([]);
+  const [forbidden, setForbidden] = useState(false);
 
   const reload = useCallback(async () => {
     const [list, inboxResult] = await Promise.all([
       requestJson<{ endpoints: Endpoint[] }>(listWebhookEndpoints()),
       requestJson<{ events: TestEvent[] }>(listWebhookLocalTestEvents()),
     ]);
+    setForbidden(!list.ok && list.error.status === 403);
     if (list.ok) setEndpoints(list.data.endpoints);
     if (inboxResult.ok) setInbox(inboxResult.data.events);
   }, []);
@@ -78,6 +81,8 @@ export default function WebhooksPage() {
     else setTestResult({ id: endpoint.id, ok: false, text: result.error.detail ?? describeError(t, result.error) });
     void reload();
   };
+
+  if (forbidden) return <div className="p-4 sm:p-6"><NoPermissionState /></div>;
 
   return (
     <div className="h-full overflow-y-auto px-4 py-6 sm:p-8">
