@@ -38,6 +38,7 @@ import {
   getHistoryPageQueryParams,
 } from './chat-messages';
 import type { SessionManager } from './session-manager';
+import { buildSessionActivity } from './session-activity';
 import {
   resetAgentWorkspaceToInitialState,
   type SessionRuntime,
@@ -493,6 +494,20 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     if (!ids.every((id) => ctx.access.canAccessChatSession(identity, String(id)))) return sendResourceForbidden(res);
     sessionManager.reorderSessions(ids);
     res.json({ success: true });
+  });
+
+  // 完成提醒 / 侧栏未读点的轮询兜底（主通道是 /ws 的 agent:<id> 主题）：只回看得见的单聊会话。
+  app.get('/api/sessions/activity', (req, res) => {
+    const identity = getRequestIdentity(req);
+    const visible = sessionManager.getAllSessions()
+      .filter((session) => ctx.access.canAccessChatSession(identity, session.id))
+      .map((session) => session.id);
+    res.json({
+      activity: buildSessionActivity(visible, {
+        isBusy: (sessionId) => runCoordinator.isBusy(sessionId) || !!localChatOperationManager.get(sessionId),
+        getRunSession: (sessionId) => db.getRunSession(sessionId),
+      }),
+    });
   });
 
   app.get('/api/history/:sessionId', guardSessionParam, async (req, res) => {

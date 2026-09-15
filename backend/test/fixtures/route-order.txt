@@ -116,6 +116,7 @@ DELETE /api/sessions/:id
 POST /api/sessions/:id/reset
 GET /api/sessions/:id/configs
 POST /api/sessions/reorder
+GET /api/sessions/activity
 GET /api/history/:sessionId
 GET /api/history/:sessionId/search
 GET /api/chat/:sessionId/active-run
