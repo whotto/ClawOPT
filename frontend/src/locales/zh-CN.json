@@ -1826,7 +1826,12 @@
       "live": "实时输出",
       "toolCalls": "工具调用（{{count}}）",
       "noToolCalls": "没有工具调用",
-      "usage": "用量：输入 {{input}} / 输出 {{output}} tokens · ${{cost}}"
+      "usage": "用量：输入 {{input}} / 输出 {{output}} tokens · ${{cost}}",
+      "endReasons": {
+        "complete": "已完成",
+        "error": "失败",
+        "abort": "已停止"
+      }
     },
     "pending": {
       "description": "工作流节点等待审批"

@@ -117,7 +117,7 @@ export default function TranscriptPanel({ run, nodeTitle, executions, initialExe
               <div>{t('automation.transcript.agent')}: {transcript.agent.id}</div>
               <div>{t('automation.transcript.session')}: <span className="font-mono">{transcript.session?.sessionKey ?? transcript.sessionId}</span></div>
               {transcript.session && (
-                <div>{t('automation.transcript.runtime')}: {transcript.session.runtime}{transcript.session.endReason ? ` · ${t('automation.transcript.endReason', { reason: transcript.session.endReason })}` : ''}</div>
+                <div>{t('automation.transcript.runtime')}: {transcript.session.runtime}{transcript.session.endReason ? ` · ${t('automation.transcript.endReason', { reason: t(`automation.transcript.endReasons.${transcript.session.endReason}`, { defaultValue: transcript.session.endReason }) })}` : ''}</div>
               )}
               <div>{formatTime(transcript.startedAt)} → {formatTime(transcript.finishedAt)}</div>
               {execution?.remainingTimeoutMsAtStart !== null && execution?.remainingTimeoutMsAtStart !== undefined && (

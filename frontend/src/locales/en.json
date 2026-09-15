@@ -1826,7 +1826,12 @@
       "live": "Live output",
       "toolCalls": "Tool calls ({{count}})",
       "noToolCalls": "No tool calls",
-      "usage": "Usage: {{input}} input / {{output}} output tokens · ${{cost}}"
+      "usage": "Usage: {{input}} input / {{output}} output tokens · ${{cost}}",
+      "endReasons": {
+        "complete": "completed",
+        "error": "failed",
+        "abort": "stopped"
+      }
     },
     "pending": {
       "description": "A workflow node is waiting for approval"
