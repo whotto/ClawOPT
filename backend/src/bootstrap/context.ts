@@ -248,9 +248,9 @@ export function createAppContext() {
     },
   });
   const voice = createVoiceService({ db, dataDir: clawoptDataDir, hostCapabilities });
-  const journey = createJourneyService({ db, engineRoster, agentProvisioner, writeGate, memory });
-  const theme = createThemeService({ db, dataDir: clawoptDataDir });
-  const performance = createPerformanceService({ db, runCoordinator, runtimePlatform, automation });
+  const journey = createJourneyService({ engineRoster, agentProvisioner, writeGate, memory });
+  const theme = createThemeService({ db });
+  const performance = createPerformanceService({ runCoordinator, runtimePlatform, automation });
 
   return {
     ...base,

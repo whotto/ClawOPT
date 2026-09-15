@@ -70,7 +70,13 @@ const CURRENT_SITE_BUDGET = 61;
  * `runtime-fs.ts`（P2）是外部运行时 home 的网关：原子写 0600、拒绝穿透软链写、读只读普通文件（命名管道挂不住）；
  * 各适配器只产出「要写哪些文件」的数据，由它落盘。
  */
-const GATEWAY_FILES = new Set(['openclaw-config.ts', 'config-atomic-write.ts', 'safe-file-store.ts', 'runtime-fs.ts']);
+const GATEWAY_FILES = new Set([
+  'openclaw-config.ts', 'config-atomic-write.ts', 'safe-file-store.ts', 'runtime-fs.ts',
+  // P6：文件管理器的本机 fs 网关（`workspace/files/manager/file-manager-fs.ts`）。路径是数据给的（界面上点出来的），
+  // 所以这一个文件里的每个入口都先按 realpath 判在根内（软链逃不出去）、只读普通文件、写一律临时文件 + rename；
+  // 管理器其余文件不直接碰 fs。用例在 `test/file-manager/`。
+  'file-manager-fs.ts',
+]);
 
 /** 上一版只扫 `.ts`，于是一个 `src/x.js` 就完全隐形。 */
 const SCANNED_EXT = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs'];
