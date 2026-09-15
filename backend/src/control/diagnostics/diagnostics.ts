@@ -18,7 +18,7 @@ import { resolveRosterShape, listRosterEntries } from '../../openclaw';
 import { sanitizeErrorDetail } from '../../openclaw';
 import { recentLogEntries, redactLogValue, type LogEntry } from '../../core/logger';
 import type { OpenClawVersionResult } from '../../openclaw';
-import type { RuntimeInvariantIssue } from '../../runtime';
+import type { HostCapabilities, RuntimeInvariantIssue } from '../../runtime';
 
 export interface DiagnosticsDeps {
   readConfig: () => Record<string, unknown> | null;
@@ -27,6 +27,8 @@ export interface DiagnosticsDeps {
   browserHealth: () => { state: string };
   /** 运行时不变量。CI 照不到「某台机器上的状态坏了」，这一层补的就是那个。 */
   checkInvariants: () => RuntimeInvariantIssue[];
+  /** 主机能力（P2，运行时管理器探测）：可用内存、node-pty / sharp、git / pnpm / uv / python。缺省不报。 */
+  hostCapabilities?: () => HostCapabilities | null;
 }
 
 export interface DiagnosticsReport {
@@ -38,6 +40,7 @@ export interface DiagnosticsReport {
   browser: { available: boolean; state: string | null; detail?: string };
   runtime: { node: string; platform: string; arch: string };
   invariants: RuntimeInvariantIssue[];
+  host?: HostCapabilities | { available: false; detail: string };
   logs: LogEntry[];
 }
 
@@ -117,6 +120,11 @@ export function buildDiagnosticsReport(deps: DiagnosticsDeps, logLimit = DIAGNOS
       message: '运行时不变量检查器自身失败，本次报告里的「无告警」不可信',
       details: { detail: invariants.detail },
     }],
+    ...(deps.hostCapabilities ? (() => {
+      const host = attempt(() => deps.hostCapabilities!());
+      if (!host.ok) return { host: { available: false as const, detail: host.detail } };
+      return host.value ? { host: host.value } : {};
+    })() : {}),
     logs: recentLogEntries(logLimit),
   };
 

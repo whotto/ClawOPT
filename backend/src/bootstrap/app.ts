@@ -16,7 +16,7 @@ import path from 'path';
 
 import { registerAuthGate, registerAuthRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
-import { registerExternalRuntimeRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
+import { registerExternalRuntimeRoutes, registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
 import {
   registerAgentRoutes,
   registerCharacterRoutes,
@@ -96,6 +96,8 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerAuthRoutes(routes.forModule('core/auth'), ctx);
   // 公开（按 AUTH_PUBLIC_PATHS 的模式放行），令牌在处理器里常数时间校验。
   registerRuntimeProxyRoutes(routes.forModule('runtime'), ctx);
+  // 运行时管理 / 每运行时配置 / 运行时目录 / 远程 OpenClaw 成员（除成员运行时选择器外全部仅管理员）。
+  registerRuntimePlatformRoutes(routes.forModule('runtime'), ctx);
   registerGatewayRoutes(routes.forModule('control/gateway'), ctx);
   registerModelRoutes(routes.forModule('control/models'), ctx);
   registerCharacterRoutes(routes.forModule('control/agents'), ctx);

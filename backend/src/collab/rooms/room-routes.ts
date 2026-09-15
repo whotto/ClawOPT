@@ -10,7 +10,7 @@ import {
   GROUP_RUN_IN_PROGRESS_ERROR_CODE,
   type RouteApp,
 } from '../../core/http';
-import type { RunCoordinator } from '../../runtime';
+import { sanitizeMemberExternalConfig, type RunCoordinator, type RuntimePlatform } from '../../runtime';
 import type { UploadService } from '../../workspace';
 import {
   buildHistoryPageResponse,
@@ -34,6 +34,7 @@ const GROUP_SSE_KEEPALIVE_MS = 15000;
 export type RoomRoutesDeps = {
   db: DB;
   runCoordinator: RunCoordinator;
+  runtimePlatform: Pick<RuntimePlatform, 'releaseOwner'>;
   rooms: RoomEngine;
   roomMessages: RoomMessages;
   roomReconciliation: RoomReconciliation;
@@ -116,6 +117,9 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
             display_name: m.displayName || m.agentId,
             role_description: m.roleDescription || '',
             position: idx,
+            // P2：新建时也收运行时与外部配置（此前只有编辑能设，新建一个带远程成员的群要保存两次）。
+            runtime: typeof m.runtime === 'string' && m.runtime ? m.runtime : null,
+            external_config: sanitizeMemberExternalConfig(m.externalConfig),
           });
         });
       }
@@ -164,13 +168,19 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
         //
         // runtime / externalConfig 从这里进来，补上此前「有配置、无界面入口」
         // 的缺口（AGENTS.md:75）。
+        const membersBefore = db.getGroupMembers(req.params.id);
         db.replaceGroupMembers(req.params.id, members.map((m: any) => ({
           agentId: m.agentId,
           displayName: m.displayName,
           roleDescription: m.roleDescription,
           runtime: m.runtime ?? null,
-          externalConfig: m.externalConfig ?? null,
+          externalConfig: sanitizeMemberExternalConfig(m.externalConfig),
         })));
+        // P2：被移出群的成员，它的运行时目录一起回收。
+        const keptIds = new Set(db.getGroupMembers(req.params.id).map((member) => member.id));
+        for (const removed of membersBefore.filter((member) => !keptIds.has(member.id))) {
+          ctx.runtimePlatform.releaseOwner({ kind: 'room-member', groupId: req.params.id, memberId: removed.id });
+        }
       }
 
       res.json({ success: true });
@@ -210,6 +220,8 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       const configCleanupFailed = cleanupGroupRuntimeAgent(req.params.id, { removeConfig: true });
       deleteGroupWorkspace(req.params.id);
       db.deleteGroupChat(req.params.id);
+      // P2：群里所有外部成员的运行时目录一起回收。
+      ctx.runtimePlatform.releaseOwner({ kind: 'room-member', groupId: req.params.id });
       // 群、工作区、库行都删干净了；只有 openclaw.json 的清理没跑完（配置读不动）。
       // 措辞是「没跑完」而不是「还留着」——配置读不动时我们并不知道里面有没有那个条目。
       res.json(configCleanupFailed.length > 0

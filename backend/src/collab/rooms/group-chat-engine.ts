@@ -3,8 +3,10 @@ import { randomUUID } from 'crypto';
 import {
   createClaudeCodeRuntimeAdapter,
   runExternalAgent,
+  type AgentRuntimeAdapter,
   type CommandExecutor,
   type RunCoordinator,
+  type RuntimeRunRequest,
 } from '../../runtime';
 import fs from 'fs';
 import { ConfigReadError, readJsonConfigSafe } from '../../openclaw';
@@ -966,6 +968,21 @@ export class GroupChatEngine extends EventEmitter {
     this.runCoordinator = coordinator;
   }
 
+  /**
+   * 外部运行时适配器按 `member.runtime` 从登记处取（P2）。没注入时（老用例）只认 claude-code，
+   * 与 P1a 写死的行为一致。
+   */
+  private adapterFactory: ((runtime: string, executor: CommandExecutor) => AgentRuntimeAdapter<RuntimeRunRequest> | null) | null = null;
+
+  useRuntimeAdapters(factory: (runtime: string, executor: CommandExecutor) => AgentRuntimeAdapter<RuntimeRunRequest> | null): void {
+    this.adapterFactory = factory;
+  }
+
+  private resolveExternalAdapter(runtime: string, executor: CommandExecutor): AgentRuntimeAdapter<RuntimeRunRequest> | null {
+    if (this.adapterFactory) return this.adapterFactory(runtime, executor);
+    return runtime === 'claude-code' ? createClaudeCodeRuntimeAdapter({ executor }) : null;
+  }
+
   private requireRunCoordinator(): RunCoordinator {
     if (!this.runCoordinator) throw new Error('GroupChatEngine: run coordinator is not attached');
     return this.runCoordinator;
@@ -1711,20 +1728,31 @@ export class GroupChatEngine extends EventEmitter {
       allowedTools: Array.isArray(config.allowedTools) ? config.allowedTools : undefined,
       maxBudgetUsd: typeof config.maxBudgetUsd === 'number' ? config.maxBudgetUsd : undefined,
       appendSystemPrompt: config.appendSystemPrompt,
+      // P2：适配器需要成员配置（远程网关地址等，不含密钥）与归属（运行时目录、远程成员令牌按它找）。
+      runtimeConfig: config,
+      owner: { kind: 'room-member' as const, groupId, memberId: member.id, agentId: member.agent_id },
     };
+    const adapter = this.resolveExternalAdapter(runtime, runner);
 
     try {
       // 运行交给协调器：会话行、run marker、陈旧事件、中止、用量去重、工具调用落库、终态顺序都在那里。
       // 这里只剩外部成员自己的约定：消息行（投影器）、续话会话（external_sessions）、链式转发。
       // 成员锁仍在 sendToAgent 里取；协调器按 (群, 成员) 会话键再挡一次并发。
       const modelTag = config.model || runtime;
+      if (!adapter) {
+        // 成员配了一个本机没有登记适配器的运行时：说出来，不静默退回 OpenClaw（v1.3.0 那种「选了不生效」）。
+        const message = `${member.display_name} 执行失败（runtime.adapterNotRegistered: ${runtime}）`;
+        this.db.updateGroupMessage(msgId, message, modelTag, undefined, '');
+        this.emit('edit', { ...basePayload, content: message, process_content: '', process_streaming: false });
+        return msgId;
+      }
       const submitted = await this.requireRunCoordinator().submit({
         sessionKey: externalMemberSessionKey(groupId, member.id),
         surface: 'room',
         topics: [roomTopic(groupId), agentTopic(senderId)],
         agentId: senderId,
         title: member.display_name,
-        adapter: createClaudeCodeRuntimeAdapter({ executor: runner }),
+        adapter,
         request,
         projector: (run) => createExternalMemberProjector({
           db: this.db,

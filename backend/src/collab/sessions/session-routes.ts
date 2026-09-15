@@ -21,7 +21,7 @@ import {
 } from '../../core/http';
 import type { GatewayConnections } from '../../openclaw';
 import { abortOpenClawSessionRuns, buildOpenClawChatSessionKey, ConfigReadError } from '../../openclaw';
-import type { RunCoordinator } from '../../runtime';
+import type { RunCoordinator, RuntimePlatform } from '../../runtime';
 import type { UploadService } from '../../workspace';
 import type { ChatLifecycle } from './chat-lifecycle';
 import type { ChatRuns } from './chat-run-managers';
@@ -81,6 +81,7 @@ export type SessionRoutesDeps = {
   sessionManager: SessionManager;
   chatRuns: ChatRuns;
   runCoordinator: RunCoordinator;
+  runtimePlatform: Pick<RuntimePlatform, 'releaseOwner'>;
   chatLifecycle: ChatLifecycle;
   chatMessages: ChatMessages;
   sessionRuntime: SessionRuntime;
@@ -280,6 +281,8 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     
     if (success) {
       sessionInterruptionEpochs.delete(req.params.id);
+      // P2：这个会话在各外部运行时下的运行时目录一起回收（参考实现从不回收）。
+      ctx.runtimePlatform.releaseOwner({ kind: 'session', sessionId: req.params.id });
       if (agentId && agentId !== 'main') {
         // deprovision() 现在会对「配置读不动」抛 ConfigReadError（原来是静默
         // `return false`，于是这条路由报 200 success 而配置条目、工作区、状态目录、

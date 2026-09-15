@@ -104,6 +104,60 @@ export {
   registerRuntimeProxyBodyParser,
   registerRuntimeProxyRoutes,
 } from './proxy/proxy-routes';
+// ---- P2-platform：适配器登记、运行时管理器、MCP、远程 OpenClaw、底座组装 ----
+export {
+  RuntimeAdapterRegistry,
+  registerAdapter,
+  runtimeAdapterRegistry,
+} from './adapter-registry';
+export type {
+  RegisteredRuntimeAdapter,
+  RuntimeAdapterDeps,
+  RuntimeAdapterFactory,
+  RuntimeRunRequest,
+} from './adapter-registry';
+export { registerBuiltinAdapters } from './builtin-adapters';
+export { sanitizeMemberExternalConfig } from './member-config';
+export { createRuntimePlatform } from './platform';
+export type { RuntimePlatform, RuntimePlatformOptions } from './platform';
+export { registerRuntimePlatformRoutes } from './platform-routes';
+export {
+  BUILTIN_RUNTIME_DESCRIPTORS,
+  CHILD_ENV_ALLOWLIST,
+  LocalRuntimeManager,
+  RuntimeHomes,
+  RuntimeManagerError,
+  createRuntimeManager,
+  probeHostCapabilities,
+  sanitizeProcessOutput,
+} from './manager';
+export type {
+  HostCapabilities,
+  RuntimeDescriptor,
+  RuntimeHomeOwner,
+  RuntimeManager,
+  RuntimeStatus,
+} from './manager';
+export {
+  createMcpInjector,
+  isManagedMcpServer,
+  shapeClaudeMcpConfig,
+  shapeCodexMcpConfig,
+  shapeDshMcpPatch,
+  shapeGrokMcpConfig,
+  shapeMcpConfig,
+  shapeOpenCodeMcpConfig,
+  shapePiMcpConfig,
+} from './mcp';
+export type { ManagedMcpServer, McpInjector } from './mcp';
+export {
+  REMOTE_OPENCLAW_CAPABILITIES,
+  REMOTE_OPENCLAW_DESCRIPTOR,
+  REMOTE_OPENCLAW_RUNTIME_ID,
+  RemoteMemberSecretStore,
+  createRemoteOpenClawRuntimeAdapter,
+  testRemoteOpenClawConnection,
+} from './remote-openclaw';
 export {
   LocalSecretBox,
   constantTimeEquals,

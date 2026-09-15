@@ -9,7 +9,7 @@ import type { ConfigManager } from '../../core/config';
 import { parseRealtimeTopic, type RealtimeHub } from '../../core/realtime';
 import type { DB } from '../../core/db';
 import type { GatewayConnections } from '../../openclaw';
-import type { RunCoordinator } from '../../runtime';
+import type { RunCoordinator, RuntimePlatform } from '../../runtime';
 import { ConfigReadError } from '../../openclaw';
 import type { SessionManager } from '../sessions';
 import { GroupChatEngine } from './group-chat-engine';
@@ -20,6 +20,7 @@ import type { RoomRuntime } from './room-runtime';
 export type RoomEngineDeps = {
   realtime: RealtimeHub;
   runCoordinator: RunCoordinator;
+  runtimePlatform: Pick<RuntimePlatform, 'createAdapter'>;
   agentProvisioner: AgentProvisioner;
   configManager: ConfigManager;
   db: DB;
@@ -78,6 +79,8 @@ export function createRoomEngine(ctx: RoomEngineDeps) {
   });
 
   groupChatEngine.useRunCoordinator(ctx.runCoordinator);
+  // P2：外部成员的适配器按运行时 id 从登记处取（Claude Code、远程 OpenClaw、以及适配器分支登记的其余运行时）。
+  groupChatEngine.useRuntimeAdapters((runtime, executor) => ctx.runtimePlatform.createAdapter(runtime, { executor }));
 
   // SSE clients per group
   const groupSSEClients = new Map<string, Set<express.Response>>();

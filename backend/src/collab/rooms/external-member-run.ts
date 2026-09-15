@@ -45,7 +45,8 @@ export type ExternalMemberProjectorDeps = {
 
 export function describeExternalFailure(outcome: AdapterRunOutcome): string {
   if (outcome.kind === 'aborted') return 'aborted';
-  if (outcome.kind === 'failed') return outcome.error || 'unknown';
+  // 有 messageCode 的失败（远程 OpenClaw 成员连不上、没配令牌……）优先报码：原话可能带地址，码能被界面与排障对上。
+  if (outcome.kind === 'failed') return outcome.code || outcome.error || 'unknown';
   return 'unknown';
 }
 

@@ -103,7 +103,8 @@ describe('外部成员必须真的被路由过去', () => {
     expect(body, '外部成员绕过了协调器：陈旧检查、中止、用量去重、工具调用落库全部失效')
       .toContain('requireRunCoordinator().submit(');
     expect(body, '执行器又被直接调用了——它应当只作为适配器的注入项').not.toMatch(/await runner\(/);
-    expect(body).toContain('createClaudeCodeRuntimeAdapter({ executor: runner })');
+    // P2：适配器按 member.runtime 从登记处取（不再写死 Claude Code），执行器仍作为注入项传进去。
+    expect(body).toContain('this.resolveExternalAdapter(runtime, runner)');
   });
 
   it('群聊停止也中止协调器里的外部成员运行（否则停止按钮停不住外部 Agent）', () => {

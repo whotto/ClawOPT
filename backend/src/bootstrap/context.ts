@@ -30,7 +30,7 @@ import {
   createOpenClawUpdateService,
   createPackService,
 } from '../control';
-import { createOpenClawRuntimeAdapter, createProviderProxy, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
+import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
 import { createPreviewService, createUploadService } from '../workspace';
 import {
   createChatCommands,
@@ -88,7 +88,27 @@ export function createAppContext() {
     dataDir: defaultRuntimeDataDir(),
   });
 
-  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator, openclawAdapter, providerProxy };
+  /**
+   * 外部运行时底座（P2）：运行时管理器（安装 / 升级锁 / PATH 发现 / 运行时目录回收）、MCP 注入、
+   * 适配器登记、远程 OpenClaw 成员令牌。忙闲判据与卸载后停运行都接到协调器。
+   */
+  const runtimePlatform = createRuntimePlatform({
+    dataDir: defaultRuntimeDataDir(),
+    proxy: providerProxy,
+    isRuntimeBusy: (runtime) => runCoordinator.activeRuns().some((run) => run.runtime === runtime),
+    stopRuntimeRuns: async (runtime) => {
+      await Promise.all(runCoordinator.activeRuns()
+        .filter((run) => run.runtime === runtime)
+        .map((run) => runCoordinator.abort(run.sessionKey, 'user_stop')));
+    },
+  });
+  runtimePlatform.manager.homeOwnerExists = (owner) => {
+    if (owner.kind === 'session') return Boolean(db.getSession(owner.sessionId));
+    if (owner.kind === 'room-member') return db.getGroupMembers(owner.groupId).some((member) => member.id === owner.memberId);
+    return true;
+  };
+
+  const base = { db, configManager, sessionManager, authStore, agentProvisioner, connections, realtime, runCoordinator, openclawAdapter, providerProxy, runtimePlatform };
 
   const uploads = createUploadService(base);
   const gatewayService = createGatewayService(base);
