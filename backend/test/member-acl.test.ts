@@ -268,6 +268,13 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
       ['/api/chat/s-other/events'],
       ['/api/chat/s-other/queue/q-1', { method: 'DELETE' }],
       ['/api/chat/s-other/queue/q-1/insert', { method: 'POST' }],
+      // P1b 会话组织：挪分类、归档、改标题、导出按会话判；分叉与批量删除是管理员的
+      ['/api/sessions/s-other/category', { method: 'PUT', body: JSON.stringify({ categoryId: null }) }],
+      ['/api/sessions/s-other/archive', { method: 'PUT', body: JSON.stringify({ archived: true }) }],
+      ['/api/sessions/s-other/title', { method: 'PUT', body: JSON.stringify({ title: 'x' }) }],
+      ['/api/sessions/s-other/export?format=json'],
+      ['/api/sessions/s-main/fork', post({})],
+      ['/api/sessions/batch-delete', post({ ids: ['s-main'] })],
       ['/api/sessions/s-other/configs'],
       ['/api/sessions/s-other/workspace-changes?messageIds=1'],
       ['/api/sessions/s-other/workspace-changes/wc-other/files/1'],
@@ -292,6 +299,9 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
     expect((await status(tokens.member, '/api/history/s-main')).code).toBe(200);
     expect((await status(tokens.member, '/api/chat/s-main/active-run')).code).toBe(200);
     expect((await status(tokens.member, '/api/chat/s-main/state')).code).toBe(200);
+    const organization = await status(tokens.member, '/api/session-organization');
+    expect(Object.keys(organization.body.sessions)).toContain('s-main');
+    expect(Object.keys(organization.body.sessions)).not.toContain('s-other');
     expect((await status(tokens.member, '/api/chat/s-main/queue/q-missing', { method: 'DELETE' })).code).toBe(404);
     // 工作区改动（P1b）：自己会话的摘要照常；拿自己会话的路径读别人会话的变更集按不存在（404），不串会话
     h.ctx.db.workspaceRunChanges.save({
