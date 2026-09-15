@@ -26,6 +26,7 @@ import type { RealtimeEvent, RealtimeHub } from '../../core/realtime';
 import {
   acceptsAdapterEvent,
   assertHandleMatchesCapabilities,
+  boundToolOutputForStorage,
   facetOf,
   type AdapterEvent,
   type AdapterRunHandle,
@@ -443,8 +444,10 @@ export class RunCoordinator {
       completion,
       droppedEvents: 0,
     };
+    // 存储这一级的上限在落库前统一施加（线上与上下文两级在各自的出口）。
     run.toolGroups = new ToolCallGroups((calls) => this.store.persistToolCalls(calls.map((call) => ({
       ...call,
+      output: boundToolOutputForStorage(call.output),
       sessionKey: submission.sessionKey,
       runId: run.runId,
       runMarker: run.runMarker,

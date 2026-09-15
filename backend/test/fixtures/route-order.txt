@@ -139,6 +139,8 @@ POST /api/chat/stop
 POST /api/chat/silent
 GET /api/chat/:sessionId/state
 GET /api/chat/:sessionId/context-usage
+GET /api/chat/:sessionId/tool-calls
+GET /api/chat/:sessionId/tool-calls/:callRowId
 DELETE /api/chat/:sessionId/queue/:queueId
 POST /api/chat/:sessionId/queue/:queueId/insert
 GET /api/chat/:sessionId/events

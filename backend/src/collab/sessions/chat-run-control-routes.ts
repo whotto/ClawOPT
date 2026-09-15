@@ -22,9 +22,10 @@ import { buildStructuredChatHttpError } from './chat-messages';
 import { chatSessionTopic, openSseResponse, writeSseFrame } from './chat-stream';
 import { CHAT_USER_MESSAGE_EVENT } from './chat-turn-rows';
 import type { ContextUsage } from './context-usage';
+import { getToolCallFull, listToolTraces, parseMessageIdList } from './tool-trace';
 
 export type ChatRunControlDeps = {
-  db: Pick<DB, 'getSession'>;
+  db: Pick<DB, 'getSession' | 'connection'>;
   /** 上下文占用徽标（最近一次模型调用的占用 + 模型配置里的窗口）。 */
   contextUsage: (sessionId: string) => ContextUsage;
   realtime: RealtimeHub;
@@ -101,6 +102,23 @@ export function registerChatRunControlRoutes(app: RouteApp, deps: ChatRunControl
   app.get('/api/chat/:sessionId/context-usage', deps.guardParamSession, (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ success: true, ...deps.contextUsage(req.params.sessionId) });
+  });
+
+  // 工具轨迹摘要（按运行分组，线上截断）与单个调用的完整内容（复制完整内容）。
+  app.get('/api/chat/:sessionId/tool-calls', deps.guardParamSession, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ success: true, runs: listToolTraces(deps.db.connection(), req.params.sessionId, parseMessageIdList(req.query.messageIds)) });
+  });
+
+  app.get('/api/chat/:sessionId/tool-calls/:callRowId', deps.guardParamSession, (req, res) => {
+    const id = Number(req.params.callRowId);
+    const full = Number.isInteger(id) && id > 0 ? getToolCallFull(deps.db.connection(), req.params.sessionId, id) : null;
+    if (!full) {
+      res.status(404).json(buildStructuredChatHttpError('Tool call not found.', 'chat.toolCallNotFound'));
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ success: true, call: full });
   });
 
   app.delete('/api/chat/:sessionId/queue/:queueId', deps.guardParamSession, (req, res) => {
