@@ -72,7 +72,12 @@ export default function AgentsPage() {
   const [error, setError] = useState<ErrorDisplay | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
 
-  const agents = shell.sessions.map((session) => ({ id: session.agentId || session.id, name: session.name }));
+  const [engineAgentIds, setEngineAgentIds] = useState<string[]>([]);
+
+  // 统一名册：ClawOPT 会话里的 Agent + 只存在于引擎名册里的 Agent（用 `openclaw agents` 建的）。
+  const sessionAgents = shell.sessions.map((session) => ({ id: session.agentId || session.id, name: session.name, engineOnly: false }));
+  const known = new Set(sessionAgents.map((agent) => agent.id));
+  const agents = [...sessionAgents, ...engineAgentIds.filter((id) => !known.has(id)).map((id) => ({ id, name: id, engineOnly: true }))];
   const current = agents.find((agent) => agent.id === selected) ?? agents[0];
 
   const loadAvatars = async () => {
@@ -82,6 +87,9 @@ export default function AgentsPage() {
 
   useEffect(() => {
     void loadAvatars();
+    readApi<{ agents: Array<{ id: string }> }>(rosterApi.engineAgents())
+      .then((result) => { if (result.ok) setEngineAgentIds(result.data.agents.map((agent) => agent.id)); })
+      .catch(() => undefined);
   }, []);
 
   const uploadAvatar = async (file: File) => {
@@ -127,6 +135,7 @@ export default function AgentsPage() {
                   <div className="text-sm font-medium text-gray-900 truncate">{agent.name}</div>
                   <div className="text-xs text-gray-400 font-mono truncate">{agent.id}</div>
                 </div>
+                {agent.engineOnly && <span className="ml-auto"><Badge>{t('control.agents.engineOnly')}</Badge></span>}
               </button>
             ))}
           </Card>
@@ -146,7 +155,8 @@ export default function AgentsPage() {
                     <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAvatar(file); event.target.value = ''; }} />
                     <Button size="sm" onClick={() => fileInput.current?.click()}><ImagePlus className="w-3.5 h-3.5" />{t('control.agents.uploadAvatar')}</Button>
                     {avatars[current.id] !== undefined && <Button size="sm" onClick={() => void rosterApi.removeAvatar(current.id).then(loadAvatars)}><Trash2 className="w-3.5 h-3.5" />{t('control.agents.removeAvatar')}</Button>}
-                    <Button size="sm" onClick={() => setCloning(true)}><Copy className="w-3.5 h-3.5" />{t('control.agents.clone')}</Button>
+                    {/* 克隆以 ClawOPT 里的 Agent 为源（要复制它的会话设置）；只在引擎名册里的 Agent 先经「导入」纳入。 */}
+                    {!current.engineOnly && <Button size="sm" onClick={() => setCloning(true)}><Copy className="w-3.5 h-3.5" />{t('control.agents.clone')}</Button>}
                   </div>
                 )}
               </div>

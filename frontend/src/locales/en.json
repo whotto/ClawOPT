@@ -1086,7 +1086,7 @@
     },
     "cron": {
       "title": "Scheduled jobs",
-      "description": "Description",
+      "description": "Jobs scheduled by the OpenClaw gateway. Jobs live in the engine; ClawOPT is only their control panel.",
       "create": "New job",
       "createTitle": "New scheduled job",
       "editTitle": "Edit scheduled job",
@@ -1163,7 +1163,8 @@
         "custom": "cron: {{expr}}",
         "every": "Every {{every}}",
         "at": "Once: {{at}}"
-      }
+      },
+      "descriptionLabel": "Description"
     },
     "mcp": {
       "title": "MCP servers",
@@ -1315,7 +1316,8 @@
       "fileMissing": "The file does not exist yet; saving creates it",
       "chars": "{{count}} chars",
       "modified": "Modified",
-      "saveOrResetFirst": "Save or reset the current file first"
+      "saveOrResetFirst": "Save or reset the current file first",
+      "engineOnly": "Engine only"
     },
     "writeGate": {
       "toggle": "Require approval when the agent edits its memory or skills",

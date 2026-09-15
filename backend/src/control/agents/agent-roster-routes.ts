@@ -23,7 +23,10 @@ export function registerAgentRosterRoutes(app: RouteApp, ctx: AgentRosterRoutesD
 
   app.get('/api/engine/agents', controlHandler(async (req, res) => {
     const identity = getRequestIdentity(req);
-    const agents = (await roster.list({ fresh: req.query.refresh === '1' })).filter((agent) => canAccessAgent(identity, agent.id));
+    // 只回 id 与标记：工作区 / agentDir 是主机绝对路径（含用户名），界面用不到，不往外给。
+    const agents = (await roster.list({ fresh: req.query.refresh === '1' }))
+      .filter((agent) => canAccessAgent(identity, agent.id))
+      .map((agent) => ({ id: agent.id, isDefault: agent.isDefault, bindings: agent.bindings, hasWorkspace: agent.workspace !== null }));
     res.json({ success: true, agents });
   }));
 

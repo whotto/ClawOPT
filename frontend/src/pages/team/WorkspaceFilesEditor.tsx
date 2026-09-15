@@ -45,9 +45,11 @@ export default function WorkspaceFilesEditor({ agentId, canEdit }: { agentId: st
     void loadList();
   }, [loadList]);
 
+  // 列表读不到（工作区不存在、未授权）时不去读单个文件，也不显示编辑器。
+  const available = files !== null && files.length > 0;
   useEffect(() => {
-    void loadFile(active);
-  }, [active, loadFile]);
+    if (available) void loadFile(active);
+  }, [active, available, loadFile]);
 
   const dirty = file !== null && draft !== file.content;
   const chars = [...draft].length;
@@ -103,7 +105,7 @@ export default function WorkspaceFilesEditor({ agentId, canEdit }: { agentId: st
           </div>
         </Notice>
       )}
-      {!file ? <LoadingRow /> : (
+      {!available ? null : !file ? <LoadingRow /> : (
         <>
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
             {!file.exists && <Badge tone="amber">{t('control.agents.fileMissing')}</Badge>}

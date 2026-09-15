@@ -1086,7 +1086,7 @@
     },
     "cron": {
       "title": "定時任務",
-      "description": "描述",
+      "description": "由 OpenClaw 網關調度的定時任務。任務保存在引擎裡，ClawOPT 只是它的控制面。",
       "create": "新建任務",
       "createTitle": "新建定時任務",
       "editTitle": "編輯定時任務",
@@ -1163,7 +1163,8 @@
         "custom": "cron：{{expr}}",
         "every": "每隔 {{every}}",
         "at": "單次：{{at}}"
-      }
+      },
+      "descriptionLabel": "描述"
     },
     "mcp": {
       "title": "MCP 伺服器",
@@ -1315,7 +1316,8 @@
       "fileMissing": "文件還不存在，保存後創建",
       "chars": "{{count}} 字",
       "modified": "修改時間",
-      "saveOrResetFirst": "先保存或還原當前文件的改動"
+      "saveOrResetFirst": "先保存或還原當前文件的改動",
+      "engineOnly": "僅引擎"
     },
     "writeGate": {
       "toggle": "Agent 自改記憶與技能需要審批",

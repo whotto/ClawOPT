@@ -119,7 +119,7 @@ export default function CronJobModal({ job, agents, channels, onClose, onSaved }
       </label>
 
       <label className="block">
-        <span className={labelClass}>{t('control.cron.description')}</span>
+        <span className={labelClass}>{t('control.cron.descriptionLabel')}</span>
         <input value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} maxLength={1000} />
       </label>
 
