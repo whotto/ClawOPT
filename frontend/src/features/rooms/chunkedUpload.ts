@@ -58,7 +58,7 @@ export async function uploadInChunks(
 export function fetchUploadTransport(base: string, headers: Record<string, string> = {}): UploadTransport {
   const json = async (response: Response) => {
     const body = await response.json().catch(() => null) as any;
-    if (!response.ok || !body?.success) throw new UploadFailedError(body?.code || body?.error?.code || body?.errorCode || 'upload.failed', body?.message || body?.error);
+    if (!response.ok || !body?.success) throw new UploadFailedError(body?.errorCode || 'upload.failed', body?.errorDetail || body?.error);
     return body;
   };
   return {
