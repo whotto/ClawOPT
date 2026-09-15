@@ -14,7 +14,7 @@ import cors from 'cors';
 import express from 'express';
 import path from 'path';
 
-import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
+import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS, type RequestIdentity } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
 import { registerRunApprovalRoutes, registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
 import {
@@ -127,8 +127,22 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerSessionRoutes(routes.forModule('collab/sessions'), ctx);
   registerChatRoutes(routes.forModule('collab/sessions'), ctx);
   // 等人答复的运行审批（真审批运行时的单聊 / 群成员）：按用户过滤。
-  registerRunApprovalRoutes(routes.forModule('runtime'), { ...ctx, canHandle: (identity, sessionKey, id) => ctx.roomCollab.interactions.canHandleSession(sessionKey, id, identity) });
-  registerUploadRoutes(routes.forModule('workspace/uploads'), ctx);
+  // 附加的判据挂在以 ctx 为原型的对象上（不展开 ctx：路由清单生成用的是按需取值的桩上下文，展开会丢字段）。
+  registerRunApprovalRoutes(routes.forModule('runtime'), Object.assign(Object.create(ctx) as AppContext, {
+    // 群成员会话的审批只给 Agent 主人（P3）。
+    canHandle: (identity: RequestIdentity, sessionKey: string, id: string) => ctx.roomCollab.interactions.canHandleSession(sessionKey, id, identity),
+  }));
+  registerUploadRoutes(routes.forModule('workspace/uploads'), Object.assign(Object.create(ctx) as AppContext, {
+    admitGroupUpload: (groupId: string, sizes: number[]) => {
+      try {
+        ctx.roomCollab.attachments.admitLegacyUpload(groupId, sizes);
+        return null;
+      } catch (error) {
+        const { status, code } = error as { status?: number; code?: string };
+        return { status: status ?? 400, errorCode: code ?? 'groups.attachmentInvalid' };
+      }
+    },
+  }));
   registerCommandRoutes(routes.forModule('control/commands'), ctx);
   registerFileRoutes(routes.forModule('workspace/files'), ctx);
   registerWorkflowRoutes(routes.forModule('automation'), ctx);

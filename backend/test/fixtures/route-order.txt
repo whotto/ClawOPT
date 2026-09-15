@@ -291,6 +291,11 @@ POST /api/groups/:id/workspace/mkdir
 POST /api/groups/:id/workspace/rename
 POST /api/groups/:id/workspace/delete
 GET /api/groups/:id/workspace/download
+POST /api/groups/:id/attachments/uploads
+GET /api/groups/:id/attachments/uploads/:uploadId
+PUT /api/groups/:id/attachments/uploads/:uploadId
+POST /api/groups/:id/attachments/uploads/:uploadId/complete
+DELETE /api/groups/:id/attachments/uploads/:uploadId
 GET /api/groups/:id/interactions
 POST /api/groups/:id/interactions/:interactionId/respond
 GET /api/groups/:id/summary

@@ -5,13 +5,15 @@ import path from 'path';
 
 import { getRequestIdentity, type ResourceAccess } from '../../core/auth';
 import type { DB } from '../../core/db';
-import { isStructuredRequestError, type RouteApp } from '../../core/http';
+import { buildStructuredApiError, isStructuredRequestError, type RouteApp } from '../../core/http';
 import type { UploadService } from './upload-service';
 
 export type UploadRoutesDeps = {
   db: DB;
   uploads: UploadService;
   access: Pick<ResourceAccess, 'canAccessSessionOrRoom'>;
+  /** 群上传的上限判定（P3，群协作组装时接上）：放行返回 null，否则给状态码与错误码。 */
+  admitGroupUpload?: (groupId: string, sizes: number[]) => { status: number; errorCode: string } | null;
 };
 
 export function registerUploadRoutes(app: RouteApp, ctx: UploadRoutesDeps): void {
@@ -35,6 +37,14 @@ export function registerUploadRoutes(app: RouteApp, ctx: UploadRoutesDeps): void
       if (!files.length) return res.status(400).json({ success: false, error: 'No files uploaded' });
 
       const uploadTarget = resolveUploadTargetFromBody((req.body || {}) as Record<string, unknown>);
+      // P3：群上传与群附件接口同一套上限（单文件、每群配额、限流）；超了删掉刚落盘的文件再回错。
+      if (uploadTarget.contextType === 'group' && uploadTarget.groupId && ctx.admitGroupUpload) {
+        const verdict = ctx.admitGroupUpload(uploadTarget.groupId, files.map((f) => f.size));
+        if (verdict) {
+          for (const f of files) fs.rmSync(f.path, { force: true });
+          return res.status(verdict.status).json(buildStructuredApiError(verdict.errorCode));
+        }
+      }
       const IMAGE_TARGET_SIZE = 4_500_000; // 4.5MB target for images (OpenClaw has 5MB limit)
 
       const saved = await Promise.all(files.map(async (f) => {

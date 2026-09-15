@@ -1,4 +1,7 @@
 import type express from 'express';
+import { raw as expressRaw } from 'express';
+
+import { AttachmentError, ATTACHMENT_CHUNK_BYTES } from './room-attachments';
 
 import { getRequestIdentity, groupMemberAccessAgentId, type ResourceAccess, sendResourceForbidden } from '../../core/auth';
 import type { DB } from '../../core/db';
@@ -41,6 +44,8 @@ import type { RoomReconciliation } from './room-reconciliation';
 import { createNextGroupRuntimeSessionEpoch, type RoomRuntime } from './room-runtime';
 
 const GROUP_SSE_KEEPALIVE_MS = 15000;
+/** 分块上传的请求体：原始字节，上限比一个分块略大（多出来的由服务层判 400）。 */
+const rawChunkParser = expressRaw({ type: 'application/octet-stream', limit: ATTACHMENT_CHUNK_BYTES + 1024 });
 
 export type RoomRoutesDeps = {
   db: DB;
@@ -348,6 +353,10 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
       res.status(error.status).json(buildStructuredApiError(error.code, error.message, error.params as any));
       return true;
     }
+    if (error instanceof AttachmentError) {
+      res.status(error.status).json(buildStructuredApiError(error.code, error.message));
+      return true;
+    }
     return false;
   };
 
@@ -607,6 +616,58 @@ export function registerRoomRoutes(app: RouteApp, ctx: RoomRoutesDeps): void {
     } catch (error) {
       if (isStructuredRequestError(error)) return res.status(error.status).json(error.payload);
       sendWorkspaceError(res, error);
+    }
+  });
+
+  /**
+   * 附件的可续传分块上传（看得见群即可上传；单文件 20 MB、每群 500 MB、每群每分钟 30 次、分块 256 KB）。
+   * 会话绑定发起人；分块按 offset 顺序追加，断线后 GET 状态从已收处续传。
+   */
+  const sendAttachmentError = (res: express.Response, error: unknown) => {
+    if (error instanceof AttachmentError) return res.status(error.status).json(buildStructuredApiError(error.code, error.message));
+    return res.status(500).json({ success: false, error: (error as Error)?.message });
+  };
+  const actorOf = (req: express.Request) => collab.roomAccess.actorFromIdentity(getRequestIdentity(req));
+
+  app.post('/api/groups/:id/attachments/uploads', guardRoom, (req, res) => {
+    try {
+      res.json({ success: true, ...collab.attachments.openUpload(req.params.id, actorOf(req), { name: req.body?.name, size: req.body?.size, mediaType: req.body?.mediaType }) });
+    } catch (error) {
+      sendAttachmentError(res, error);
+    }
+  });
+
+  app.get('/api/groups/:id/attachments/uploads/:uploadId', guardRoom, (req, res) => {
+    try {
+      res.json({ success: true, ...collab.attachments.status(req.params.id, req.params.uploadId, actorOf(req)) });
+    } catch (error) {
+      sendAttachmentError(res, error);
+    }
+  });
+
+  app.put('/api/groups/:id/attachments/uploads/:uploadId', guardRoom, rawChunkParser, (req, res) => {
+    try {
+      const chunk = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      res.json({ success: true, ...collab.attachments.appendChunk(req.params.id, req.params.uploadId, actorOf(req), Number(req.query.offset), chunk) });
+    } catch (error) {
+      sendAttachmentError(res, error);
+    }
+  });
+
+  app.post('/api/groups/:id/attachments/uploads/:uploadId/complete', guardRoom, (req, res) => {
+    try {
+      res.json({ success: true, attachment: collab.attachments.complete(req.params.id, req.params.uploadId, actorOf(req), req.body?.sha256) });
+    } catch (error) {
+      sendAttachmentError(res, error);
+    }
+  });
+
+  app.delete('/api/groups/:id/attachments/uploads/:uploadId', guardRoom, (req, res) => {
+    try {
+      collab.attachments.abort(req.params.id, req.params.uploadId, actorOf(req));
+      res.json({ success: true });
+    } catch (error) {
+      sendAttachmentError(res, error);
     }
   });
 

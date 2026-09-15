@@ -29,7 +29,7 @@ import {
 } from './mentions';
 import type { RoomAccess } from './room-access';
 import { isRelayMember } from './room-access';
-import type { RoomMessageStore } from './room-message-store';
+import type { RoomMessageAttachment, RoomMessageStore } from './room-message-store';
 import {
   handoffAllows,
   originatorDisplayName,
@@ -116,7 +116,7 @@ export type RoomOrchestratorDeps = {
   emitMessage: (payload: Record<string, unknown>) => void;
   publish: (groupId: string, frame: { type: string; data: unknown }) => void;
   /** 附件重绑（消息里引用的上传必须属于这个群）；不合法抛 `RoomRequestError`。 */
-  rebindAttachments?: (groupId: string, content: string, actor: RoomActor) => string;
+  rebindAttachments?: (groupId: string, content: string, actor: RoomActor) => { content: string; attachments: RoomMessageAttachment[] };
   /** 异步委派落库（room-delegation.ts）。 */
   createDelegation?: (input: { groupId: string; sourceMessageId: number; from: GroupMemberRow; to: GroupMemberRow; task: string; originator: RoomOriginator; depth: number; chainId: string }) => void;
   onDelegationTaskFinished?: (delegationId: string, result: MemberTurnResult) => void;
@@ -252,7 +252,8 @@ export function createRoomOrchestrator(deps: RoomOrchestratorDeps) {
       throw new RoomRequestError(403, 'groups.allMentionForbidden');
     }
 
-    const content = deps.rebindAttachments ? deps.rebindAttachments(input.groupId, input.content, input.actor) : input.content;
+    const rebound = deps.rebindAttachments ? deps.rebindAttachments(input.groupId, input.content, input.actor) : { content: input.content, attachments: [] };
+    const content = rebound.content;
     const originator = originatorFromActor(input.actor, policy);
     const senderName = input.actor.kind === 'guest' ? input.actor.name : (input.actor.username || '用户');
     const parentId = deps.db.getLatestGroupMessageId(input.groupId);
@@ -265,6 +266,7 @@ export function createRoomOrchestrator(deps: RoomOrchestratorDeps) {
       mentionDepth: 0,
       handoffChainId: String(messageId),
       originator,
+      attachments: rebound.attachments,
     });
     deps.emitMessage({
       groupId: input.groupId, id: messageId, parent_id: parentId, sender_type: 'user', sender_name: senderName, content, created_at: createdAt,

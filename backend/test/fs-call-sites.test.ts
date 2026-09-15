@@ -65,8 +65,11 @@ const BASELINE = path.join(__dirname, 'fixtures', 'fs-call-sites.json');
  * 61 → 63（P3）：`collab/rooms/room-workspace.ts` 的 `readRegularFile` 与 `writeFileAtomic` 是群工作区（文件编辑器、远程工作区令牌接口、
  * 每次运行的 diff 快照）唯一的读写入口。路径来自请求，但先过 `normalizeRelativePath`（不收绝对路径与 `..`、敏感名字拒绝）
  * 与 `resolveInsideRoot`（realpath 必须仍在工作区根里）；读之前 lstat 拒绝软链接与非普通文件，写走同目录临时文件 + rename。
+ *
+ * 63 → 64（P3）：`collab/rooms/room-attachments.ts::appendChunk` 的 `appendFileSync` 是群附件分块上传唯一的写入口。
+ * 路径完全由服务端生成（群上传目录下的 `.partial/<随机 uploadId>`），分块大小、偏移与声明大小都先校验；其余读写复用上面两个入口。
  */
-const CURRENT_SITE_BUDGET = 63;
+const CURRENT_SITE_BUDGET = 64;
 
 /**
  * 网关自己就是那唯一一处实现，不计入。

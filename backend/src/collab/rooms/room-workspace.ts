@@ -62,7 +62,7 @@ export function readRegularFile(abs: string): Buffer {
 }
 
 /** 群工作区里**唯一**的写入口：同目录临时文件 + rename（0644），调用方已按路径加锁并做完 SHA-256 并发检查。 */
-function writeFileAtomic(abs: string, temp: string, content: Buffer): void {
+export function writeFileAtomic(abs: string, temp: string, content: Buffer): void {
   fs.writeFileSync(temp, content, { mode: 0o644 });
   fs.renameSync(temp, abs);
 }

@@ -8,7 +8,11 @@ import type { RealtimeHub } from '../../core/realtime';
 import type { RunCoordinator } from '../../runtime';
 import { createRoomInteractions, parseRoomMemberSessionKey } from './room-interactions';
 import type { DB, GroupMemberRow } from '../../core/db';
+import path from 'path';
+
 import { createHandoffDispatcher } from './handoff-dispatcher';
+import { ensureGroupWorkspace } from './group-workspace';
+import { createRoomAttachments } from './room-attachments';
 import { createHandoffStore } from './handoff-store';
 import { getStructuredGroupMessage, type RoomRunScope, type RoomTurnHooks } from './group-chat-engine';
 import { stripMentionsForRecipient } from './mentions';
@@ -87,6 +91,13 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     invalidate: (groupId) => summaryPort.invalidate(groupId),
   };
 
+  const attachments = createRoomAttachments({
+    conn,
+    uploadsDir: (groupId) => ensureGroupWorkspace(groupId).uploadsPath,
+    legacyUploadOwner: (storedPath) => (deps.db.getFileByStoredName(path.basename(storedPath))?.session_key as string | undefined) ?? null,
+    registerFile: (file) => deps.db.saveFile({ sessionKey: file.groupId, originalName: file.originalName, mimeType: file.mimeType, size: file.size, storedPath: file.storedPath }),
+  });
+
   const summary = createRoomSummary({
     conn,
     policies,
@@ -122,6 +133,7 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     summary: summaryProxy,
     isMemberOnline,
     emitMessage: (payload) => engine.emit('message', payload),
+    rebindAttachments: (groupId, content) => attachments.rebind(groupId, content),
     publish,
     onContinuationFinished: (attemptId, result) => dispatcherRef.current?.onTurnFinished(attemptId, result),
     log,
@@ -224,11 +236,14 @@ export function createRoomCollab(deps: RoomCollabDeps) {
     useRelay(port: RoomRelayPort) { relay = port; },
     summary,
     interactions,
+    attachments,
     /** 清空 / 删除房间时：协作表里这个群的状态一并清掉，摘要失效，会话种子轮换。 */
     clearRoomState(groupId: string) {
       queueStore.deleteForGroup(groupId);
       handoffs.deleteForGroup(groupId);
       workspaceChanges.deleteForGroup(groupId);
+      // 附件文件本身由路由里的 clearStoredFilesBySessionKey 按 files 表删；这里清登记与进行中的上传会话。
+      attachments.deleteForGroup(groupId);
       conn.prepare('DELETE FROM room_summaries WHERE group_id = ?').run(groupId);
       policies.bumpSummaryGeneration(groupId);
       policies.rotateSessionSeed(groupId);
