@@ -1,5 +1,7 @@
 // 消息滚动区：骨架屏、日期徽标 / 空状态与消息气泡列表。isLatest 等传给气泡的属性与拆分前逐字一致。
+import { Fragment } from 'react';
 import { Users } from 'lucide-react';
+import { WorkspaceChangesCard } from '../../rooms/RoomWorkspace';
 import { MessageBubble } from '../message';
 import { GROUP_MAX_CHAIN_DEPTH_MESSAGE_CODE } from '../lib/constants';
 import { resolveStructuredMessageContent } from '../lib/messageMapping';
@@ -135,9 +137,11 @@ export function MessageList(c: MessageListProps) {
                   currentSession?.process_end_tag,
                 );
 
+            const workspaceChanges = isGroup ? (msg.room?.workspaceChanges ?? []) : [];
             return (
+              <Fragment key={msg.id}>
               <MessageBubble
-                key={msg.id} id={msg.id} role={msg.role} content={resolvedContent} timestamp={msg.timestamp}
+                id={msg.id} role={msg.role} content={resolvedContent} timestamp={msg.timestamp}
                 processContent={msg.processContent}
                 processStreaming={msg.processStreaming}
                 rawDetail={msg.rawDetail}
@@ -166,6 +170,11 @@ export function MessageList(c: MessageListProps) {
                 isLatest={msg.role === 'user' ? msg.id === lastUserMsgId : index === visibleMessages.length - 1}
                 preserveProcessExpansionWhenNotLatest={isGroup && msg.role === 'assistant'}
               />
+              {/* P3：这次运行对群工作区的改动，挂在 Agent 回复下面 */}
+              {workspaceChanges.length > 0 && (
+                <div className="pl-11 sm:pl-14 pr-2 -mt-4"><WorkspaceChangesCard changes={workspaceChanges} /></div>
+              )}
+              </Fragment>
             );
           })}
         </>

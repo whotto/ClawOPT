@@ -244,16 +244,20 @@ export function Composer(c: ComposerProps) {
                   {inputPreview ? t('common.edit') : t('unifiedChat.preview')}
                 </button>
               </div>
-              {(isChat && isLoading) || (isGroup && isGroupBusy) ? (
+              <div className="flex items-center gap-2">
+              {((isChat && isLoading) || (isGroup && isGroupBusy)) && (
                 <button type="button" onClick={handleStop} className="px-4 h-9 flex items-center gap-1.5 justify-center rounded-lg transition-all font-bold text-sm bg-red-100 text-red-600 hover:bg-red-200 active:scale-95">
                   <span className="w-3 h-3 rounded-sm bg-red-600 inline-block flex-shrink-0" />{t('common.stop')}
                 </button>
-              ) : (
-                <button type="submit" disabled={!hasDraftToSend || isLoading || isGroupBusy}
-                  className={`px-4 h-9 flex items-center justify-center rounded-lg transition-all font-bold text-sm ${hasDraftToSend && !isLoading && !isGroupBusy ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-                  {isLoading ? t('common.sending') : t('common.send')}
+              )}
+              {/* P3：群聊忙时照样能发（服务端按 Agent 排队）；单聊流式中只显示停止。 */}
+              {!(isChat && isLoading) && (
+                <button type="submit" disabled={!hasDraftToSend || isLoading}
+                  className={`px-4 h-9 flex items-center justify-center rounded-lg transition-all font-bold text-sm ${hasDraftToSend && !isLoading ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                  {isLoading ? t('common.sending') : isGroup && isGroupBusy ? t('rooms.queue.sendToQueue') : t('common.send')}
                 </button>
               )}
+              </div>
             </div>
           </form>
         </div>

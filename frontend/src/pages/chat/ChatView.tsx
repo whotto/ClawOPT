@@ -11,6 +11,7 @@ import { GroupListPage } from '../../features/chat/components/GroupListPage';
 import { HistoryPagingPrompts } from '../../features/chat/components/HistoryPagingPrompts';
 import { MessageList } from '../../features/chat/components/MessageList';
 import { NavDotsRail } from '../../features/chat/components/NavDotsRail';
+import { RoomCollabLayer } from '../../features/rooms/RoomCollabLayer';
 
 // 预览模块带着 mammoth / xlsx / pdfjs（合计约 1.5MB），只在真的打开预览时才下载。
 const FilePreviewModal = lazy(() => import('../../features/files/FilePreviewModal'));
@@ -46,7 +47,12 @@ export default function ChatView(props: ChatViewProps) {
       </div>
 
       {/* 真审批运行时（Pi、Hermes）在这个对话里等人答复的请求 */}
-      <ChatRunApprovals isGroup={c.isGroup} activeKey={c.activeKey} />
+      {c.isGroup ? (
+        // 群协作层（P3）：执行队列、停止的交接链、审批 / 澄清（按 Agent 主人过滤）、摘要与设置入口。
+        <RoomCollabLayer groupId={c.activeKey} members={c.currentGroup?.members ?? []} />
+      ) : (
+        <ChatRunApprovals isGroup={c.isGroup} activeKey={c.activeKey} />
+      )}
 
       <Composer {...c} />
 
