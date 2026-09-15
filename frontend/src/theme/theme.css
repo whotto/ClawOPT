@@ -1,0 +1,188 @@
+/**
+ * 主题层（P6）：只在 <html> 带主题属性时生效，覆盖设计 token 的**取值**，不改 index.css 里的 token 定义本身。
+ *
+ * - 属性由 public/theme-boot.js 在首帧前打上：`data-theme-mode="light|dark"`、`data-theme-accent`、`data-theme-text`、
+ *   `data-theme-font`、`data-theme-bg`，对应变量 `--theme-accent` / `--theme-text` / `--theme-font-size` / `--theme-bg-image`；
+ * - 没有任何属性（或 light 且无自定义）时这里一条都不命中，界面与改之前逐像素一致；
+ * - 依然**不用阴影**：层级只靠填充与发丝线（AGENTS.md）；
+ * - 深色下 `text-white` 仍是白（彩色按钮上的字），所以不重定义 `--color-white`，只改 `bg-white` 类的表面色。
+ */
+
+/* ── 深色：中性色倒过来，语义色的浅底换成深底、深字换成浅字 ───────────────── */
+:root[data-theme-mode="dark"] {
+  color-scheme: dark;
+  --theme-surface: #161a20;
+  --theme-ground: #0f1216;
+
+  --color-gray-50: #0f1216;
+  --color-gray-100: #1b1f26;
+  --color-gray-200: #2a2f38;
+  --color-gray-300: #3b414c;
+  --color-gray-400: #6d7482;
+  --color-gray-500: #8d95a3;
+  --color-gray-600: #a8afbb;
+  --color-gray-700: #c4c9d2;
+  --color-gray-800: #d9dde4;
+  --color-gray-900: #eceef2;
+  --color-gray-950: #f7f8fa;
+
+  --color-blue-50: #152036;
+  --color-blue-100: #1b2946;
+  --color-blue-200: #273e68;
+  --color-blue-300: #395b96;
+  --color-blue-400: #5b86e0;
+  --color-blue-500: #4d7ee6;
+  --color-blue-600: #3d6fd6;
+  --color-blue-700: #6d94e8;
+  --color-blue-800: #9db8f1;
+  --color-blue-900: #c6d5f7;
+
+  --color-accent-50: #152036;
+  --color-accent-100: #1b2946;
+  --color-accent-200: #273e68;
+  --color-accent-400: #5b86e0;
+  --color-accent-500: #6d94e8;
+  --color-accent-600: #3d6fd6;
+  --color-accent-700: #9db8f1;
+
+  --color-red-50: #2a1716;
+  --color-red-100: #3a1d1b;
+  --color-red-200: #5a2b26;
+  --color-red-300: #7c3b34;
+  --color-red-400: #d9776b;
+  --color-red-500: #d8685b;
+  --color-red-600: #e6897e;
+  --color-red-700: #eea39a;
+
+  --color-amber-50: #282012;
+  --color-amber-100: #382c15;
+  --color-amber-200: #58441a;
+  --color-amber-300: #7a5e21;
+  --color-amber-400: #d9a441;
+  --color-amber-500: #e0b155;
+  --color-amber-600: #e8be6c;
+  --color-amber-700: #efcb86;
+  --color-amber-800: #f3d7a0;
+  --color-amber-900: #f7e5c2;
+
+  --color-green-50: #13241a;
+  --color-green-100: #182f20;
+  --color-green-200: #22472e;
+  --color-green-300: #2f6340;
+  --color-green-400: #5fb57e;
+  --color-green-500: #5bb07a;
+  --color-green-600: #7ecd99;
+  --color-green-700: #93d7aa;
+
+  --color-emerald-50: #10241d;
+  --color-emerald-100: #142f26;
+  --color-emerald-200: #1d4638;
+  --color-emerald-500: #4cc39a;
+  --color-emerald-600: #5fcca6;
+  --color-emerald-700: #78d6b5;
+
+  --color-orange-50: #291b10;
+  --color-orange-100: #392414;
+  --color-orange-200: #58371d;
+  --color-orange-500: #f09a5b;
+  --color-orange-600: #f3a86e;
+  --color-orange-700: #f5b683;
+
+  --color-runtime-50: #12241f;
+  --color-runtime-100: #173029;
+  --color-runtime-300: #3f7d73;
+  --color-runtime-500: #57b0a2;
+  --color-runtime-600: #72bfb3;
+  --color-runtime-700: #8fcfc4;
+
+  --color-success-50: #13241a;
+  --color-success-500: #5bb07a;
+  --color-success-600: #7ecd99;
+  --color-warning-50: #282012;
+  --color-warning-500: #e0b155;
+  --color-warning-600: #e8be6c;
+  --color-danger-50: #2a1716;
+  --color-danger-500: #d8685b;
+  --color-danger-600: #e6897e;
+}
+
+:root[data-theme-mode="dark"] body {
+  background-color: var(--theme-ground);
+  color: var(--color-gray-900);
+}
+
+/* 表面：`bg-white` 与带透明度的写法。选择器按类名匹配，覆盖 hover / md 这类常见变体以外的全部静态写法。 */
+:root[data-theme-mode="dark"] [class~="bg-white"],
+:root[data-theme-mode="dark"] [class~="hover:bg-white"]:hover {
+  background-color: var(--theme-surface);
+}
+:root[data-theme-mode="dark"] [class*="bg-white/"] {
+  background-color: color-mix(in oklab, var(--theme-surface) 80%, transparent);
+}
+:root[data-theme-mode="dark"] [class~="border-white"] {
+  border-color: var(--theme-surface);
+}
+
+/* ── 强调色：交互蓝整族按用户颜色重算（浅色混白、深色混表面） ───────────────── */
+:root[data-theme-accent] {
+  --color-blue-50: color-mix(in oklab, var(--theme-accent) 8%, white);
+  --color-blue-100: color-mix(in oklab, var(--theme-accent) 16%, white);
+  --color-blue-200: color-mix(in oklab, var(--theme-accent) 32%, white);
+  --color-blue-300: color-mix(in oklab, var(--theme-accent) 55%, white);
+  --color-blue-400: color-mix(in oklab, var(--theme-accent) 78%, white);
+  --color-blue-500: color-mix(in oklab, var(--theme-accent) 90%, white);
+  --color-blue-600: var(--theme-accent);
+  --color-blue-700: color-mix(in oklab, var(--theme-accent) 82%, black);
+  --color-blue-800: color-mix(in oklab, var(--theme-accent) 66%, black);
+  --color-blue-900: color-mix(in oklab, var(--theme-accent) 50%, black);
+  --color-accent-50: var(--color-blue-50);
+  --color-accent-100: var(--color-blue-100);
+  --color-accent-200: var(--color-blue-200);
+  --color-accent-400: var(--color-blue-400);
+  --color-accent-500: var(--color-blue-500);
+  --color-accent-600: var(--color-blue-600);
+  --color-accent-700: var(--color-blue-700);
+}
+
+:root[data-theme-mode="dark"][data-theme-accent] {
+  --color-blue-50: color-mix(in oklab, var(--theme-accent) 14%, #161a20);
+  --color-blue-100: color-mix(in oklab, var(--theme-accent) 22%, #161a20);
+  --color-blue-200: color-mix(in oklab, var(--theme-accent) 38%, #161a20);
+  --color-blue-300: color-mix(in oklab, var(--theme-accent) 58%, #161a20);
+  --color-blue-400: color-mix(in oklab, var(--theme-accent) 80%, white);
+  --color-blue-500: color-mix(in oklab, var(--theme-accent) 88%, white);
+  --color-blue-600: var(--theme-accent);
+  --color-blue-700: color-mix(in oklab, var(--theme-accent) 70%, white);
+  --color-blue-800: color-mix(in oklab, var(--theme-accent) 50%, white);
+  --color-blue-900: color-mix(in oklab, var(--theme-accent) 30%, white);
+}
+
+/* ── 文字色：墨色三级从用户颜色推出（越浅的层级越靠近底色） ─────────────────── */
+:root[data-theme-text] {
+  --color-gray-900: var(--theme-text);
+  --color-gray-800: color-mix(in oklab, var(--theme-text) 90%, white);
+  --color-gray-700: color-mix(in oklab, var(--theme-text) 80%, white);
+}
+:root[data-theme-mode="dark"][data-theme-text] {
+  --color-gray-800: color-mix(in oklab, var(--theme-text) 90%, #161a20);
+  --color-gray-700: color-mix(in oklab, var(--theme-text) 80%, #161a20);
+}
+
+/* ── 字号：界面尺寸都是 rem，改根字号即整体缩放 ─────────────────────────────── */
+:root[data-theme-font] {
+  font-size: var(--theme-font-size);
+}
+
+/* ── 背景图：铺在应用最底层，应用地色变半透明让它透出来；卡片与输入框保持不透明，可读性不受影响 ── */
+:root[data-theme-bg] #root {
+  background-image: var(--theme-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+:root[data-theme-bg] {
+  --color-gray-50: color-mix(in oklab, #f7f8fa 80%, transparent);
+}
+:root[data-theme-mode="dark"][data-theme-bg] {
+  --color-gray-50: color-mix(in oklab, #0f1216 80%, transparent);
+}
