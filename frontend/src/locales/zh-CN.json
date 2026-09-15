@@ -356,6 +356,12 @@
       "historyPageRoundsLabel": "历史分页轮数",
       "historyPageRoundsPlaceholder": "30",
       "historyPageRoundsHint": "按用户发起消息的次数计算对话分页轮数，用户发起 30 次消息，就算 30 轮，不受 AI 回复条数影响。",
+      "chatStreamTransportLabel": "对话实时通道",
+      "chatStreamTransportHint": "单聊回复通过哪条通道实时推送到页面。默认 SSE；WebSocket 支持断线后自动重连并接回进行中的回复，仍在验证阶段。只对当前浏览器生效，下一次发送起用。",
+      "chatStreamTransportOptions": {
+        "sse": "SSE（默认）",
+        "ws": "WebSocket（实验）"
+      },
       "previewTimeoutLabel": "预览超时时间",
       "previewTimeoutPlaceholder": "60",
       "previewTimeoutHint": "设置文档预览转换的超时时间，单位为秒。支持 {{min}}-{{max}} 秒，默认 60 秒。",

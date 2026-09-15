@@ -7,10 +7,12 @@ export default function GeneralTab({ ctx }: { ctx: SettingsController }) {
   const {
     aiName,
     aiNameError,
+    chatStreamTransport,
     commitHistoryPageRounds,
     currentLanguage,
     generalError,
     generalSaved,
+    handleChatStreamTransportChange,
     handleHistoryPageRoundsChange,
     handleLanguageChange,
     handleSaveGeneral,
@@ -103,6 +105,24 @@ export default function GeneralTab({ ctx }: { ctx: SettingsController }) {
               className="block w-full max-w-[220px] px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
             />
             <p className="text-xs text-gray-400 mt-1.5">{t('settings.general.historyPageRoundsHint')}</p>
+          </div>
+
+          <div className="border-t border-gray-100 pt-6">
+            <label className="block text-sm font-semibold text-gray-900 mb-2">{t('settings.general.chatStreamTransportLabel')}</label>
+            <div className="relative max-w-[320px]">
+              <select
+                value={chatStreamTransport}
+                onChange={handleChatStreamTransportChange}
+                className="block w-full appearance-none px-4 pr-14 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
+              >
+                <option value="sse">{t('settings.general.chatStreamTransportOptions.sse')}</option>
+                <option value="ws">{t('settings.general.chatStreamTransportOptions.ws')}</option>
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-5 flex items-center text-gray-500">
+                <ChevronDown className="w-4 h-4" />
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">{t('settings.general.chatStreamTransportHint')}</p>
           </div>
 
           <div className="border-t border-gray-100 pt-6">

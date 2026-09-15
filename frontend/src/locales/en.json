@@ -356,6 +356,12 @@
       "historyPageRoundsLabel": "History Page Rounds",
       "historyPageRoundsPlaceholder": "30",
       "historyPageRoundsHint": "Conversation pagination rounds are counted by user-started messages only. If the user sends 30 messages, that counts as 30 rounds no matter how many AI replies follow.",
+      "chatStreamTransportLabel": "Chat Streaming Channel",
+      "chatStreamTransportHint": "How single-chat replies are pushed to this page in real time. SSE is the default; WebSocket reconnects automatically and resumes in-progress replies, and is still being validated. Applies to this browser only, starting with the next message.",
+      "chatStreamTransportOptions": {
+        "sse": "SSE (default)",
+        "ws": "WebSocket (experimental)"
+      },
       "previewTimeoutLabel": "Preview Timeout",
       "previewTimeoutPlaceholder": "60",
       "previewTimeoutHint": "Set the timeout for document preview conversion in seconds. Range: {{min}}-{{max}}, default 60.",

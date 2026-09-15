@@ -34,6 +34,12 @@ export default defineConfig({
         target: `http://localhost:${process.env.BACKEND_PORT || 3100}`,
         changeOrigin: true,
       },
+      // 实时通道（WebSocket）。开发时经 vite 代理，生产由后端同端口提供。
+      '/ws': {
+        target: `ws://localhost:${process.env.BACKEND_PORT || 3100}`,
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
   build: {

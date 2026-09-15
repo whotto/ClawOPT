@@ -1,6 +1,9 @@
 // 单聊进入时接回仍在运行的 run 并继续读流。
 import { useEffect } from 'react';
 import { attachChatRun } from '../../../api/stream';
+import { getRealtimeClient } from '../../../api/ws';
+import { readChatStreamTransport } from '../../../utils/chatStreamTransport';
+import { openChatAttachStream } from '../lib/chatStream';
 import type { ChatMessage } from '../../../utils/message-merge';
 import { mapStreamingErrorUpdate, createClientStructuredChatError } from '../lib/messageMapping';
 import type { ChatViewState } from './useChatViewState';
@@ -66,10 +69,15 @@ export function useChatAttachRun(c: ChatAttachRunContext) {
 
     const attachActiveRun = async () => {
       try {
-        const response = await attachChatRun(activeKey, controller.signal);
-        const contentType = response.headers.get('content-type') || '';
+        const attached = await openChatAttachStream({
+          transport: readChatStreamTransport(),
+          sessionId: activeKey,
+          client: getRealtimeClient,
+          attachOverHttp: () => attachChatRun(activeKey, controller.signal),
+          signal: controller.signal,
+        });
 
-        if (contentType.includes('application/json')) {
+        if (attached.kind === 'inactive') {
           const latestAssistantMessage = [...messagesRef.current]
             .reverse()
             .find((message) => message.role !== 'user');
@@ -80,69 +88,54 @@ export function useChatAttachRun(c: ChatAttachRunContext) {
           return;
         }
 
-        if (!response.ok || !response.body) {
+        if (attached.kind === 'failed') {
           return;
         }
 
         setIsLoading(true);
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
         let receivedFinal = false;
         let receivedError = false;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-
-            try {
-              const evt = JSON.parse(line.slice(6));
-              if (evt.type === 'attached') {
-                attachedMessageId = resolveAttachedMessageId(evt.messageId);
-                if (attachedMessageId) {
-                  queueAttachedPatch({
-                    agentId: typeof evt.agentId === 'string' ? evt.agentId : undefined,
-                    agentName: typeof evt.agentName === 'string' ? evt.agentName : undefined,
-                    model: typeof evt.modelUsed === 'string' ? evt.modelUsed : undefined,
-                  }, true);
-                }
-              } else if (evt.type === 'delta' || evt.type === 'final') {
-                if (evt.type === 'final') {
-                  receivedFinal = true;
-                }
-                const patch: Partial<ChatMessage> = {
-                  content: typeof evt.text === 'string' ? evt.text : '',
-                };
-                if (typeof evt.process_content === 'string') {
-                  patch.processContent = evt.process_content;
-                }
-                if (typeof evt.process_streaming === 'boolean') {
-                  patch.processStreaming = evt.process_streaming;
-                } else if (evt.type === 'final') {
-                  patch.processStreaming = false;
-                }
-                if (typeof evt.modelUsed === 'string') {
-                  patch.model = evt.modelUsed;
-                } else if (typeof evt.model_used === 'string') {
-                  patch.model = evt.model_used;
-                }
-                queueAttachedPatch(patch, evt.type === 'final');
-              } else if (evt.type === 'error') {
-                receivedError = true;
-                if (!attachedMessageId) continue;
-                dropQueuedMessagePatch(attachedMessageId);
-                const errorUpdate = mapStreamingErrorUpdate(evt, `❌ ${t('common.error')}: ${t('common.unknownError')}`);
-                updateAttachedMessage((message) => ({ ...message, ...errorUpdate }));
+        for await (const evt of attached.events) {
+          try {
+            if (evt.type === 'attached') {
+              attachedMessageId = resolveAttachedMessageId(evt.messageId);
+              if (attachedMessageId) {
+                queueAttachedPatch({
+                  agentId: typeof evt.agentId === 'string' ? evt.agentId : undefined,
+                  agentName: typeof evt.agentName === 'string' ? evt.agentName : undefined,
+                  model: typeof evt.modelUsed === 'string' ? evt.modelUsed : undefined,
+                }, true);
               }
-            } catch {}
-          }
+            } else if (evt.type === 'delta' || evt.type === 'final') {
+              if (evt.type === 'final') {
+                receivedFinal = true;
+              }
+              const patch: Partial<ChatMessage> = {
+                content: typeof evt.text === 'string' ? evt.text : '',
+              };
+              if (typeof evt.process_content === 'string') {
+                patch.processContent = evt.process_content;
+              }
+              if (typeof evt.process_streaming === 'boolean') {
+                patch.processStreaming = evt.process_streaming;
+              } else if (evt.type === 'final') {
+                patch.processStreaming = false;
+              }
+              if (typeof evt.modelUsed === 'string') {
+                patch.model = evt.modelUsed;
+              } else if (typeof evt.model_used === 'string') {
+                patch.model = evt.model_used;
+              }
+              queueAttachedPatch(patch, evt.type === 'final');
+            } else if (evt.type === 'error') {
+              receivedError = true;
+              if (!attachedMessageId) continue;
+              dropQueuedMessagePatch(attachedMessageId);
+              const errorUpdate = mapStreamingErrorUpdate(evt, `❌ ${t('common.error')}: ${t('common.unknownError')}`);
+              updateAttachedMessage((message) => ({ ...message, ...errorUpdate }));
+            }
+          } catch {}
         }
 
         flushQueuedMessagePatches();

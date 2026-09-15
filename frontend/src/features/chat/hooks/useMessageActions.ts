@@ -7,6 +7,9 @@ import {
 import { regenerateChatMessage } from '../../../api/stream';
 import { uploadFiles as uploadFilesRequest } from '../../../api/files';
 import type { ChatMessage } from '../../../utils/message-merge';
+import { getRealtimeClient } from '../../../api/ws';
+import { readChatStreamTransport } from '../../../utils/chatStreamTransport';
+import { openChatTurnStream } from '../lib/chatStream';
 import {
   isPersistedMessageId, mapStreamingErrorUpdate, mapHttpErrorResponse,
   createClientStructuredChatError, resolveSubmitError,
@@ -240,69 +243,67 @@ export function useMessageActions(c: MessageActionsContext) {
           { id: tempId, role: 'assistant', content: '', processStreaming: shouldShowProcessPlaceholder, timestamp: new Date(), model: currentSession?.model || msg.model, agentName: currentSession?.name || msg.agentName, parentId },
         ]);
         setActiveLeafId(tempId);
-        const response = await regenerateChatMessage({
+        const stream = await openChatTurnStream({
+          transport: readChatStreamTransport(),
+          sessionId: activeKey,
+          client: getRealtimeClient,
+          post: (headers) => regenerateChatMessage({
             message: contentStr,
             sessionId: activeKey,
             parentId,
             ...(isPersistedMessageId(requestTargetMessageId) ? { targetMessageId: requestTargetMessageId } : {}),
-          });
-        if (!response.ok || !response.body) {
+          }, headers),
+        });
+        if (!stream.ok) {
           dropAssistantPatches();
           const fallbackContent = `❌ ${t('common.error')}: ${t('unifiedChat.requestFailed')}`;
-          const errorUpdate = await mapHttpErrorResponse(response, fallbackContent);
+          const errorUpdate = await mapHttpErrorResponse(stream.response, fallbackContent);
           updateAssistantMessages(message => ({ ...message, ...errorUpdate }));
           return;
         }
-        const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
         let receivedFinal = false;
         let receivedError = false;
-        while (true) {
-          const { done, value } = await reader.read(); if (done) break;
-          buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const evt = JSON.parse(line.slice(6));
-              if (evt.type === 'ids' && evt.assistantMsgId) {
-                const previousResolvedId = resolvedId;
-                moveQueuedMessagePatch(resolvedId, String(evt.assistantMsgId));
-                setMessages(prev => prev.map(m => m.id === resolvedId ? { ...m, id: String(evt.assistantMsgId) } : m));
-                setActiveLeafId(prev => prev === resolvedId ? String(evt.assistantMsgId) : prev);
-                resolvedId = String(evt.assistantMsgId);
-                assistantTargetIds.add(previousResolvedId);
-                assistantTargetIds.add(resolvedId);
-              } else if (evt.type === 'delta' || evt.type === 'final') {
-                if (evt.type === 'final') {
-                  receivedFinal = true;
-                }
-                const patch: Partial<ChatMessage> = {
-                  content: typeof evt.text === 'string' ? evt.text : '',
-                };
-                if (typeof evt.process_content === 'string') {
-                  patch.processContent = evt.process_content;
-                }
-                if (typeof evt.process_streaming === 'boolean') {
-                  patch.processStreaming = evt.process_streaming;
-                } else if (evt.type === 'final') {
-                  patch.processStreaming = false;
-                }
-                if (typeof evt.modelUsed === 'string') {
-                  patch.model = evt.modelUsed;
-                } else if (typeof evt.model_used === 'string') {
-                  patch.model = evt.model_used;
-                }
-                queueAssistantPatch(patch, evt.type === 'final');
-              } else if (evt.type === 'error') {
-                receivedError = true;
-                dropAssistantPatches();
-                const errorUpdate = mapStreamingErrorUpdate(evt, `❌ ${t('common.error')}: ${evt.error || t('common.unknownError')}`);
-                updateAssistantMessages(message => ({
-                  ...message,
-                  ...errorUpdate,
-                }));
+        for await (const evt of stream.events) {
+          try {
+            if (evt.type === 'ids' && evt.assistantMsgId) {
+              const previousResolvedId = resolvedId;
+              moveQueuedMessagePatch(resolvedId, String(evt.assistantMsgId));
+              setMessages(prev => prev.map(m => m.id === resolvedId ? { ...m, id: String(evt.assistantMsgId) } : m));
+              setActiveLeafId(prev => prev === resolvedId ? String(evt.assistantMsgId) : prev);
+              resolvedId = String(evt.assistantMsgId);
+              assistantTargetIds.add(previousResolvedId);
+              assistantTargetIds.add(resolvedId);
+            } else if (evt.type === 'delta' || evt.type === 'final') {
+              if (evt.type === 'final') {
+                receivedFinal = true;
               }
-            } catch {}
-          }
+              const patch: Partial<ChatMessage> = {
+                content: typeof evt.text === 'string' ? evt.text : '',
+              };
+              if (typeof evt.process_content === 'string') {
+                patch.processContent = evt.process_content;
+              }
+              if (typeof evt.process_streaming === 'boolean') {
+                patch.processStreaming = evt.process_streaming;
+              } else if (evt.type === 'final') {
+                patch.processStreaming = false;
+              }
+              if (typeof evt.modelUsed === 'string') {
+                patch.model = evt.modelUsed;
+              } else if (typeof evt.model_used === 'string') {
+                patch.model = evt.model_used;
+              }
+              queueAssistantPatch(patch, evt.type === 'final');
+            } else if (evt.type === 'error') {
+              receivedError = true;
+              dropAssistantPatches();
+              const errorUpdate = mapStreamingErrorUpdate(evt, `❌ ${t('common.error')}: ${evt.error || t('common.unknownError')}`);
+              updateAssistantMessages(message => ({
+                ...message,
+                ...errorUpdate,
+              }));
+            }
+          } catch {}
         }
         flushQueuedMessagePatches();
         if (!receivedError && receivedFinal) {

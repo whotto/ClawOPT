@@ -356,6 +356,12 @@
       "historyPageRoundsLabel": "歷史分頁輪數",
       "historyPageRoundsPlaceholder": "30",
       "historyPageRoundsHint": "依使用者發起訊息的次數計算對話分頁輪數，使用者發起 30 次訊息，就算 30 輪，不受 AI 回覆條數影響。",
+      "chatStreamTransportLabel": "對話即時通道",
+      "chatStreamTransportHint": "單聊回覆透過哪條通道即時推送到頁面。預設 SSE；WebSocket 支援斷線後自動重連並接回進行中的回覆，仍在驗證階段。只對目前瀏覽器生效，下一次傳送起啟用。",
+      "chatStreamTransportOptions": {
+        "sse": "SSE（預設）",
+        "ws": "WebSocket（實驗）"
+      },
       "previewTimeoutLabel": "預覽逾時時間",
       "previewTimeoutPlaceholder": "60",
       "previewTimeoutHint": "設定文件預覽轉換的逾時時間，單位為秒。支援 {{min}}-{{max}} 秒，預設 60 秒。",

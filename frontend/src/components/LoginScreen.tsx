@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { login } from '../api/auth';
+import { resetRealtimeClient } from '../api/ws';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -56,6 +57,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       const res = await login(password);
       const data = await res.json().catch(() => ({}));
       if (data.success) {
+        // 登录前可能已有一条因 401 在退避重连的实时连接：换成新 cookie 立即重连，不等退避。
+        resetRealtimeClient();
         // 令牌由后端以 httpOnly cookie 下发，前端不持有、也读不到。
         onLoginSuccess();
       } else {
