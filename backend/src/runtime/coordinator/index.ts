@@ -1,9 +1,11 @@
 export {
   DEFAULT_ABORT_GRACE_MS,
+  QUEUE_INSERTION_EVENT,
   RunCoordinator,
   createRunMarker,
 } from './run-coordinator';
 export type {
+  QueueInsertionEndReason,
   RunCoordinatorOptions,
 } from './run-coordinator';
 export type {

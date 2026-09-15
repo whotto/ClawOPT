@@ -29,7 +29,6 @@ import type { RunCoordinator, RuntimePlatform } from '../../runtime';
 import { normalizeExternalSessionConfig, parseExternalSessionConfig } from './external-chat-turn';
 import type { UploadService } from '../../workspace';
 import type { ChatLifecycle } from './chat-lifecycle';
-import type { ChatRuns } from './chat-run-managers';
 import {
   buildHistoryPageResponse,
   buildHistorySearchResponse,
@@ -102,7 +101,6 @@ export type SessionRoutesDeps = {
   agentProvisioner: AgentProvisioner;
   db: DB;
   sessionManager: SessionManager;
-  chatRuns: ChatRuns;
   runCoordinator: RunCoordinator;
   runtimePlatform: Pick<RuntimePlatform, 'releaseOwner' | 'registry'>;
   chatLifecycle: ChatLifecycle;
@@ -117,7 +115,6 @@ export type SessionRoutesDeps = {
 
 export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): void {
   const { agentProvisioner, db, sessionManager } = ctx;
-  const { localChatOperationManager } = ctx.chatRuns;
   const { runCoordinator } = ctx;
   const { reconcileInactiveChatLatestMessage } = ctx.chatLifecycle;
   const { withStructuredChatMessage } = ctx.chatMessages;
@@ -321,9 +318,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
 
     const agentId = session.agentId;
     const isExternalRuntimeSession = Boolean(session.external_runtime);
-    const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
     bumpSessionInterruptionEpoch(req.params.id);
-    localChatOperationManager.abort(req.params.id, interruptedEpoch);
     try {
       await runCoordinator.abort(req.params.id, 'user_stop');
     } catch {}
@@ -389,9 +384,7 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
 
     try {
       const agentId = session.agentId;
-      const interruptedEpoch = getSessionInterruptionEpoch(req.params.id);
       bumpSessionInterruptionEpoch(req.params.id);
-      localChatOperationManager.abort(req.params.id, interruptedEpoch);
 
       try {
         await runCoordinator.abort(req.params.id, 'user_stop');
@@ -524,11 +517,10 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
     try {
       const { sessionId } = req.params;
       const run = runCoordinator.getActiveRun(sessionId);
-      const localOperation = localChatOperationManager.get(sessionId);
-      if (!run && !localOperation) {
+      if (!run) {
         await reconcileInactiveChatLatestMessage(sessionId);
       }
-      const active = !!(run || localOperation);
+      const active = !!run;
       // 协调器里的网关运行：准备阶段还没有网关 run id（与迁移前的 openclaw-preparation 一致）。
       const runMessageId = typeof run?.meta.messageId === 'number' ? run.meta.messageId : null;
       res.json({
@@ -536,11 +528,11 @@ export function registerSessionRoutes(app: RouteApp, ctx: SessionRoutesDeps): vo
         active,
         runState: {
           active,
-          messageId: runMessageId ?? localOperation?.messageId ?? null,
+          messageId: runMessageId,
           runId: run?.phase === 'running' ? run.nativeRunId ?? null : null,
-          agentId: run?.agentId ?? localOperation?.agentId ?? null,
-          startedAt: run?.startedAt ?? localOperation?.startedAt ?? null,
-          kind: localOperation?.kind ?? (run ? (run.phase === 'preparing' ? 'openclaw-preparation' : 'openclaw-run') : null),
+          agentId: run?.agentId ?? null,
+          startedAt: run?.startedAt ?? null,
+          kind: run ? (run.meta.kind === 'openclaw-run' || !run.meta.kind ? (run.phase === 'preparing' ? 'openclaw-preparation' : 'openclaw-run') : run.meta.kind) : null,
         },
       });
     } catch (error: any) {

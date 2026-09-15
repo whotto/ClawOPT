@@ -471,6 +471,7 @@ export class RunCoordinator {
       try {
         const prepared = submission.beforeStart();
         if (prepared?.meta) submission.meta = { ...(submission.meta ?? {}), ...prepared.meta };
+        if (prepared && 'request' in prepared && prepared.request !== undefined) submission.request = prepared.request;
       } catch (error) {
         projectorError = error;
         startFailureReason = 'before_start_failed';
@@ -720,6 +721,11 @@ export class RunCoordinator {
       projection = run.projector?.finish(outcome) ?? {};
     } catch (error) {
       this.log(`[RunCoordinator] projector finish failed for ${run.submission.sessionKey}: ${(error as Error)?.message}`);
+    }
+    try {
+      run.submission.onFinished?.(outcome);
+    } catch (error) {
+      this.log(`[RunCoordinator] onFinished failed for ${run.submission.sessionKey}: ${(error as Error)?.message}`);
     }
 
     // 3. 工作区 diff（此时已知最终消息 id）。

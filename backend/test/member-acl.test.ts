@@ -248,6 +248,11 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
       ['/api/history/s-other/search?q=secret'],
       ['/api/chat/s-other/active-run'],
       ['/api/chat/attach/s-other'],
+      // P1b 运行控制：状态快照、会话实时通道、取消排队、立即插入
+      ['/api/chat/s-other/state'],
+      ['/api/chat/s-other/events'],
+      ['/api/chat/s-other/queue/q-1', { method: 'DELETE' }],
+      ['/api/chat/s-other/queue/q-1/insert', { method: 'POST' }],
       ['/api/sessions/s-other/configs'],
       ['/api/sessions/s-other/reset', { method: 'POST' }],
       ['/api/chat', post({ sessionId: 's-other', message: 'hi' })],
@@ -269,6 +274,8 @@ describe('HTTP 数据面：会话 / 单聊 / 群按用户 ↔ Agent 过滤', () 
 
     expect((await status(tokens.member, '/api/history/s-main')).code).toBe(200);
     expect((await status(tokens.member, '/api/chat/s-main/active-run')).code).toBe(200);
+    expect((await status(tokens.member, '/api/chat/s-main/state')).code).toBe(200);
+    expect((await status(tokens.member, '/api/chat/s-main/queue/q-missing', { method: 'DELETE' })).code).toBe(404);
     expect((await status(tokens.member, `/api/messages/${mineMessage}`, { method: 'PUT', body: JSON.stringify({ content: 'edited' }) })).code).toBe(200);
 
     // admin 不受影响

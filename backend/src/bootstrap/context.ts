@@ -57,7 +57,6 @@ import {
   createChatCommands,
   createChatLifecycle,
   createChatMessages,
-  createChatRuns,
   createDirectChatService,
   createSessionRuntime,
   SessionManager,
@@ -193,8 +192,7 @@ export function createAppContext() {
   });
   const uploads = createUploadService({ ...base, access });
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
-  const chatRuns = createChatRuns();
-  const chatLifecycle = createChatLifecycle({ ...base, chatRuns, sessionRuntime, gatewayConnections });
+  const chatLifecycle = createChatLifecycle({ ...base, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
 
   // ---- P5a 控制面：一切引擎侧操作经同一个 CLI 调用口（写操作在进程内串行） ----
@@ -238,7 +236,6 @@ export function createAppContext() {
     auth,
     access,
     packs,
-    chatRuns,
     chatLifecycle,
     chatCommands,
     openclawCli,

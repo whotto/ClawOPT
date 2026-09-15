@@ -136,9 +136,16 @@ export interface RunSubmission<TRequest = unknown> {
   /**
    * 真正开始之前（立即开始或出队时）同步调用一次：表面在这一刻落自己的行（排队的消息必须出队时才进时间线，
    * 否则顺序会乱）。返回的 meta 并进这次运行的 meta（`run.started` 与运行视图里看得见）。
+   * 返回 `request` 时替换这次运行的请求：只用于**开始时刻才定得下来的运行时状态**（例如外部运行时的续话句柄——
+   * 排在前一轮后面的消息要等前一轮成功才知道能不能续），用户选的配置仍按入队快照。
    * 抛错 = 这一轮按失败收尾（`stop_reason: before_start_failed`），会话回到空闲并继续出队。
    */
-  beforeStart?: () => { meta?: Record<string, unknown> } | void;
+  beforeStart?: () => { meta?: Record<string, unknown>; request?: TRequest } | void;
+  /**
+   * 投影器落完最终消息之后、出队下一条之前同步调用。表面在这里写「这一轮的结局对下一轮有影响」的状态
+   * （续话句柄可续 / 换新）——放到 `completion` 的 then 里就晚了：出队是同步的，下一轮的 beforeStart 会先跑。
+   */
+  onFinished?: (outcome: AdapterRunOutcome) => void;
   /** 表面自己的附加信息（messageId 等），原样出现在运行视图里。 */
   meta?: Record<string, unknown>;
   /** 这个运行时中止的宽限（缺省用协调器的默认值）。OpenClaw 的 chat.abort 自己就有 5 秒时限。 */

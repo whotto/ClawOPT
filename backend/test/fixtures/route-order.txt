@@ -126,6 +126,10 @@ POST /api/chat/regenerate
 GET /api/chat/attach/:sessionId
 POST /api/chat/stop
 POST /api/chat/silent
+GET /api/chat/:sessionId/state
+DELETE /api/chat/:sessionId/queue/:queueId
+POST /api/chat/:sessionId/queue/:queueId/insert
+GET /api/chat/:sessionId/events
 GET /api/run-approvals
 POST /api/run-approvals/:id/respond
 POST /api/files/upload

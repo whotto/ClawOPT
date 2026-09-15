@@ -55,6 +55,11 @@ export type {
   UsageReport,
 } from './contract';
 export {
+  NATIVE_ONLY_SOURCE_OF_TRUTH,
+  defineCapabilities,
+} from './contract';
+export {
+  QUEUE_INSERTION_EVENT,
   RUN_APPROVALS_TOPIC,
   RunCoordinator,
 } from './coordinator';
@@ -62,6 +67,8 @@ export type {
   AbortResult,
   PendingApprovalView,
   BusyPolicy,
+  InsertNowResult,
+  QueueInsertionView,
   ProjectorFinish,
   ProjectorRunContext,
   RunProjector,

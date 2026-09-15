@@ -46,12 +46,9 @@ export type {
   ChatRoutesDeps,
 } from './chat-routes';
 export {
-  LocalChatOperationManager,
-  createChatRuns,
   isStreamingClientOpen,
 } from './chat-run-managers';
 export type {
-  ChatRuns,
   SplitChatProcessOutputResult,
 } from './chat-run-managers';
 export {
