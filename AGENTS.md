@@ -41,7 +41,8 @@
 - `npm run presets:check`: 比对 `presets/opt-team/` 与角色配置包源（默认 `../openclaw-agents`）；不一致退出码 1，发布前卡口。
 - `npm run presets:sync`: 把角色配置包同步进预设，并按 `PARAM_RULES` 把具体值换回 `{{...}}` 占位符。
 - `npm run boundaries:check`: 校验 `backend/src` 的模块边界（跨模块只经 barrel、`core` 不依赖业务模块、服务不引用路由文件、只有入口导入 `bootstrap`）；违规退出码 1。
-- `npm run harness:check`: 仓库不变量总入口，依次跑 `locales:check`、`boundaries:check`、`presets:check`；找不到角色配置包源目录时明确跳过 `presets:check` 并说明原因（可用 `CLAWOPT_PRESETS_SRC` 指定源目录），发布前的卡口仍是 `npm run presets:check` 本身。
+- `npm run harness:check`: 仓库不变量总入口，依次跑 `locales:check`、`boundaries:check`、`presets:check`、`native:sqlite`；找不到角色配置包源目录时明确跳过 `presets:check` 并说明原因（可用 `CLAWOPT_PRESETS_SRC` 指定源目录），发布前的卡口仍是 `npm run presets:check` 本身。
+- **better-sqlite3 在 Node 24 上 GC 时 abort**（`Assertion failed: (env) != nullptr`，栈里是 `Statement::~Statement → node::RemoveEnvironmentCleanupHook`）：不是业务代码的问题，是原生插件被**用 Node 24 后期头文件从源码编译**了（prebuild 下载失败时 `node-gyp rebuild` 兜底），头文件内联的 `ObjectWrap` 清理钩子在 GC 弱回调里找不到 Environment。修复命令：`cd backend && npm rebuild better-sqlite3`（prebuild-install 会优先取官方预编译包）；若它仍然走源码编译（该平台/版本没有预编译包），换 Node 20/22 跑。`npm run harness:check` 的 `native:sqlite` 与后端启动日志都会检出这种构建（判据在 `backend/src/core/db/native-build-check.ts`）。改用语句缓存**不能**绕开它（实测缓存版 0.8 秒内同样崩），别再往代码里找根因。
 - `cd backend && npm run openapi:generate`: 从路由登记表重新生成 `backend/openapi.json`（`-- --check` 只比对）。新增或改动路由后要重新生成，`test/openapi.test.ts` 会校验签入的文档是否过期。
 - `./deploy-release.sh [port]`: 安装依赖、构建并部署 user-level systemd 服务。
 - `npm run test`: 运行仓库级最小自动检查；当前仅覆盖前后端 TypeScript 类型检查，不等于完整业务测试。

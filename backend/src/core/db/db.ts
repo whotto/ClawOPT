@@ -2,6 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 
+import { warnIfBetterSqliteNativeBuildHazard } from './native-build-check';
+
+/** 原生插件构建隐患只在进程里查一次（ConfigManager 与应用上下文各开一个 DB）。 */
+let nativeBuildChecked = false;
+
 export type GroupChatRow = {
   id: string;
   name: string;
@@ -150,6 +155,10 @@ export class DB {
   private db: Database.Database;
 
   constructor() {
+    if (!nativeBuildChecked) {
+      nativeBuildChecked = true;
+      warnIfBetterSqliteNativeBuildHazard();
+    }
     const dataDir = process.env.CLAWOPT_DATA_DIR || '.clawopt';
     const base = path.join(process.env.HOME || '.', dataDir);
     fs.mkdirSync(base, { recursive: true });
