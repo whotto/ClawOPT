@@ -950,7 +950,8 @@
       "namePlaceholder": "工作流名称",
       "empty": "还没有工作流",
       "selected": "已选 {{count}} 个",
-      "nodeCount": "{{count}} 节点"
+      "nodeCount": "{{count}} 节点",
+      "newName": "新工作流 {{count}}"
     },
     "toolbar": {
       "name": "工作流名称",

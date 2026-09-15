@@ -950,7 +950,8 @@
       "namePlaceholder": "Workflow name",
       "empty": "No workflows yet",
       "selected": "{{count}} selected",
-      "nodeCount": "{{count}} nodes"
+      "nodeCount": "{{count}} nodes",
+      "newName": "New workflow {{count}}"
     },
     "toolbar": {
       "name": "Workflow name",

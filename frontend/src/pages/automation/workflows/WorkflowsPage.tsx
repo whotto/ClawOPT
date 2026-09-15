@@ -121,11 +121,17 @@ export default function WorkflowsPage({ workflowId, onSelectWorkflow }: { workfl
         />
       </div>
       <div className="flex-1 min-w-0 flex flex-col relative">
-        <div className="md:hidden px-3 py-2 border-b border-gray-200 bg-white">
-          <select className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50" value={workflowId ?? ''} onChange={(event) => onSelectWorkflow(event.target.value || null)}>
+        <div className="md:hidden px-3 py-2 border-b border-gray-200 bg-white flex gap-2">
+          <select className="min-w-0 flex-1 px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50" value={workflowId ?? ''} onChange={(event) => onSelectWorkflow(event.target.value || null)}>
             {!list.workflows.length && <option value="">{t('automation.list.empty')}</option>}
             {list.workflows.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
+          <button
+            className="shrink-0 px-3 py-2 text-sm rounded-xl border border-gray-200 bg-white text-gray-700"
+            onClick={async () => { const created = await list.create(t('automation.list.newName', { count: list.workflows.length + 1 })); if (created) onSelectWorkflow(created.id); }}
+          >
+            {t('automation.list.create')}
+          </button>
         </div>
         {workflowId && editor.definition ? (
           <>
