@@ -3,6 +3,7 @@ import { useNotificationCenter } from '../features/notifications/useNotification
 import PendingApprovalsTray from '../features/workflow/components/PendingApprovalsTray';
 import { AccessProvider, useAccessLoader } from './access';
 import ShellBanners from './onboarding/ShellBanners';
+import { useThemeSync } from '../features/theme/useThemeSync';
 import Sidebar from './sidebar/Sidebar';
 import type { ShellContext } from './shellContext';
 import { useAppNavigation } from './useAppNavigation';
@@ -14,6 +15,8 @@ import { useSessions } from './useSessions';
 /** 侧栏 + 主区域。主区域由路由表决定渲染哪一页，页面通过 Outlet context 拿壳层状态。 */
 export default function AppShell() {
   const access = useAccessLoader();
+  // 每用户主题（P6）：拿到当前用户后同步一次，写本机缓存供下次首帧使用。
+  useThemeSync(access.user);
   const nav = useAppNavigation(access.capabilities);
   const isConnected = useConnectionStatus();
   const { sessions, sessionsLoaded, reloadSessions, reorderSessions } = useSessions(nav.autoSelectSession);

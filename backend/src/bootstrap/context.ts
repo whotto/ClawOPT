@@ -16,13 +16,13 @@
 import fs from 'fs';
 import path from 'path';
 
-import { AuthStore, chatSessionAccessAgentId, createAuthMiddleware, createResourceAccess, groupMemberAccessAgentId, hashPassword, isHashedPassword, LoginLockStore, UserStore } from '../core/auth';
+import { AuthStore, chatSessionAccessAgentId, createAuthMiddleware, createResourceAccess, groupMemberAccessAgentId, hashPassword, isHashedPassword, LoginLockStore, UserStore, type ResourceLookup } from '../core/auth';
 import { ConfigManager } from '../core/config';
 import { DB } from '../core/db';
 import { sharedFileStore } from '../core/files';
 import { EventBus } from '../core/events';
 import { RealtimeHub } from '../core/realtime';
-import { uploadDir } from '../core/paths';
+import { clawoptDataDir, uploadDir } from '../core/paths';
 import { createGatewayConnections, createGatewayService, createOpenClawCliRunner, type OpenClawClient } from '../openclaw';
 import {
   AgentProvisioner,
@@ -49,9 +49,15 @@ import {
   createImageGenerationService,
   createOpenClawUpdateService,
   createPackService,
+  createJourneyService,
+  createPerformanceService,
+  createThemeService,
 } from '../control';
 import { createOpenClawRuntimeAdapter, createProviderProxy, createRuntimePlatform, createWorkspaceDiffCheckpointer, defaultRuntimeDataDir, RunCoordinator } from '../runtime';
-import { createPreviewService, createUploadService } from '../workspace';
+import { createFileManagerService, createPreviewService, createTerminalService, createUploadService } from '../workspace';
+import { createMemoryService } from '../memory';
+import { createMcpServerService } from '../mcp-server';
+import { createVoiceService } from '../voice';
 import { createScopedProviderResolver } from './scoped-provider-resolver';
 import {
   createChatCommands,
@@ -193,19 +199,17 @@ export function createAppContext() {
   const roomReconciliation = createRoomReconciliation({ ...base, rooms, roomRuntime, agentSettings, gatewayConnections });
   const auth = createAuthMiddleware(base);
   /** 数据面资源（会话 / 群 / Agent 活动）的可见性：HTTP 路由与 /ws 主题授权共用。 */
-  const access = createResourceAccess({
-    canAccessAgent: auth.canAccessAgent,
-    lookup: {
-      // 判定用的 Agent id：外部运行时单聊与外部群成员是 `ext:<运行时>`（可授权的伪 Agent，见 core/auth/agent-ids.ts）。
-      chatSessionAgentId: (sessionId) => {
-        const session = db.getSession(sessionId);
-        return session ? chatSessionAccessAgentId(session) : null;
-      },
-      roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map(groupMemberAccessAgentId) : null),
-      runSessionAgentId: (sessionKey) => db.getRunSession(sessionKey)?.agent_id ?? null,
-      uploadSessionKey: (storedName) => (db.getFileByStoredName(storedName)?.session_key as string | undefined) || null,
+  const resourceLookup: ResourceLookup = {
+    // 判定用的 Agent id：外部运行时单聊与外部群成员是 `ext:<运行时>`（可授权的伪 Agent，见 core/auth/agent-ids.ts）。
+    chatSessionAgentId: (sessionId) => {
+      const session = db.getSession(sessionId);
+      return session ? chatSessionAccessAgentId(session) : null;
     },
-  });
+    roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map(groupMemberAccessAgentId) : null),
+    runSessionAgentId: (sessionKey) => db.getRunSession(sessionKey)?.agent_id ?? null,
+    uploadSessionKey: (storedName) => (db.getFileByStoredName(storedName)?.session_key as string | undefined) || null,
+  };
+  const access = createResourceAccess({ canAccessAgent: auth.canAccessAgent, lookup: resourceLookup });
   const uploads = createUploadService({ ...base, access });
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
   const chatLifecycle = createChatLifecycle({ ...base, sessionRuntime, gatewayConnections });
@@ -230,6 +234,46 @@ export function createAppContext() {
   const providerAudit = createProviderAudit({ db });
   const modelCatalog = createModelCatalogStore({ db });
   const modelPrefs = createModelPrefsStore({ db });
+
+  // ---- P6 工作区与外围：终端、文件管理器、语音、记忆 sidecar、ClawOPT 作为 MCP 服务、成长轨迹、主题、性能 ----
+  const hostCapabilities = () => runtimePlatform.manager.hostCapabilities();
+  /** 记忆服务是独立的 SQLite 文件（sidecar）：与主库分开备份与恢复，坏了不拖累会话数据。 */
+  const memory = createMemoryService({ dbPath: path.join(clawoptDataDir, 'memory', 'memory.sqlite') });
+  const mcpServer = createMcpServerService({
+    db,
+    resourceLookup,
+    runCoordinator,
+    automation,
+    memory,
+    events,
+    runtimePlatform,
+    publicBaseUrl: () => `http://127.0.0.1:${Number(process.env.PORT) || 3100}`,
+    // chat_run：与工作流节点同一条协调器路径。`ext:<运行时>` 走外部运行时（global 模式），其余是 OpenClaw Agent。
+    delegateTurn: ({ agentId, prompt, markDelegated }) => automation.delegateTurn({
+      agentRef: agentId.startsWith('ext:')
+        ? { kind: 'external', id: agentId.slice('ext:'.length).split(':')[0], runtime: agentId.slice('ext:'.length).split(':')[0], mode: 'global' }
+        : { kind: 'openclaw', id: agentId },
+      prompt,
+      timeoutMs: 10 * 60 * 1000,
+      onSessionKey: markDelegated,
+    }),
+  });
+  // 托管 MCP：外部运行时每次运行前按运行上下文签发范围令牌并注入（运行时平台的钩子，P2 起一直为空）。
+  runtimePlatform.setManagedMcpServers((runtime, run) => mcpServer.managedServersFor(runtime, run));
+  const terminal = createTerminalService({ db, hostCapabilities });
+  const fileManager = createFileManagerService({
+    db,
+    access,
+    hostCapabilities,
+    listAgentWorkspaces: async () => {
+      const agents = await engineRoster.list().catch(() => []);
+      return agents.map((agent) => ({ agentId: agent.id, workspace: agent.workspace ?? agentProvisioner.getWorkspacePath(agent.id) }));
+    },
+  });
+  const voice = createVoiceService({ db, dataDir: clawoptDataDir, hostCapabilities });
+  const journey = createJourneyService({ engineRoster, agentProvisioner, writeGate, memory });
+  const theme = createThemeService({ db });
+  const performance = createPerformanceService({ runCoordinator, runtimePlatform, automation });
 
   return {
     ...base,
@@ -274,6 +318,15 @@ export function createAppContext() {
     modelPrefs,
     events,
     automation,
+    resourceLookup,
+    memory,
+    mcpServer,
+    terminal,
+    fileManager,
+    voice,
+    journey,
+    theme,
+    performance,
   };
 }
 

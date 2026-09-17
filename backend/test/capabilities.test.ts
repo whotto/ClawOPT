@@ -15,13 +15,14 @@ import { createStubContext } from './helpers/stub-context';
 import { startAppHarness, type AppHarness } from './helpers/app-harness';
 
 describe('按角色派生', () => {
-  it('member：自己的 Agent、关于、工作流、看板；没有任何管理动作', () => {
-    expect(capabilitiesForRole('member')).toEqual(['settings.agents', 'automation.workflows', 'automation.kanban', 'settings.about']);
+  it('member：自己的 Agent（含成长轨迹）、关于、工作流、看板、文件（按授权读）、自己的主题；没有任何管理动作', () => {
+    expect(capabilitiesForRole('member')).toEqual(['settings.agents', 'settings.journey', 'automation.workflows', 'automation.kanban', 'settings.files', 'settings.theme', 'settings.about']);
   });
 
-  it('admin：除用户增删改外全部；super_admin：全部', () => {
+  it('admin：除用户增删改、性能监控、Web 终端外全部；super_admin：全部', () => {
     const all = CAPABILITY_RULES.map((rule) => rule.id);
-    expect(capabilitiesForRole('admin')).toEqual(all.filter((id) => id !== 'users.manage'));
+    const superAdminOnly = new Set(['users.manage', 'settings.performance', 'settings.terminal']);
+    expect(capabilitiesForRole('admin')).toEqual(all.filter((id) => !superAdminOnly.has(id)));
     expect(capabilitiesForRole('super_admin')).toEqual(all);
   });
 });

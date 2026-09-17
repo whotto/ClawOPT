@@ -17,13 +17,23 @@ export interface HostCapabilities {
   memory: { totalMb: number; freeMb: number };
   cpus: number;
   modules: { nodePty: boolean; sharp: boolean };
-  tools: { git: string | null; npm: string | null; pnpm: string | null; uv: string | null; python3: string | null };
+  tools: {
+    git: string | null; npm: string | null; pnpm: string | null; uv: string | null; python3: string | null;
+    /** P6 文件管理器的 SSH / Docker 后端（探测总会填；类型上可选只为兼容既有替身）。 */
+    ssh?: string | null; sshKeyscan?: boolean; docker?: string | null;
+  };
   /** 由上面的事实推出来的闸门。 */
   gates: {
     /** 可用内存够不够跑 npm / pip 安装。 */
     runtimeInstall: { allowed: boolean; reason: string | null };
     pipRuntimes: { allowed: boolean; reason: string | null };
     terminal: { allowed: boolean; reason: string | null };
+    /** P6：文件管理器 SSH 后端（系统 ssh + ssh-keyscan）。 */
+    fileManagerSsh?: { allowed: boolean; reason: string | null };
+    /** P6：文件管理器 Docker 后端（docker CLI）。 */
+    fileManagerDocker?: { allowed: boolean; reason: string | null };
+    /** P6：本地离线语音识别（sherpa-onnx）。本版不随包提供，永远不可用并说明原因。 */
+    localStt?: { allowed: boolean; reason: string | null };
   };
 }
 
@@ -56,13 +66,17 @@ export async function probeHostCapabilities(options: {
     if (!result || result.code !== 0) return 'unknown';
     return firstSemver(`${result.stdout}\n${result.stderr}`) ?? 'unknown';
   };
-  const [git, npm, pnpm, uv, python3] = await Promise.all([
+  const [git, npm, pnpm, uv, python3, ssh, docker] = await Promise.all([
     version('git', ['--version']),
     version('npm', ['--version']),
     version('pnpm', ['--version']),
     version('uv', ['--version']),
     version('python3', ['--version']),
+    // `ssh -V` 把版本写在 stderr，退出码 0；OpenSSH 版本号不是 semver（`OpenSSH_9.8p1`），拿不到就是 'unknown'。
+    version('ssh', ['-V']),
+    version('docker', ['--version']),
   ]);
+  const sshKeyscan = whichAll('ssh-keyscan', options.searchPath).length > 0;
   const loadable = options.loadable ?? canLoad;
   let freeBytes = (options.freeMemBytes ?? os.freemem)();
   if (!options.freeMemBytes && process.platform === 'darwin') {
@@ -87,13 +101,16 @@ export async function probeHostCapabilities(options: {
     memory: { totalMb: Math.round(os.totalmem() / (1024 * 1024)), freeMb },
     cpus: os.cpus().length,
     modules: { nodePty, sharp: loadable('sharp') },
-    tools: { git, npm, pnpm, uv, python3 },
+    tools: { git, npm, pnpm, uv, python3, ssh, sshKeyscan, docker },
     gates: {
       runtimeInstall: lowMemory
         ? { allowed: false, reason: 'runtime.hostInsufficientMemory' }
         : npm ? { allowed: true, reason: null } : { allowed: false, reason: 'runtime.nodeEnvironmentMissing' },
       pipRuntimes: uv || python3 ? { allowed: true, reason: null } : { allowed: false, reason: 'runtime.pythonMissing' },
       terminal: nodePty ? { allowed: true, reason: null } : { allowed: false, reason: 'host.nodePtyMissing' },
+      fileManagerSsh: ssh && sshKeyscan ? { allowed: true, reason: null } : { allowed: false, reason: 'host.sshMissing' },
+      fileManagerDocker: docker ? { allowed: true, reason: null } : { allowed: false, reason: 'host.dockerMissing' },
+      localStt: { allowed: false, reason: 'host.localSttNotIncluded' },
     },
   };
 }

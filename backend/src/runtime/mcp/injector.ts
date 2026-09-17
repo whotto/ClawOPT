@@ -5,11 +5,14 @@
  * 用户的全局文件不动。每个服务 5 秒、并行；隔离步骤自己出错一律放行。
  */
 import { probeMcpServer } from './probe';
-import { isManagedMcpServer, type ManagedMcpServer, type McpInjector, type McpProbeResult } from './types';
+import { isManagedMcpServer, type ManagedMcpServer, type McpInjector, type McpProbeResult, type McpRunContext } from './types';
 
 export interface McpInjectorOptions {
-  /** ClawOPT 托管的 MCP 服务（目前没有，钩子留着：将来 ClawOPT 作为 MCP 服务时从这里注入）。 */
-  managedServers?: (runtime: string) => ManagedMcpServer[];
+  /**
+   * ClawOPT 托管的 MCP 服务（P6：ClawOPT 自己作为 MCP 服务，按运行签发范围令牌）。
+   * 提供者自己出错时按「没有托管服务」放行——托管服务起不来不该让运行起不来。
+   */
+  managedServers?: (runtime: string, run?: McpRunContext) => ManagedMcpServer[] | Promise<ManagedMcpServer[]>;
   /** stdio 子进程的环境（运行时管理器的白名单环境）。 */
   childEnv: () => NodeJS.ProcessEnv;
   probe?: (server: ManagedMcpServer, env: NodeJS.ProcessEnv, timeoutMs: number) => Promise<McpProbeResult>;
@@ -23,8 +26,13 @@ export function createMcpInjector(options: McpInjectorOptions): McpInjector {
   const log = options.log ?? ((message: string) => console.log(message));
 
   return {
-    async resolveForRun({ runtime, userServers }) {
-      const managed = options.managedServers?.(runtime) ?? [];
+    async resolveForRun({ runtime, userServers, run }) {
+      let managed: ManagedMcpServer[] = [];
+      try {
+        managed = (await options.managedServers?.(runtime, run)) ?? [];
+      } catch (error) {
+        log(`[MCP] ${runtime}: managed servers unavailable for this run (${(error as Error)?.name ?? 'Error'})`);
+      }
       const managedNames = new Set(managed.map((server) => server.name));
       // 用户文件里残留的托管条目（旧名字、带标记的）不参与：托管的以这一次生成的为准。
       const candidates = userServers.filter((server) => !isManagedMcpServer(server) && !managedNames.has(server.name));

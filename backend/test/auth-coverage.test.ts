@@ -12,6 +12,10 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { buildApp } from '../src/bootstrap';
 import { attachRealtimeServer } from '../src/bootstrap/realtime';
+import { attachTerminalServer } from '../src/bootstrap/terminal';
+import Database from 'better-sqlite3';
+import WebSocket from 'ws';
+import { createTerminalService } from '../src/workspace';
 import { RealtimeHub } from '../src/core/realtime';
 import { AUTH_PUBLIC_PATHS, createAuthMiddleware } from '../src/core/auth';
 import { LocalProviderProxy } from '../src/runtime';
@@ -31,23 +35,28 @@ let server: http.Server;
 let baseUrl = '';
 let records: RouteRecord[] = [];
 let realtime: ReturnType<typeof attachRealtimeServer>;
+let terminalWs: ReturnType<typeof attachTerminalServer>;
+const terminal = createTerminalService({ db: { connection: () => new Database(':memory:') } as any, hostCapabilities: async () => ({}) as any });
 const providerProxy = new LocalProviderProxy({ publicBaseUrl: () => 'http://127.0.0.1:9', log: () => {} });
 
 beforeAll(async () => {
   // 401 走的是原有错误处理中间件，它会 console.error 每一次——这里只关心状态码。
   vi.spyOn(console, 'error').mockImplementation(() => {});
   const auth = createAuthMiddleware({ configManager, authStore, userStore } as any);
-  const ctx = createStubContext({ configManager, authStore, userStore, auth, realtime: new RealtimeHub(), providerProxy });
+  const ctx = createStubContext({ configManager, authStore, userStore, auth, realtime: new RealtimeHub(), providerProxy, terminal });
   const built = buildApp(ctx);
   records = built.routes.list();
   server = http.createServer(built.app);
   realtime = attachRealtimeServer(server, ctx);
+  terminalWs = attachTerminalServer(server, ctx);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
 afterAll(async () => {
   await realtime.close();
+  await terminalWs.close();
+  await terminal.stop();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
@@ -109,6 +118,9 @@ const EXPECTED_PUBLIC_ROUTES = [
   // P4a：入站钩子与本机测试收件箱。注册在闸门之后、靠白名单放行；安全性在处理器里（签名 / 回环 + 令牌）。
   'POST /api/hooks/workflows/:hookId',
   'POST /api/hooks/webhook-test/:token',
+  // P6：MCP 桥接口。安全性在处理器里（本机回环 + 每运行范围令牌 + 操作白名单），用例在 test/mcp-server/。
+  'GET /api/mcp-bridge/tools',
+  'POST /api/mcp-bridge/call',
   'GET *',
 ];
 
@@ -156,12 +168,41 @@ describe('鉴权覆盖（登录开启、匿名请求）', () => {
     expect(await upgradeStatus({ Cookie: 'clawopt_session=valid-session-token' })).toBe(101);
   });
 
+  it('WebSocket /ws/terminal（P6）：匿名 401、URL 带票据或令牌 400；登录通过后没有有效一次性票据照样 4401 断开', async () => {
+    const status = (path: string, headers: Record<string, string> = {}) => new Promise<number>((resolve, reject) => {
+      const request = http.request(`${baseUrl}${path}`, {
+        headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'), ...headers },
+      });
+      request.on('upgrade', (res, socket) => { socket.destroy(); resolve(res.statusCode ?? 0); });
+      request.on('response', (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+      request.on('error', reject);
+      request.end();
+    });
+    expect(await status('/ws/terminal')).toBe(401);
+    expect(await status('/ws/terminal?ticket=whatever', { Cookie: 'clawopt_session=valid-session-token' })).toBe(400);
+    expect(await status('/ws/terminal?token=valid-session-token')).toBe(400);
+    const closeCodeFor = (ticket: string) => new Promise<number>((resolve, reject) => {
+      const ws = new WebSocket(`${baseUrl.replace('http', 'ws')}/ws/terminal`, { headers: { Cookie: 'clawopt_session=valid-session-token' } });
+      ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', ticket })));
+      ws.on('message', (raw) => { if (JSON.parse(raw.toString()).type === 'ready') { ws.close(); resolve(1000); } });
+      ws.on('close', (code) => resolve(code));
+      ws.on('error', reject);
+    });
+    expect(await closeCodeFor('not-a-real-ticket-000000000000')).toBe(4401);
+    // 同一个身份签发的票据：第一次放行，重用断开。
+    const { ticket } = terminal.issueTicket({ userId: null, username: null, role: 'super_admin' });
+    expect(await closeCodeFor(ticket)).toBe(1000);
+    expect(await closeCodeFor(ticket)).toBe(4401);
+  });
+
   it('白名单只放行显式列出的路径', () => {
     expect([...AUTH_PUBLIC_PATHS].sort()).toEqual([
       '/api/auth/check',
       '/api/auth/login',
       '/api/hooks/webhook-test/:token',
       '/api/hooks/workflows/:hookId',
+      '/api/mcp-bridge/call',
+      '/api/mcp-bridge/tools',
       '/api/runtime-proxy/anthropic/:key/v1/messages',
       '/api/runtime-proxy/anthropic/:key/v1/models',
       '/api/runtime-proxy/responses/:key/v1/models',

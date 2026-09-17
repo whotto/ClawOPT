@@ -108,6 +108,8 @@ describe('写入审批', () => {
     // 批准写出的内容成了新基线：再触发一次不会被暂存
     expect(await gate.handleChange('writer', workspace, rel)).not.toBe('staged');
     expect(gate.listPending().records).toEqual([]);
+    // P6：批准留下审批历史（成长轨迹按它判「Agent 自己写、经审批落地」的技能）。
+    expect(gate.listHistory('writer')).toEqual([expect.objectContaining({ relPath: rel, action: 'create', decision: 'approved' })]);
   });
 
   it('批准的前置条件：审阅后记录被覆盖 → recordChanged；磁盘不再是基线 → baseChanged', async () => {
@@ -145,6 +147,7 @@ describe('写入审批', () => {
     await gate.handleChange('writer', workspace, 'MEMORY.md');
     const [record] = gate.listPending().records;
     await expect(gate.reject(record.id)).resolves.toEqual({ rejected: true });
+    expect(gate.listHistory('writer')).toEqual([expect.objectContaining({ relPath: 'MEMORY.md', decision: 'rejected' })]);
     expect(read('MEMORY.md')).toBe('# Memory\n- likes tea\n');
     expect(() => gate.review('../../etc/passwd')).toThrowError(ControlInputError);
     expect(() => gate.review('00000000-0000-0000-0000-000000000000')).toThrowError(expect.objectContaining({ status: 404 }));

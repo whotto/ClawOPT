@@ -1,4 +1,4 @@
-export type { ManagedMcpServer, McpInjector, McpProbeResult, McpServerEntry } from './types';
+export type { ManagedMcpServer, McpInjector, McpProbeResult, McpRunContext, McpServerEntry } from './types';
 export { CLAWOPT_MANAGED_MCP_ENV, CLAWOPT_MANAGED_MCP_PREFIX, isManagedMcpServer } from './types';
 export { createMcpInjector } from './injector';
 export type { McpInjectorOptions } from './injector';

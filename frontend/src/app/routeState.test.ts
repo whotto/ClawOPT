@@ -26,7 +26,7 @@ describe('parseAppPath', () => {
   });
 
   it('控制面页签都在清单里（新增页签必须同时进路由表与侧栏）', () => {
-    expect([...SETTINGS_TABS].sort()).toEqual(['about', 'agents', 'channels', 'commands', 'cron', 'gateway', 'general', 'logs', 'mcp', 'models', 'plugins', 'presets', 'runtimes', 'skills', 'usage', 'users']);
+    expect([...SETTINGS_TABS].sort()).toEqual(['about', 'agents', 'channels', 'commands', 'cron', 'files', 'gateway', 'general', 'journey', 'logs', 'mcp', 'mcpserver', 'memory', 'models', 'performance', 'plugins', 'presets', 'runtimes', 'skills', 'terminal', 'theme', 'usage', 'users', 'voice']);
   });
 
   it('parses every settings tab and flags unknown tabs', () => {

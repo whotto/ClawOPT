@@ -6,7 +6,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 
 import type { SessionManager } from '../collab/sessions';
 import type { DB } from '../core/db';
@@ -19,7 +19,7 @@ import { resolveBinaryOnPath, type AgentRuntimeAdapter, type OpenClawChatRunRequ
 import { createKanbanService } from './kanban/kanban-service';
 import { createKanbanStore } from './kanban/kanban-store';
 import { createInboundHooks } from './hooks/inbound-hooks';
-import type { AttachmentResolver, WorkflowAgentRunner } from './ports';
+import type { AttachmentResolver, WorkflowAgentRef, WorkflowAgentRunner } from './ports';
 import { createAgentDirectory } from './runner/agent-directory';
 import { createCoordinatorRunner, workflowAgentId, workflowSessionKey } from './runner/coordinator-runner';
 import { createFakeRunner } from './runner/fake-runner';
@@ -251,7 +251,34 @@ export function createAutomation(deps: AutomationDeps) {
     workflowId === 'kanban' ? Boolean(kanbanStore.getTask(nodeId)) : Boolean(defs.get(workflowId)?.nodes.some((node) => node.id === nodeId))
   );
 
+  /**
+   * P6：ClawOPT MCP 服务的 `chat_run`（把一轮委派给管理员允许的 Agent / 运行时，等它答完）。
+   * 与工作流节点同一条执行路径：协调器 `workflow` 表面的真实会话（不进聊天列表），无人值守一律拒绝工具权限询问。
+   * 运行时 home 归属 `{mcp-delegate, 会话}`：工作流表里没有这个 id，定期清扫按孤儿回收。
+   */
+  async function delegateTurn(input: { agentRef: WorkflowAgentRef; prompt: string; timeoutMs: number; onSessionKey?: (sessionKey: string) => void }) {
+    const availability = directory.availability(input.agentRef);
+    if (!availability.available) return { ok: false, output: '', error: availability.reason };
+    const sessionId = randomUUID();
+    input.onSessionKey?.(workflowSessionKey(sessionId));
+    const controller = new AbortController();
+    const workspace = path.join(workflowWorkspacesDir, 'mcp-delegate');
+    fs.mkdirSync(workspace, { recursive: true });
+    const result = await runner.runAndWait({
+      sessionId,
+      agentRef: input.agentRef,
+      input: [{ type: 'text', text: input.prompt }],
+      workspace,
+      timeoutMs: input.timeoutMs,
+      autoApprove: 'deny',
+      signal: controller.signal,
+      owner: { workflowId: 'mcp-delegate', nodeId: sessionId },
+    });
+    return { ok: result.ok, output: result.output, error: result.error };
+  }
+
   return {
+    delegateTurn,
     nodeSession,
     workflowAgentIds,
     runtimeHomeOwnerExists,

@@ -28,10 +28,26 @@ const CONTROL_PLANE_MODULES = [
   'control/logs',
   'control/gateway',
   'control/commands',
+  // P6：工作区与外围。
+  'control/theme',
+  'control/performance',
+  'control/journey',
+  'memory',
+  'mcp-server',
+  'voice',
+  'workspace/terminal',
+  'workspace/files',
 ];
 
 /** 有意对 member 开放的写接口（改的是自己）。改这份清单 = 改授权面。 */
-const MEMBER_WRITABLE = new Set(['POST /api/auth/logout', 'POST /api/auth/login', 'POST /api/auth/change-password']);
+const MEMBER_WRITABLE = new Set([
+  'POST /api/auth/logout', 'POST /api/auth/login', 'POST /api/auth/change-password',
+  // P6：主题改的是自己的；语音合成 / 识别是输入区用的（带上限与每用户限流，配置写入仍是管理员）。
+  'PUT /api/theme', 'DELETE /api/theme', 'PUT /api/theme/background', 'DELETE /api/theme/background',
+  'POST /api/voice/synthesize', 'POST /api/voice/transcribe',
+  // P6：MCP 桥接口有意公开（AUTH_PUBLIC_PATHS），只认每运行范围令牌，由 test/mcp-server 守着。
+  'POST /api/mcp-bridge/call',
+]);
 
 const MEMBER_TOKEN = 'member-token';
 const configManager = { getConfig: () => ({ loginEnabled: true, allowedHosts: [] }) };

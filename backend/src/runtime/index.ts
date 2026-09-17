@@ -148,6 +148,8 @@ export type {
   RuntimeStatus,
 } from './manager';
 export {
+  CLAWOPT_MANAGED_MCP_ENV,
+  CLAWOPT_MANAGED_MCP_PREFIX,
   createMcpInjector,
   isManagedMcpServer,
   shapeClaudeMcpConfig,
@@ -158,7 +160,7 @@ export {
   shapeOpenCodeMcpConfig,
   shapePiMcpConfig,
 } from './mcp';
-export type { ManagedMcpServer, McpInjector } from './mcp';
+export type { ManagedMcpServer, McpInjector, McpRunContext } from './mcp';
 export {
   REMOTE_OPENCLAW_CAPABILITIES,
   REMOTE_OPENCLAW_DESCRIPTOR,

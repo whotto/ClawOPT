@@ -13,7 +13,10 @@ export type SettingsTab =
   | 'gateway' | 'general' | 'models' | 'presets' | 'commands' | 'about'
   | 'agents' | 'skills' | 'mcp' | 'runtimes' | 'users'
   | 'cron'
-  | 'channels' | 'plugins' | 'usage' | 'logs';
+  | 'channels' | 'plugins' | 'usage' | 'logs'
+  // P6：团队区的记忆与成长轨迹；系统区的性能、文件、终端、语音、ClawOPT MCP 服务、主题。
+  | 'memory' | 'journey'
+  | 'performance' | 'files' | 'terminal' | 'voice' | 'mcpserver' | 'theme';
 /** 自动化区的页面：`/automation/workflows[/:id]`、`/automation/kanban`、`/automation/webhooks`。 */
 export type AutomationSection = 'workflows' | 'kanban' | 'webhooks';
 
@@ -29,6 +32,8 @@ export const SETTINGS_TABS: readonly SettingsTab[] = [
   'agents', 'skills', 'mcp', 'runtimes', 'users',
   'cron',
   'channels', 'plugins', 'usage', 'logs',
+  'memory', 'journey',
+  'performance', 'files', 'terminal', 'voice', 'mcpserver', 'theme',
 ];
 const DEFAULT_SETTINGS_TAB: SettingsTab = 'gateway';
 

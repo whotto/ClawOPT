@@ -20,6 +20,8 @@ function readComposerHeight(): number {
     return COMPOSER_DEFAULT_MAX_HEIGHT;
   }
 }
+// P6 语音：按住说话 + 自动朗读开关（自包含，只拿输入框的值与写入口）。
+import { VoiceComposerControls } from '../../voice/VoiceComposerControls';
 
 type ComposerProps = Pick<
   ChatController,
@@ -308,6 +310,8 @@ export function Composer(c: ComposerProps) {
                     }
                   }} className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all font-bold text-lg">@</button>
                 )}
+                {/* P6 语音 */}
+                <VoiceComposerControls input={input} setInput={setInput} textareaRef={textareaRef} />
                 <button
                   type="button"
                   onClick={() => { setInputPreview(p => !p); if (inputPreview) setTimeout(() => textareaRef.current?.focus(), 0); }}

@@ -3,6 +3,7 @@ import { Navigate, useLocation, type Location } from 'react-router-dom';
 import { getAuthCheck } from '../api/auth';
 import { AUTH_CHECK_POLL_MS, BOOTSTRAP_REQUEST_TIMEOUT_MS, isPageVisible } from './bootstrap';
 import { LOGIN_PATH } from './routeState';
+import { clearThemeCache } from '../theme/themeRuntime';
 
 type AuthState = {
   /** null = 首次探测中；探测中照常渲染应用，与改路由前一致。 */
@@ -21,6 +22,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 会话令牌在 httpOnly cookie 里，同源请求自动携带：既不用拼查询串
         // （会进访问日志与浏览器历史），JS 也读不到（XSS 偷不走）。
         const data = await getAuthCheck(BOOTSTRAP_REQUEST_TIMEOUT_MS);
+        // 已退出登录（或令牌失效）：清掉本机的用户主题缓存，登录页与下一个登录的人不带上一个人的主题（P6）。
+        if (data.loginRequired) clearThemeCache();
         setIsAuthenticated(!data.loginRequired);
       } catch {
         // 探测失败不再默认放行：后端够不着时前端解锁没有意义，

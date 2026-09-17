@@ -333,7 +333,12 @@ export function createCodingAgentAdapter(definition: RuntimeDefinition, deps: Co
               deps.logger.warn(`[${runtimeId}] 读用户 MCP 配置失败，本轮不合并用户服务`, { detail: sanitizeRuntimeText(String((error as Error)?.message ?? error)) });
             }
           }
-          const mcp = await deps.mcp.resolveForRun({ runtime: runtimeId, userServers: userServers ?? [] });
+          const mcp = await deps.mcp.resolveForRun({
+            runtime: runtimeId,
+            userServers: userServers ?? [],
+            // P6：托管的 ClawOPT MCP 服务按这次运行签发范围令牌（运行结束即吊销）。
+            run: { runId: context.runId, sessionKey: context.sessionKey, agentId: context.agentId, runtime: runtimeId, owner: request.owner },
+          });
           for (const excluded of mcp.excluded) {
             deps.logger.warn(`[${runtimeId}] MCP 服务未通过运行前探测，本轮不注入`, { name: excluded.name, reason: excluded.reason });
           }
