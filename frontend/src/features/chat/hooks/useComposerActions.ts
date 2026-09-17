@@ -19,6 +19,8 @@ import type { MessagePatchQueue } from './useMessagePatchQueue';
 import type { HistoryScroll } from './useHistoryScroll';
 import type { ChatHistoryFetch } from './useChatHistoryFetch';
 import type { GroupEvents } from './useGroupEvents';
+import { buildStructuredMentions, insertMentionAt, type MentionRange, rebaseMentionRanges } from '../../rooms/mentionRanges';
+import { loadRoomDraft, roomQueueCapability, saveRoomDraft, sweepRoomDrafts } from '../../rooms/roomStorage';
 import type { MessageActions } from './useMessageActions';
 import type { ChatRunControl } from './useChatRunControl';
 import { createClientTurnId } from '../run/chatRunState';
@@ -46,6 +48,7 @@ type ComposerActionsContext = Pick<
 >;
 
 export function useComposerActions(c: ComposerActionsContext) {
+  const mentionRangesRef = React.useRef<MentionRange[]>([]);
   const {
     t, sessions, isChat, isGroup, activeKey, setMessages, input, setInput, isLoading, setIsLoading,
     setSubmitError, setSubmitNotice, currentLocale, setActiveLeafId, editingMessageId, pendingFiles, setPendingFiles, pendingFilesRef, frameJobsRef, isDragging,
@@ -54,7 +57,7 @@ export function useComposerActions(c: ComposerActionsContext) {
     setTypingAgents, setGroupRunState, showMentionPopup, setShowMentionPopup, mentionFilter,
     setMentionFilter, mentionIndex, setMentionIndex, textareaRef, abortControllerRef,
     justSelectedFileRef, dragCounter, forceAutoScrollRef, currentGroup, activeSessionName,
-    resolveGroupMemberDisplayName, isGroupBusy, flushQueuedMessagePatches,
+    resolveGroupMemberDisplayName, flushQueuedMessagePatches,
     queueMessagePatch, dropQueuedMessagePatch, moveQueuedMessagePatch, scrollToLatestBottom,
     prepareLatestHistoryWindowForSubmit, recoverLatestChatMessages, recoverGroupActiveRun,
     recoverLatestGroupMessages, uploadFiles, locallyStreamedRefsRef, refreshRunState, requestAttach, waitForRunTerminal,
@@ -179,9 +182,14 @@ export function useComposerActions(c: ComposerActionsContext) {
   // ---- Send message ----
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || (isLoading && !isChat) || isGroupBusy) return;
+    // 单聊回复中：不挡，排进服务端队列（P1b）；群聊有人在跑也不挡，服务端按每个 Agent 排队（P3）。
+    if ((!input.trim() && pendingFiles.length === 0 && !quotedMessage) || (isLoading && !isChat && !isGroup)) return;
     setSubmitError('');
     setSubmitNotice('');
+    // 结构化 @ 要按未裁剪的原文核对区间（裁掉前导空白会让区间错位）。
+    const structuredMentions = isGroup ? buildStructuredMentions(input, mentionRangesRef.current) : undefined;
+    const currentRanges = mentionRangesRef.current;
+    mentionRangesRef.current = [];
     // 视频抽帧还没完成：等它（抽帧失败也会结束），再读最新的待发列表。
     if (frameJobsRef.current.size > 0) await Promise.all([...frameJobsRef.current.values()]);
     const currentInput = input.trim(); const currentFiles = [...pendingFilesRef.current]; const currentQuote = quotedMessage;
@@ -367,10 +375,14 @@ export function useComposerActions(c: ComposerActionsContext) {
         if (!fullMessage) return;
         const response = await postGroupMessage(activeKey, {
             content: fullMessage,
+            ...(structuredMentions ? { mentions: structuredMentions } : {}),
+            queueCapability: roomQueueCapability(activeKey),
           });
+        if (response.ok) saveRoomDraft(activeKey, '', []);
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
           setInput(currentInput);
+          mentionRangesRef.current = currentInput === input ? currentRanges : [];
           setPendingFiles(currentFiles);
           setQuotedMessage(currentQuote);
           setSubmitError(resolveSubmitError(payload || {}, t, 'unifiedChat.sendFailed'));
@@ -431,7 +443,9 @@ export function useComposerActions(c: ComposerActionsContext) {
 
   // ---- Group mention input ----
   const handleGroupInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value; setInput(val);
+    const val = e.target.value;
+    mentionRangesRef.current = rebaseMentionRanges(input, val, mentionRangesRef.current);
+    setInput(val);
     const cursorPos = e.target.selectionStart || 0;
     const atMatch = val.slice(0, cursorPos).match(/@([^\s@]*)$/);
     if (atMatch && currentGroup) { setMentionFilter(atMatch[1]); setShowMentionPopup(true); setMentionIndex(0); }
@@ -440,10 +454,33 @@ export function useComposerActions(c: ComposerActionsContext) {
   const getFilteredMembers = () => currentGroup ? currentGroup.members.filter(m => resolveGroupMemberDisplayName(m).toLowerCase().includes(mentionFilter.toLowerCase())) : [];
   const insertMention = (name: string) => {
     const pos = textareaRef.current?.selectionStart || 0;
-    const before = input.slice(0, pos); const after = input.slice(pos);
-    setInput(before.slice(0, before.lastIndexOf('@')) + `@${name} ` + after);
+    // P3：选中的 @ 记成结构化区间（成员行 id），发送时变成结构化 @，改名 / 重名都不影响路由。
+    const member = currentGroup?.members.find((m) => resolveGroupMemberDisplayName(m) === name);
+    const inserted = insertMentionAt(input, pos, { memberId: member?.id ?? '', name }, mentionRangesRef.current);
+    mentionRangesRef.current = member ? inserted.ranges : inserted.ranges.filter((range) => range.memberId);
+    setInput(inserted.text);
     setShowMentionPopup(false); textareaRef.current?.focus();
+    window.setTimeout(() => { const ta = textareaRef.current; if (ta) ta.selectionStart = ta.selectionEnd = inserted.cursor; }, 0);
   };
+
+  // P3：每群草稿（30 天）。切群时先存上一个群的，再恢复这个群的；输入变化时防抖保存。
+  const draftRoomRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const roomKey = isGroup ? activeKey : null;
+    if (draftRoomRef.current === roomKey) return;
+    draftRoomRef.current = roomKey;
+    if (!roomKey) return;
+    sweepRoomDrafts();
+    const draft = loadRoomDraft(roomKey);
+    mentionRangesRef.current = draft?.ranges ?? [];
+    setInput(draft?.text ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey, isGroup]);
+  React.useEffect(() => {
+    if (!isGroup || !activeKey || draftRoomRef.current !== activeKey) return;
+    const timer = window.setTimeout(() => saveRoomDraft(activeKey, input, mentionRangesRef.current), 400);
+    return () => window.clearTimeout(timer);
+  }, [activeKey, input, isGroup]);
 
   // ---- Keyboard ----
   const handleKeyDown = (e: React.KeyboardEvent) => {

@@ -169,5 +169,22 @@ export function mapGroupMsg(m: any): ChatMessage {
     messageCode: typeof m.messageCode === 'string' ? m.messageCode : undefined,
     messageParams: m.messageParams && typeof m.messageParams === 'object' ? m.messageParams : undefined,
     rawDetail: typeof m.rawDetail === 'string' ? m.rawDetail : undefined,
+    ...mapRoomMeta(m),
+  };
+}
+
+/** P3 群协作元数据：历史行与编辑帧带着才填（增量帧不带，合并时保留已有的）。 */
+function mapRoomMeta(m: any): Pick<ChatMessage, 'room'> {
+  const hasMeta = Array.isArray(m?.workspace_changes) || Array.isArray(m?.attachments) || typeof m?.sender_guest_id === 'string' || typeof m?.message_kind === 'string';
+  if (!hasMeta) return {};
+  return {
+    room: {
+      senderGuestId: typeof m.sender_guest_id === 'string' ? m.sender_guest_id : null,
+      senderMemberId: typeof m.sender_member_id === 'string' ? m.sender_member_id : null,
+      mentionDepth: typeof m.mention_depth === 'number' ? m.mention_depth : 0,
+      messageKind: typeof m.message_kind === 'string' ? m.message_kind : '',
+      attachments: Array.isArray(m.attachments) ? m.attachments : [],
+      workspaceChanges: Array.isArray(m.workspace_changes) ? m.workspace_changes : [],
+    },
   };
 }

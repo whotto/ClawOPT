@@ -10,6 +10,10 @@ import {
 } from '../../../utils/message-merge';
 import { HISTORY_FETCH_BATCH_MIN_LIMIT } from '../../../utils/history-window';
 import {
+  applyPatchBatch, LiveDeltaBatcher, MessageTombstones, removeEmptyAssistantBubbles,
+} from '../../../utils/room-live-merge';
+import { dispatchRoomFrame, isRoomCollabFrame } from '../../rooms/roomFrames';
+import {
   GROUP_ACTIVE_RUN_RECOVERY_POLL_MS, GROUP_SSE_RECOVERY_THROTTLE_MS, GROUP_POST_RUN_SETTLE_POLL_MS,
   GROUP_POST_RUN_SETTLE_TIMEOUT_MS,
 } from '../lib/constants';
@@ -36,7 +40,7 @@ export function useGroupEvents(c: GroupEventsContext) {
     mode, isGroup, activeKey, setMessages, setActiveLeafId, isInitialLoading, setGroups,
     setTypingAgents, groupRunState, setGroupRunState, eventSourceRef, messagesRef,
     previousGroupRunActiveRef, groupSseRecoveryAtRef, newerHistoryPagesRef, getPreferredLeafId,
-    historyFetchBatchLimit, flushQueuedMessagePatches, queueMessagePatch,
+    historyFetchBatchLimit, queueMessagePatch,
     clearQueuedMessagePatches, dropQueuedMessagePatch, clearNewerHistoryWindowTrail,
     fetchHistoryPage, loadHistory,
   } = c;
@@ -216,11 +220,34 @@ export function useGroupEvents(c: GroupEventsContext) {
     setGroupRunState({ active: false, agentId: null, runId: null, startedAt: null });
     const es = openGroupEvents(activeKey);
     eventSourceRef.current = es;
+    // P3 实时合并规则（utils/room-live-merge.ts）：增量 50ms 批处理、终帧前先冲刷、删除 / 撤回记墓碑不复活、运行结束清空泡。
+    const tombstones = new MessageTombstones();
+    const batcher = new LiveDeltaBatcher((batch) => setMessages((prev) => applyPatchBatch(prev, batch, tombstones)), tombstones);
+    const flushPendingInto = (id: string) => {
+      const pending = batcher.take(id);
+      if (pending) setMessages((prev) => applyPatchBatch(prev, new Map([[id, pending]]), tombstones));
+    };
+    const forgetMessages = (ids: string[]) => {
+      tombstones.add(ids);
+      batcher.drop(ids);
+      ids.forEach((id) => dropQueuedMessagePatch(id));
+    };
     es.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
+        if (isRoomCollabFrame(parsed)) {
+          if (parsed.type === 'message_retracted' && parsed.data && parsed.data.messageId !== undefined) {
+            const retractedId = String(parsed.data.messageId);
+            forgetMessages([retractedId]);
+            setMessages((prev) => prev.filter((message) => message.id !== retractedId));
+          }
+          dispatchRoomFrame(activeKey, parsed);
+          return;
+        }
         if (parsed.type === 'message') {
           const mapped = mapGroupMsg(parsed.data);
+          if (tombstones.has(mapped.id)) return;
+          flushPendingInto(mapped.id);
           dropQueuedMessagePatch(mapped.id);
           const isBrowsingOlderWindow = newerHistoryPagesRef.current.length > 0;
           const nextMessages = mergeMessageCollectionPreservingContent(messagesRef.current, [mapped]);
@@ -251,6 +278,8 @@ export function useGroupEvents(c: GroupEventsContext) {
           setGroupRunState(nextState);
           if (!nextState.active) {
             setTypingAgents(new Map());
+            batcher.flush();
+            setMessages((prev) => removeEmptyAssistantBubbles(prev));
           }
         } else if (parsed.type === 'delete') {
           const deletedIds = Array.isArray(parsed.deletedIds)
@@ -260,7 +289,7 @@ export function useGroupEvents(c: GroupEventsContext) {
           const fallbackParentId = typeof parsed.fallbackParentId === 'number' || typeof parsed.fallbackParentId === 'string'
             ? String(parsed.fallbackParentId)
             : (parsed.parent_id ? String(parsed.parent_id) : null);
-          deletedIds.forEach((id: string) => dropQueuedMessagePatch(id));
+          forgetMessages(deletedIds);
           setMessages(prev => {
             const nextMessages = prev.filter((message) => !deletedIdSet.has(message.id));
             setActiveLeafId((prevLeaf) => {
@@ -275,6 +304,7 @@ export function useGroupEvents(c: GroupEventsContext) {
             return nextMessages;
           });
         } else if (parsed.type === 'delta') {
+          if (tombstones.has(String(parsed.id))) return;
           if (!messagesRef.current.some(message => message.id === String(parsed.id))) {
             upsertGroupStreamMessage(parsed);
           } else {
@@ -289,10 +319,11 @@ export function useGroupEvents(c: GroupEventsContext) {
             if (parsed.sender_id === 'system') patch.role = 'system';
             if (typeof parsed.sender_id === 'string') patch.agentId = parsed.sender_id;
             if (typeof parsed.sender_name === 'string') patch.agentName = parsed.sender_name;
-            queueMessagePatch(String(parsed.id), patch);
-            flushQueuedMessagePatches();
+            batcher.push(String(parsed.id), patch);
           }
         } else if (parsed.type === 'edit') {
+          if (tombstones.has(String(parsed.id))) return;
+          flushPendingInto(String(parsed.id));
           dropQueuedMessagePatch(String(parsed.id));
           upsertGroupStreamMessage(parsed);
         }
@@ -322,6 +353,7 @@ export function useGroupEvents(c: GroupEventsContext) {
     };
     return () => {
       es.close();
+      batcher.dispose();
       clearQueuedMessagePatches();
     };
   }, [activeKey, clearQueuedMessagePatches, dropQueuedMessagePatch, isGroup, queueMessagePatch, recoverGroupActiveRun, recoverLatestGroupMessages, resolveNextLiveGroupLeafId, upsertGroupStreamMessage]);

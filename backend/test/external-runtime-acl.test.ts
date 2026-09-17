@@ -60,7 +60,8 @@ beforeAll(async () => {
   ctx.db.ensureRunSession({ sessionKey: 'workflow:node-claude', surface: 'workflow', runtime: 'claude-code', agentId: 'ext:claude-code:workflow' });
   ctx.db.ensureRunSession({ sessionKey: 'workflow:node-codex', surface: 'workflow', runtime: 'codex', agentId: 'ext:codex:workflow' });
   const engine = ctx.rooms.groupChatEngine;
-  engine.sendToAgent = async (_groupId: string, _groupName: string, agentId: string) => { woken.push(agentId); return undefined; };
+  // 编排器按队列调引擎的 executeTurn：换成记录调用的替身（不起真 CLI）。
+  engine.executeTurn = async (input: any) => { woken.push(input.member.agent_id); return { status: 'completed', messageId: null, text: '' }; };
 
   const node = (id: string, runtime: string) => ({ id, type: 'agent', position: { x: 0, y: 0 }, data: { title: id, agent: { kind: 'external', id: runtime, runtime }, input: '[fake:output done]' } });
   wf.claude = ctx.automation.workflows.create({ name: 'wf-claude', nodes: [node('n1', 'claude-code')], edges: [] }).id;

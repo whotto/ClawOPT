@@ -111,6 +111,19 @@ function deniedByName(realPath: string, roots: string[]): boolean {
 }
 
 /**
+ * 相对路径（工作区内）是否落在凭据 / 密钥 / 数据库这类永不外发的名字上。与闸门同一份名单：
+ * 群工作区文件编辑器、远程工作区令牌接口在**写入与新建**时用它（文件还不存在，走不了 realpath 闸门）。
+ */
+export function isSensitiveRelativePath(relativePath: string): boolean {
+  const segments = relativePath.split(/[\\/]+/).filter(Boolean);
+  if (segments.length === 0) return false;
+  const base = segments[segments.length - 1];
+  if (DENIED_BASENAMES.has(base)) return true;
+  if (DENIED_PATTERNS.some(pattern => pattern.test(base))) return true;
+  return segments.some(segment => DENIED_DIR_SEGMENTS.has(segment));
+}
+
+/**
  * 判定一个绝对路径能否交给浏览器。
  * @param absolutePath 调用方解出的绝对路径。
  * @returns 通过时给出 realpath 后的真实路径，调用方应当用它去发送文件。

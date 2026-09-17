@@ -14,7 +14,7 @@ import cors from 'cors';
 import express from 'express';
 import path from 'path';
 
-import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS } from '../core/auth';
+import { registerAuthGate, registerAuthRoutes, registerUserRoutes, AUTH_PUBLIC_PATHS, type RequestIdentity } from '../core/auth';
 import { isStructuredRequestError, RouteRegistry } from '../core/http';
 import { registerRunApprovalRoutes, registerRuntimePlatformRoutes, registerRuntimeProxyBodyParser, registerRuntimeProxyRoutes } from '../runtime';
 import {
@@ -48,7 +48,8 @@ import { registerMemoryRoutes } from '../memory';
 import { registerMcpServerRoutes } from '../mcp-server';
 import { registerVoiceRoutes } from '../voice';
 import { registerChatRoutes, registerChatSearchRoutes, registerSessionListRoutes, registerSessionOrgRoutes, registerSessionRoutes, registerWorkspaceChangeRoutes } from '../collab/sessions';
-import { registerRoomRoutes } from '../collab/rooms';
+import { registerRoomRoutes, registerRoomShareRoutes } from '../collab/rooms';
+import { registerRelayRoutes } from '../collab/relay';
 import { registerAutomationRoutes, registerWorkflowRoutes } from '../automation';
 import type { AppContext } from './context';
 import { createReadiness, registerHealthRoutes, type Readiness } from './health';
@@ -137,8 +138,22 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   registerChatSearchRoutes(routes.forModule('collab/sessions'), ctx);
   registerWorkspaceChangeRoutes(routes.forModule('collab/sessions'), ctx);
   // 等人答复的运行审批（真审批运行时的单聊 / 群成员）：按用户过滤。
-  registerRunApprovalRoutes(routes.forModule('runtime'), ctx);
-  registerUploadRoutes(routes.forModule('workspace/uploads'), ctx);
+  // 附加的判据挂在以 ctx 为原型的对象上（不展开 ctx：路由清单生成用的是按需取值的桩上下文，展开会丢字段）。
+  registerRunApprovalRoutes(routes.forModule('runtime'), Object.assign(Object.create(ctx) as AppContext, {
+    // 群成员会话的审批只给 Agent 主人（P3）。
+    canHandle: (identity: RequestIdentity, sessionKey: string, id: string) => ctx.roomCollab.interactions.canHandleSession(sessionKey, id, identity),
+  }));
+  registerUploadRoutes(routes.forModule('workspace/uploads'), Object.assign(Object.create(ctx) as AppContext, {
+    admitGroupUpload: (groupId: string, sizes: number[]) => {
+      try {
+        ctx.roomCollab.attachments.admitLegacyUpload(groupId, sizes);
+        return null;
+      } catch (error) {
+        const { status, code } = error as { status?: number; code?: string };
+        return { status: status ?? 400, errorCode: code ?? 'groups.attachmentInvalid' };
+      }
+    },
+  }));
   registerCommandRoutes(routes.forModule('control/commands'), ctx);
   registerFileRoutes(routes.forModule('workspace/files'), ctx);
   registerWorkflowRoutes(routes.forModule('automation'), ctx);
@@ -186,6 +201,10 @@ export function buildApp(ctx: AppContext, options: BuildAppOptions = {}) {
   }));
 
   registerRoomRoutes(routes.forModule('collab/rooms'), ctx);
+  // 访客页（P3）：邀请码 + 访客令牌，公开入口按 AUTH_PUBLIC_PATHS 放行。
+  registerRoomShareRoutes(routes.forModule('collab/rooms'), ctx);
+  // 远程 Agent relay（P3）：host 的配对 / connector / 远程工作区，target 的本机链接。公开入口按 AUTH_PUBLIC_PATHS 放行。
+  registerRelayRoutes(routes.forModule('collab/relay'), ctx);
 
   // Fallback for SPA — also no-cache
   bootstrapApp.get('*', (_req, res) => {

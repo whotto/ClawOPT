@@ -1,6 +1,7 @@
 // 消息滚动区：骨架屏、日期徽标 / 空状态与消息气泡列表。isLatest 等传给气泡的属性与拆分前逐字一致。
-import { Users } from 'lucide-react';
 import { Fragment } from 'react';
+import { Users } from 'lucide-react';
+import { WorkspaceChangesCard } from '../../rooms/RoomWorkspace';
 import { MessageBubble } from '../message';
 import { WorkspaceChangeCard } from '../workspace/WorkspaceChangeCard';
 import { ToolRunSummaryCard } from './ToolRunSummaryCard';
@@ -142,6 +143,7 @@ export function MessageList(c: MessageListProps) {
             const workspaceChanges = isChat && msg.role === 'assistant' ? workspaceChangesByMessage.get(msg.id) : undefined;
             const toolTraces = isChat && msg.role !== 'user' ? toolTracesByMessage.get(msg.id) : undefined;
             const taskPlans = isChat && msg.role !== 'user' ? taskPlansByMessage.get(msg.id) : undefined;
+            const roomWorkspaceChanges = isGroup ? (msg.room?.workspaceChanges ?? []) : [];
             return (
               <Fragment key={msg.id}>
               <MessageBubble
@@ -178,6 +180,10 @@ export function MessageList(c: MessageListProps) {
               {taskPlans && <TaskPlanCard plans={taskPlans} />}
               {toolTraces && <ToolRunSummaryCard sessionId={activeKey} runs={toolTraces} />}
               {workspaceChanges && <WorkspaceChangeCard changes={workspaceChanges} onOpen={openWorkspaceChange} />}
+              {/* P3：这次运行对群工作区的改动，挂在 Agent 回复下面 */}
+              {roomWorkspaceChanges.length > 0 && (
+                <div className="pl-11 sm:pl-14 pr-2 -mt-4"><WorkspaceChangesCard changes={roomWorkspaceChanges} /></div>
+              )}
               </Fragment>
             );
           })}

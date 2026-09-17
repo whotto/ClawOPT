@@ -321,23 +321,20 @@ export function Composer(c: ComposerProps) {
                   {inputPreview ? t('common.edit') : t('unifiedChat.preview')}
                 </button>
               </div>
-              {(isChat && isLoading) || (isGroup && isGroupBusy) ? (
-                <div className="flex items-center gap-2">
-                  {isChat && hasDraftToSend && (
-                    <button type="submit" className="px-4 h-9 flex items-center justify-center rounded-lg transition-all font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 active:scale-95" title={t('chatQueue.queueHint')}>
-                      {t('chatQueue.queue')}
-                    </button>
-                  )}
-                  <button type="button" onClick={handleStop} className="px-4 h-9 flex items-center gap-1.5 justify-center rounded-lg transition-all font-bold text-sm bg-red-100 text-red-600 hover:bg-red-200 active:scale-95">
-                    <span className="w-3 h-3 rounded-sm bg-red-600 inline-block flex-shrink-0" />{t('common.stop')}
-                  </button>
-                </div>
-              ) : (
-                <button type="submit" disabled={!hasDraftToSend || isLoading || isGroupBusy}
-                  className={`px-4 h-9 flex items-center justify-center rounded-lg transition-all font-bold text-sm ${hasDraftToSend && !isLoading && !isGroupBusy ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-                  {isLoading ? t('common.sending') : t('common.send')}
+              <div className="flex items-center gap-2">
+              {/* 单聊回复中：可把这条排进队列（P1b）；群聊忙时照样能发，服务端按 Agent 排队（P3）。两种情况都同时显示停止。 */}
+              {((isChat && isLoading) || (isGroup && isGroupBusy)) && (
+                <button type="button" onClick={handleStop} className="px-4 h-9 flex items-center gap-1.5 justify-center rounded-lg transition-all font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                  <span className="w-3 h-3 rounded-sm bg-red-600 inline-block flex-shrink-0" />{t('common.stop')}
                 </button>
               )}
+              {(!(isChat && isLoading) || hasDraftToSend) && (
+                <button type="submit" disabled={!hasDraftToSend || (isLoading && !isChat && !isGroup)}
+                  className={`px-4 h-9 flex items-center justify-center rounded-lg transition-all font-bold text-sm ${hasDraftToSend && !(isLoading && !isChat && !isGroup) ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                  {isChat && isLoading ? t('chatQueue.queue') : isGroup && isGroupBusy ? t('rooms.queue.sendToQueue') : isLoading ? t('common.sending') : t('common.send')}
+                </button>
+              )}
+              </div>
             </div>
           </form>
           {isChat && activeKey && (

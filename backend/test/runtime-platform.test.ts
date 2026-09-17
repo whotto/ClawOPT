@@ -9,6 +9,7 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GroupChatEngine } from '../src/collab/rooms/group-chat-engine';
+import { RoomFence } from '../src/collab/rooms/room-fence';
 import { RealtimeHub } from '../src/core/realtime';
 import { RunCoordinator } from '../src/runtime/coordinator';
 import {
@@ -282,7 +283,12 @@ describe('远程 OpenClaw 成员', () => {
       id: `gm_g1_${runtime}`, group_id: 'g1', agent_id: `agent-${runtime}`, display_name: `M-${runtime}`, role_description: '', position: 0, runtime,
       external_config: JSON.stringify({ gatewayUrl: 'ws://gw.lan:18789', remoteAgentId: 'writer', trustedLan: true }),
     });
-    const run = (m: any) => engine.runExternalMember({ groupId: 'g1', groupName: 'G', member: m, allMembers: [m], triggerMsg: 'x', triggerSenderName: 'u', depth: 0 });
+    Object.defineProperty(engine, 'fence', { value: new RoomFence() });
+    const run = (m: any) => engine.runExternalMember({
+      input: { groupId: 'g1', member: m, payload: { triggerText: 'x', triggerKind: 'mention', triggerSenderName: 'u', depth: 0, originator: { kind: 'system' } }, policy: { runIdleTimeoutSec: 600, runTotalBudgetSec: 3600 }, onReplyCreated: () => {} },
+      parentId: undefined, fence: engine.fence.token('g1', m.id), idleMs: 600_000, totalMs: 3_600_000,
+      scope: { remoteWorkspaceApi: null, runtimeConfig: {}, finish: async () => {} },
+    });
 
     await run(member('remote-openclaw'));
     expect(updates.at(-1)).toBe('M-remote-openclaw 执行失败（remoteOpenclaw.tokenMissing）');

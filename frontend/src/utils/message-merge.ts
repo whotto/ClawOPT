@@ -30,6 +30,15 @@ export interface ChatMessage {
   rawDetail?: string;
   /** 这一轮被「立即插入」的消息打断（不是错误）。只在本次页面生命周期里标，历史里不存。 */
   interrupted?: boolean;
+  /** 群协作元数据（P3）：发送人身份、附件、挂在回复上的工作区 diff。只由群历史 / 群事件映射填，单聊没有。 */
+  room?: {
+    senderGuestId?: string | null;
+    senderMemberId?: string | null;
+    mentionDepth?: number;
+    messageKind?: string;
+    attachments?: Array<{ id: string; name: string; mediaType: string; size: number; url: string; kind: 'image' | 'file' }>;
+    workspaceChanges?: any[];
+  };
 }
 
 export function parsePositiveCursorValue(value: unknown): number | null {

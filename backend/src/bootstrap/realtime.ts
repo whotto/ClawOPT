@@ -2,7 +2,10 @@
  * 把实时 WebSocket 通道装到 HTTP 服务上：鉴权、Host 白名单、主题授权、接回快照、交互答复，
  * 全部从应用上下文里取——ws-server.ts 本身不认识任何业务表。
  */
-import type { Server } from 'http';
+import type { IncomingMessage, Server } from 'http';
+import type { Duplex } from 'stream';
+
+import { RELAY_WS_PATH } from '../collab/relay';
 
 import { attachRealtimeWebSocketServer, parseRealtimeTopic } from '../core/realtime';
 import { externalSenderId, parseExternalSenderId } from '../collab/rooms';
@@ -32,8 +35,14 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
     const parsed = parseRealtimeTopic(topic);
     if (!parsed) return false;
     switch (parsed.kind) {
-      case 'session':
-        return canAccessSessionKey(identity, parsed.id);
+      case 'session': {
+        if (!canAccessSessionKey(identity, parsed.id)) return false;
+        // 群成员的会话主题带审批请求的内容（P3）：只给这个 Agent 的主人。管理员经 HTTP 取澄清（不需要订阅会话主题）。
+        const roomMember = /^room:(.+):member:[^:]+$/.exec(parsed.id);
+        return !roomMember || ctx.roomCollab.members(roomMember[1]).some((member) => (
+          `room:${roomMember[1]}:member:${member.id}` === parsed.id && ctx.roomCollab.roomAccess.isAgentOwner(ctx.roomCollab.roomAccess.actorFromIdentity(identity), identity, roomMember[1], member)
+        ));
+      }
       case 'room':
         return access.canAccessRoom(identity, parsed.id);
       case 'workflow':
@@ -61,10 +70,24 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
     if (parsed?.kind === 'session') return { sessions: [runCoordinator.snapshot(parsed.id)] };
     if (parsed?.kind === 'workflow') return { workflow: ctx.automation.hub.snapshot(parsed.id) };
     if (parsed?.kind === 'approvals') return {};
-    return { sessions: runCoordinator.snapshotTopic(topic) };
+    // 房间主题的快照不带待决交互与交互帧：它们只给 Agent 主人 / 管理员（经 HTTP 按身份取，或订阅会话主题）。
+    const interactionEvent = /^(approval|clarify)\./;
+    return {
+      sessions: runCoordinator.snapshotTopic(topic).map((snapshot) => (parsed?.kind === 'room'
+        ? { ...snapshot, pendingInteractions: [], replay: snapshot.replay.filter((event) => !interactionEvent.test(event.type)) }
+        : snapshot)),
+    };
   };
 
-  return attachRealtimeWebSocketServer<RequestIdentity>(server, {
+  // 远程 Agent relay 的 WebSocket 接入（P3）：路径不同（`/api/relay/v1/connect`），不带登录 cookie，
+  // 鉴权是配对票据或 connector 凭据（在 relay-host 的握手里判）。/ws 的升级处理对别的路径直接放过，这里接住。
+  const onRelayUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    if ((req.url || '').split('?')[0] !== RELAY_WS_PATH) return;
+    ctx.relay.host.handleUpgrade(req, socket, head);
+  };
+  server.on('upgrade', onRelayUpgrade);
+
+  const realtime = attachRealtimeWebSocketServer<RequestIdentity>(server, {
     hub: ctx.realtime,
     authenticate: (req) => ctx.auth.authenticateHeaders(req.headers),
     isHostAllowed: (req) => isRequestHostAllowed(req.headers, ctx.configManager.getConfig().allowedHosts),
@@ -72,9 +95,16 @@ export function attachRealtimeServer(server: Server, ctx: AppContext) {
     snapshotTopic,
     // 答复审批 / 澄清等同于在那个会话里操作：先判会话可见。
     respondInteraction: (sessionKey, id, response, identity) => (
-      canAccessSessionKey(identity, sessionKey)
+      canAccessSessionKey(identity, sessionKey) && ctx.roomCollab.interactions.canHandleSession(sessionKey, id, identity) !== false
         ? runCoordinator.respondInteraction(sessionKey, id, response)
         : { handled: false, resolved: false, error: 'forbidden' }
     ),
   });
+  return {
+    ...realtime,
+    close: async () => {
+      server.off('upgrade', onRelayUpgrade);
+      await realtime.close();
+    },
+  };
 }

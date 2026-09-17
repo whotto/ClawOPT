@@ -1,65 +1,26 @@
 /**
- * 群聊运行锁的陈旧判定。
+ * 群聊的运行锁（P3 起）。
  *
- * 背景：锁本身在 finally 里释放，不会因抛错泄漏；真正会卡死的是派发链路
- * 一直 await 不返回（文档工具首次 bootstrap 最长 20 分钟）。此时 finally 没执行，
- * 群就永久 409，用户只能 /stop。这里守的是「卡太久要能被接管」这条性质。
+ * 执行顺序由编排器的每 Agent 队列保证；引擎里剩两件事：
+ * - 每成员一把锁（兜底：绕开队列的路径、陈旧 worker 接管时同一个成员不会并发两轮）；
+ * - 同群的网关成员串行（网关运行的跟踪状态 `activeRuns` / `pendingRuns` 按群键，并发会写坏对账状态）。
+ * 原来的整轮群锁与「新消息准入」判据随 P3 删除：新消息永远受理并进队列，不再 409。
  */
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { GroupChatEngine } from '../src/collab/rooms/group-chat-engine';
+import { RoomFence } from '../src/collab/rooms/room-fence';
 
 /** 直接操作私有状态：这个类的构造要一整套依赖，测锁的行为不必把它们都搭起来。 */
 function makeEngine(): any {
   const engine = Object.create(GroupChatEngine.prototype);
-  engine.processingGroups = new Set<string>();
-  engine.processingSince = new Map<string, number>();
   engine.activeRuns = new Map();
   engine.pendingRuns = new Map();
+  engine.gatewayTurnChains = new Map();
+  Object.defineProperty(engine, 'fence', { value: new RoomFence() });
   return engine;
 }
 
 afterEach(() => vi.useRealTimers());
-
-describe('陈旧锁判定', () => {
-  it('刚开始跑的不算陈旧——正常并发仍要挡住', () => {
-    const engine = makeEngine();
-    engine.processingGroups.add('g1');
-    engine.processingSince.set('g1', Date.now());
-    expect(engine.isGroupLockStale('g1')).toBe(false);
-  });
-
-  it('没有持锁记录时不算陈旧', () => {
-    expect(makeEngine().isGroupLockStale('g1')).toBe(false);
-  });
-
-  it('超过 15 分钟判为陈旧，允许新一轮接管', () => {
-    const engine = makeEngine();
-    engine.processingGroups.add('g1');
-    engine.processingSince.set('g1', Date.now() - 16 * 60 * 1000);
-    expect(engine.isGroupLockStale('g1')).toBe(true);
-  });
-
-  it('14 分钟还不算——阈值不能松到把正常长任务也踢掉', () => {
-    const engine = makeEngine();
-    engine.processingSince.set('g1', Date.now() - 14 * 60 * 1000);
-    expect(engine.isGroupLockStale('g1')).toBe(false);
-  });
-
-  it('报告的持锁分钟数用于给用户一个能判断的数字', () => {
-    const engine = makeEngine();
-    engine.processingSince.set('g1', Date.now() - 3 * 60 * 1000 - 5000);
-    expect(engine.groupLockAgeMinutes('g1')).toBe(3);
-    expect(engine.groupLockAgeMinutes('未知群')).toBeNull();
-  });
-
-  it('不同群互不影响', () => {
-    const engine = makeEngine();
-    engine.processingSince.set('stuck', Date.now() - 20 * 60 * 1000);
-    engine.processingSince.set('fresh', Date.now());
-    expect(engine.isGroupLockStale('stuck')).toBe(true);
-    expect(engine.isGroupLockStale('fresh')).toBe(false);
-  });
-});
 
 /**
  * 每成员一把锁 —— v1.8.0。
@@ -168,60 +129,76 @@ describe('持锁快照（诊断用）', () => {
   });
 });
 
-/**
- * 新消息的准入判据 —— 与「群忙不忙」不是同一件事。
- *
- * ## 发现经过
- *
- * per-member 锁落地之后我以为改完了，实际**在生产上是空转的**：
- * `POST /api/groups/:id/messages` 仍然用 `isGroupProcessing()` 挡，而我把
- * `hasBusyMember()` 加进了那个判据——于是「任何一个成员在忙 → 整个群 409」，
- * 锁的粒度在 HTTP 层被整个抵消。昨天全绿是因为路由替它挡住了，用例里根本
- * 竞争不到。
- *
- * ## 为什么不能简单地全放开
- *
- * `activeRuns` / `pendingRuns` 都是**按 groupId 键**的（一个群只跟得住一次运行）。
- * 网关那条路上还有整套会话对账挂在这个假设上。全放开等于让两轮网关运行并发写
- * 同一份状态，而那套状态从没为并发设计过。
- *
- * 外部成员那条路不碰 `activeRuns`，所以对它开放是安全的。这就是下面这条判据：
- * **群级独占（重新生成）与网关运行仍然挡，纯外部成员在忙不挡。**
- */
-describe('新消息准入（与「群忙不忙」不是一回事）', () => {
-  it('外部成员在忙时**不挡**新消息——这正是 per-member 锁的目的', () => {
+describe('同群网关成员串行、外部成员不排队', () => {
+  const policy = { runIdleTimeoutSec: 600, runTotalBudgetSec: 3600 } as any;
+  const input = (memberId: string, agentId: string, runtime = 'openclaw') => ({
+    groupId: 'g1', member: { id: memberId, agent_id: agentId, display_name: agentId, runtime }, payload: {}, policy, onReplyCreated: () => {},
+  }) as any;
+
+  function gatewayEngine() {
     const e = memberEngine();
-    e.acquireMemberLock('g1', 'ext-engineer');
-    expect(e.isGroupProcessing('g1'), '展示层仍应认为群里有事在跑').toBe(true);
-    expect(e.isGroupBlockingNewMessage('g1'), '一个成员在忙就把整个群挡住了').toBe(false);
+    e.db = { getLatestGroupMessageId: () => 1 };
+    const started: string[] = [];
+    const releases = new Map<string, () => void>();
+    e.runGatewayMemberWithScope = (turn: any) => new Promise((resolve) => {
+      started.push(turn.input.member.id);
+      releases.set(turn.input.member.id, () => resolve({ status: 'completed', messageId: 2, text: 'ok' }));
+    });
+    e.runExternalMember = async (turn: any) => { started.push(turn.input.member.id); return { status: 'completed', messageId: 3, text: 'ok' }; };
+    return { e, started, releases };
+  }
+
+  it('第二个网关成员等第一个跑完才开跑', async () => {
+    const { e, started, releases } = gatewayEngine();
+    const first = e.executeTurn(input('m1', 'a'));
+    const second = e.executeTurn(input('m2', 'b'));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(started).toEqual(['m1']);
+    releases.get('m1')!();
+    await first;
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(started).toEqual(['m1', 'm2']);
+    releases.get('m2')!();
+    await second;
   });
 
-  it('重新生成持有群锁时挡住新消息', () => {
-    const e = memberEngine();
-    e.processingGroups.add('g1');
-    expect(e.isGroupBlockingNewMessage('g1')).toBe(true);
+  it('外部成员不等网关成员', async () => {
+    const { e, started, releases } = gatewayEngine();
+    const gateway = e.executeTurn(input('m1', 'a'));
+    await e.executeTurn(input('m3', 'c', 'claude-code'));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect([...started].sort()).toEqual(['m1', 'm3']);
+    releases.get('m1')!();
+    await gateway;
   });
 
-  it('网关路径有活跃运行时挡住——activeRuns 按群键，并发会写坏对账状态', () => {
-    const e = memberEngine();
-    e.activeRuns.set('g1', {} as any);
-    expect(e.isGroupBlockingNewMessage('g1')).toBe(true);
+  it('排队期间房间被清空：轮到时不开跑，回 reset', async () => {
+    const { e, started, releases } = gatewayEngine();
+    const first = e.executeTurn(input('m1', 'a'));
+    const second = e.executeTurn(input('m2', 'b'));
+    await new Promise((resolve) => setImmediate(resolve));
+    e.markGroupReset('g1');
+    releases.get('m1')!();
+    await first;
+    await expect(second).resolves.toMatchObject({ status: 'reset' });
+    expect(started).toEqual(['m1']);
   });
 
-  it('有待处理运行时也挡', () => {
-    const e = memberEngine();
-    e.pendingRuns.set('g1', {} as any);
-    expect(e.isGroupBlockingNewMessage('g1')).toBe(true);
+  it('成员锁被占：回 busy 并落一条系统提示', async () => {
+    const { e } = gatewayEngine();
+    e.saveSystemNotice = vi.fn();
+    e.acquireMemberLock('g1', 'a');
+    await expect(e.executeTurn(input('m1', 'a'))).resolves.toMatchObject({ status: 'busy' });
+    expect(e.saveSystemNotice).toHaveBeenCalled();
   });
 
-  it('什么都没有时放行', () => {
-    expect(memberEngine().isGroupBlockingNewMessage('g1')).toBe(false);
-  });
-
-  it('不串群', () => {
+  it('isMemberBusy 与 longestMemberRunMinutes 按群算', () => {
     const e = memberEngine();
-    e.processingGroups.add('g1');
-    expect(e.isGroupBlockingNewMessage('g2')).toBe(false);
+    e.acquireMemberLock('g1', 'a');
+    e.processingMembers.set(e.memberLockKey('g1', 'a'), Date.now() - 3 * 60 * 1000);
+    expect(e.isMemberBusy('g1', 'a')).toBe(true);
+    expect(e.isMemberBusy('g2', 'a')).toBe(false);
+    expect(e.longestMemberRunMinutes('g1')).toBe(3);
+    expect(e.longestMemberRunMinutes('g2')).toBeNull();
   });
 });
-

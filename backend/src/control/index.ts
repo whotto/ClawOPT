@@ -420,3 +420,7 @@ export {
 export type {
   PerformanceRoutesDeps,
 } from './performance/performance-routes';
+
+// P3：群工作区每次运行的 diff 复用写入审批的行级 diff（同一份实现，不另写一份）。
+export { diffLines, unifiedDiff } from './write-gate/line-diff';
+export type { DiffOp } from './write-gate/line-diff';

@@ -5,6 +5,21 @@
     "context": "block.path"
   },
   {
+    "file": "collab/rooms/room-attachments.ts",
+    "call": "appendFileSync",
+    "context": "session.tempPath"
+  },
+  {
+    "file": "collab/rooms/room-workspace.ts",
+    "call": "readFileSync",
+    "context": "abs"
+  },
+  {
+    "file": "collab/rooms/room-workspace.ts",
+    "call": "writeFileSync",
+    "context": "temp"
+  },
+  {
     "file": "collab/sessions/chat-attachments.ts",
     "call": "readFileSync",
     "context": "attachment.path"

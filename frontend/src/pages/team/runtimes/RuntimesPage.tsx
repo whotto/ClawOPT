@@ -16,6 +16,7 @@ import DiagnoseDialog from './DiagnoseDialog';
 import RuntimeCard from './RuntimeCard';
 import RuntimeConfigPage from './RuntimeConfigPage';
 import RuntimeHomesCard from './RuntimeHomesCard';
+import RelayLinksPanel from '../../../features/rooms/RelayLinksPanel';
 import {
   buildDiagnosePrompt,
   parseRuntimeQuery,
@@ -177,6 +178,9 @@ export default function RuntimesPage() {
       )}
 
       <RuntimeHomesCard />
+
+      {/* P3：把本机 Agent 接进别人的群（远程 Agent relay 的 target 侧） */}
+      <RelayLinksPanel />
 
       {diagnose && (
         <DiagnoseDialog

@@ -59,6 +59,9 @@ import { createMemoryService } from '../memory';
 import { createMcpServerService } from '../mcp-server';
 import { createVoiceService } from '../voice';
 import { createScopedProviderResolver } from './scoped-provider-resolver';
+import { createRoomSummaryRunner } from './room-summary-runner';
+import { createRelay } from '../collab/relay';
+import { isRequestHostAllowed } from './host-check';
 import {
   createChatCommands,
   createChatLifecycle,
@@ -70,6 +73,7 @@ import {
   TaskPlanStore,
 } from '../collab/sessions';
 import {
+  createRoomCollab,
   createRoomEngine,
   createRoomMessages,
   createRoomReconciliation,
@@ -154,8 +158,10 @@ export function createAppContext() {
     },
   });
   // 运行时目录定期清扫的判据：归属还在，而且还在用这个运行时（成员换了运行时，旧运行时的目录算孤儿）。
+  const relayRef: { current: { target: { ownsHome(sessionId: string): boolean } } | null } = { current: null };
   runtimePlatform.manager.homeOwnerExists = (owner, runtime) => {
-    if (owner.kind === 'session') return Boolean(db.getSession(owner.sessionId));
+    // relay target 链接（`relay-link-<id>`）的运行时目录跟着链接走。
+    if (owner.kind === 'session') return Boolean(db.getSession(owner.sessionId)) || Boolean(relayRef.current?.target.ownsHome(owner.sessionId));
     if (owner.kind === 'room-member') {
       return db.getGroupMembers(owner.groupId).some((member) => member.id === owner.memberId && member.runtime === runtime);
     }
@@ -205,12 +211,47 @@ export function createAppContext() {
       const session = db.getSession(sessionId);
       return session ? chatSessionAccessAgentId(session) : null;
     },
-    roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).map(groupMemberAccessAgentId) : null),
+    // 远程 Agent（relay 成员）不是本机 Agent：不参与「群里有没有自己的 Agent」的可见性判定（P3）。
+    roomAgentIds: (groupId) => (db.getGroupChat(groupId) ? db.getGroupMembers(groupId).filter((member) => member.runtime !== 'relay').map(groupMemberAccessAgentId) : null),
     runSessionAgentId: (sessionKey) => db.getRunSession(sessionKey)?.agent_id ?? null,
     uploadSessionKey: (storedName) => (db.getFileByStoredName(storedName)?.session_key as string | undefined) || null,
   };
   const access = createResourceAccess({ canAccessAgent: auth.canAccessAgent, lookup: resourceLookup });
   const uploads = createUploadService({ ...base, access });
+  /** 群协作（P3）：结构化 @、每 Agent 队列、交接续跑、摘要、审批路由、工作区 diff、远程 Agent。 */
+  const roomCollab = createRoomCollab({
+    db,
+    rooms,
+    access,
+    identityForUser: (userId) => {
+      const user = userStore.get(userId);
+      if (!user || user.status !== 'active') return null;
+      return { userId: user.id, username: user.username, role: user.role, implicit: false, mustChangePassword: user.mustChangePassword };
+    },
+    loginEnabled: () => configManager.getConfig().loginEnabled === true,
+    runCoordinator,
+    realtime,
+    summaryRunner: createRoomSummaryRunner({
+      proxy: providerProxy,
+      resolveScopedProvider: createScopedProviderResolver(agentProvisioner),
+      agentRunner: () => automation.agentRunner,
+    }),
+  });
+  /**
+   * 远程 Agent relay（P3）：本实例既可以当 host（别人的 Agent 经配对接进来，群成员 runtime = relay），
+   * 也可以当 target（把本机的运行时接进别人的群）。远程成员的适配器从这里取，其余运行时照旧从登记处取。
+   */
+  const relay = createRelay({
+    db,
+    roomCollab,
+    runCoordinator,
+    createAdapter: (runtime) => runtimePlatform.createAdapter(runtime),
+    emitMessage: (payload) => rooms.groupChatEngine.emit('message', payload),
+    isHostAllowed: (req) => isRequestHostAllowed(req.headers, configManager.getConfig().allowedHosts),
+    dataDir: path.dirname(defaultRuntimeDataDir()),
+  });
+  rooms.groupChatEngine.useRuntimeAdapters((runtime) => (runtime === 'relay' ? relay.host.adapter : runtimePlatform.createAdapter(runtime)));
+  relayRef.current = relay;
   const packs = createPackService({ ...base, agentSettings, workflowPacks: automation.packBundles });
   const chatLifecycle = createChatLifecycle({ ...base, sessionRuntime, gatewayConnections });
   const chatCommands = createChatCommands({ ...base, gatewayConnections });
@@ -292,6 +333,8 @@ export function createAppContext() {
     directChat,
     roomRuntime,
     rooms,
+    roomCollab,
+    relay,
     roomReconciliation,
     auth,
     access,

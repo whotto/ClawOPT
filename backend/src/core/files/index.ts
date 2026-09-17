@@ -22,6 +22,7 @@ export type {
 } from './safe-file-store';
 export {
   isCredentialLikeFileName,
+  isSensitiveRelativePath,
   resolveServablePath,
   servableRoots,
   servedPathOwner,
